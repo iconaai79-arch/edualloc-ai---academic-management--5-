@@ -260,6 +260,26 @@ const cleanRemedialRateSettings = (rec: any) => {
         meta.max_weekend_lessons_per_day = copy.max_weekend_lessons_per_day;
         meta.maxWeekendLessonsPerDay = copy.max_weekend_lessons_per_day;
     }
+    if (copy.maxLessonsPerClassPerDay !== undefined && copy.max_lessons_per_class_per_day === undefined) copy.max_lessons_per_class_per_day = copy.maxLessonsPerClassPerDay;
+    if (copy.max_lessons_per_class_per_day !== undefined) {
+        meta.max_lessons_per_class_per_day = copy.max_lessons_per_class_per_day;
+        meta.maxLessonsPerClassPerDay = copy.max_lessons_per_class_per_day;
+    }
+    if (copy.maxWeekendLessonsPerClassPerDay !== undefined && copy.max_weekend_lessons_per_class_per_day === undefined) copy.max_weekend_lessons_per_class_per_day = copy.maxWeekendLessonsPerClassPerDay;
+    if (copy.max_weekend_lessons_per_class_per_day !== undefined) {
+        meta.max_weekend_lessons_per_class_per_day = copy.max_weekend_lessons_per_class_per_day;
+        meta.maxWeekendLessonsPerClassPerDay = copy.max_weekend_lessons_per_class_per_day;
+    }
+    if (copy.maxLessonsPerTeacherPerDay !== undefined && copy.max_lessons_per_teacher_per_day === undefined) copy.max_lessons_per_teacher_per_day = copy.maxLessonsPerTeacherPerDay;
+    if (copy.max_lessons_per_teacher_per_day !== undefined) {
+        meta.max_lessons_per_teacher_per_day = copy.max_lessons_per_teacher_per_day;
+        meta.maxLessonsPerTeacherPerDay = copy.max_lessons_per_teacher_per_day;
+    }
+    if (copy.maxWeekendLessonsPerTeacherPerDay !== undefined && copy.max_weekend_lessons_per_teacher_per_day === undefined) copy.max_weekend_lessons_per_teacher_per_day = copy.maxWeekendLessonsPerTeacherPerDay;
+    if (copy.max_weekend_lessons_per_teacher_per_day !== undefined) {
+        meta.max_weekend_lessons_per_teacher_per_day = copy.max_weekend_lessons_per_teacher_per_day;
+        meta.maxWeekendLessonsPerTeacherPerDay = copy.max_weekend_lessons_per_teacher_per_day;
+    }
     if (copy.cancellationCutoffHours !== undefined && copy.cancellation_cutoff_hours === undefined) copy.cancellation_cutoff_hours = copy.cancellationCutoffHours;
     if (copy.cancellation_cutoff_hours !== undefined) {
         meta.cancellation_cutoff_hours = copy.cancellation_cutoff_hours;
@@ -370,6 +390,10 @@ const cleanRemedialRateSettings = (rec: any) => {
     delete copy.sundayEndTime;
     delete copy.maxLessonsPerDay;
     delete copy.maxWeekendLessonsPerDay;
+    delete copy.maxLessonsPerClassPerDay;
+    delete copy.maxWeekendLessonsPerClassPerDay;
+    delete copy.maxLessonsPerTeacherPerDay;
+    delete copy.maxWeekendLessonsPerTeacherPerDay;
     delete copy.cancellationCutoffHours;
     delete copy.confirmationTimeoutMinutes;
     delete copy.teacherPreferences;
@@ -2650,7 +2674,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             'saturday_break_start_time', 'saturday_break_end_time', 'saturday_break_label', 'include_saturday_break',
                             'sunday_break_start_time', 'sunday_break_end_time', 'sunday_break_label', 'include_sunday_break',
                             'weekend_break_start_time', 'weekend_break_end_time', 'weekend_break_label', 'include_weekend_break',
-                            'max_weekend_lessons_per_day', 'cancellation_cutoff_hours', 'confirmation_timeout_minutes',
+                            'max_weekend_lessons_per_day',
+                            'max_lessons_per_class_per_day', 'max_weekend_lessons_per_class_per_day',
+                            'max_lessons_per_teacher_per_day', 'max_weekend_lessons_per_teacher_per_day',
+                            'cancellation_cutoff_hours', 'confirmation_timeout_minutes',
                             'teacher_preferences', 'weekday_duty_flat_rate', 'fee_per_student', 'term_fee',
                             'updated_at', 'created_at'
                         ];

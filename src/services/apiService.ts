@@ -5404,9 +5404,10 @@ export const apiService = {
             const sunBreakEnd = r.sundayBreakEndTime ?? r.sunday_break_end_time ?? meta.sundayBreakEndTime ?? meta.sunday_break_end_time ?? '11:30';
             const sunBreakLabel = r.sundayBreakLabel ?? r.sunday_break_label ?? meta.sundayBreakLabel ?? meta.sunday_break_label ?? 'Sunday Recess Break';
             const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? meta.includeSundayBreak ?? meta.include_sunday_break ?? r.includeWeekendBreak ?? r.include_weekend_break ?? true;
-            const tPrefs = r.teacherPreferences ?? r.teacher_preferences ?? meta.teacherPreferences ?? meta.teacher_preferences ?? {};
-            const tCodes = r.teacherCodes ?? r.teacher_codes ?? meta.teacherCodes ?? meta.teacher_codes ?? {};
-            const wDutyRate = r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200;
+            const maxClassWeekday = r.maxLessonsPerClassPerDay ?? r.max_lessons_per_class_per_day ?? meta.maxLessonsPerClassPerDay ?? meta.max_lessons_per_class_per_day ?? 1;
+            const maxClassWeekend = r.maxWeekendLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? meta.maxWeekendLessonsPerClassPerDay ?? meta.max_weekend_lessons_per_class_per_day ?? 2;
+            const maxTeacherWeekday = r.maxLessonsPerTeacherPerDay ?? r.max_lessons_per_teacher_per_day ?? meta.maxLessonsPerTeacherPerDay ?? meta.max_lessons_per_teacher_per_day ?? r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1;
+            const maxTeacherWeekend = r.maxWeekendLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? meta.maxWeekendLessonsPerTeacherPerDay ?? meta.max_weekend_lessons_per_teacher_per_day ?? r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? 2;
 
             return {
                 ...r,
@@ -5434,10 +5435,18 @@ export const apiService = {
                 sunday_start_time: sunStart,
                 sundayEndTime: sunEnd,
                 sunday_end_time: sunEnd,
-                maxLessonsPerDay: r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1,
-                max_lessons_per_day: r.max_lessons_per_day ?? r.maxLessonsPerDay ?? 1,
-                maxWeekendLessonsPerDay: r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? meta.max_weekend_lessons_per_day ?? 2,
-                max_weekend_lessons_per_day: r.max_weekend_lessons_per_day ?? r.maxWeekendLessonsPerDay ?? meta.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? 2,
+                maxLessonsPerDay: maxTeacherWeekday,
+                max_lessons_per_day: maxTeacherWeekday,
+                maxWeekendLessonsPerDay: maxTeacherWeekend,
+                max_weekend_lessons_per_day: maxTeacherWeekend,
+                maxLessonsPerClassPerDay: maxClassWeekday,
+                max_lessons_per_class_per_day: maxClassWeekday,
+                maxWeekendLessonsPerClassPerDay: maxClassWeekend,
+                max_weekend_lessons_per_class_per_day: maxClassWeekend,
+                maxLessonsPerTeacherPerDay: maxTeacherWeekday,
+                max_lessons_per_teacher_per_day: maxTeacherWeekday,
+                maxWeekendLessonsPerTeacherPerDay: maxTeacherWeekend,
+                max_weekend_lessons_per_teacher_per_day: maxTeacherWeekend,
                 cancellationCutoffHours: r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? meta.cancellation_cutoff_hours ?? 3,
                 cancellation_cutoff_hours: r.cancellation_cutoff_hours ?? r.cancellationCutoffHours ?? meta.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? 3,
                 confirmationTimeoutMinutes: r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? meta.confirmationTimeoutMinutes ?? meta.confirmation_timeout_minutes ?? 45,

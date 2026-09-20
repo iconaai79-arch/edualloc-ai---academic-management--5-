@@ -6631,8 +6631,16 @@ export interface RemedialRateSetting {
     saturday_end_time?: string;
     sunday_start_time?: string;
     sunday_end_time?: string;
-    maxLessonsPerDay?: number;        // weekday limit (legacy + default)
-    maxWeekendLessonsPerDay?: number; // weekend-specific limit
+    maxLessonsPerDay?: number;        // weekday limit (legacy + default teacher limit)
+    maxWeekendLessonsPerDay?: number; // weekend-specific limit (legacy + default teacher limit)
+    maxLessonsPerClassPerDay?: number; // weekday max lessons per class / stream (default: 1)
+    max_lessons_per_class_per_day?: number;
+    maxWeekendLessonsPerClassPerDay?: number; // weekend max lessons per class / stream (default: 2)
+    max_weekend_lessons_per_class_per_day?: number;
+    maxLessonsPerTeacherPerDay?: number; // weekday max lessons per teacher (default: 1)
+    max_lessons_per_teacher_per_day?: number;
+    maxWeekendLessonsPerTeacherPerDay?: number; // weekend max lessons per teacher (default: 2)
+    max_weekend_lessons_per_teacher_per_day?: number;
     weekendBreakStartTime?: string;
     weekendBreakEndTime?: string;
     weekendBreakLabel?: string;

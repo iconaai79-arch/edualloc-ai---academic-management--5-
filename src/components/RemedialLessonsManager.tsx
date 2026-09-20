@@ -165,6 +165,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [saturdayEndTime, setSaturdayEndTime] = useState<string>('12:00');
     const [sundayStartTime, setSundayStartTime] = useState<string>('09:00');
     const [sundayEndTime, setSundayEndTime] = useState<string>('13:00');
+    const [maxLessonsPerClassPerDay, setMaxLessonsPerClassPerDay] = useState<number>(1);
+    const [maxWeekendLessonsPerClassPerDay, setMaxWeekendLessonsPerClassPerDay] = useState<number>(2);
+    const [maxLessonsPerTeacherPerDay, setMaxLessonsPerTeacherPerDay] = useState<number>(1);
+    const [maxWeekendLessonsPerTeacherPerDay, setMaxWeekendLessonsPerTeacherPerDay] = useState<number>(2);
     const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerDay, setMaxWeekendLessonsPerDay] = useState<number>(2);
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
@@ -291,8 +295,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 r.metadata?.max_weekend_lessons_per_day ?? 
                                 (cachedWeekendLimit ? Number(cachedWeekendLimit) : undefined) ?? 
                                 2;
-        setMaxLessonsPerDay(r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1);
-        setMaxWeekendLessonsPerDay(weekendLimitVal);
+        const classWdLimit = r.maxLessonsPerClassPerDay ?? r.max_lessons_per_class_per_day ?? r.metadata?.maxLessonsPerClassPerDay ?? r.metadata?.max_lessons_per_class_per_day ?? 1;
+        const classWeLimit = r.maxWeekendLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? r.metadata?.maxWeekendLessonsPerClassPerDay ?? r.metadata?.max_weekend_lessons_per_class_per_day ?? weekendLimitVal;
+        const teacherWdLimit = r.maxLessonsPerTeacherPerDay ?? r.max_lessons_per_teacher_per_day ?? r.maxLessonsPerDay ?? r.max_lessons_per_day ?? r.metadata?.maxLessonsPerTeacherPerDay ?? r.metadata?.max_lessons_per_teacher_per_day ?? 1;
+        const teacherWeLimit = r.maxWeekendLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? weekendLimitVal;
+
+        setMaxLessonsPerClassPerDay(classWdLimit);
+        setMaxWeekendLessonsPerClassPerDay(classWeLimit);
+        setMaxLessonsPerTeacherPerDay(teacherWdLimit);
+        setMaxWeekendLessonsPerTeacherPerDay(teacherWeLimit);
+        setMaxLessonsPerDay(teacherWdLimit);
+        setMaxWeekendLessonsPerDay(teacherWeLimit);
         setFeePerStudent(r.feePerStudent ?? r.fee_per_student ?? 200);
         setTermFee(r.termFee ?? r.term_fee ?? 3000);
         const legBreakStart = r.weekendBreakStartTime || r.weekend_break_start_time || r.metadata?.weekendBreakStartTime || r.metadata?.weekend_break_start_time || '10:00';
@@ -1624,8 +1637,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const isWeekend = ['Saturday', 'Sunday'].includes(day);
 
             if (!isWeekend) {
-                // Strict 1 period per day rule for weekdays
-                const classHasWeekdayLesson = allocations.some(a => {
+                // Class daily quota limit for weekdays
+                const classWeekdayAllocs = allocations.filter(a => {
                     if (editingAlloc && a.id === editingAlloc.id) return false;
                     if (a.dayOfWeek !== day) return false;
                     const sameCourse = a.courseId === allocCourseId || a.className === courseName;
@@ -1636,7 +1649,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
-                if (classHasWeekdayLesson) continue;
+                const classWdLimit = maxLessonsPerClassPerDay || 1;
+                if (classWeekdayAllocs.length >= classWdLimit) continue;
+
+                // Teacher daily quota limit for weekdays
+                if (allocTeacherId) {
+                    const teacherWeekdayAllocs = allocations.filter(a => {
+                        if (editingAlloc && a.id === editingAlloc.id) return false;
+                        return a.teacherId === allocTeacherId && a.dayOfWeek === day;
+                    });
+                    const teacherWdLimit = maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1;
+                    if (teacherWeekdayAllocs.length >= teacherWdLimit) continue;
+                }
 
                 const startT = weekdayStartTime || '16:00';
                 const endT = weekdayEndTime || '18:00';
@@ -1668,8 +1692,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
-                const limit = maxWeekendLessonsPerDay || 2;
-                if (satAllocs.length >= limit) continue;
+                const classSatLimit = maxWeekendLessonsPerClassPerDay || 2;
+                if (satAllocs.length >= classSatLimit) continue;
+
+                if (allocTeacherId) {
+                    const teacherSatAllocs = allocations.filter(a => {
+                        if (editingAlloc && a.id === editingAlloc.id) return false;
+                        return a.teacherId === allocTeacherId && a.dayOfWeek === 'Saturday';
+                    });
+                    const teacherSatLimit = maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
+                    if (teacherSatAllocs.length >= teacherSatLimit) continue;
+                }
 
                 // Candidate slots for Saturday
                 const satSlots: { start: string; end: string; periodNum: number }[] = [];
@@ -1720,8 +1753,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
-                const limit = maxWeekendLessonsPerDay || 2;
-                if (sunAllocs.length >= limit) continue;
+                const classSunLimit = maxWeekendLessonsPerClassPerDay || 2;
+                if (sunAllocs.length >= classSunLimit) continue;
+
+                if (allocTeacherId) {
+                    const teacherSunAllocs = allocations.filter(a => {
+                        if (editingAlloc && a.id === editingAlloc.id) return false;
+                        return a.teacherId === allocTeacherId && a.dayOfWeek === 'Sunday';
+                    });
+                    const teacherSunLimit = maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
+                    if (teacherSunAllocs.length >= teacherSunLimit) continue;
+                }
 
                 // Candidate slots for Sunday
                 const sunSlots: { start: string; end: string; periodNum: number }[] = [];
@@ -1776,7 +1818,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         } else {
             alert(`No conflict-free slots found across permitted days (${candidateDays.join(', ')}) for this class and teacher.\n\nAll candidate periods are already booked. You can check the Unallocated shelf or enable 'Allow manual override'.`);
         }
-    }, [allocCourseId, courses, isJointAlloc, jointStreamsSelected, allocStream, customAllocStream, remedialSubjects, allocSubjectId, customSubjectName, allocations, editingAlloc, weekdayStartTime, weekdayEndTime, allocTeacherId, maxWeekendLessonsPerDay, includeSaturdayBreak, saturdayStartTime, saturdayBreakStartTime, saturdayBreakEndTime, saturdayEndTime, includeSundayBreak, sundayStartTime, sundayBreakStartTime, sundayBreakEndTime, sundayEndTime, teachersList]);
+    }, [allocCourseId, courses, isJointAlloc, jointStreamsSelected, allocStream, customAllocStream, remedialSubjects, allocSubjectId, customSubjectName, allocations, editingAlloc, weekdayStartTime, weekdayEndTime, allocTeacherId, maxLessonsPerClassPerDay, maxWeekendLessonsPerClassPerDay, maxLessonsPerTeacherPerDay, maxWeekendLessonsPerTeacherPerDay, maxLessonsPerDay, maxWeekendLessonsPerDay, includeSaturdayBreak, saturdayStartTime, saturdayBreakStartTime, saturdayBreakEndTime, saturdayEndTime, includeSundayBreak, sundayStartTime, sundayBreakStartTime, sundayBreakEndTime, sundayEndTime, teachersList]);
 
     // Available streams for manual session log modal
     const availableStreamsForManualLog = useMemo(() => {
@@ -2180,7 +2222,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Save Rate Settings (including teacher preferences)
     const handleSaveRates = async () => {
         try {
-            safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_class_wd_max_${institutionId}`, String(maxLessonsPerClassPerDay));
+            safeLocalStorage.setItem(`eduai_remedial_class_we_max_${institutionId}`, String(maxWeekendLessonsPerClassPerDay));
             safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(teacherPreferences));
             const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
             const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') ? rateSetting.metadata : {};
@@ -2210,10 +2254,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 sunday_start_time: sundayStartTime,
                 sundayEndTime,
                 sunday_end_time: sundayEndTime,
-                maxLessonsPerDay,
-                max_lessons_per_day: maxLessonsPerDay,
-                maxWeekendLessonsPerDay,
-                max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                maxLessonsPerClassPerDay,
+                max_lessons_per_class_per_day: maxLessonsPerClassPerDay,
+                maxWeekendLessonsPerClassPerDay,
+                max_weekend_lessons_per_class_per_day: maxWeekendLessonsPerClassPerDay,
+                maxLessonsPerTeacherPerDay,
+                max_lessons_per_teacher_per_day: maxLessonsPerTeacherPerDay,
+                maxWeekendLessonsPerTeacherPerDay,
+                max_weekend_lessons_per_teacher_per_day: maxWeekendLessonsPerTeacherPerDay,
+                maxLessonsPerDay: maxLessonsPerTeacherPerDay,
+                max_lessons_per_day: maxLessonsPerTeacherPerDay,
+                maxWeekendLessonsPerDay: maxWeekendLessonsPerTeacherPerDay,
+                max_weekend_lessons_per_day: maxWeekendLessonsPerTeacherPerDay,
                 cancellationCutoffHours,
                 cancellation_cutoff_hours: cancellationCutoffHours,
                 confirmationTimeoutMinutes,
@@ -2254,8 +2306,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sunday_start_time: sundayStartTime,
                     sundayEndTime,
                     sunday_end_time: sundayEndTime,
-                    maxWeekendLessonsPerDay,
-                    max_weekend_lessons_per_day: maxWeekendLessonsPerDay,
+                    maxLessonsPerClassPerDay,
+                    max_lessons_per_class_per_day: maxLessonsPerClassPerDay,
+                    maxWeekendLessonsPerClassPerDay,
+                    max_weekend_lessons_per_class_per_day: maxWeekendLessonsPerClassPerDay,
+                    maxLessonsPerTeacherPerDay,
+                    max_lessons_per_teacher_per_day: maxLessonsPerTeacherPerDay,
+                    maxWeekendLessonsPerTeacherPerDay,
+                    max_weekend_lessons_per_teacher_per_day: maxWeekendLessonsPerTeacherPerDay,
+                    maxLessonsPerDay: maxLessonsPerTeacherPerDay,
+                    max_lessons_per_day: maxLessonsPerTeacherPerDay,
+                    maxWeekendLessonsPerDay: maxWeekendLessonsPerTeacherPerDay,
+                    max_weekend_lessons_per_day: maxWeekendLessonsPerTeacherPerDay,
                     cancellationCutoffHours,
                     cancellation_cutoff_hours: cancellationCutoffHours,
                     confirmationTimeoutMinutes,
@@ -2452,18 +2514,34 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return alert('Please fill in all fields');
         }
 
-        // Daily Lesson Limit Check (weekday vs weekend)
+        // Daily Lesson Limit Check (weekday vs weekend) for both Teacher and Class/Stream
         const manualDateObj = new Date(manualDate);
         const dayStr = manualDateObj.toDateString();
+        const isWeekendDate = [0, 6].includes(manualDateObj.getDay());
+        const limitLabel = isWeekendDate ? 'weekend' : 'weekday';
+
+        // 1. Check Class / Stream Daily Limit
+        const existingClassSessionsOnDate = sessions.filter(s => {
+            const isSameDate = new Date(s.startTime).toDateString() === dayStr;
+            if (!isSameDate) return false;
+            const sameCourse = s.courseId === manualCourseId;
+            if (!sameCourse) return false;
+            return manualStream === 'All Streams' || s.stream === manualStream || s.stream === 'All Streams';
+        });
+        const effectiveClassDailyLimit = isWeekendDate ? (maxWeekendLessonsPerClassPerDay || 2) : (maxLessonsPerClassPerDay || 1);
+        if (existingClassSessionsOnDate.length >= effectiveClassDailyLimit) {
+            const courseName = courses.find(c => c.id === manualCourseId)?.name || 'Class';
+            return alert(`Daily Class Quota Exceeded: ${courseName} (${manualStream}) has already reached the maximum ${limitLabel} limit of ${effectiveClassDailyLimit} remedial lesson(s) on ${manualDate}.`);
+        }
+
+        // 2. Check Teacher Daily Limit
         const existingTeacherSessionsOnDate = sessions.filter(s => {
             return s.teacherId === manualTeacherId && new Date(s.startTime).toDateString() === dayStr;
         });
-        const isWeekendDate = [0, 6].includes(manualDateObj.getDay());
-        const effectiveDailyLimit = isWeekendDate ? maxWeekendLessonsPerDay : maxLessonsPerDay;
-        const limitLabel = isWeekendDate ? 'weekend' : 'weekday';
-
-        if (existingTeacherSessionsOnDate.length >= effectiveDailyLimit) {
-            return alert(`Daily Quota Exceeded: Teacher has already reached the maximum ${limitLabel} limit of ${effectiveDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
+        const effectiveTeacherDailyLimit = isWeekendDate ? (maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2) : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+        if (existingTeacherSessionsOnDate.length >= effectiveTeacherDailyLimit) {
+            const teacherName = users.find(u => u.id === manualTeacherId)?.name || 'Teacher';
+            return alert(`Daily Teacher Quota Exceeded: ${teacherName} has already reached the maximum ${limitLabel} limit of ${effectiveTeacherDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
         }
 
         try {
@@ -3427,8 +3505,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             `• Allocated Classes: ${allocatedCourses.map(c => c.name).join(', ')}\n` +
             `• Unallocated Classes: Strictly skipped (will not be generated).\n` +
             `• Designated Teachers: Lessons generated strictly to teachers with manual allocations for each class & subject.\n` +
-            `• Weekday 1-Period Rule: Strictly 1 remedial period per day per class on weekdays (Monday - Friday).\n` +
-            `• Weekend Lessons: Up to ${maxWeekendLessonsPerDay} sessions per day on Saturday/Sunday.\n` +
+            `• Class Daily Limits: Up to ${maxLessonsPerClassPerDay || 1} lesson(s)/day on weekdays, and ${maxWeekendLessonsPerClassPerDay || 2} lesson(s)/day on weekends.\n` +
+            `• Teacher Daily Limits: Up to ${maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1} lesson(s)/day on weekdays, and ${maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2} lesson(s)/day on weekends.\n` +
             `• Preservation: Existing manual allocations are kept intact.`;
 
         if (!window.confirm(confirmMsg)) return;
@@ -3652,16 +3730,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 const isWeekend = ['Saturday', 'Sunday'].includes(day);
                                 const sKey = `${course.id}_${targetStream}`;
 
-                                // STRICT 1 PERIOD PER DAY ON WEEKDAYS FOR THIS STREAM:
-                                if (!isWeekend && streamDayBooked[sKey]?.has(day)) continue;
-
                                 const existingStreamCountOnDay = [...manualAllocs, ...newAllocations].filter(a =>
                                     (a.courseId === course.id || a.className?.trim().toLowerCase() === course.name.trim().toLowerCase()) &&
                                     (targetStream === 'All Streams' || a.stream === targetStream || a.stream === 'All Streams' || a.isJoint || a.is_joint) &&
                                     a.dayOfWeek === day
                                 ).length;
 
-                                const maxAllowedOnDay = isWeekend ? maxWeekendLessonsPerDay : 1;
+                                const maxAllowedOnDay = isWeekend ? (maxWeekendLessonsPerClassPerDay || 2) : (maxLessonsPerClassPerDay || 1);
                                 if (existingStreamCountOnDay >= maxAllowedOnDay) continue;
 
                                 let candidateStartTime = weekdayStartTime || '16:00';
@@ -3679,7 +3754,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 // Strictly check designated teacher availability first (teacher cannot teach 2 streams at once)
                                 if (designatedTeacher) {
                                     const dailyCount = teacherDailyCount[designatedTeacher.id]?.[day] || 0;
-                                    const tLimit = isWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+                                    const tLimit = isWeekend ? (maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2) : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
                                     const isTimeSlotFree = !teacherSlotBooked[designatedTeacher.id]?.has(`${day}_${candidateStartTime}`);
 
                                     if (dailyCount < tLimit && isTimeSlotFree) {
@@ -3704,14 +3779,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 for (const fbDay of fallbackDays) {
                                     const fbIsWeekend = ['Saturday', 'Sunday'].includes(fbDay);
                                     const sKey = `${course.id}_${targetStream}`;
-                                    if (!fbIsWeekend && streamDayBooked[sKey]?.has(fbDay)) continue;
 
                                     const fbExistingStreamCount = [...manualAllocs, ...newAllocations].filter(a =>
                                         (a.courseId === course.id || a.className?.trim().toLowerCase() === course.name.trim().toLowerCase()) &&
                                         (targetStream === 'All Streams' || a.stream === targetStream || a.stream === 'All Streams' || a.isJoint || a.is_joint) &&
                                         a.dayOfWeek === fbDay
                                     ).length;
-                                    const fbMax = fbIsWeekend ? maxWeekendLessonsPerDay : 1;
+                                    const fbMax = fbIsWeekend ? (maxWeekendLessonsPerClassPerDay || 2) : (maxLessonsPerClassPerDay || 1);
                                     if (fbExistingStreamCount >= fbMax) continue;
 
                                     let fbStartTime = weekdayStartTime || '16:00';
@@ -3727,7 +3801,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                                     if (designatedTeacher) {
                                         const dailyCount = teacherDailyCount[designatedTeacher.id]?.[fbDay] || 0;
-                                        const tLimit = fbIsWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+                                        const tLimit = fbIsWeekend ? (maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2) : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
                                         const isTimeSlotFree = !teacherSlotBooked[designatedTeacher.id]?.has(`${fbDay}_${fbStartTime}`);
 
                                         if (dailyCount < tLimit && isTimeSlotFree) {
@@ -4125,8 +4199,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     (a.courseId === viol.courseId || a.className === viol.className) &&
                     (viol.stream === 'All Streams' || a.stream === 'All Streams' || a.stream === viol.stream || a.isJoint || viol.isJoint)
                 );
-                const limit = maxWeekendLessonsPerDay || 2;
+                const limit = maxWeekendLessonsPerClassPerDay || maxWeekendLessonsPerDay || 2;
                 if (existingInClass.length < limit) {
+                    const teacherWeekendCount = updatedAllocations.filter(a => 
+                        a.id !== viol.id &&
+                        !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
+                        a.teacherId === viol.teacherId &&
+                        a.dayOfWeek === d
+                    ).length;
+                    const tWeekendLimit = maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
+                    if (teacherWeekendCount >= tWeekendLimit) continue;
+
                     let startT = '';
                     let endT = '';
                     const streamDayCount = existingInClass.length;
@@ -11094,44 +11177,123 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             {/* 3. Daily Lessons Quotas & Limits */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
                                 <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                    <Layers className="w-3.5 h-3.5" /> Daily Lesson Quota Limits
+                                    <Layers className="w-3.5 h-3.5" /> Daily Lesson Quota Limits (Class vs Teacher)
                                 </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">🗓️ Weekday Max Lessons Per Teacher / Day</label>
-                                        <select 
-                                            value={maxLessonsPerDay}
-                                            onChange={e => setMaxLessonsPerDay(Number(e.target.value))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                        >
-                                            <option value={1}>1 Lesson per Day</option>
-                                            <option value={2}>2 Lessons per Day</option>
-                                            <option value={3}>3 Lessons per Day</option>
-                                            <option value={4}>4 Lessons per Day</option>
-                                            <option value={5}>5 Lessons per Day</option>
-                                            <option value={99}>Unlimited (No Cap)</option>
-                                        </select>
-                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Mon – Fri.</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                    Easily decouple and control how many remedial lessons a <strong>single class or stream</strong> can receive per day versus how many lessons an <strong>individual teacher</strong> is allowed to teach per day.
+                                </p>
+
+                                {/* Group 1: Class / Stream Load Quotas */}
+                                <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-950/60 shadow-sm space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs">
+                                            🎓
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">Class / Stream Daily Quota</h4>
+                                            <p className="text-[9px] text-slate-400 font-medium">Limits how many remedial lessons a single class or stream can have on a given day.</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-amber-500 mb-1.5">📅 Weekend Max Lessons Per Teacher / Day</label>
-                                        <select 
-                                            value={maxWeekendLessonsPerDay}
-                                            onChange={e => setMaxWeekendLessonsPerDay(Number(e.target.value))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
-                                        >
-                                            <option value={1}>1 Lesson per Day</option>
-                                            <option value={2}>2 Lessons per Day</option>
-                                            <option value={3}>3 Lessons per Day</option>
-                                            <option value={4}>4 Lessons per Day</option>
-                                            <option value={5}>5 Lessons per Day</option>
-                                            <option value={6}>6 Lessons per Day</option>
-                                            <option value={99}>Unlimited (No Cap)</option>
-                                        </select>
-                                        <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Sat &amp; Sun — weekends can allow more sessions.</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                                                🗓️ Weekday Max Lessons per Class
+                                            </label>
+                                            <select 
+                                                value={maxLessonsPerClassPerDay}
+                                                onChange={e => setMaxLessonsPerClassPerDay(Number(e.target.value))}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            >
+                                                <option value={1}>1 Lesson per Day (Standard)</option>
+                                                <option value={2}>2 Lessons per Day</option>
+                                                <option value={3}>3 Lessons per Day</option>
+                                                <option value={4}>4 Lessons per Day</option>
+                                                <option value={99}>Unlimited (No Cap)</option>
+                                            </select>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Mon – Fri to each stream.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
+                                                📅 Weekend Max Lessons per Class
+                                            </label>
+                                            <select 
+                                                value={maxWeekendLessonsPerClassPerDay}
+                                                onChange={e => setMaxWeekendLessonsPerClassPerDay(Number(e.target.value))}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                            >
+                                                <option value={1}>1 Lesson per Day</option>
+                                                <option value={2}>2 Lessons per Day (Standard)</option>
+                                                <option value={3}>3 Lessons per Day</option>
+                                                <option value={4}>4 Lessons per Day</option>
+                                                <option value={5}>5 Lessons per Day</option>
+                                                <option value={6}>6 Lessons per Day</option>
+                                                <option value={99}>Unlimited (No Cap)</option>
+                                            </select>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Applies Sat &amp; Sun to each stream.</p>
+                                        </div>
                                     </div>
                                 </div>
-                                <p className="text-[9px] text-slate-400 font-medium">Prevents teachers or admins from exceeding the configured daily maximum. Weekday and weekend caps are enforced independently.</p>
+
+                                {/* Group 2: Teacher Workload Quotas */}
+                                <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
+                                            👨‍🏫
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">Teacher Daily Teaching Quota</h4>
+                                            <p className="text-[9px] text-slate-400 font-medium">Limits total lessons an educator can teach across all classes in one day.</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                                                🗓️ Weekday Max Lessons per Teacher
+                                            </label>
+                                            <select 
+                                                value={maxLessonsPerTeacherPerDay}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setMaxLessonsPerTeacherPerDay(val);
+                                                    setMaxLessonsPerDay(val);
+                                                }}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            >
+                                                <option value={1}>1 Lesson per Day</option>
+                                                <option value={2}>2 Lessons per Day</option>
+                                                <option value={3}>3 Lessons per Day</option>
+                                                <option value={4}>4 Lessons per Day</option>
+                                                <option value={5}>5 Lessons per Day</option>
+                                                <option value={99}>Unlimited (No Cap)</option>
+                                            </select>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Prevents teacher fatigue Mon – Fri.</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1.5">
+                                                📅 Weekend Max Lessons per Teacher
+                                            </label>
+                                            <select 
+                                                value={maxWeekendLessonsPerTeacherPerDay}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setMaxWeekendLessonsPerTeacherPerDay(val);
+                                                    setMaxWeekendLessonsPerDay(val);
+                                                }}
+                                                className="w-full bg-slate-50 dark:bg-slate-800/80 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                            >
+                                                <option value={1}>1 Lesson per Day</option>
+                                                <option value={2}>2 Lessons per Day</option>
+                                                <option value={3}>3 Lessons per Day</option>
+                                                <option value={4}>4 Lessons per Day</option>
+                                                <option value={5}>5 Lessons per Day</option>
+                                                <option value={6}>6 Lessons per Day</option>
+                                                <option value={99}>Unlimited (No Cap)</option>
+                                            </select>
+                                            <p className="text-[9px] text-slate-400 mt-1 font-medium">Maximum sessions per teacher on Sat &amp; Sun.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-[9px] text-slate-400 font-medium">Class limits and Teacher workload caps are enforced independently by both auto-allocation and manual scheduling.</p>
                             </div>
 
                             {/* 4. Parent Fees */}

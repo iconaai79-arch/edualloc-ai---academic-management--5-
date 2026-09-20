@@ -1,6 +1,7 @@
 -- Migration: 405_ensure_remedial_rates_and_rules_schema_complete.sql
 -- Purpose: Fully ensure school_remedial_rate_settings and school_remedial_subjects schemas
--- have all columns, JSONB metadata, day/period restrictions, timing windows, breaks, and RLS policies.
+-- have all columns, JSONB metadata, day/period restrictions, timing windows, breaks,
+-- separate class vs teacher daily lesson quotas, and RLS policies.
 
 -- 1. SCHOOL REMEDIAL RATE SETTINGS
 CREATE TABLE IF NOT EXISTS public.school_remedial_rate_settings (
@@ -20,6 +21,10 @@ CREATE TABLE IF NOT EXISTS public.school_remedial_rate_settings (
     sunday_end_time TEXT DEFAULT '13:00',
     max_lessons_per_day INTEGER DEFAULT 1,
     max_weekend_lessons_per_day INTEGER DEFAULT 2,
+    max_lessons_per_class_per_day INTEGER DEFAULT 1,
+    max_weekend_lessons_per_class_per_day INTEGER DEFAULT 2,
+    max_lessons_per_teacher_per_day INTEGER DEFAULT 1,
+    max_weekend_lessons_per_teacher_per_day INTEGER DEFAULT 2,
     cancellation_cutoff_hours NUMERIC DEFAULT 3,
     confirmation_timeout_minutes NUMERIC DEFAULT 45,
     teacher_preferences JSONB DEFAULT '{}'::jsonb,
@@ -58,6 +63,10 @@ ALTER TABLE public.school_remedial_rate_settings
     ADD COLUMN IF NOT EXISTS sunday_end_time TEXT DEFAULT '13:00',
     ADD COLUMN IF NOT EXISTS max_lessons_per_day INTEGER DEFAULT 1,
     ADD COLUMN IF NOT EXISTS max_weekend_lessons_per_day INTEGER DEFAULT 2,
+    ADD COLUMN IF NOT EXISTS max_lessons_per_class_per_day INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS max_weekend_lessons_per_class_per_day INTEGER DEFAULT 2,
+    ADD COLUMN IF NOT EXISTS max_lessons_per_teacher_per_day INTEGER DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS max_weekend_lessons_per_teacher_per_day INTEGER DEFAULT 2,
     ADD COLUMN IF NOT EXISTS cancellation_cutoff_hours NUMERIC DEFAULT 3,
     ADD COLUMN IF NOT EXISTS confirmation_timeout_minutes NUMERIC DEFAULT 45,
     ADD COLUMN IF NOT EXISTS teacher_preferences JSONB DEFAULT '{}'::jsonb,
