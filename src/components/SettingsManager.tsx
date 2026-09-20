@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type {
     User, Department, Subject, Building, Room, AllocationRequest,
     TimetableEntry, SmsConfig, EmailConfig, LetterheadConfig,
