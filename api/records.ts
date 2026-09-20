@@ -340,6 +340,16 @@ const cleanRemedialRateSettings = (rec: any) => {
         meta.include_weekend_break = copy.include_weekend_break;
         meta.includeWeekendBreak = copy.include_weekend_break;
     }
+    if (copy.weekdayDutyFlatRate !== undefined && copy.weekday_duty_flat_rate === undefined) copy.weekday_duty_flat_rate = copy.weekdayDutyFlatRate;
+    if (copy.weekday_duty_flat_rate !== undefined) {
+        meta.weekday_duty_flat_rate = copy.weekday_duty_flat_rate;
+        meta.weekdayDutyFlatRate = copy.weekday_duty_flat_rate;
+    }
+    if (copy.teacherCodes !== undefined || copy.teacher_codes !== undefined) {
+        const codes = copy.teacherCodes || copy.teacher_codes;
+        meta.teacherCodes = codes;
+        meta.teacher_codes = codes;
+    }
     if (copy.feePerStudent !== undefined && copy.fee_per_student === undefined) copy.fee_per_student = copy.feePerStudent;
     if (copy.termFee !== undefined && copy.term_fee === undefined) copy.term_fee = copy.termFee;
     copy.updated_at = new Date().toISOString();
@@ -349,6 +359,7 @@ const cleanRemedialRateSettings = (rec: any) => {
     delete copy.hourlyRate;
     delete copy.weekdayHourlyRate;
     delete copy.weekendHourlyRate;
+    delete copy.weekdayDutyFlatRate;
     delete copy.weekdayStartTime;
     delete copy.weekdayEndTime;
     delete copy.weekendStartTime;
@@ -362,6 +373,8 @@ const cleanRemedialRateSettings = (rec: any) => {
     delete copy.cancellationCutoffHours;
     delete copy.confirmationTimeoutMinutes;
     delete copy.teacherPreferences;
+    delete copy.teacherCodes;
+    delete copy.teacher_codes;
     delete copy.weekendBreakStartTime;
     delete copy.weekendBreakEndTime;
     delete copy.weekendBreakLabel;
@@ -376,6 +389,65 @@ const cleanRemedialRateSettings = (rec: any) => {
     delete copy.includeSundayBreak;
     delete copy.feePerStudent;
     delete copy.termFee;
+    return copy;
+};
+
+const cleanRemedialSubject = (rec: any) => {
+    if (!rec || typeof rec !== 'object') return rec;
+    const copy = { ...rec };
+    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+    if (copy.subjectId && !copy.subject_id) copy.subject_id = copy.subjectId;
+    if (copy.subjectName !== undefined && copy.subject_name === undefined) copy.subject_name = copy.subjectName;
+    if (copy.isActive !== undefined && copy.is_active === undefined) copy.is_active = copy.isActive;
+    if (copy.weeklyOccurrences !== undefined && copy.weekly_occurrences === undefined) copy.weekly_occurrences = copy.weeklyOccurrences;
+    if (copy.preferredDayType !== undefined && copy.preferred_day_type === undefined) copy.preferred_day_type = copy.preferredDayType;
+
+    // Normalize and preserve allowed_days
+    const rawAllowedDays = copy.allowedDays ?? copy.allowed_days ?? meta.allowedDays ?? meta.allowed_days ?? [];
+    const normAllowedDays = Array.isArray(rawAllowedDays) ? rawAllowedDays : [];
+    copy.allowed_days = normAllowedDays;
+    meta.allowedDays = normAllowedDays;
+    meta.allowed_days = normAllowedDays;
+
+    // Normalize and preserve allowed_periods
+    const rawAllowedPeriods = copy.allowedPeriods ?? copy.allowed_periods ?? meta.allowedPeriods ?? meta.allowed_periods ?? [];
+    const normAllowedPeriods = Array.isArray(rawAllowedPeriods) ? rawAllowedPeriods : [];
+    copy.allowed_periods = normAllowedPeriods;
+    meta.allowedPeriods = normAllowedPeriods;
+    meta.allowed_periods = normAllowedPeriods;
+
+    if (copy.priority !== undefined) meta.priority = copy.priority;
+    if (copy.weekly_occurrences !== undefined) {
+        meta.weeklyOccurrences = copy.weekly_occurrences;
+        meta.weekly_occurrences = copy.weekly_occurrences;
+    }
+    if (copy.preferred_day_type !== undefined) {
+        meta.preferredDayType = copy.preferred_day_type;
+        meta.preferred_day_type = copy.preferred_day_type;
+    }
+    if (copy.subject_name !== undefined) {
+        meta.subjectName = copy.subject_name;
+        meta.subject_name = copy.subject_name;
+    }
+    if (copy.is_active !== undefined) {
+        meta.isActive = copy.is_active;
+        meta.is_active = copy.is_active;
+    }
+
+    copy.updated_at = new Date().toISOString();
+    copy.metadata = meta;
+
+    delete copy.institutionId;
+    delete copy.subjectId;
+    delete copy.subjectName;
+    delete copy.isActive;
+    delete copy.weeklyOccurrences;
+    delete copy.preferredDayType;
+    delete copy.allowedDays;
+    delete copy.allowedPeriods;
+
     return copy;
 };
 
@@ -1504,6 +1576,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (moduleName === 'school_remedial_rate_settings') {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialRateSettings) : cleanRemedialRateSettings(currentPayload);
             }
+            if (moduleName === 'school_remedial_subjects') {
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialSubject) : cleanRemedialSubject(currentPayload);
+            }
 
             if (moduleName === 'school_remedial_allocations') {
                 const cleanRemedialAllocation = (rec: any) => {
@@ -2428,6 +2503,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            if (moduleName === 'school_remedial_subjects') {
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRemedialSubject) : cleanRemedialSubject(currentPayload);
+            }
+
             if (moduleName === 'institution_module_states' || targetDbTable === 'institution_module_states') {
                 const checkItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
                 const instId = checkItem?.institution_id || checkItem?.institutionId;
@@ -2535,6 +2614,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripAllocExtended) : stripAllocExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'school_remedial_subjects') {
+                        const EXTENDED_SUB_COLS = [
+                            'allowed_days', 'allowed_periods', 'priority', 'weekly_occurrences', 'preferred_day_type', 'is_active', 'updated_at', 'created_at'
+                        ];
+                        const stripSubExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            EXTENDED_SUB_COLS.forEach(c => {
+                                if (copy[c] !== undefined && copy[c] !== null) {
+                                    meta[c] = copy[c];
+                                    delete copy[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            } else {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripSubExtended) : stripSubExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'school_remedial_rate_settings') {
+                        const EXTENDED_RATE_COLS = [
+                            'saturday_start_time', 'saturday_end_time', 'sunday_start_time', 'sunday_end_time',
+                            'saturday_break_start_time', 'saturday_break_end_time', 'saturday_break_label', 'include_saturday_break',
+                            'sunday_break_start_time', 'sunday_break_end_time', 'sunday_break_label', 'include_sunday_break',
+                            'weekend_break_start_time', 'weekend_break_end_time', 'weekend_break_label', 'include_weekend_break',
+                            'max_weekend_lessons_per_day', 'cancellation_cutoff_hours', 'confirmation_timeout_minutes',
+                            'teacher_preferences', 'weekday_duty_flat_rate', 'fee_per_student', 'term_fee',
+                            'updated_at', 'created_at'
+                        ];
+                        const stripRateExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            EXTENDED_RATE_COLS.forEach(c => {
+                                if (copy[c] !== undefined && copy[c] !== null) {
+                                    meta[c] = copy[c];
+                                    delete copy[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            } else {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripRateExtended) : stripRateExtended(currentPayload);
                         maxRetries--;
                         continue;
                     }

@@ -1915,19 +1915,54 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Update specific subject rule (Priority, Weekly Occurrences, Preferred Day Placement)
+    // Update specific subject rule (Priority, Weekly Occurrences, Preferred Day Placement, Day/Period Restrictions)
     const handleUpdateSubjectRule = async (remSub: RemedialSubject, updates: Partial<RemedialSubject>) => {
         try {
+            const existingMeta = (typeof remSub.metadata === 'object' && remSub.metadata !== null) ? { ...remSub.metadata } : {};
+            const nextAllowedDays = updates.allowedDays !== undefined ? updates.allowedDays : (remSub.allowedDays || []);
+            const nextAllowedPeriods = updates.allowedPeriods !== undefined ? updates.allowedPeriods : (remSub.allowedPeriods || []);
+            const nextPriority = updates.priority ?? remSub.priority ?? 'Medium';
+            const nextOcc = updates.weeklyOccurrences ?? remSub.weeklyOccurrences ?? 1;
+            const nextDayType = updates.preferredDayType ?? remSub.preferredDayType ?? 'any';
+
             const updated: RemedialSubject = {
                 ...remSub,
-                ...updates
+                ...updates,
+                allowedDays: nextAllowedDays,
+                allowed_days: nextAllowedDays,
+                allowedPeriods: nextAllowedPeriods,
+                allowed_periods: nextAllowedPeriods,
+                priority: nextPriority,
+                weeklyOccurrences: nextOcc,
+                weekly_occurrences: nextOcc,
+                preferredDayType: nextDayType,
+                preferred_day_type: nextDayType,
+                metadata: {
+                    ...existingMeta,
+                    ...((updates as any).metadata || {}),
+                    allowedDays: nextAllowedDays,
+                    allowed_days: nextAllowedDays,
+                    allowedPeriods: nextAllowedPeriods,
+                    allowed_periods: nextAllowedPeriods,
+                    priority: nextPriority,
+                    weeklyOccurrences: nextOcc,
+                    weekly_occurrences: nextOcc,
+                    preferredDayType: nextDayType,
+                    preferred_day_type: nextDayType
+                }
             };
+            setRemedialSubjects(prev => {
+                const nextList = prev.map(s => s.id === remSub.id ? updated : s);
+                if (institutionId) {
+                    safeLocalStorage.setItem(`remedial_subjects_${institutionId}`, JSON.stringify(nextList));
+                }
+                return nextList;
+            });
             if (typeof (apiService as any).saveRemedialSubject === 'function') {
                 await (apiService as any).saveRemedialSubject(updated);
             } else {
                 await apiService.saveModuleRecord('school_remedial_subjects', updated);
             }
-            setRemedialSubjects(prev => prev.map(s => s.id === remSub.id ? updated : s));
             onLogAction?.(`Updated remedial rules for ${remSub.subjectName}: Priority ${updated.priority || 'Medium'}, ${updated.weeklyOccurrences || 1}x/wk`);
         } catch (err: any) {
             alert('Failed to update subject rule: ' + err.message);
@@ -2157,6 +2192,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 weekday_hourly_rate: weekdayHourlyRate,
                 weekendHourlyRate,
                 weekend_hourly_rate: weekendHourlyRate,
+                weekdayDutyFlatRate,
+                weekday_duty_flat_rate: weekdayDutyFlatRate,
                 weekdayStartTime,
                 weekday_start_time: weekdayStartTime,
                 weekdayEndTime,
@@ -2248,7 +2285,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sundayBreakLabel,
                     sunday_break_label: sundayBreakLabel,
                     teacherPreferences,
-                    teacher_preferences: teacherPreferences
+                    teacher_preferences: teacherPreferences,
+                    teacherCodes,
+                    teacher_codes: teacherCodes,
+                    weekdayDutyFlatRate,
+                    weekday_duty_flat_rate: weekdayDutyFlatRate
                 },
                 feePerStudent,
                 fee_per_student: feePerStudent,
@@ -2258,6 +2299,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institution_id: institutionId
             };
             setRateSetting(data);
+            safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify([data]));
             await apiService.saveRemedialRateSetting(data);
             setLastSavedPrefsTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
             onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Cutoff ${cancellationCutoffHours}h, Timeout ${confirmationTimeoutMinutes}m, Teacher Preferred Days configured`);

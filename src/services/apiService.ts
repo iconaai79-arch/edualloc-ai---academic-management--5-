@@ -5388,7 +5388,96 @@ export const apiService = {
     // Remedial Module
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { return apiService.fetchModuleRecords('school_remedial_sessions', instId); },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { await apiService.saveModuleRecord('school_remedial_sessions', data); },
-    async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> { return apiService.fetchModuleRecords('school_remedial_rate_settings', instId); },
+    async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> {
+        const records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);
+        return (records || []).map((r: any) => {
+            const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+            const satStart = r.saturdayStartTime ?? r.saturday_start_time ?? meta.saturdayStartTime ?? meta.saturday_start_time ?? r.weekendStartTime ?? r.weekend_start_time ?? '08:00';
+            const satEnd = r.saturdayEndTime ?? r.saturday_end_time ?? meta.saturdayEndTime ?? meta.saturday_end_time ?? r.weekendEndTime ?? r.weekend_end_time ?? '12:00';
+            const sunStart = r.sundayStartTime ?? r.sunday_start_time ?? meta.sundayStartTime ?? meta.sunday_start_time ?? r.weekendStartTime ?? r.weekend_start_time ?? '09:00';
+            const sunEnd = r.sundayEndTime ?? r.sunday_end_time ?? meta.sundayEndTime ?? meta.sunday_end_time ?? r.weekendEndTime ?? r.weekend_end_time ?? '13:00';
+            const satBreakStart = r.saturdayBreakStartTime ?? r.saturday_break_start_time ?? meta.saturdayBreakStartTime ?? meta.saturday_break_start_time ?? r.weekendBreakStartTime ?? r.weekend_break_start_time ?? '10:00';
+            const satBreakEnd = r.saturdayBreakEndTime ?? r.saturday_break_end_time ?? meta.saturdayBreakEndTime ?? meta.saturday_break_end_time ?? r.weekendBreakEndTime ?? r.weekend_break_end_time ?? '10:30';
+            const satBreakLabel = r.saturdayBreakLabel ?? r.saturday_break_label ?? meta.saturdayBreakLabel ?? meta.saturday_break_label ?? r.weekendBreakLabel ?? r.weekend_break_label ?? 'Saturday Refreshment Break';
+            const satIncBreak = r.includeSaturdayBreak ?? r.include_saturday_break ?? meta.includeSaturdayBreak ?? meta.include_saturday_break ?? r.includeWeekendBreak ?? r.include_weekend_break ?? true;
+            const sunBreakStart = r.sundayBreakStartTime ?? r.sunday_break_start_time ?? meta.sundayBreakStartTime ?? meta.sunday_break_start_time ?? '11:00';
+            const sunBreakEnd = r.sundayBreakEndTime ?? r.sunday_break_end_time ?? meta.sundayBreakEndTime ?? meta.sunday_break_end_time ?? '11:30';
+            const sunBreakLabel = r.sundayBreakLabel ?? r.sunday_break_label ?? meta.sundayBreakLabel ?? meta.sunday_break_label ?? 'Sunday Recess Break';
+            const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? meta.includeSundayBreak ?? meta.include_sunday_break ?? r.includeWeekendBreak ?? r.include_weekend_break ?? true;
+            const tPrefs = r.teacherPreferences ?? r.teacher_preferences ?? meta.teacherPreferences ?? meta.teacher_preferences ?? {};
+            const tCodes = r.teacherCodes ?? r.teacher_codes ?? meta.teacherCodes ?? meta.teacher_codes ?? {};
+            const wDutyRate = r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200;
+
+            return {
+                ...r,
+                hourlyRate: r.hourlyRate ?? r.hourly_rate ?? 1000,
+                hourly_rate: r.hourly_rate ?? r.hourlyRate ?? 1000,
+                weekdayHourlyRate: r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? 1000,
+                weekday_hourly_rate: r.weekday_hourly_rate ?? r.weekdayHourlyRate ?? r.hourlyRate ?? 1000,
+                weekendHourlyRate: r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500,
+                weekend_hourly_rate: r.weekend_hourly_rate ?? r.weekendHourlyRate ?? 1500,
+                weekdayDutyFlatRate: wDutyRate,
+                weekday_duty_flat_rate: wDutyRate,
+                weekdayStartTime: r.weekdayStartTime ?? r.weekday_start_time ?? '16:00',
+                weekday_start_time: r.weekday_start_time ?? r.weekdayStartTime ?? '16:00',
+                weekdayEndTime: r.weekdayEndTime ?? r.weekday_end_time ?? '18:00',
+                weekday_end_time: r.weekday_end_time ?? r.weekdayEndTime ?? '18:00',
+                weekendStartTime: satStart,
+                weekend_start_time: satStart,
+                weekendEndTime: satEnd,
+                weekend_end_time: satEnd,
+                saturdayStartTime: satStart,
+                saturday_start_time: satStart,
+                saturdayEndTime: satEnd,
+                saturday_end_time: satEnd,
+                sundayStartTime: sunStart,
+                sunday_start_time: sunStart,
+                sundayEndTime: sunEnd,
+                sunday_end_time: sunEnd,
+                maxLessonsPerDay: r.maxLessonsPerDay ?? r.max_lessons_per_day ?? 1,
+                max_lessons_per_day: r.max_lessons_per_day ?? r.maxLessonsPerDay ?? 1,
+                maxWeekendLessonsPerDay: r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? meta.max_weekend_lessons_per_day ?? 2,
+                max_weekend_lessons_per_day: r.max_weekend_lessons_per_day ?? r.maxWeekendLessonsPerDay ?? meta.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? 2,
+                cancellationCutoffHours: r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? meta.cancellation_cutoff_hours ?? 3,
+                cancellation_cutoff_hours: r.cancellation_cutoff_hours ?? r.cancellationCutoffHours ?? meta.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? 3,
+                confirmationTimeoutMinutes: r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? meta.confirmationTimeoutMinutes ?? meta.confirmation_timeout_minutes ?? 45,
+                confirmation_timeout_minutes: r.confirmation_timeout_minutes ?? r.confirmationTimeoutMinutes ?? meta.confirmation_timeout_minutes ?? meta.confirmationTimeoutMinutes ?? 45,
+                teacherPreferences: tPrefs,
+                teacher_preferences: tPrefs,
+                teacherCodes: tCodes,
+                teacher_codes: tCodes,
+                saturdayBreakStartTime: satBreakStart,
+                saturday_break_start_time: satBreakStart,
+                saturdayBreakEndTime: satBreakEnd,
+                saturday_break_end_time: satBreakEnd,
+                saturdayBreakLabel: satBreakLabel,
+                saturday_break_label: satBreakLabel,
+                includeSaturdayBreak: satIncBreak !== false,
+                include_saturday_break: satIncBreak !== false,
+                sundayBreakStartTime: sunBreakStart,
+                sunday_break_start_time: sunBreakStart,
+                sundayBreakEndTime: sunBreakEnd,
+                sunday_break_end_time: sunBreakEnd,
+                sundayBreakLabel: sunBreakLabel,
+                sunday_break_label: sunBreakLabel,
+                includeSundayBreak: sunIncBreak !== false,
+                include_sunday_break: sunIncBreak !== false,
+                weekendBreakStartTime: satBreakStart,
+                weekend_break_start_time: satBreakStart,
+                weekendBreakEndTime: satBreakEnd,
+                weekend_break_end_time: satBreakEnd,
+                weekendBreakLabel: satBreakLabel,
+                weekend_break_label: satBreakLabel,
+                includeWeekendBreak: satIncBreak !== false,
+                include_weekend_break: satIncBreak !== false,
+                feePerStudent: r.feePerStudent ?? r.fee_per_student ?? 200,
+                fee_per_student: r.fee_per_student ?? r.feePerStudent ?? 200,
+                termFee: r.termFee ?? r.term_fee ?? 3000,
+                term_fee: r.term_fee ?? r.termFee ?? 3000,
+                metadata: meta
+            };
+        });
+    },
     async saveRemedialRateSetting(data: Partial<RemedialRateSetting>): Promise<void> { await apiService.saveModuleRecord('school_remedial_rate_settings', data); },
     async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { return apiService.fetchModuleRecords('school_remedial_payouts', instId); },
     async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { await apiService.saveModuleRecord('school_remedial_payouts', data); },
@@ -5414,7 +5503,42 @@ export const apiService = {
         });
     },
     async saveRemedialAllocation(data: Partial<RemedialAllocation>): Promise<void> { await apiService.saveModuleRecord('school_remedial_allocations', data); },
-    async fetchRemedialSubjects(instId?: string): Promise<RemedialSubject[]> { return apiService.fetchModuleRecords('school_remedial_subjects', instId); },
+    async fetchRemedialSubjects(instId?: string): Promise<RemedialSubject[]> {
+        const records = await apiService.fetchModuleRecords('school_remedial_subjects', instId);
+        return (records || []).map((r: any) => {
+            const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+            const rawAllowedDays = r.allowedDays ?? r.allowed_days ?? meta.allowedDays ?? meta.allowed_days ?? [];
+            const allowedDays = Array.isArray(rawAllowedDays) ? rawAllowedDays : [];
+            const rawAllowedPeriods = r.allowedPeriods ?? r.allowed_periods ?? meta.allowedPeriods ?? meta.allowed_periods ?? [];
+            const allowedPeriods = Array.isArray(rawAllowedPeriods) ? rawAllowedPeriods : [];
+            const prefDayType = r.preferredDayType ?? r.preferred_day_type ?? meta.preferredDayType ?? meta.preferred_day_type ?? 'any';
+            const priorityVal = r.priority ?? meta.priority ?? 'Medium';
+            const occVal = r.weeklyOccurrences ?? r.weekly_occurrences ?? meta.weeklyOccurrences ?? meta.weekly_occurrences ?? 1;
+            const subNameVal = r.subjectName ?? r.subject_name ?? meta.subjectName ?? meta.subject_name ?? '';
+            const subIdVal = r.subjectId ?? r.subject_id ?? meta.subjectId ?? meta.subject_id ?? '';
+            const isActiveVal = r.isActive ?? r.is_active ?? meta.isActive ?? meta.is_active ?? true;
+
+            return {
+                ...r,
+                subjectId: subIdVal,
+                subject_id: subIdVal,
+                subjectName: subNameVal,
+                subject_name: subNameVal,
+                isActive: isActiveVal !== false,
+                is_active: isActiveVal !== false,
+                priority: priorityVal,
+                weeklyOccurrences: Number(occVal) || 1,
+                weekly_occurrences: Number(occVal) || 1,
+                preferredDayType: prefDayType,
+                preferred_day_type: prefDayType,
+                allowedDays,
+                allowed_days: allowedDays,
+                allowedPeriods,
+                allowed_periods: allowedPeriods,
+                metadata: meta
+            };
+        });
+    },
     async saveRemedialSubject(data: Partial<RemedialSubject>): Promise<void> { await apiService.saveModuleRecord('school_remedial_subjects', data); },
     async deleteRemedialSubject(id: string): Promise<void> { await apiService.deleteModuleRecord('school_remedial_subjects', id); },
     // Corporate Invoicing & Billing Services
