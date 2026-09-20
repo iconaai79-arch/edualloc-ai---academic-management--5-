@@ -3778,27 +3778,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             let unallocatedCount = 0;
 
             // Candidate slots in order of priority:
+            // STRICT RULE: Only 1 period per weekday, using the configured evening window.
             const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
-                // Weekday morning 07:00 - 08:10
-                { day: 'Wednesday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Thursday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Friday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Monday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Tuesday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                
-                // Weekday evening Period 2 (16:00 - 17:00 or weekdayStartTime)
-                { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Wednesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Thursday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Friday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Monday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-
-                // Weekday evening Period 3 (17:00 - 18:00)
-                { day: 'Monday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Tuesday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Wednesday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Thursday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Friday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
+                // Weekday evening window (1 period per day, Mon-Fri)
+                { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Wednesday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Thursday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Friday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Monday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
 
                 // Saturday slots
                 { day: 'Saturday', startTime: saturdayStartTime || '08:00', endTime: '09:00', isWeekend: true },
@@ -3951,26 +3938,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             let placedCount = 0;
 
             const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
-                // Weekday morning 07:00 - 08:10
-                { day: 'Wednesday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Thursday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Friday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Monday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-                { day: 'Tuesday', startTime: '07:00', endTime: '08:10', isWeekend: false },
-
-                // Weekday evening Period 2 (16:00 - 17:00 or weekdayStartTime)
-                { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Wednesday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Thursday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Friday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-                { day: 'Monday', startTime: weekdayStartTime || '16:00', endTime: addMinutesToTime(weekdayStartTime || '16:00', 60), isWeekend: false },
-
-                // Weekday evening Period 3 (17:00 - 18:00)
-                { day: 'Monday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Tuesday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Wednesday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Thursday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
-                { day: 'Friday', startTime: addMinutesToTime(weekdayStartTime || '16:00', 60), endTime: weekdayEndTime || '18:00', isWeekend: false },
+                // STRICT RULE: Only 1 period per weekday, using the configured evening window.
+                { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Wednesday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Thursday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Friday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
+                { day: 'Monday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
 
                 // Saturday slots
                 { day: 'Saturday', startTime: saturdayStartTime || '08:00', endTime: '09:00', isWeekend: true },
@@ -7502,37 +7475,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     }
 
                     // Weekday slots (Mon - Fri)
-                    const dayTimes = Array.from(new Set(
-                        allocations
-                            .filter(a => a.dayOfWeek === day && a.startTime)
-                            .map(a => a.startTime as string)
-                    )).sort();
-
-                    if (dayTimes.length <= 1) {
-                        const wStart = dayTimes[0] || weekdayStartTime || '16:00';
-                        const matchingAlloc = allocations.find(a => a.dayOfWeek === day && a.startTime === wStart && a.endTime);
-                        const wEnd = matchingAlloc?.endTime || weekdayEndTime || addMinutesToTime(wStart, 60);
-                        return [
-                            { 
-                                periodNum: 1, 
-                                startTime: wStart, 
-                                endTime: wEnd, 
-                                label: `P1 (${wStart}-${wEnd})` 
-                            }
-                        ];
-                    }
-
-                    return dayTimes.map((t, idx) => {
-                        const matchingAlloc = allocations.find(a => a.dayOfWeek === day && a.startTime === t && a.endTime);
-                        const endT = matchingAlloc?.endTime 
-                            || (t === (weekdayStartTime || '16:00') ? (weekdayEndTime || '18:00') : addMinutesToTime(t, 60));
-                        return {
-                            periodNum: idx + 1,
-                            startTime: t,
-                            endTime: endT,
-                            label: `P${idx + 1} (${t}-${endT})`
-                        };
-                    });
+                    // STRICT RULE: Only 1 period per weekday — always use the configured evening window.
+                    // All allocations on this weekday (regardless of startTime) are displayed in this single column.
+                    const wStart = weekdayStartTime || '16:00';
+                    const wEnd = weekdayEndTime || '18:00';
+                    return [
+                        {
+                            periodNum: 1,
+                            startTime: wStart,
+                            endTime: wEnd,
+                            label: `P1 (${wStart}-${wEnd})`
+                        }
+                    ];
                 };
 
                 const matchAllocsForCell = (cls: { className: string; stream: string }, day: string, slot: AscGridSlot) => {
@@ -7545,6 +7499,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         const matchStream = matchAllocationStream(a, cls.stream);
                         if (!matchStream) return false;
 
+                        // For weekdays: only 1 period column exists, so match ALL allocations on this day
+                        const isWeekday = !['Saturday', 'Sunday'].includes(day);
+                        if (isWeekday) return true;
+
+                        // For weekends: match by time window as before
                         if (slot.startTime && slot.endTime) {
                             if (a.startTime) {
                                 return a.startTime === slot.startTime || (a.startTime >= slot.startTime && a.startTime < slot.endTime);
