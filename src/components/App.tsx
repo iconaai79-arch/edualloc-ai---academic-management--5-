@@ -1280,8 +1280,8 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
                         }
 
                         const visitorNotifSyncedKey = 'eduai_visitor_notif_synced_v407';
-                        if (!sessionStorage.getItem(visitorNotifSyncedKey)) {
-                            sessionStorage.setItem(visitorNotifSyncedKey, 'true');
+                        if (!localStorage.getItem(visitorNotifSyncedKey)) {
+                            localStorage.setItem(visitorNotifSyncedKey, 'true');
                             apiService.runMigration(`
                                 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS notify_host_sms BOOLEAN DEFAULT FALSE;
                                 ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS host_phone TEXT;
@@ -1292,8 +1292,8 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
                         }
 
                         const teacherCheckinSyncedKey = 'eduai_teacher_checkin_synced_v278';
-                        if (!sessionStorage.getItem(teacherCheckinSyncedKey)) {
-                            sessionStorage.setItem(teacherCheckinSyncedKey, 'true');
+                        if (!localStorage.getItem(teacherCheckinSyncedKey)) {
+                            localStorage.setItem(teacherCheckinSyncedKey, 'true');
                             apiService.runMigration(`
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT);
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(UUID, UUID, VARCHAR, VARCHAR, TEXT);

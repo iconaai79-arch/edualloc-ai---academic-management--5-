@@ -232,7 +232,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const pool = new Pool({
                     connectionString: cleanConnString,
                     ssl: { rejectUnauthorized: false },
-                    connectionTimeoutMillis: 10000 
+                    connectionTimeoutMillis: 10000,
+                    max: 1, // Single connection per serverless execution to prevent connection exhaustion
+                    idleTimeoutMillis: 1000
                 });
 
                 // Helper to split multi-statement SQL without breaking DO $$ blocks or quotes
