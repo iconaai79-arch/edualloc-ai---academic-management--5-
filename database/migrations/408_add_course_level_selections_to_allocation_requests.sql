@@ -1,8 +1,9 @@
--- Migration 408: Add course_level_selections and created_at to allocation_requests
+-- Migration 408: Add course_level_selections, created_at, and subject_ids to allocation_requests
 -- Purpose: Prevent PGRST204 schema cache stale warning/errors when saving allocation requests
 
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS course_level_selections JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS course_level_ids TEXT[] DEFAULT '{}';
+ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS subject_ids TEXT[] DEFAULT '{}';
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;

@@ -501,6 +501,7 @@ CREATE TABLE IF NOT EXISTS allocation_requests (
     signature_url TEXT,
     course_level_ids TEXT[] DEFAULT '{}',
     course_level_selections JSONB DEFAULT '{}'::jsonb,
+    subject_ids TEXT[] DEFAULT '{}',
     proposed_changes JSONB
 );
 

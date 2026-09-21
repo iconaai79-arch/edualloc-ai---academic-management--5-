@@ -2630,6 +2630,19 @@ export const apiService = {
                     delete item.courseLevelSelections;
                     delete item.course_level_selections;
                 }
+                if (item.subject_ids || item.subjectIds) {
+                    if (!item.subject_id && !item.subjectId) {
+                        const sId = Array.isArray(item.subject_ids)
+                            ? item.subject_ids[0]
+                            : (Array.isArray(item.subjectIds) ? item.subjectIds[0] : (item.subject_ids || item.subjectIds));
+                        if (sId) {
+                            item.subject_id = sId;
+                            item.subjectId = sId;
+                        }
+                    }
+                    delete item.subject_ids;
+                    delete item.subjectIds;
+                }
                 if (item.createdAt || item.created_at) {
                     if (!item.timestamp) {
                         item.timestamp = item.createdAt || item.created_at;

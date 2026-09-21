@@ -7755,23 +7755,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         allocations,
                                         generatedTimetable,
                                         onSubmitRequest: async (subjectIds: string[], justification: string, signatureUrl: string | null, priority: Priority, academicYearId: string, semesterId: string, preferences: any, levels: any) => {
-                                            await apiService.saveModuleRecord('allocation_requests', {
-                                                id: `req_${Date.now()}`,
-                                                lecturerId: currentUser.id,
-                                                subjectIds,
-                                                justification,
-                                                signatureUrl,
-                                                priority,
-                                                academicYearId,
-                                                semesterId,
-                                                status: 'pending',
-                                                createdAt: new Date().toISOString(),
-                                                institutionId: currentUser.institutionId,
-                                                preferences,
-                                                courseLevelSelections: levels
-                                            });
-                                            await loadData();
-                                            return true;
+                                            return handleLecturerSubmitRequest(subjectIds, justification, signatureUrl, priority, academicYearId, semesterId, preferences, levels);
                                         },
                                         onWithdrawRequest: async (id: string) => { await apiService.deleteModuleRecord('allocation_requests', id); loadData(); },
                                         getSubjectById,

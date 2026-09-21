@@ -2858,6 +2858,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete copy.course_level_selections;
                         delete copy.courseLevelSelections;
                     }
+                    // Harmonize subject_ids / subject_id
+                    if (copy.subject_ids || copy.subjectIds) {
+                        if (!copy.subject_id) {
+                            copy.subject_id = Array.isArray(copy.subject_ids)
+                                ? copy.subject_ids[0]
+                                : (Array.isArray(copy.subjectIds) ? copy.subjectIds[0] : (copy.subject_ids || copy.subjectIds));
+                        }
+                        delete copy.subject_ids;
+                        delete copy.subjectIds;
+                    }
                     // Harmonize timestamp / created_at to avoid schema cache stale retries on un-cached columns
                     if (copy.created_at || copy.createdAt) {
                         if (!copy.timestamp) {
@@ -3869,6 +3879,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         delete copy.course_level_selections;
                         delete copy.courseLevelSelections;
+                    }
+                    if (copy.subject_ids || copy.subjectIds) {
+                        if (!copy.subject_id) {
+                            copy.subject_id = Array.isArray(copy.subject_ids)
+                                ? copy.subject_ids[0]
+                                : (Array.isArray(copy.subjectIds) ? copy.subjectIds[0] : (copy.subject_ids || copy.subjectIds));
+                        }
+                        delete copy.subject_ids;
+                        delete copy.subjectIds;
                     }
                     if (copy.created_at || copy.createdAt) {
                         if (!copy.timestamp) {
