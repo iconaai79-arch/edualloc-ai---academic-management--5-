@@ -693,6 +693,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const targetInstParam = getStrParam(queryInstitutionId);
             const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
             const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (isPublicModule && !targetInstParam);
+            const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
 
             const buildBaseQuery = () => {
                 let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
@@ -756,7 +757,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
 
                 // Custom filters from other query params
-                const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
                 Object.entries(req.query).forEach(([key, value]) => {
                     if (!reservedParams.includes(key) && value) {
                         const strVal = getStrParam(value);
