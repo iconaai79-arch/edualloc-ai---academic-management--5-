@@ -13,7 +13,16 @@ const getSupabase = () => {
 
 // ── Direct PostgreSQL Pool & Query Engine (Resilience against PostgREST timeouts) ──
 let _pgPool: any = null;
+let _directPgDisabledUntil = 0;
+let _directPgConsecutiveFailures = 0;
+
 const getPgPool = async () => {
+  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+    return null;
+  }
+  if (Date.now() < _directPgDisabledUntil) {
+    return null;
+  }
   if (_pgPool) return _pgPool;
   const connectionString = 
     process.env.DATABASE_URL || 
@@ -41,11 +50,17 @@ const getPgPool = async () => {
     _pgPool = new Pool({
       connectionString: cleanConnString,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 5000,
-      statement_timeout: 10000,
+      connectionTimeoutMillis: 2000,
+      statement_timeout: 4000,
       max: 2,
       idleTimeoutMillis: 3000
     });
+
+    _pgPool.on('error', (err: any) => {
+      console.warn('[Direct SQL Pool Error]:', err?.message || err);
+      _directPgDisabledUntil = Date.now() + 60000;
+    });
+
     return _pgPool;
   } catch (err) {
     console.error('[Direct SQL Pool Init Error]:', err);
@@ -66,6 +81,12 @@ const fetchViaDirectPg = async (
   limit: number = 1000,
   offset: number = 0
 ): Promise<any[] | null> => {
+  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+    return null;
+  }
+  if (Date.now() < _directPgDisabledUntil) {
+    return null;
+  }
   if (!table || !/^[a-zA-Z0-9_]+$/.test(table)) return null;
 
   const pool = await getPgPool();
@@ -111,10 +132,31 @@ const fetchViaDirectPg = async (
   try {
     client = await pool.connect();
     const result = await client.query(sql, values);
+    _directPgConsecutiveFailures = 0;
     return result.rows || [];
   } catch (err: any) {
-    console.warn(`[fetchViaDirectPg] Query failed on "${table}":`, err?.message || err);
-    if (orderPart && (err?.code === '42703' || err?.message?.includes('column'))) {
+    const isConnTimeout = 
+      err?.message?.includes('timeout') ||
+      err?.message?.includes('connect') ||
+      err?.code === 'ECONNREFUSED' ||
+      err?.code === 'ETIMEDOUT' ||
+      err?.code === 'ENOTFOUND';
+
+    if (isConnTimeout) {
+      _directPgConsecutiveFailures++;
+      const cooldownMs = Math.min(60000 * _directPgConsecutiveFailures, 300000);
+      _directPgDisabledUntil = Date.now() + cooldownMs;
+      console.warn(`[fetchViaDirectPg] Connection failed (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
+
+      if (_pgPool) {
+        try { _pgPool.end().catch(() => {}); } catch (_) {}
+        _pgPool = null;
+      }
+    } else {
+      console.warn(`[fetchViaDirectPg] Query failed on "${table}":`, err?.message || err);
+    }
+
+    if (client && orderPart && (err?.code === '42703' || err?.message?.includes('column'))) {
       try {
         const fallbackSql = `SELECT * FROM "${table}" ${wherePart} ${limitPart}`;
         const fallbackResult = await client.query(fallbackSql, values);
@@ -123,7 +165,9 @@ const fetchViaDirectPg = async (
     }
     return null;
   } finally {
-    if (client) client.release();
+    if (client) {
+      try { client.release(); } catch (_) {}
+    }
   }
 };
 
