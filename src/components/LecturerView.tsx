@@ -801,41 +801,22 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-3">Record Marks & Assessments</h4>
-                                        <AssessmentManager
-                                            user={user}
-                                            isDos={isDos}
-                                            assessments={props.assessments || []}
-                                            assessmentMarks={props.assessmentMarks || []}
-                                            allocatedSubjects={teacherAllocatedSubjects}
-                                            allocatedGrades={teacherAllocatedGrades}
-                                            users={props.users || []}
-                                            courses={courses}
-                                            onAddAssessment={props.onAddAssessment || (() => { })}
-                                            onDeleteAssessment={props.onDeleteAssessment || (() => { })}
-                                            onSaveAssessmentMarks={props.onSaveAssessmentMarks || (async () => { })}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-6">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest border-b border-slate-100 dark:border-slate-700 pb-3">Generate Documents & Results</h4>
-                                        <AssessmentReports
-                                            currentUser={user}
-                                            isDos={isDos}
-                                            assessments={props.assessments || []}
-                                            assessmentMarks={props.assessmentMarks || []}
-                                            users={props.users || []}
-                                            subjects={teacherAllocatedSubjects}
-                                            courses={courses}
-                                            departments={departments}
-                                            letterheadConfig={props.letterheadConfig || {} as LetterheadConfig}
-                                            logoUrl={currentInstitution?.logoUrl || null}
-                                            footerImageUrl={props.footerImageUrl || null}
-                                            currentInstitution={currentInstitution}
-                                        />
-                                    </div>
+                                <div className="w-full">
+                                    <AssessmentManager
+                                        user={user}
+                                        isDos={isDos}
+                                        assessments={props.assessments || []}
+                                        assessmentMarks={props.assessmentMarks || []}
+                                        allocatedSubjects={teacherAllocatedSubjects}
+                                        allocatedGrades={teacherAllocatedGrades}
+                                        subjectAllocations={subjectAllocations}
+                                        currentInstitution={currentInstitution}
+                                        users={props.users || []}
+                                        courses={courses}
+                                        onAddAssessment={props.onAddAssessment || (() => { })}
+                                        onDeleteAssessment={props.onDeleteAssessment || (() => { })}
+                                        onSaveAssessmentMarks={props.onSaveAssessmentMarks || (async () => { })}
+                                    />
                                 </div>
                             </div>
                         </div>
