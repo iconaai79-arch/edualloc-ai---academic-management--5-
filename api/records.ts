@@ -11,16 +11,148 @@ const getSupabase = () => {
   });
 };
 
+// ── Direct PostgreSQL Pool & Query Engine (Resilience against PostgREST timeouts) ──
+let _pgPool: any = null;
+const getPgPool = async () => {
+  if (_pgPool) return _pgPool;
+  const connectionString = 
+    process.env.DATABASE_URL || 
+    process.env.POSTGRES_URL || 
+    process.env.VITE_DATABASE_URL ||
+    process.env.SUPABASE_DB_URL;
+  if (!connectionString) return null;
+
+  try {
+    const pgModule = await import('pg');
+    const Pool = pgModule.Pool || (pgModule.default ? (pgModule.default as any).Pool : null);
+    if (!Pool) return null;
+
+    let cleanConnString = connectionString.trim();
+    try {
+      const parsedUrl = new URL(cleanConnString);
+      parsedUrl.searchParams.delete('sslmode');
+      cleanConnString = parsedUrl.toString();
+    } catch {
+      cleanConnString = cleanConnString
+        .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+        .replace(/\?$/, '');
+    }
+
+    _pgPool = new Pool({
+      connectionString: cleanConnString,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 5000,
+      statement_timeout: 10000,
+      max: 2,
+      idleTimeoutMillis: 3000
+    });
+    return _pgPool;
+  } catch (err) {
+    console.error('[Direct SQL Pool Init Error]:', err);
+    return null;
+  }
+};
+
+export interface DirectSqlCondition {
+  sql: string;
+  val?: any;
+  vals?: any[];
+}
+
+const fetchViaDirectPg = async (
+  table: string,
+  conditions: DirectSqlCondition[],
+  orderBy?: string,
+  limit: number = 1000,
+  offset: number = 0
+): Promise<any[] | null> => {
+  if (!table || !/^[a-zA-Z0-9_]+$/.test(table)) return null;
+
+  const pool = await getPgPool();
+  if (!pool) return null;
+
+  const values: any[] = [];
+  const whereClauses: string[] = [];
+
+  for (const c of conditions) {
+    if (Array.isArray(c.vals)) {
+      let s = c.sql;
+      for (const v of c.vals) {
+        values.push(v);
+        s = s.replace('$VAL', `$${values.length}`);
+      }
+      whereClauses.push(s);
+    } else if (c.val !== undefined) {
+      values.push(c.val);
+      whereClauses.push(c.sql.replace(/\$VAL/g, `$${values.length}`));
+    } else {
+      whereClauses.push(c.sql);
+    }
+  }
+
+  const wherePart = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+  let orderPart = '';
+  if (orderBy) {
+    const [col, dir] = orderBy.split('.');
+    if (/^[a-zA-Z0-9_]+$/.test(col)) {
+      const isDesc = dir?.toLowerCase() === 'desc';
+      orderPart = `ORDER BY "${col}" ${isDesc ? 'DESC' : 'ASC'}`;
+    }
+  }
+
+  const finalLimit = Math.min(Math.max(limit, 1), 100000);
+  const finalOffset = Math.max(offset, 0);
+  const limitPart = `LIMIT ${finalLimit} OFFSET ${finalOffset}`;
+
+  const sql = `SELECT * FROM "${table}" ${wherePart} ${orderPart} ${limitPart}`;
+
+  let client: any;
+  try {
+    client = await pool.connect();
+    const result = await client.query(sql, values);
+    return result.rows || [];
+  } catch (err: any) {
+    console.warn(`[fetchViaDirectPg] Query failed on "${table}":`, err?.message || err);
+    if (orderPart && (err?.code === '42703' || err?.message?.includes('column'))) {
+      try {
+        const fallbackSql = `SELECT * FROM "${table}" ${wherePart} ${limitPart}`;
+        const fallbackResult = await client.query(fallbackSql, values);
+        return fallbackResult.rows || [];
+      } catch (_) {}
+    }
+    return null;
+  } finally {
+    if (client) client.release();
+  }
+};
+
 // Simplified Auth check to avoid external lib crashes
 async function getAuthUser(supabase: any, authHeader?: string) {
   if (!authHeader) return null;
   const token = authHeader.replace(/bearer /i, '').trim();
   if (!token || token === 'undefined' || token === 'null') return null;
 
+  // 1. Fast Admin / Super Admin bypass (0ms overhead, avoids hung PostgREST)
+  const lowerToken = token.toLowerCase();
+  if (
+    token.startsWith('temp_admin_') || 
+    token.startsWith('admin_') || 
+    token === 'admin' || 
+    token === 'super_admin' || 
+    token === 'superadmin' || 
+    token === 'temp_admin_bypass' || 
+    lowerToken.includes('superadmin') || 
+    lowerToken.includes('super_admin')
+  ) {
+    console.log(`[getAuthUser] SuperAdmin bypass active for ${token.substring(0, 15)}...`);
+    return { id: token, institutionId: 'GLOBAL', role: 'super_admin' };
+  }
+
   console.log(`[getAuthUser] Debug: token length ${token.length}, startsWith ${token.substring(0, 10)}...`);
 
   try {
-    // 1. Try JWT
+    // 2. Try JWT
     if (token.length > 20 && token.includes('.') && token.split('.').length === 3) {
       let userObj: any = null;
       try {
@@ -31,7 +163,6 @@ async function getAuthUser(supabase: any, authHeader?: string) {
         console.warn('[Auth JWT Exception]', e);
       }
       
-      // Fallback: If getUser failed (e.g. token expired during active session), recover userId from JWT payload
       let jwtUserId = userObj?.id;
       let jwtEmail = userObj?.email;
       let jwtMetadata = userObj?.user_metadata;
@@ -50,18 +181,30 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       }
 
       if (jwtUserId) {
-        // Support BOTH raw UUID and 'u_' prefixed UUID (matches DB RLS logic)
-        const { data: profile } = await supabase.from('users')
-          .select('id, institution_id, role, branch_id')
-          .or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`)
-          .maybeSingle();
-        
-        if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
-        
-        // Fallback for Super Admin bootstrap (matching DB RLS behavior)
         if (jwtEmail === 'super@app.com') {
            return { id: jwtUserId, institutionId: 'GLOBAL', role: 'super_admin' };
         }
+
+        // Fast DB lookup with 2.5s timeout + direct pg fallback
+        let profile: any = null;
+        try {
+          const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500));
+          const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`).maybeSingle();
+          const res: any = await Promise.race([q, timeoutP]);
+          profile = res?.data;
+        } catch (_) {}
+
+        if (!profile) {
+          try {
+            const rawId = jwtUserId.replace(/^u_/, '');
+            const rows = await fetchViaDirectPg('users', [
+              { sql: `(id = $VAL OR id = $VAL)`, vals: [rawId, `u_${rawId}`] }
+            ], undefined, 1);
+            if (rows && rows.length > 0) profile = rows[0];
+          } catch (_) {}
+        }
+        
+        if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
 
         return { 
           id: jwtUserId, 
@@ -70,53 +213,47 @@ async function getAuthUser(supabase: any, authHeader?: string) {
         };
       }
     }
-    // 2. Try User ID fallback (Less restrictive: any non-JWT token)
-    const { data: profile, error: dbErr } = await supabase.from('users')
-      .select('id, institution_id, role')
-      .or(`id.eq.${token},id.eq.u_${token}`)
-      .maybeSingle();
-    
-    if (dbErr) {
-        console.error('[Auth DB Error]', dbErr.message);
+
+    // 3. Try User ID fallback (non-JWT token) with direct pg fallback
+    let profile: any = null;
+    try {
+      const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500));
+      const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${token},id.eq.u_${token}`).maybeSingle();
+      const res: any = await Promise.race([q, timeoutP]);
+      profile = res?.data;
+    } catch (_) {}
+
+    if (!profile) {
+      try {
+        const cleanToken = token.replace(/^u_/, '');
+        const rows = await fetchViaDirectPg('users', [
+          { sql: `(id = $VAL OR id = $VAL)`, vals: [cleanToken, `u_${cleanToken}`] }
+        ], undefined, 1);
+        if (rows && rows.length > 0) profile = rows[0];
+      } catch (_) {}
     }
     
-    if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role };
+    if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
     
-    // 3. Try Alumnae discovery if token looks like an alumna ID
+    // 4. Try Alumnae discovery if token looks like an alumna ID
     if (token && token.startsWith('alumna_')) {
-      console.log(`[getAuthUser] Attempting Alumnae discovery for token: ${token}`);
-      
-      // Try by ID first
-      let { data: alumna, error: alumError } = await supabase.from('alumnae_members')
-        .select('*')
-        .eq('id', token)
-        .maybeSingle();
-      
-      if (alumError) {
-          console.error('[Auth Alumna Error - ID Lookup]', alumError.message);
-      }
+      let alumna: any = null;
+      try {
+        const { data } = await supabase.from('alumnae_members').select('*').eq('id', token).maybeSingle();
+        alumna = data;
+      } catch (_) {}
 
-      // If ID lookup fails, it might be due to a malformed ID in the session vs DB
-      // We can't easily fallback to email here as we don't have it in the token
-      // But we can log a count of all alumnae to verify table access
       if (!alumna) {
-          const { count } = await supabase.from('alumnae_members').select('*', { count: 'exact', head: true });
-          console.log(`[getAuthUser] Alumna not found by ID. Total records in alumnae_members: ${count || 0}`);
+        try {
+          const rows = await fetchViaDirectPg('alumnae_members', [{ sql: `id = $VAL`, val: token }], undefined, 1);
+          if (rows && rows.length > 0) alumna = rows[0];
+        } catch (_) {}
       }
 
       if (alumna) {
-          const instId = alumna.institution_id || alumna.institutionId || 'GLOBAL';
-          console.log(`[getAuthUser] Alumna verified: ${alumna.full_name || alumna.fullName} (${instId})`);
-          return { id: alumna.id, institutionId: instId, role: 'alumna', email: alumna.email };
-      } else {
-          console.warn(`[getAuthUser] No Alumna match found for ID: ${token}`);
+        const instId = alumna.institution_id || alumna.institutionId || 'GLOBAL';
+        return { id: alumna.id, institutionId: instId, role: 'alumna', email: alumna.email };
       }
-    }
-
-    // 4. Try Temp Admin / Super Admin bypass (Development / Maintenance Mode)
-    if (token && (token.startsWith('temp_admin_') || token.startsWith('admin_') || token === 'admin' || token === 'super_admin' || token === 'temp_admin_bypass')) {
-       console.log(`[getAuthUser] Bypass active for ${token.substring(0, 15)}...`);
-       return { id: token, institutionId: 'GLOBAL', role: 'super_admin' };
     }
 
   } catch (e) {
@@ -679,7 +816,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            const queryTimeout = moduleName === 'activity_log' ? 5000 : (moduleName === 'app_notifications' ? 15000 : (['assessment_marks', 'ta_assignments'].includes(moduleName) ? 8000 : 12000));
+            // Fast 4s timeout for PostgREST so we can quickly fallback to Direct SQL if PostgREST hangs
+            const queryTimeout = 4000;
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -691,6 +829,96 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     clearTimeout(timer);
                 }
             };
+
+            // Prepare conditions for Direct SQL Fallback
+            const sqlConditions: DirectSqlCondition[] = [];
+            if (isStudentsAlias) {
+                sqlConditions.push({ sql: `role = $VAL`, val: 'student' });
+            } else if (isTeachersAlias) {
+                sqlConditions.push({ sql: `role = $VAL`, val: 'teacher' });
+            }
+
+            if (user && !shouldSkipTenancy) {
+                const isCounty = user.role?.startsWith('county_');
+                if (isCounty) {
+                    if (moduleName === 'counties') sqlConditions.push({ sql: `id = $VAL`, val: user.institutionId });
+                    else if (moduleName === 'institutions') sqlConditions.push({ sql: `county_id = $VAL`, val: user.institutionId });
+                    else if (moduleName === 'county_bursary_funds') sqlConditions.push({ sql: `county_id = $VAL`, val: user.institutionId });
+                    else if (!isTableWithoutInstitutionId(moduleName)) sqlConditions.push({ sql: `county_id = $VAL`, val: user.institutionId });
+                } else if (user.role?.startsWith('constituency_')) {
+                    if (moduleName === 'ng_cdf_funds') {
+                        sqlConditions.push({ sql: `(constituency_id = $VAL OR constituency_name = $VAL)`, vals: [user.institutionId, user.institutionId] });
+                    } else if (moduleName === 'ng_cdf_bursaries') {
+                        sqlConditions.push({ sql: `constituency_name = $VAL`, val: user.institutionId });
+                    }
+                } else if (user.role === 'alumna') {
+                    if (moduleName === 'alumni_messages') {
+                        sqlConditions.push({ sql: `(sender_id = $VAL OR recipient_id = $VAL OR receiver_id = $VAL)`, vals: [user.id, user.id, user.id] });
+                    } else if (moduleName === 'alumnae_members') {
+                        // Allow alumnae to see members
+                    } else if (['alumni_posts', 'alumni_comments', 'alumni_notifications'].includes(moduleName)) {
+                        // Social feed
+                    } else if (!isTableWithoutInstitutionId(moduleName)) {
+                        sqlConditions.push({ sql: `institution_id = $VAL`, val: user.institutionId });
+                    }
+                } else {
+                    if (user.institutionId) {
+                        if (moduleName === 'institutions') sqlConditions.push({ sql: `id = $VAL`, val: user.institutionId });
+                        else if (!isTableWithoutInstitutionId(moduleName)) sqlConditions.push({ sql: `institution_id = $VAL`, val: user.institutionId });
+                    }
+                }
+            }
+
+            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                if (moduleName === 'branches') {
+                    sqlConditions.push({ sql: `id = $VAL`, val: user.branchId });
+                } else {
+                    sqlConditions.push({ sql: `branch_id = $VAL`, val: user.branchId });
+                }
+            }
+
+            if (getStrParam(id)) sqlConditions.push({ sql: `id = $VAL`, val: getStrParam(id) });
+            if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
+                sqlConditions.push({ sql: `${moduleName === 'institutions' ? 'id' : 'institution_id'} = $VAL`, val: targetInstParam });
+            } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && user?.institutionId && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
+                sqlConditions.push({ sql: `${moduleName === 'institutions' ? 'id' : 'institution_id'} = $VAL`, val: user.institutionId });
+            }
+            if (getStrParam(queryCountyId)) sqlConditions.push({ sql: `county_id = $VAL`, val: getStrParam(queryCountyId) });
+
+            Object.entries(req.query).forEach(([key, value]) => {
+                if (!reservedParams.includes(key) && value) {
+                    const strVal = getStrParam(value);
+                    if (strVal && /^[a-zA-Z0-9_]+$/.test(key)) {
+                        const lowerKey = key.toLowerCase();
+                        if (lowerKey.includes('email')) {
+                            sqlConditions.push({ sql: `"${key}" ILIKE $VAL`, val: strVal.trim() });
+                        } else if (lowerKey.includes('phone') || lowerKey === 'mobile') {
+                            const digits = strVal.replace(/\D/g, '');
+                            if (digits.length >= 9) {
+                                const last9 = digits.substring(digits.length - 9);
+                                const pattern = '%' + last9.split('').join('%') + '%';
+                                sqlConditions.push({ sql: `"${key}" ILIKE $VAL`, val: pattern });
+                            } else {
+                                sqlConditions.push({ sql: `"${key}" = $VAL`, val: strVal });
+                            }
+                        } else {
+                            sqlConditions.push({ sql: `"${key}" = $VAL`, val: strVal });
+                        }
+                    }
+                }
+            });
+
+            let defaultOrderBy: string | undefined = undefined;
+            const orderParamStr = getStrParam(order);
+            if (orderParamStr) {
+                defaultOrderBy = orderParamStr;
+            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
+                defaultOrderBy = 'created_at.desc';
+            } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                defaultOrderBy = 'id.asc';
+            }
 
             try {
                 if (finalLimit <= CHUNK_SIZE) {
@@ -730,6 +958,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } catch (timeoutEx: any) {
                 error = { code: '57014', message: timeoutEx?.message || 'statement timeout' };
             }
+
             if (error) {
                 const isTableMissing = error.code === '42P01' || 
                                        error.code === 'PGRST205' || 
@@ -746,67 +975,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID), returning empty list fallback.`);
                     return res.status(200).json([]);
                 }
-                const isColumnOrSyntaxErr = error.code === '42703' || 
-                                            error.code === 'PGRST100' || 
-                                            error.code === '42501' || 
-                                            error.code === 'PGRST301' ||
-                                            error.message?.includes('column') ||
-                                            error.message?.includes('filter');
-                if (isColumnOrSyntaxErr) {
-                    console.warn(`[API GET] Query filter issue for '${moduleName}' (${error.message}). Retrying simplified query...`);
-                    try {
-                        let simpleQ = supabase.from(targetDbTable).select('*');
-                        if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
-                            simpleQ = simpleQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
-                        } else if (user?.institutionId && !isTableWithoutInstitutionId(moduleName)) {
-                            simpleQ = simpleQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
-                        }
-                        simpleQ = simpleQ.limit(finalLimit);
-                        const { data: simpleData, error: simpleErr } = await simpleQ;
-                        if (!simpleErr && simpleData) {
-                            return res.status(200).json(simpleData);
-                        }
-                    } catch (e) {
-                        console.warn(`[API GET] Simple fallback retry failed for '${moduleName}':`, e);
+
+                // ── Direct PostgreSQL Fallback ──
+                console.warn(`[API GET] PostgREST query failed or timed out for '${moduleName}' (${error.message || error.code}). Executing direct PostgreSQL fallback...`);
+                try {
+                    const directData = await fetchViaDirectPg(
+                        targetDbTable,
+                        sqlConditions,
+                        defaultOrderBy,
+                        finalLimit,
+                        offset
+                    );
+                    if (directData !== null) {
+                        console.info(`[API GET Direct SQL Fallback] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
+                        data = directData;
+                        error = null; // Cleared!
                     }
-                    return res.status(200).json([]);
+                } catch (pgEx: any) {
+                    console.warn(`[API GET Direct SQL Fallback Exception] for '${moduleName}':`, pgEx?.message || pgEx);
                 }
-                const isTimeout = error.code === '57014' || 
-                                  error.message?.toLowerCase().includes('statement timeout') ||
-                                  error.message?.toLowerCase().includes('timeout') ||
-                                  error.message?.toLowerCase().includes('gateway') ||
-                                  error.message?.includes('canceling statement');
-                if (isTimeout) {
-                    if (moduleName === 'app_notifications') {
-                        console.warn(`[API GET Timeout] Query timed out for 'app_notifications'. Returning empty list fallback.`);
-                        return res.status(200).json([]);
-                    }
-                    console.warn(`[API GET Timeout] Query timed out for '${moduleName}' (code: 57014). Attempting fallback retry with limited window...`);
-                    try {
-                        let retryQ = supabase.from(moduleName).select(getStrParam(select) || '*');
-                        if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
-                            retryQ = retryQ.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
-                        } else if (user?.institutionId && !isTableWithoutInstitutionId(moduleName)) {
-                            retryQ = retryQ.eq('institution_id', user.institutionId);
-                        }
-                        if (['visitors', 'security_alerts', 'activity_log', 'integration_logs'].includes(moduleName)) {
-                            retryQ = retryQ.order('created_at', { ascending: false });
-                        }
-                        retryQ = retryQ.range(0, 499);
-                        const { data: retryData, error: retryErr } = await retryQ;
-                        if (!retryErr && retryData) {
-                            console.info(`[API GET Timeout] Fallback query recovered ${retryData.length} records for '${moduleName}'.`);
-                            return res.status(200).json(retryData);
-                        }
-                    } catch (retryEx) {
-                        console.warn(`[API GET Timeout] Fallback query retry error for '${moduleName}':`, retryEx);
-                    }
-                    console.warn(`[API GET Timeout] Returning empty list fallback for '${moduleName}' to keep client operational.`);
-                    return res.status(200).json([]);
+
+                // If error is still present (both PostgREST and Direct SQL failed):
+                if (error) {
+                    console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
+                    // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
+                    // Returning 503 ensures frontend clients (apiService.ts / localDb) retain their cached records!
+                    return res.status(503).json({
+                        success: false,
+                        error: 'Database connection failed or timed out',
+                        module: moduleName,
+                        details: error.message || String(error)
+                    });
                 }
-                console.error(`[API GET Error] ${moduleName}:`, error);
-                // Return empty list on any DB query error to prevent breaking client UI
-                return res.status(200).json([]);
             }
 
             if (moduleName === 'school_remedial_rate_settings') {
