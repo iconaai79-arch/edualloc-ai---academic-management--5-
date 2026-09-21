@@ -57,7 +57,7 @@ const CarReceiptModal = lazy(() => import('./modals/CarReceiptModal').then(m => 
 const AddCarLeadModal = lazy(() => import('./modals/AddCarLeadModal').then(m => ({ default: m.AddCarLeadModal })));
 const AcademicConfigManager = lazy(() => import('./AcademicConfigManager').then(m => ({ default: m.AcademicConfigManager })));
 const AcademicsOfficerView = lazy(() => import('./AcademicsOfficerView').then(m => ({ default: m.AcademicsOfficerView })));
-const BoardingMasterView = lazy(() => import('./BoardingMasterView'));
+const BoardingMasterView = lazy(() => import('./BoardingMasterView').then((m: any) => ({ default: m?.default || m?.BoardingMasterView || m })));
 const ExamInsights = lazy(() => import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights })));
 const AcademicReportsHub = lazy(() => import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub })));
 const DisciplineManager = lazy(() => import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager })));

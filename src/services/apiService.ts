@@ -952,8 +952,11 @@ export const apiService = {
 
         // Serialize migration execution to avoid concurrent lock deadlocks in Postgres
         const task = _migrationQueue.then(async () => {
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), 15000) : null;
             try {
                 const response = await fetch('/api/system?action=execute_sql', {
+                    signal: controller ? controller.signal : undefined,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sql: trimmedSql })
@@ -974,8 +977,17 @@ export const apiService = {
 
                 return result;
             } catch (e: any) {
-                console.error("Migration Error:", e);
+                const isNetworkErr = String(e?.message || '').toLowerCase().includes('network') || 
+                                     String(e?.message || '').toLowerCase().includes('fetch') ||
+                                     e?.name === 'AbortError';
+                if (isNetworkErr) {
+                    console.warn("Migration Notice (Network or Timeout):", e.message || e);
+                } else {
+                    console.error("Migration Error:", e);
+                }
                 return { success: false, message: e.message || "Execution engine failure." };
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
             }
         });
 
@@ -1572,12 +1584,15 @@ export const apiService = {
                         const url = new URL(`${window.location.origin}/api/records`);
                         url.searchParams.append('module', 'institution_module_states');
                         if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                        const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
                         const response = await fetch(url.toString(), {
+                            signal: controller ? controller.signal : undefined,
                             headers: {
                                 'Authorization': token ? `Bearer ${token}` : '',
                                 'Content-Type': 'application/json'
                             }
-                        });
+                        }).finally(() => { if (timeoutId) clearTimeout(timeoutId); });
                         if (response.ok) {
                             const resJson = await response.json();
                             const fetched = resJson.data || resJson || [];
@@ -1585,8 +1600,13 @@ export const apiService = {
                                 remoteRecords = toCamelCase(fetched);
                             }
                         }
-                    } catch (e) {
-                        console.warn('[apiService] API records fetch for institution_module_states failed:', e);
+                    } catch (e: any) {
+                        const isNetwork = String(e?.message || '').toLowerCase().includes('network') || 
+                                          String(e?.message || '').toLowerCase().includes('fetch') ||
+                                          e?.name === 'AbortError';
+                        if (!isNetwork) {
+                            console.warn('[apiService] API records fetch for institution_module_states:', e?.message || e);
+                        }
                     }
                 }
 

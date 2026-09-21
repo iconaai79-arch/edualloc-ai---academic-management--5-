@@ -336,8 +336,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         try {
                             client = await pool.connect();
                             
-                            // Configure timeouts per-session to detect and resolve lock contention quickly
-                            await client.query("SET lock_timeout = '6000ms'; SET statement_timeout = '30000ms'; SET deadlock_timeout = '500ms';").catch(() => {});
+                            // Configure timeouts per-session to detect and resolve lock contention quickly without exceeding Vercel function lifetime
+                            await client.query("SET lock_timeout = '4000ms'; SET statement_timeout = '12000ms'; SET deadlock_timeout = '500ms';").catch(() => {});
 
                             lastResult = await client.query(singleStmt);
                             if (lastResult?.rows && Array.isArray(lastResult.rows)) {
@@ -353,11 +353,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             lastError = err;
 
+                            const isStatementTimeout = err?.code === '57014';
                             const isTransientLockError = 
                                 err?.code === '40P01' || // deadlock_detected
                                 err?.code === '55P03' || // lock_not_available
-                                err?.code === '40001' || // serialization_failure
-                                err?.code === '57014';   // query_canceled / statement_timeout
+                                err?.code === '40001';   // serialization_failure
 
                             const isCatalogRace =
                                 err?.code === '23505' && (
@@ -371,9 +371,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.constraint || '')
                                 );
 
+                            if (isStatementTimeout) {
+                                console.warn(`[SQL Engine] Statement timeout (code: 57014) on: ${singleStmt.substring(0, 80)}. Aborting statement to prevent function timeout.`);
+                                break;
+                            }
+
                             if ((isTransientLockError || isCatalogRace) && attempt < MAX_RETRIES) {
                                 // Exponential backoff with jitter (e.g. 200ms, 400ms, 800ms...)
-                                const delayMs = Math.min(200 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 250), 3000);
+                                const delayMs = Math.min(200 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 250), 2000);
                                 console.warn(`[SQL Engine] Transient concurrency or lock conflict (code: ${err.code}, constraint: ${err.constraint || 'none'} - ${err.message}). Retrying statement ${attempt + 1}/${MAX_RETRIES} in ${delayMs}ms...`);
                                 await new Promise(res => setTimeout(res, delayMs));
                                 continue;

@@ -655,7 +655,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order(orderParam, { ascending: true });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
-                } else if (finalLimit > 1000 || ['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
                     q = q.order('id', { ascending: true });
                 }
 
@@ -665,7 +665,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)
                     ? 100000
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) ? 500 : (moduleName === 'app_notifications' ? 100 : 10000)))
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) ? 500 : (moduleName === 'app_notifications' ? 100 : (['assessment_marks', 'ta_assignments'].includes(moduleName) ? 5000 : 10000))))
             );
             if (isNaN(finalLimit)) finalLimit = 100000;
             if (finalLimit > 100000) {
@@ -679,7 +679,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            const queryTimeout = moduleName === 'activity_log' ? 5000 : (moduleName === 'app_notifications' ? 15000 : 12000);
+            const queryTimeout = moduleName === 'activity_log' ? 5000 : (moduleName === 'app_notifications' ? 15000 : (['assessment_marks', 'ta_assignments'].includes(moduleName) ? 8000 : 12000));
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {

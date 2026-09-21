@@ -104,7 +104,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
       /Loading chunk/i.test(error.message) ||
       /before initialization/i.test(error.message) ||
       /ReferenceError/i.test(error.message) ||
-      /Minified React error #(300|301|310|418|423)/i.test(error.message) ||
+      /Minified React error #(300|301|306|310|418|423)/i.test(error.message) ||
       /Rendered more hooks/i.test(error.message) ||
       /Rendered fewer hooks/i.test(error.message);
       

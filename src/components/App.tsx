@@ -49,20 +49,40 @@ import { DrivingSchoolProvider } from '../services/DrivingSchoolContext';
 import { localDb } from '../services/localDb';
 import { syncEngine } from '../services/syncEngine';
 import { OfflineSyncWidget } from './common/OfflineSyncWidget';
-// Robust dynamic chunk loading handler with automatic browser recovery
+// Robust dynamic chunk loading handler with automatic browser recovery and export extraction
+function extractComponent(mod: any): React.ComponentType<any> {
+    if (!mod) return (() => null) as any;
+    let candidate = mod;
+    let depth = 0;
+    while (candidate && typeof candidate === 'object' && 'default' in candidate && depth < 5) {
+        if (typeof candidate.default === 'function' || (candidate.default && typeof candidate.default === 'object' && ('$$typeof' in candidate.default || 'render' in candidate.default))) {
+            return candidate.default;
+        }
+        candidate = candidate.default;
+        depth++;
+    }
+    if (typeof candidate === 'function' || (candidate && typeof candidate === 'object' && ('$$typeof' in candidate || 'render' in candidate))) {
+        return candidate;
+    }
+    if (candidate && typeof candidate === 'object') {
+        for (const key of Object.keys(candidate)) {
+            const val = candidate[key];
+            if (typeof val === 'function' || (val && typeof val === 'object' && ('$$typeof' in val || 'render' in val))) {
+                return val;
+            }
+        }
+    }
+    return (() => null) as any;
+}
+
 function safeLazy<T extends React.ComponentType<any>>(
     importFn: () => Promise<any>
 ): React.LazyExoticComponent<T> {
     return lazy(async () => {
         try {
             const res = await importFn();
-            if (!res) {
-                throw new Error("Dynamic module import returned undefined/null");
-            }
-            if (typeof res === 'object' && 'default' in res && res.default) {
-                return res;
-            }
-            return { default: res };
+            const component = extractComponent(res);
+            return { default: component as T };
         } catch (error) {
             console.error("Dynamic import failed, attempting window reload to sync chunks:", error);
             if ('caches' in window) {
@@ -77,7 +97,7 @@ function safeLazy<T extends React.ComponentType<any>>(
                 sessionStorage.setItem('chunk_load_failed_reload', String(now));
                 window.location.reload();
             }
-            throw error;
+            return { default: (() => null) as any as T };
         }
     });
 }
@@ -160,8 +180,8 @@ const PropertyMarketplaceView = safeLazy(() => import('./PropertyMarketplaceView
 const ChurchDashboard = safeLazy(() => import('./church/ChurchDashboard').then((m: any) => ({ default: m?.ChurchDashboard || m?.default || m })));
 const FarmerPortal = safeLazy(() => import('./coop/FarmerPortal').then((m: any) => ({ default: m?.FarmerPortal || m?.default || m })));
 const RiderPortal = safeLazy(() => import('./coop/RiderPortal').then((m: any) => ({ default: m?.RiderPortal || m?.default || m })));
-const BoardingMasterView = safeLazy(() => import('./BoardingMasterView'));
-const ResellerDashboard = safeLazy(() => import('./ResellerDashboard'));
+const BoardingMasterView = safeLazy(() => import('./BoardingMasterView').then((m: any) => ({ default: m?.BoardingMasterView || m?.default || m })));
+const ResellerDashboard = safeLazy(() => import('./ResellerDashboard').then((m: any) => ({ default: m?.ResellerDashboard || m?.default || m })));
 const EventManagementView = safeLazy(() => import('./events/EventManagementView').then((m: any) => ({ default: m?.EventManagementView || m?.default || m })));
 const TenantStorefrontView = safeLazy(() => import('./retail/TenantStorefrontView').then((m: any) => ({ default: m?.TenantStorefrontView || m?.default || m })));
 const SchoolStorefrontView = safeLazy(() => import('./public/SchoolStorefrontView').then((m: any) => ({ default: m?.SchoolStorefrontView || m?.default || m })));
@@ -171,8 +191,8 @@ const HospitalityStorefront = safeLazy(() => import('./hospitality/HospitalitySt
 const HospitalityMarketplace = safeLazy(() => import('./hospitality/HospitalityMarketplace').then((m: any) => ({ default: m?.HospitalityMarketplace || m?.default || m })));
 const CampaignJoinPage = safeLazy(() => import('./public/CampaignJoinPage').then((m: any) => ({ default: m?.CampaignJoinPage || m?.default || m })));
 const FuelStationDashboard = safeLazy(() => import('./FuelStationDashboard').then((m: any) => ({ default: m?.FuelStationDashboard || m?.default || m })));
-const CivilWorksDashboard = safeLazy(() => import('./CivilWorksDashboard'));
-const LogisticsDashboard = safeLazy(() => import('./LogisticsDashboard'));
+const CivilWorksDashboard = safeLazy(() => import('./CivilWorksDashboard').then((m: any) => ({ default: m?.CivilWorksDashboard || m?.default || m })));
+const LogisticsDashboard = safeLazy(() => import('./LogisticsDashboard').then((m: any) => ({ default: m?.LogisticsDashboard || m?.default || m })));
 const CampaignSocialPortal = safeLazy(() => import('./CampaignSocialPortal').then((m: any) => ({ default: m?.CampaignSocialPortal || m?.default || m })));
 const CampaignLoginView = safeLazy(() => import('./CampaignLoginView').then((m: any) => ({ default: m?.CampaignLoginView || m?.default || m })));
 const PublicCarInvoicePayment = safeLazy(() => import('./automotive/PublicCarInvoicePayment').then((m: any) => ({ default: m?.PublicCarInvoicePayment || m?.default || m })));
@@ -1150,7 +1170,10 @@ export const App: React.FC = () => {
                 // Background idempotent migrations (non-blocking for ultra-fast startup)
                 setTimeout(() => {
                     if (isApiOnline) {
-                        apiService.runMigration(`
+                        const startupMigrationsKey = 'eduai_startup_migrations_v407';
+                        if (!localStorage.getItem(startupMigrationsKey)) {
+                            localStorage.setItem(startupMigrationsKey, 'true');
+                            apiService.runMigration(`
 CREATE OR REPLACE FUNCTION public.allocate_tenant_sms_bonus()
 RETURNS TRIGGER 
 LANGUAGE plpgsql 
@@ -1212,48 +1235,49 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
     BEFORE UPDATE OF subscription_ends_at ON institutions
     FOR EACH ROW
     EXECUTE FUNCTION allocate_tenant_sms_bonus();
-                        `).catch(() => {});
+                            `).catch(() => {});
 
-                        apiService.runMigration(`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;`).catch(() => {});
-                        apiService.runMigration(`
-                            CREATE TABLE IF NOT EXISTS public.his_financial_records (
-                                id TEXT PRIMARY KEY,
-                                institution_id TEXT NOT NULL,
-                                patient_id TEXT,
-                                patient_name TEXT,
-                                invoice_number TEXT,
-                                type TEXT DEFAULT 'invoice',
-                                category TEXT,
-                                items JSONB DEFAULT '[]'::jsonb,
-                                amount NUMERIC(15, 2) DEFAULT 0,
-                                total_amount NUMERIC(15, 2) DEFAULT 0,
-                                amount_paid NUMERIC(15, 2) DEFAULT 0,
-                                balance NUMERIC(15, 2) DEFAULT 0,
-                                status TEXT DEFAULT 'Pending',
-                                payment_method TEXT,
-                                department TEXT,
-                                notes TEXT,
-                                date DATE DEFAULT CURRENT_DATE,
-                                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                            );
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS patient_name TEXT;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS invoice_number TEXT;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'invoice';
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS category TEXT;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS amount NUMERIC(15, 2) DEFAULT 0;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS total_amount NUMERIC(15, 2) DEFAULT 0;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(15, 2) DEFAULT 0;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS balance NUMERIC(15, 2) DEFAULT 0;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Pending';
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS payment_method TEXT;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS department TEXT;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS notes TEXT;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS date DATE DEFAULT CURRENT_DATE;
-                            ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-                            NOTIFY pgrst, 'reload schema';
-                        `).catch(() => {});
+                            apiService.runMigration(`ALTER TABLE public.retail_inventory_items ADD COLUMN IF NOT EXISTS source text;`).catch(() => {});
+                            apiService.runMigration(`
+                                CREATE TABLE IF NOT EXISTS public.his_financial_records (
+                                    id TEXT PRIMARY KEY,
+                                    institution_id TEXT NOT NULL,
+                                    patient_id TEXT,
+                                    patient_name TEXT,
+                                    invoice_number TEXT,
+                                    type TEXT DEFAULT 'invoice',
+                                    category TEXT,
+                                    items JSONB DEFAULT '[]'::jsonb,
+                                    amount NUMERIC(15, 2) DEFAULT 0,
+                                    total_amount NUMERIC(15, 2) DEFAULT 0,
+                                    amount_paid NUMERIC(15, 2) DEFAULT 0,
+                                    balance NUMERIC(15, 2) DEFAULT 0,
+                                    status TEXT DEFAULT 'Pending',
+                                    payment_method TEXT,
+                                    department TEXT,
+                                    notes TEXT,
+                                    date DATE DEFAULT CURRENT_DATE,
+                                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                                );
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS patient_name TEXT;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'invoice';
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS category TEXT;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'::jsonb;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS amount NUMERIC(15, 2) DEFAULT 0;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS total_amount NUMERIC(15, 2) DEFAULT 0;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(15, 2) DEFAULT 0;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS balance NUMERIC(15, 2) DEFAULT 0;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Pending';
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS payment_method TEXT;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS department TEXT;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS notes TEXT;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS date DATE DEFAULT CURRENT_DATE;
+                                ALTER TABLE public.his_financial_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+                                NOTIFY pgrst, 'reload schema';
+                            `).catch(() => {});
+                        }
 
                         const visitorNotifSyncedKey = 'eduai_visitor_notif_synced_v407';
                         if (!sessionStorage.getItem(visitorNotifSyncedKey)) {
