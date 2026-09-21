@@ -305,7 +305,10 @@ const PUBLIC_MODULES = [
   'invoice_clients', 'company_invoice_settings',
   'school_authorized_devices', 'school_router_profiles',
   'vehicles', 'transport_onboarding', 'vehicle_logs',
-  'stock_transactions', 'appointments'
+  'stock_transactions', 'appointments',
+  'law_documents', 'law_clients', 'law_matters', 'law_time_entries', 'law_invoices', 'law_trust_transactions', 'law_agreement_templates', 'law_agreements',
+  'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory', 'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts', 'coop_expenses', 'coop_income',
+  'car_appraisals', 'car_test_drives', 'car_invoices', 'car_payments'
 ];
 
 const TABLES_WITH_METADATA = new Set([
@@ -816,8 +819,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            // Fast 4s timeout for PostgREST so we can quickly fallback to Direct SQL if PostgREST hangs
-            const queryTimeout = 4000;
+            // Resilient 9s timeout for PostgREST so queries have time to complete before direct SQL fallback
+            const queryTimeout = 9000;
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -828,6 +831,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } finally {
                     clearTimeout(timer);
                 }
+            };
+
+            const buildFastBaseQuery = () => {
+                let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
+                if (isStudentsAlias) {
+                    q = q.eq('role', 'student');
+                } else if (isTeachersAlias) {
+                    q = q.eq('role', 'teacher');
+                }
+                if (user && !shouldSkipTenancy) {
+                    if (user.institutionId && !isTableWithoutInstitutionId(moduleName)) {
+                        q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
+                    }
+                }
+                if (getStrParam(id)) q = q.eq('id', getStrParam(id));
+                if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
+                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
+                }
+                return q;
             };
 
             // Prepare conditions for Direct SQL Fallback
@@ -922,9 +944,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 if (finalLimit <= CHUNK_SIZE) {
-                    const res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1));
-                    data = res.data || [];
-                    error = res.error;
+                    let res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1));
+                    if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
+                        console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
+                        res = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 500) - 1), 7000);
+                    }
+                    data = res?.data || [];
+                    error = res?.error;
                 } else {
                     let currentOffset = offset;
                     let remaining = finalLimit;
@@ -933,13 +959,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
                         let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
                         
-                        // If chunk timed out, attempt recovery with smaller batch window
-                        if (res.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway'))) {
-                            const halfBatch = Math.max(100, Math.floor(batchSize / 2));
-                            res = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + halfBatch - 1));
+                        // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
+                        if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
+                            console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
+                            const fastBatch = Math.max(100, Math.floor(batchSize / 2));
+                            res = await executeWithTimeout(buildFastBaseQuery().range(currentOffset, currentOffset + fastBatch - 1), 7000);
                         }
 
-                        if (res.error) {
+                        if (res?.error) {
                             if (data.length === 0) {
                                 error = res.error;
                             } else {
@@ -947,7 +974,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             break;
                         }
-                        const chunk = res.data || [];
+                        const chunk = res?.data || [];
                         if (chunk.length === 0) break;
                         data.push(...chunk);
                         if (chunk.length < batchSize) break; // Reached end of dataset
@@ -956,7 +983,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
             } catch (timeoutEx: any) {
-                error = { code: '57014', message: timeoutEx?.message || 'statement timeout' };
+                if (data.length > 0) {
+                    console.info(`[API GET] Recovered partial data for '${moduleName}' (${data.length} records).`);
+                    error = null;
+                } else {
+                    // Try fast recovery query
+                    try {
+                        const fastRecoveryRes: any = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 200) - 1), 5000);
+                        if (fastRecoveryRes?.data && Array.isArray(fastRecoveryRes.data)) {
+                            data = fastRecoveryRes.data;
+                            error = null;
+                        } else {
+                            error = { code: '57014', message: timeoutEx?.message || 'statement timeout' };
+                        }
+                    } catch (_) {
+                        error = { code: '57014', message: timeoutEx?.message || 'statement timeout' };
+                    }
+                }
             }
 
             if (error) {
@@ -997,15 +1040,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // If error is still present (both PostgREST and Direct SQL failed):
                 if (error) {
-                    console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
-                    // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
-                    // Returning 503 ensures frontend clients (apiService.ts / localDb) retain their cached records!
-                    return res.status(503).json({
-                        success: false,
-                        error: 'Database connection failed or timed out',
-                        module: moduleName,
-                        details: error.message || String(error)
-                    });
+                    if (data.length > 0) {
+                        console.info(`[API GET] Returning ${data.length} records despite trailing error on '${moduleName}'.`);
+                        error = null;
+                    } else {
+                        console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
+                        // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
+                        // Returning 503 ensures frontend clients (apiService.ts / localDb) retain their cached records!
+                        return res.status(503).json({
+                            success: false,
+                            error: 'Database connection failed or timed out',
+                            module: moduleName,
+                            details: error.message || String(error)
+                        });
+                    }
                 }
             }
 

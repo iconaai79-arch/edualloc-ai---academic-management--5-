@@ -43,7 +43,8 @@ const PUBLIC_MODULES = [
   'coop_expenses', 'coop_income', 'car_appraisals', 'car_test_drives', 'car_invoices',
   'car_payments', 'fee_promises', 'timetable_entries', 'exam_timetable_entries',
   'bursary_disbursements', 'stock_transactions', 'appointments',
-  'assessments', 'assessment_marks', 'exam_units', 'exam_broadsheets'
+  'assessments', 'assessment_marks', 'exam_units', 'exam_broadsheets',
+  'law_documents', 'law_clients', 'law_matters', 'law_time_entries', 'law_invoices', 'law_trust_transactions', 'law_agreement_templates', 'law_agreements'
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
