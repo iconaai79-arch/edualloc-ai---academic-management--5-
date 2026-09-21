@@ -278,7 +278,7 @@ export const resolveApplicableSubjectsForClass = (
                         name: clean,
                         code: `${clean.substring(0, 4).toUpperCase()} 101`,
                         periodsPerWeek: 5
-                    } as Subject);
+                    } as unknown as Subject);
                 }
             }
         });

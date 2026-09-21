@@ -460,8 +460,20 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         ['adm/2024/198', 'Otieno David'],
     ]), []);
 
+    // Interface representing a normalized registered student in a class/stream
+    interface ClassStudentRecord {
+        id: string;
+        name: string;
+        admissionNumber: string;
+        gender: any;
+        stream: string;
+        streamName: string;
+        studentClass: any;
+        metadata: any;
+    }
+
     // Helper to get registered students for a specific class stream
-    const getStudentsForClass = useCallback((clsName: string) => {
+    const getStudentsForClass = useCallback((clsName: string): ClassStudentRecord[] => {
         if (!clsName) return [];
         const targetClean = clsName.toLowerCase().trim();
         const targetNumber = targetClean.replace(/^(form|grade|class|year)\s*/i, '').trim();
@@ -682,8 +694,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         const isGrade = targetClean.includes('grade');
         const prefix = isGrade ? 'Grade' : 'Form';
         const classLabel = `${prefix} ${targetNumber || '3 Central'}`;
+        const fallbackStream = extractStreamOnly(classLabel, clsName) || '';
 
-        return [
+        const fallbackList = [
             { id: `st_reg_1`, name: 'Maxine Jelimo', admissionNumber: '2008', gender: 'Female', studentClass: classLabel },
             { id: `st_reg_2`, name: 'Dennis Kiplagat', admissionNumber: '2244', gender: 'Male', studentClass: classLabel },
             { id: `st_reg_3`, name: 'Felix Kipkosgei', admissionNumber: '1897', gender: 'Male', studentClass: classLabel },
@@ -709,6 +722,16 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             { id: `st_reg_23`, name: 'Marion Jerop Kemei', admissionNumber: '1872', gender: 'Female', studentClass: classLabel },
             { id: `st_reg_24`, name: 'Emmanuel Kipkorir', admissionNumber: '1947', gender: 'Male', studentClass: classLabel },
         ];
+
+        return fallbackList.map(st => ({
+            ...st,
+            stream: fallbackStream,
+            streamName: fallbackStream,
+            metadata: {
+                stream: fallbackStream,
+                gradeLevel: clsName
+            }
+        }));
     }, [allRegisteredStudents, users, registryNameMap]);
 
     // Stream helper functions for consistent student stream matching across tabs
