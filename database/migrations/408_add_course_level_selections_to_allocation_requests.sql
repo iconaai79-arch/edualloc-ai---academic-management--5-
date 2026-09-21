@@ -1,5 +1,6 @@
--- Migration 408: Add course_level_selections, created_at, and subject_ids to allocation_requests
--- Purpose: Prevent PGRST204 schema cache stale warning/errors when saving allocation requests
+-- Migration 408: Add course_level_selections, created_at, subject_ids to allocation_requests
+-- and drop strict foreign key constraints to support custom/dynamic subjects safely
+-- Purpose: Prevent PGRST204 schema cache stale warning/errors and foreign key violations
 
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS course_level_selections JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS course_level_ids TEXT[] DEFAULT '{}';
@@ -7,6 +8,9 @@ ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS subject_ids T
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE IF EXISTS allocation_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+-- Drop strict foreign key constraint so custom/dynamic curriculum subjects do not cause insert failures
+ALTER TABLE IF EXISTS allocation_requests DROP CONSTRAINT IF EXISTS allocation_requests_subject_id_fkey;
 
 -- Populate created_at from timestamp where available
 DO $$

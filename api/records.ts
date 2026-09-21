@@ -2883,6 +2883,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanAllocationRequest) : cleanAllocationRequest(currentPayload);
+
+                // Ensure referenced subjects exist in subjects table to prevent foreign key violations
+                const subItems = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                for (const item of subItems) {
+                    const sId = item?.subject_id;
+                    if (sId && typeof sId === 'string' && sId.trim()) {
+                        try {
+                            const { data: existingSub } = await supabase
+                                .from('subjects')
+                                .select('id')
+                                .eq('id', sId)
+                                .limit(1);
+                            if (!existingSub || existingSub.length === 0) {
+                                const cleanName = item?.preferences?.subjectName || item?.preferences?.subject_name || item?.subjectName || item?.name || sId.replace(/^sub_/, '').replace(/_/g, ' ');
+                                const instId = item?.institution_id || user?.institutionId || 'SYSTEM';
+                                await supabase.from('subjects').insert({
+                                    id: sId,
+                                    name: cleanName,
+                                    code: sId.substring(0, 10).toUpperCase(),
+                                    institution_id: instId
+                                }).catch(() => {});
+                            }
+                        } catch (_) {}
+                    }
+                }
             }
 
             let data: any = null;
@@ -3901,6 +3926,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete copy.updated_at;
                     }
                     currentUpdateData = copy;
+
+                    const sId = copy?.subject_id;
+                    if (sId && typeof sId === 'string' && sId.trim()) {
+                        try {
+                            const { data: existingSub } = await supabase
+                                .from('subjects')
+                                .select('id')
+                                .eq('id', sId)
+                                .limit(1);
+                            if (!existingSub || existingSub.length === 0) {
+                                const cleanName = copy?.preferences?.subjectName || copy?.preferences?.subject_name || copy?.subjectName || copy?.name || sId.replace(/^sub_/, '').replace(/_/g, ' ');
+                                const instId = copy?.institution_id || user?.institutionId || 'SYSTEM';
+                                await supabase.from('subjects').insert({
+                                    id: sId,
+                                    name: cleanName,
+                                    code: sId.substring(0, 10).toUpperCase(),
+                                    institution_id: instId
+                                }).catch(() => {});
+                            }
+                        } catch (_) {}
+                    }
                 }
                 let data: any = null;
                 let error: any = null;
