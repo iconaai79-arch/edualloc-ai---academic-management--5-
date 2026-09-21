@@ -112,7 +112,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                     const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
                     if (match && match.allocations) {
                         setClassAllocationsStore(prev => {
-                            const merged = { ...match.allocations, ...prev };
+                            const merged = { ...prev, ...match.allocations };
                             try {
                                 localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
                             } catch(e) {}

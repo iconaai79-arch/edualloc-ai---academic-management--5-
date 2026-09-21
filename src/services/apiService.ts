@@ -121,7 +121,6 @@ export const invalidateModuleCache = (module?: string) => {
 };
 
 const _unsupportedServerModules = new Set<string>([
-    'class_subject_allocations',
     'his_branding',
     'his_consultation_rates',
     'his_hospital_rooms',
@@ -1556,6 +1555,178 @@ export const apiService = {
                 return [mergedStore] as any;
             }
 
+            if (module === 'class_subject_allocations') {
+                const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
+                let remoteStore: Record<string, string[]> = {};
+
+                if (_supabase) {
+                    try {
+                        let query = _supabase.from('institution_module_states').select('*');
+                        if (institutionId && institutionId !== 'ALL') {
+                            query = query.eq('institution_id', institutionId);
+                        }
+                        const { data: imsData, error: imsErr } = await query;
+                        if (!imsErr && imsData && imsData.length > 0) {
+                            const camelRows = toCamelCase(imsData);
+                            const match = camelRows.find((r: any) => 
+                                r.id === `ims_class_subject_allocations_${targetInstId}` ||
+                                r.id === `alloc_${targetInstId}` ||
+                                (r.id && r.id.includes('class_subject_allocations')) ||
+                                r.moduleId === 'class_subject_allocations' ||
+                                r.module_id === 'class_subject_allocations'
+                            );
+                            const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
+                            if (storeData && typeof storeData === 'object' && !Array.isArray(storeData)) {
+                                remoteStore = storeData;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] Supabase fetch for class_subject_allocations failed:', e);
+                    }
+                }
+
+                if (Object.keys(remoteStore).length === 0) {
+                    try {
+                        let token = await apiService.getAuthToken();
+                        const url = new URL(`${window.location.origin}/api/records`);
+                        url.searchParams.append('module', 'institution_module_states');
+                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                        const response = await fetch(url.toString(), {
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            const resJson = await response.json();
+                            const fetched = resJson.data || resJson || [];
+                            if (Array.isArray(fetched) && fetched.length > 0) {
+                                const camelRows = toCamelCase(fetched);
+                                const match = camelRows.find((r: any) => 
+                                    r.id === `ims_class_subject_allocations_${targetInstId}` ||
+                                    r.id === `alloc_${targetInstId}` ||
+                                    (r.id && r.id.includes('class_subject_allocations')) ||
+                                    r.moduleId === 'class_subject_allocations' ||
+                                    r.module_id === 'class_subject_allocations'
+                                );
+                                const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
+                                if (storeData && typeof storeData === 'object' && !Array.isArray(storeData)) {
+                                    remoteStore = storeData;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] API fetch for class_subject_allocations failed:', e);
+                    }
+                }
+
+                let localStore: Record<string, string[]> = {};
+                try {
+                    const saved = localStorage.getItem(`eduai_class_subject_allocations_${targetInstId}`);
+                    if (saved) localStore = JSON.parse(saved) || {};
+                } catch (e) {}
+
+                const mergedStore = { ...localStore, ...remoteStore };
+                try {
+                    localStorage.setItem(`eduai_class_subject_allocations_${targetInstId}`, JSON.stringify(mergedStore));
+                    ls.set('class_subject_allocations', [{ id: `alloc_${targetInstId}`, institutionId: targetInstId, allocations: mergedStore }]);
+                } catch (e) {}
+
+                return [{ id: `alloc_${targetInstId}`, institutionId: targetInstId, allocations: mergedStore }] as any;
+            }
+
+            if (module === 'subject_allocations') {
+                const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
+                let remoteAllocs: any[] = [];
+
+                if (_supabase) {
+                    try {
+                        let query = _supabase.from('institution_module_states').select('*');
+                        if (institutionId && institutionId !== 'ALL') {
+                            query = query.eq('institution_id', institutionId);
+                        }
+                        const { data: imsData, error: imsErr } = await query;
+                        if (!imsErr && imsData && imsData.length > 0) {
+                            const camelRows = toCamelCase(imsData);
+                            const match = camelRows.find((r: any) => 
+                                r.id === `ims_subject_allocations_${targetInstId}` ||
+                                (r.id && r.id.includes('subject_allocations')) ||
+                                r.moduleId === 'subject_allocations' ||
+                                r.module_id === 'subject_allocations'
+                            );
+                            const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
+                            if (Array.isArray(storeData)) {
+                                remoteAllocs = storeData;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] Supabase fetch for subject_allocations failed:', e);
+                    }
+                }
+
+                if (remoteAllocs.length === 0) {
+                    try {
+                        let token = await apiService.getAuthToken();
+                        const url = new URL(`${window.location.origin}/api/records`);
+                        url.searchParams.append('module', 'institution_module_states');
+                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                        const response = await fetch(url.toString(), {
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            const resJson = await response.json();
+                            const fetched = resJson.data || resJson || [];
+                            if (Array.isArray(fetched) && fetched.length > 0) {
+                                const camelRows = toCamelCase(fetched);
+                                const match = camelRows.find((r: any) => 
+                                    r.id === `ims_subject_allocations_${targetInstId}` ||
+                                    (r.id && r.id.includes('subject_allocations')) ||
+                                    r.moduleId === 'subject_allocations' ||
+                                    r.module_id === 'subject_allocations'
+                                );
+                                const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
+                                if (Array.isArray(storeData)) {
+                                    remoteAllocs = storeData;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] API fetch for subject_allocations failed:', e);
+                    }
+                }
+
+                let localAllocs: any[] = [];
+                try {
+                    const saved = localStorage.getItem(`eduai_subject_allocations_${targetInstId}`) || localStorage.getItem('eduai_subject_allocations');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) localAllocs = parsed;
+                    }
+                } catch (e) {}
+
+                const map = new Map<string, any>();
+                localAllocs.forEach(a => {
+                    const k = a.id || `${(a.className || '').toLowerCase().trim()}_${(a.subjectName || '').toLowerCase().trim()}`;
+                    map.set(k, a);
+                });
+                remoteAllocs.forEach(a => {
+                    const k = a.id || `${(a.className || '').toLowerCase().trim()}_${(a.subjectName || '').toLowerCase().trim()}`;
+                    map.set(k, { ...map.get(k), ...a });
+                });
+
+                const finalAllocs = Array.from(map.values());
+                try {
+                    localStorage.setItem(`eduai_subject_allocations_${targetInstId}`, JSON.stringify(finalAllocs));
+                    localStorage.setItem('eduai_subject_allocations', JSON.stringify(finalAllocs));
+                    ls.set('subject_allocations', finalAllocs);
+                } catch (e) {}
+
+                return finalAllocs as T[];
+            }
+
             if (_unsupportedServerModules.has(module) || !_supabase) {
                 return queryLocal();
             }
@@ -2974,6 +3145,42 @@ export const apiService = {
             return;
         }
 
+        if (module === 'subject_allocations') {
+            const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localAllocs: any[] = [];
+            try {
+                const saved = localStorage.getItem(`eduai_subject_allocations_${instId}`) || localStorage.getItem('eduai_subject_allocations');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) localAllocs = parsed;
+                }
+            } catch (e) {}
+
+            const remaining = localAllocs.filter((a: any) => a && !idsSet.has(a.id));
+            try {
+                localStorage.setItem(`eduai_subject_allocations_${instId}`, JSON.stringify(remaining));
+                localStorage.setItem('eduai_subject_allocations', JSON.stringify(remaining));
+                ls.set('subject_allocations', remaining);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_subject_allocations_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'subject_allocations',
+                    moduleId: 'subject_allocations',
+                    moduleName: 'Subject Allocations',
+                    status: 'active',
+                    data: remaining,
+                    settings: remaining,
+                    stateData: remaining,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return;
+        }
+
         if (module === 'exam_broadsheets') {
             const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
             let localStore: Record<string, any> = {};
@@ -3228,6 +3435,100 @@ export const apiService = {
                 };
                 apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
                     console.warn('[apiService] saveModuleRecord exam_broadsheets error:', err);
+                });
+            }
+            return toCamelCase(payload);
+        }
+
+        if (module === 'class_subject_allocations') {
+            const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            const allocs = payload?.allocations || (data as any)?.allocations || payload;
+
+            let store: Record<string, string[]> = {};
+            try {
+                const saved = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
+                if (saved) store = JSON.parse(saved) || {};
+            } catch (e) {}
+            if (allocs && typeof allocs === 'object' && !Array.isArray(allocs)) {
+                store = { ...store, ...allocs };
+            }
+
+            try {
+                localStorage.setItem(`eduai_class_subject_allocations_${instId}`, JSON.stringify(store));
+                ls.set('class_subject_allocations', [{ id: `alloc_${instId}`, institutionId: instId, allocations: store }]);
+            } catch (e) {}
+
+            if (instId) {
+                const stateData = {
+                    id: `ims_class_subject_allocations_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'class_subject_allocations',
+                    moduleId: 'class_subject_allocations',
+                    moduleName: 'Class Subject Allocations',
+                    status: 'active',
+                    data: { id: `alloc_${instId}`, institutionId: instId, allocations: store },
+                    settings: { id: `alloc_${instId}`, institutionId: instId, allocations: store },
+                    stateData: { id: `alloc_${instId}`, institutionId: instId, allocations: store },
+                    updated_at: new Date().toISOString()
+                };
+                apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
+                    console.warn('[apiService] saveModuleRecord class_subject_allocations error:', err);
+                });
+            }
+            return toCamelCase({ id: `alloc_${instId}`, institutionId: instId, allocations: store });
+        }
+
+        if (module === 'subject_allocations') {
+            const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            let allAllocs: any[] = [];
+            try {
+                const saved = localStorage.getItem(`eduai_subject_allocations_${instId}`) || localStorage.getItem('eduai_subject_allocations');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) allAllocs = parsed;
+                }
+            } catch (e) {}
+
+            if (Array.isArray(payload)) {
+                allAllocs = payload;
+            } else if (Array.isArray(data)) {
+                allAllocs = data;
+            } else if (payload && (payload.id || (payload.className && payload.subjectName))) {
+                const matchKey = payload.id || `${(payload.className || '').toLowerCase().trim()}_${(payload.subjectName || '').toLowerCase().trim()}`;
+                const idx = allAllocs.findIndex(a => 
+                    (payload.id && a.id === payload.id) || 
+                    (`${(a.className || '').toLowerCase().trim()}_${(a.subjectName || '').toLowerCase().trim()}` === matchKey)
+                );
+                if (idx >= 0) {
+                    allAllocs[idx] = { ...allAllocs[idx], ...payload };
+                } else {
+                    allAllocs.push(payload);
+                }
+            }
+
+            try {
+                localStorage.setItem(`eduai_subject_allocations_${instId}`, JSON.stringify(allAllocs));
+                localStorage.setItem('eduai_subject_allocations', JSON.stringify(allAllocs));
+                ls.set('subject_allocations', allAllocs);
+            } catch (e) {}
+
+            if (instId) {
+                const stateData = {
+                    id: `ims_subject_allocations_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'subject_allocations',
+                    moduleId: 'subject_allocations',
+                    moduleName: 'Subject Allocations',
+                    status: 'active',
+                    data: allAllocs,
+                    settings: allAllocs,
+                    stateData: allAllocs,
+                    updated_at: new Date().toISOString()
+                };
+                apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
+                    console.warn('[apiService] saveModuleRecord subject_allocations error:', err);
                 });
             }
             return toCamelCase(payload);
@@ -5387,15 +5688,28 @@ export const apiService = {
                 const raw = localStorage.getItem(`eduai_class_subject_allocations_${instId}`);
                 if (raw) allocMap = JSON.parse(raw);
             } catch (_) {}
+            if (Object.keys(allocMap).length === 0) {
+                try {
+                    const allocRecs = await apiService.fetchModuleRecords('class_subject_allocations', instId).catch(() => []);
+                    const match = allocRecs.find((r: any) => r.allocations);
+                    if (match?.allocations) allocMap = match.allocations;
+                } catch (_) {}
+            }
         }
         return (subjects || []).map((s: any) => {
-            let cls = Array.isArray(s.targetClasses) ? s.targetClasses : (Array.isArray(s.assignedClasses) ? s.assignedClasses : (Array.isArray(s.classes) ? s.classes : []));
-            if (cls.length === 0 && instId && allocMap) {
+            let cls = Array.isArray(s.targetClasses) ? [...s.targetClasses] : (Array.isArray(s.assignedClasses) ? [...s.assignedClasses] : (Array.isArray(s.classes) ? [...s.classes] : []));
+            if (instId && allocMap && Object.keys(allocMap).length > 0) {
+                const sNameLower = (s.name || '').toLowerCase().trim();
+                const sCodeLower = (s.code || '').toLowerCase().trim();
                 const matchedClasses = Object.entries(allocMap)
-                    .filter(([_, subIds]) => Array.isArray(subIds) && subIds.includes(s.id))
+                    .filter(([_, subIds]) => Array.isArray(subIds) && (
+                        subIds.includes(s.id) || 
+                        subIds.map(x => String(x).toLowerCase().trim()).includes(sNameLower) ||
+                        (sCodeLower && subIds.map(x => String(x).toLowerCase().trim()).includes(sCodeLower))
+                    ))
                     .map(([cName]) => cName);
                 if (matchedClasses.length > 0) {
-                    cls = matchedClasses;
+                    cls = Array.from(new Set([...cls, ...matchedClasses]));
                 }
             }
             const abbr = s.abbreviation || s.short_name || s.shortName || '';

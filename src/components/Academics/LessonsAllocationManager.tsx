@@ -822,6 +822,19 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 const sCode = (s.code || '').toLowerCase().trim();
                 return set.has(sId) || set.has(sName) || (sCode && set.has(sCode));
             });
+            storedAssignedIds.forEach(idOrName => {
+                const clean = String(idOrName).trim();
+                const cleanLow = clean.toLowerCase();
+                const exists = rawList.some(r => r.id === clean || (r.name || '').toLowerCase() === cleanLow || (r.code && r.code.toLowerCase() === cleanLow));
+                if (!exists) {
+                    const matchedSub = subjects.find(s => s.id === clean || (s.name || '').toLowerCase() === cleanLow || (s.code && s.code.toLowerCase() === cleanLow));
+                    if (matchedSub) {
+                        rawList.push(matchedSub);
+                    } else {
+                        rawList.push({ id: `sub_${clean}`, name: clean, code: `${clean.substring(0, 4).toUpperCase()} 101`, periodsPerWeek: 5 });
+                    }
+                }
+            });
         } else if (subjects && subjects.length > 0) {
             // 2. Check explicit targetClasses / assignedClasses array on subject
             const explicitMatch = subjects.filter(s => {
@@ -849,6 +862,29 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             }
         }
 
+        // 4. Ensure any subjects that have active teacher allocations for this class stream are ALWAYS included
+        const classTeacherAllocs = (allocations || []).filter(a => {
+            const aCls = (a.className || '').toLowerCase().trim();
+            return aCls === cLower || (baseLower && aCls === baseLower);
+        });
+        classTeacherAllocs.forEach(a => {
+            const aSubName = (a.subjectName || '').toLowerCase().trim();
+            const alreadyIncluded = rawList.some(r => (r.name || '').toLowerCase().trim() === aSubName);
+            if (!alreadyIncluded && a.subjectName) {
+                const matchedSub = subjects.find(s => (s.name || '').toLowerCase().trim() === aSubName);
+                if (matchedSub) {
+                    rawList.push(matchedSub);
+                } else {
+                    rawList.push({
+                        id: `sub_${a.subjectName.replace(/\s+/g, '_')}`,
+                        name: a.subjectName,
+                        code: a.subjectCode || `${a.subjectName.substring(0, 4).toUpperCase()} 101`,
+                        periodsPerWeek: a.lessonsPerWeek || 5
+                    });
+                }
+            }
+        });
+
         if (rawList.length === 0 && !hasExplicitStore) {
             rawList = [
                 { id: 'sub_math', name: 'Mathematics', code: 'MATH 101', periodsPerWeek: 6 },
@@ -874,9 +910,20 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         });
 
         return deduplicated;
-    }, [subjects, courses, classAllocationsStore]);
+    }, [subjects, courses, classAllocationsStore, allocations]);
 
-    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>([]);
+    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>(() => {
+        try {
+            const instKey = currentInstitution?.id || 'default_inst';
+            const saved = localStorage.getItem(`eduai_subject_allocations_${instKey}`) || 
+                          localStorage.getItem('eduai_subject_allocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch(e) {}
+        return [];
+    });
     const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(() => {
         try {
             const raw = localStorage.getItem('eduai_removed_allocation_keys');
@@ -910,14 +957,32 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             apiService.fetchModuleRecords<SubjectAllocationRecord>('subject_allocations', currentInstitution.id)
                 .then(dbAllocations => {
                     if (dbAllocations && dbAllocations.length > 0) {
-                        setAllocations(dbAllocations);
-                        try {
-                            localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(dbAllocations));
-                            localStorage.setItem('eduai_subject_allocations', JSON.stringify(dbAllocations));
-                        } catch (e) {}
+                        setAllocations(prev => {
+                            const map = new Map<string, SubjectAllocationRecord>();
+                            prev.forEach(p => map.set(p.id || `${p.className}_${p.subjectName}`, p));
+                            dbAllocations.forEach(d => map.set(d.id || `${d.className}_${d.subjectName}`, { ...map.get(d.id || `${d.className}_${d.subjectName}`), ...d }));
+                            const merged = Array.from(map.values());
+                            try {
+                                localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                                localStorage.setItem('eduai_subject_allocations', JSON.stringify(merged));
+                            } catch (e) {}
+                            return merged;
+                        });
                     }
                 })
-                .catch(err => console.log('Using initial allocation records:', err));
+                .catch(err => {
+                    console.log('Using local allocation records on fetch error:', err);
+                    try {
+                        const saved = localStorage.getItem(`eduai_subject_allocations_${currentInstitution.id}`) || 
+                                      localStorage.getItem('eduai_subject_allocations');
+                        if (saved) {
+                            const parsed = JSON.parse(saved);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                setAllocations(prev => prev.length > 0 ? prev : parsed);
+                            }
+                        }
+                    } catch (e) {}
+                });
         }
     }, [currentInstitution]);
 
