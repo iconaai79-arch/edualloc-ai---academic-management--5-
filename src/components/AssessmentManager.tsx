@@ -3,13 +3,13 @@ import type { User, Assessment, AssessmentMark, Subject, Course } from '../types
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
 import { CheckIcon } from './icons/CheckIcon';
-import { resolveRealStudentClass, naturalClassSort, extractClassAndStream } from '../utils/academicUtils';
+import { resolveRealStudentClass, naturalClassSort, extractClassAndStream, normalizeStreamName } from '../utils/academicUtils';
 import { apiService } from '../services/apiService';
 import { 
     CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Filter, 
     Search, Sparkles, AlertCircle, Printer, Download,
     AlertTriangle, FileSpreadsheet, History, CheckCheck,
-    Edit3, Zap, ArrowDown, ArrowUp, Users, Check
+    Edit3, Zap, ArrowDown, ArrowUp, Users, Check, BookOpen
 } from 'lucide-react';
 
 interface AssessmentManagerProps {
@@ -57,19 +57,94 @@ interface BroadsheetStudentRow {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// HELPER FUNCTIONS: STRICT GRADE & STREAM RESOLUTION
+// Prevents streams (e.g. WEST, EAST, SOUTH) from being treated as Grades
+// ─────────────────────────────────────────────────────────────────────────────
+const COMMON_STREAM_KEYWORDS = new Set([
+    'east', 'west', 'north', 'south', 'central',
+    'a', 'b', 'c', 'd', 'e', 'f',
+    'red', 'blue', 'green', 'yellow', 'purple', 'white', 'gold',
+    'stream a', 'stream b', 'stream c', 'stream east', 'stream west',
+    'faith', 'peace', 'joy', 'hope', 'love'
+]);
+
+export const isPureStreamName = (str?: string): boolean => {
+    if (!str) return false;
+    const clean = str.trim().toLowerCase();
+    return COMMON_STREAM_KEYWORDS.has(clean) || /^[a-z]$/i.test(clean);
+};
+
+export const getStudentGrade = (u: User, courses: Course[]): string => {
+    // Check direct property first
+    const directGrade = (u as any).gradeLevel || (u as any).grade || (u as any).academicLevel;
+    if (directGrade && !isPureStreamName(directGrade)) {
+        const parsed = extractClassAndStream(directGrade);
+        if (parsed.className && !isPureStreamName(parsed.className)) return parsed.className;
+    }
+
+    const rawClass = resolveRealStudentClass(u, [], courses, '');
+    if (isPureStreamName(rawClass)) {
+        // If the student's raw class was only a stream name (e.g. "WEST"), try finding their real grade from courseLevelId
+        if (u.courseLevelId && courses && courses.length > 0) {
+            for (const c of courses) {
+                const lvl = (c.levels || []).find(l => l.id === u.courseLevelId);
+                if (lvl && lvl.name && !isPureStreamName(lvl.name)) {
+                    return extractClassAndStream(lvl.name).className || lvl.name;
+                }
+            }
+        }
+        return 'Unassigned Grade';
+    }
+
+    const parsed = extractClassAndStream(rawClass);
+    if (parsed.className && parsed.className !== 'Unclassified' && parsed.className !== '—' && !isPureStreamName(parsed.className)) {
+        return parsed.className;
+    }
+
+    const match = rawClass.match(/(?:Grade|Class|Form|Year|Standard|Std|CBC\s*Grade)\s*(\d+)/i);
+    if (match) {
+        const prefix = match[0].trim();
+        return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    }
+
+    return rawClass && !isPureStreamName(rawClass) ? rawClass : 'Unassigned Grade';
+};
+
+export const getStudentStream = (u: User, courses: Course[]): string => {
+    const directStream = (u as any).stream || (u as any).studentStream || (u as any).classStream || (u as any).metadata?.stream;
+    if (directStream) {
+        return normalizeStreamName(directStream);
+    }
+
+    const rawClass = resolveRealStudentClass(u, [], courses, '');
+    if (isPureStreamName(rawClass)) {
+        return normalizeStreamName(rawClass);
+    }
+
+    const parsed = extractClassAndStream(rawClass);
+    if (parsed.stream) {
+        return normalizeStreamName(parsed.stream);
+    }
+
+    return '';
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // NEW ASSESSMENT FORM
 // ─────────────────────────────────────────────────────────────────────────────
 const NewAssessmentForm: React.FC<{
     user: User;
     allocatedSubjects: Subject[];
     availableGrades: string[];
-    getEnrollmentForGrade: (g: string) => number;
+    getEnrollmentForGrade: (g: string, s?: string) => number;
+    initialGrade?: string;
+    initialSubject?: string;
     onAddAssessment: (data: Omit<Assessment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onCancel: () => void;
-}> = ({ user, allocatedSubjects, availableGrades, getEnrollmentForGrade, onAddAssessment, onCancel }) => {
+}> = ({ user, allocatedSubjects, availableGrades, getEnrollmentForGrade, initialGrade, initialSubject, onAddAssessment, onCancel }) => {
     const [title, setTitle] = useState('');
-    const [subjectId, setSubjectId] = useState(allocatedSubjects[0]?.id || '');
-    const [targetGrade, setTargetGrade] = useState(availableGrades[0] || 'all');
+    const [subjectId, setSubjectId] = useState(initialSubject && initialSubject !== 'all' ? initialSubject : (allocatedSubjects[0]?.id || ''));
+    const [targetGrade, setTargetGrade] = useState(initialGrade && initialGrade !== 'all' ? initialGrade : (availableGrades[0] || 'all'));
     const [type, setType] = useState<string>('Mid Term');
     const [description, setDescription] = useState('');
     const [maxMarks, setMaxMarks] = useState<number | ''>(100);
@@ -105,8 +180,8 @@ const NewAssessmentForm: React.FC<{
                         <Sparkles className="w-4 h-4" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Director of Studies • Create School Assessment</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure exam papers for assigned subject teachers to enter marks</p>
+                        <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Create School Assessment / Exam Paper</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Configure exam papers for assigned subject teachers to enter raw marks</p>
                     </div>
                 </div>
                 <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -168,7 +243,7 @@ const NewAssessmentForm: React.FC<{
 
                 <div className="md:col-span-2">
                     <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Description / Syllabus Coverage (Optional)</label>
-                    <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="form-input text-xs" placeholder="e.g., Covers Term 1 Weeks 1-6 curriculum content..."></textarea>
+                    <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="form-input text-xs" placeholder="e.g., Covers Term 1 curriculum content..."></textarea>
                 </div>
             </div>
 
@@ -187,7 +262,7 @@ const EditAssessmentModal: React.FC<{
     assessment: Assessment;
     allocatedSubjects: Subject[];
     availableGrades: string[];
-    getEnrollmentForGrade: (g: string) => number;
+    getEnrollmentForGrade: (g: string, s?: string) => number;
     onSave: (updated: Assessment) => Promise<void>;
     onCancel: () => void;
 }> = ({ assessment, allocatedSubjects, availableGrades, getEnrollmentForGrade, onSave, onCancel }) => {
@@ -380,13 +455,15 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     // Accordion state
     const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({});
 
-    // Filter states
-    const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
+    // ──────────────────────────────────────────────────────────────────────────
+    // THE 3 REQUIRED USER FILTERS: GRADE, STREAM, SUBJECT
+    // ──────────────────────────────────────────────────────────────────────────
     const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
+    const [selectedStreamFilter, setSelectedStreamFilter] = useState<string>('all');
+    const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState<string>('');
     
-    // Marks entry local stream filter & search & missing-only toggle
-    const [marksStreamFilter, setMarksStreamFilter] = useState<string>('all');
+    // Marks entry local search & missing-only toggle
     const [searchStudentQuery, setSearchStudentQuery] = useState<string>('');
     const [showMissingOnlyInMarksheet, setShowMissingOnlyInMarksheet] = useState<boolean>(false);
 
@@ -405,81 +482,118 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     const allowedSubjectNames = useMemo(() => new Set(allocatedSubjects.map(s => s.name.trim().toLowerCase())), [allocatedSubjects]);
 
     // ──────────────────────────────────────────────────────────────────────────
-    // ALL SCHOOL GRADES & ACCURATE ENROLLMENT RESOLVER
+    // CLEAN ACADEMIC GRADES LIST (EXCLUDES STREAMS LIKE WEST, EAST, SOUTH)
     // ──────────────────────────────────────────────────────────────────────────
-    const allSchoolGrades = useMemo<string[]>(() => {
+    const allCleanGradesList = useMemo<string[]>(() => {
         const gradesSet = new Set<string>();
 
         // 1. From student records
         users.filter(u => u.role === 'student' || (u as any).role === 'learner' || (u as any).role === 'pupil').forEach(st => {
-            const c = resolveRealStudentClass(st, [], courses, '');
-            if (c && c !== 'Unclassified' && c !== '—') {
-                gradesSet.add(c);
-                const canonical = extractClassAndStream(c).className;
-                if (canonical && canonical !== 'Unclassified') gradesSet.add(canonical);
+            const gr = getStudentGrade(st, courses);
+            if (gr && gr !== 'Unassigned Grade' && !isPureStreamName(gr)) {
+                gradesSet.add(gr);
             }
         });
 
         // 2. From courses / levels
         courses.forEach(c => {
             (c.levels || []).forEach(l => {
-                if (l.name && l.name.trim()) {
-                    gradesSet.add(l.name.trim());
+                if (l.name && l.name.trim() && !isPureStreamName(l.name)) {
                     const canonical = extractClassAndStream(l.name).className;
-                    if (canonical) gradesSet.add(canonical);
+                    if (canonical && !isPureStreamName(canonical)) {
+                        gradesSet.add(canonical);
+                    }
                 }
             });
         });
 
         // 3. From allocatedGrades prop
         (allocatedGrades || []).forEach(g => {
-            if (g && g.trim()) gradesSet.add(g.trim());
+            if (g && g.trim() && !isPureStreamName(g)) {
+                const canonical = extractClassAndStream(g).className;
+                if (canonical && !isPureStreamName(canonical)) gradesSet.add(canonical);
+                else gradesSet.add(g.trim());
+            }
         });
 
         // 4. From existing assessments
         localAssessments.forEach(a => {
             const ag = a.grade || a.className || a.targetClass;
-            if (ag && ag.trim()) gradesSet.add(ag.trim());
+            if (ag && ag.trim() && !isPureStreamName(ag)) {
+                const canonical = extractClassAndStream(ag).className;
+                if (canonical && !isPureStreamName(canonical)) gradesSet.add(canonical);
+            }
         });
 
         return naturalClassSort(Array.from(gradesSet));
     }, [users, courses, allocatedGrades, localAssessments]);
 
-    // Robust function to get ALL active students enrolled in a grade/class
-    const getStudentsInGrade = useCallback((targetGradeName: string): User[] => {
-        if (!targetGradeName || targetGradeName === 'all') {
-            return users.filter(u => {
-                if (u.role !== 'student' && (u as any).role !== 'learner' && (u as any).role !== 'pupil') return false;
-                const status = ((u as any).status || '').toLowerCase();
-                return status !== 'inactive' && status !== 'archived' && status !== 'alumni' && status !== 'graduated';
+    // ──────────────────────────────────────────────────────────────────────────
+    // CLEAN STREAMS LIST FOR CURRENT FILTER
+    // ──────────────────────────────────────────────────────────────────────────
+    const availableStreamsList = useMemo<string[]>(() => {
+        const streamsSet = new Set<string>();
+        users.filter(u => {
+            if (u.role !== 'student' && (u as any).role !== 'learner' && (u as any).role !== 'pupil') return false;
+            if (selectedGradeFilter !== 'all') {
+                const gr = getStudentGrade(u, courses);
+                if (gr !== selectedGradeFilter) return false;
+            }
+            return true;
+        }).forEach(u => {
+            const st = getStudentStream(u, courses);
+            if (st) streamsSet.add(st);
+        });
+
+        // If specific grade has no detected streams, check overall school streams
+        if (streamsSet.size === 0) {
+            users.forEach(u => {
+                const st = getStudentStream(u, courses);
+                if (st) streamsSet.add(st);
             });
         }
-        const cleanTarget = targetGradeName.toLowerCase().trim();
-        const canonicalTarget = extractClassAndStream(targetGradeName).className.toLowerCase().trim();
 
+        return Array.from(streamsSet).sort();
+    }, [users, courses, selectedGradeFilter]);
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // ACCURATE STUDENT ENROLLMENT GETTER (PER GRADE & PER STREAM)
+    // ──────────────────────────────────────────────────────────────────────────
+    const getStudentsInGradeAndStream = useCallback((targetGradeName: string, targetStreamName: string = 'all'): User[] => {
         return users.filter(u => {
             if (u.role !== 'student' && (u as any).role !== 'learner' && (u as any).role !== 'pupil') return false;
             const status = ((u as any).status || '').toLowerCase();
             if (status === 'inactive' || status === 'archived' || status === 'alumni' || status === 'graduated') return false;
 
-            const rawClass = resolveRealStudentClass(u, [], courses, '').toLowerCase().trim();
-            const canonicalClass = extractClassAndStream(rawClass).className.toLowerCase().trim();
+            // 1. Grade check
+            if (targetGradeName && targetGradeName !== 'all') {
+                const stGrade = getStudentGrade(u, courses);
+                const canonicalTarget = extractClassAndStream(targetGradeName).className.toLowerCase().trim();
+                const canonicalSt = extractClassAndStream(stGrade).className.toLowerCase().trim();
 
-            // Direct match
-            if (rawClass === cleanTarget || canonicalClass === canonicalTarget) return true;
-            // Canonical match (e.g. "Grade 8 East" matches "Grade 8 2026")
-            if (canonicalClass && canonicalTarget && (canonicalClass === canonicalTarget || canonicalClass.includes(canonicalTarget) || canonicalTarget.includes(canonicalClass))) {
-                return true;
+                if (stGrade !== targetGradeName && canonicalSt !== canonicalTarget) {
+                    if (!stGrade.toLowerCase().includes(targetGradeName.toLowerCase()) && !targetGradeName.toLowerCase().includes(stGrade.toLowerCase())) {
+                        return false;
+                    }
+                }
             }
-            if (rawClass.includes(cleanTarget) || cleanTarget.includes(rawClass)) return true;
 
-            return false;
+            // 2. Stream check
+            if (targetStreamName && targetStreamName !== 'all') {
+                const stStream = getStudentStream(u, courses).toLowerCase();
+                const cleanStream = targetStreamName.toLowerCase().trim();
+                if (stStream !== cleanStream && !stStream.includes(cleanStream)) {
+                    return false;
+                }
+            }
+
+            return true;
         }).sort((a, b) => a.name.localeCompare(b.name));
     }, [users, courses]);
 
-    const getEnrollmentForGrade = useCallback((gradeName: string): number => {
-        return getStudentsInGrade(gradeName).length;
-    }, [getStudentsInGrade]);
+    const getEnrollmentCount = useCallback((gradeName: string, streamName: string = 'all'): number => {
+        return getStudentsInGradeAndStream(gradeName, streamName).length;
+    }, [getStudentsInGradeAndStream]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // FILTERED ASSESSMENTS
@@ -499,21 +613,22 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             });
         }
 
-        // Filter by Subject if selected
+        // Filter by Subject
         if (selectedSubjectFilter !== 'all') {
             list = list.filter(a => a.subjectId === selectedSubjectFilter);
         }
 
-        // Filter by Grade if selected
+        // Filter by Grade
         if (selectedGradeFilter !== 'all') {
             const gClean = selectedGradeFilter.toLowerCase().trim();
+            const gCanonical = extractClassAndStream(selectedGradeFilter).className.toLowerCase().trim();
             list = list.filter(a => {
                 const targetG = (a.grade || a.className || a.targetClass || '').toLowerCase().trim();
                 if (targetG) {
-                    return targetG.includes(gClean) || gClean.includes(targetG);
+                    const targetCanonical = extractClassAndStream(targetG).className.toLowerCase().trim();
+                    return targetG.includes(gClean) || gClean.includes(targetG) || targetCanonical === gCanonical;
                 }
-                const studentsInGrade = getStudentsInGrade(selectedGradeFilter);
-                return studentsInGrade.length > 0;
+                return true;
             });
         }
 
@@ -528,53 +643,44 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         }
 
         return list.sort((a, b) => new Date(b.assessmentDate).getTime() - new Date(a.assessmentDate).getTime());
-    }, [localAssessments, isAdminOrDos, allowedSubjectIds, allowedSubjectNames, user.id, selectedSubjectFilter, selectedGradeFilter, searchQuery, getStudentsInGrade]);
+    }, [localAssessments, isAdminOrDos, allowedSubjectIds, allowedSubjectNames, user.id, selectedSubjectFilter, selectedGradeFilter, searchQuery]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // GROUP ASSESSMENTS BY CLASS / GRADE WITH ACCURATE ENROLLMENT
     // ──────────────────────────────────────────────────────────────────────────
     const gradeGroups = useMemo<GradeGroup[]>(() => {
-        const gradeMap = new Map<string, Assessment[]>();
+        // If a specific grade is selected in the filter, only group by that grade
+        const gradesToProcess = selectedGradeFilter !== 'all' 
+            ? [selectedGradeFilter] 
+            : allCleanGradesList;
 
-        // 1. Distinct grades from visibleAssessments
-        visibleAssessments.forEach(a => {
-            const g = (a.grade || a.className || a.targetClass || 'Unassigned Grade').trim();
-            if (!gradeMap.has(g)) {
-                gradeMap.set(g, []);
-            }
-            gradeMap.get(g)!.push(a);
-        });
+        return gradesToProcess.map((gradeName: string): GradeGroup => {
+            const gClean = gradeName.toLowerCase().trim();
+            const gCanonical = extractClassAndStream(gradeName).className.toLowerCase().trim();
 
-        // 2. Add available school grades
-        allSchoolGrades.forEach(g => {
-            const trimmed = g.trim();
-            if (!gradeMap.has(trimmed)) {
-                const matching = visibleAssessments.filter(a => {
-                    const target = (a.grade || a.className || a.targetClass || '').toLowerCase().trim();
-                    return target.includes(trimmed.toLowerCase()) || trimmed.toLowerCase().includes(target);
-                });
-                gradeMap.set(trimmed, matching);
-            }
-        });
+            const papers = visibleAssessments.filter(a => {
+                const targetG = (a.grade || a.className || a.targetClass || '').toLowerCase().trim();
+                if (!targetG) return true;
+                const targetCanonical = extractClassAndStream(targetG).className.toLowerCase().trim();
+                return targetG.includes(gClean) || gClean.includes(targetG) || targetCanonical === gCanonical;
+            });
 
-        const sortedKeys: string[] = naturalClassSort(Array.from(gradeMap.keys()));
-
-        return sortedKeys.map((gradeName: string): GradeGroup => {
-            const papers = gradeMap.get(gradeName) || [];
-            const studentsInGrade = getStudentsInGrade(gradeName);
+            const studentsInGrade = getStudentsInGradeAndStream(gradeName, selectedStreamFilter);
             const enrollment = studentsInGrade.length;
 
             let totalPossibleEntries = 0;
             let totalGradedEntries = 0;
 
             papers.forEach((paper: Assessment) => {
-                const paperStudents = getStudentsInGrade(paper.grade || paper.className || paper.targetClass || gradeName);
-                const paperMax = paperStudents.length > 0 ? paperStudents.length : (enrollment > 0 ? enrollment : 1);
+                const paperMax = enrollment > 0 ? enrollment : 1;
                 totalPossibleEntries += paperMax;
 
-                const gradedCount = (assessmentMarks || []).filter(m => 
-                    m.assessmentId === paper.id && m.marks !== null && m.marks !== undefined
-                ).length;
+                const gradedCount = (assessmentMarks || []).filter(m => {
+                    if (m.assessmentId !== paper.id || m.marks === null || m.marks === undefined) return false;
+                    // Check if this student is in current filtered grade and stream
+                    return studentsInGrade.some(st => st.id === m.studentId);
+                }).length;
+
                 totalGradedEntries += Math.min(gradedCount, paperMax);
             });
 
@@ -592,7 +698,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 totalPossibleEntries
             };
         });
-    }, [visibleAssessments, allSchoolGrades, getStudentsInGrade, assessmentMarks]);
+    }, [selectedGradeFilter, allCleanGradesList, visibleAssessments, selectedStreamFilter, getStudentsInGradeAndStream, assessmentMarks]);
 
     // Expand all grades by default initially
     useEffect(() => {
@@ -613,35 +719,17 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     };
 
     // ──────────────────────────────────────────────────────────────────────────
-    // ELIGIBLE STUDENTS FOR ACTIVE ASSESSMENT (MARKSHEET)
+    // ELIGIBLE STUDENTS FOR ACTIVE ASSESSMENT (RAW MARKS SHEET)
     // ──────────────────────────────────────────────────────────────────────────
     const eligibleStudentsForAssessment = useMemo(() => {
         if (!selectedAssessment) return [];
-        const targetClass = selectedAssessment.grade || selectedAssessment.className || selectedAssessment.targetClass || '';
-        return getStudentsInGrade(targetClass);
-    }, [selectedAssessment, getStudentsInGrade]);
-
-    // Distinct streams for active assessment
-    const distinctStreamsInSelected = useMemo<string[]>(() => {
-        const streams = new Set<string>();
-        eligibleStudentsForAssessment.forEach(st => {
-            const cls = resolveRealStudentClass(st, [], courses, '');
-            if (cls && cls !== 'Unclassified') streams.add(cls);
-        });
-        return naturalClassSort(Array.from(streams));
-    }, [eligibleStudentsForAssessment, courses]);
+        const targetClass = selectedAssessment.grade || selectedAssessment.className || selectedAssessment.targetClass || selectedGradeFilter;
+        return getStudentsInGradeAndStream(targetClass, selectedStreamFilter);
+    }, [selectedAssessment, selectedGradeFilter, selectedStreamFilter, getStudentsInGradeAndStream]);
 
     // Displayed students in marksheet with missing-only filter
     const displayedStudentsInMarksEntry = useMemo(() => {
         let list = eligibleStudentsForAssessment;
-
-        if (marksStreamFilter !== 'all') {
-            const cleanStream = marksStreamFilter.toLowerCase().trim();
-            list = list.filter(st => {
-                const cls = resolveRealStudentClass(st, [], courses, '').toLowerCase();
-                return cls === cleanStream || cls.includes(cleanStream);
-            });
-        }
 
         if (showMissingOnlyInMarksheet) {
             list = list.filter(st => {
@@ -660,12 +748,11 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         }
 
         return list;
-    }, [eligibleStudentsForAssessment, marksStreamFilter, showMissingOnlyInMarksheet, searchStudentQuery, marks, courses]);
+    }, [eligibleStudentsForAssessment, showMissingOnlyInMarksheet, searchStudentQuery, marks]);
 
     // Select assessment for marks entry
     const handleSelectAssessment = useCallback((assessment: Assessment) => {
         setSelectedAssessment(assessment);
-        setMarksStreamFilter('all');
         setSearchStudentQuery('');
         setShowMissingOnlyInMarksheet(false);
         const initialMarks = new Map<string, { marks: number | null; comments: string }>();
@@ -724,7 +811,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
                 timestamp: new Date().toISOString(),
                 assessmentTitle: selectedAssessment.title,
-                grade: selectedAssessment.grade || selectedAssessment.className || selectedAssessment.targetClass || 'All Classes',
+                grade: selectedAssessment.grade || selectedAssessment.className || selectedAssessment.targetClass || selectedGradeFilter || 'All Classes',
                 subjectName: subject?.name || 'Subject',
                 savedBy: user?.name || user?.email || 'Teacher',
                 gradedCount,
@@ -739,7 +826,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2500);
         }, 800);
-    }, [selectedAssessment, marks, onSaveAssessmentMarks, user, allocatedSubjects, eligibleStudentsForAssessment.length, auditLogs]);
+    }, [selectedAssessment, marks, onSaveAssessmentMarks, user, allocatedSubjects, eligibleStudentsForAssessment.length, auditLogs, selectedGradeFilter]);
 
     // Ctrl+S / Cmd+S Keyboard Shortcut for Saving Marks
     useEffect(() => {
@@ -766,6 +853,20 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         } catch (e) {
             console.error("Failed to save edited assessment:", e);
         }
+    };
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // "ENTER RAW MARKS" 1-CLICK ACTION FOR TEACHERS
+    // ──────────────────────────────────────────────────────────────────────────
+    const handleOpenRawMarksEntry = () => {
+        // 1. If visible assessments exist matching the current filters, open the first one directly
+        if (visibleAssessments.length > 0) {
+            handleSelectAssessment(visibleAssessments[0]);
+            return;
+        }
+
+        // 2. Otherwise open the New Assessment form pre-filled with the active filters!
+        setIsAdding(true);
     };
 
     // Active assessment statistics
@@ -802,7 +903,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         visibleAssessments.forEach(assessment => {
             const subject = allocatedSubjects.find(s => s.id === assessment.subjectId);
             const targetClass = assessment.grade || assessment.className || assessment.targetClass || '';
-            const eligible = getStudentsInGrade(targetClass);
+            const eligible = getStudentsInGradeAndStream(targetClass, selectedStreamFilter);
 
             eligible.forEach(st => {
                 const markObj = (assessmentMarks || []).find(m => m.assessmentId === assessment.id && m.studentId === st.id);
@@ -812,7 +913,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                         student: st,
                         assessment,
                         subjectName: subject?.name || 'Subject',
-                        studentClass: resolveRealStudentClass(st, [], courses, ''),
+                        studentClass: `${getStudentGrade(st, courses)}${getStudentStream(st, courses) ? ` • ${getStudentStream(st, courses)}` : ''}`,
                         status: 'missing'
                     });
                 }
@@ -820,7 +921,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         });
 
         return issues;
-    }, [visibleAssessments, allocatedSubjects, getStudentsInGrade, courses, assessmentMarks]);
+    }, [visibleAssessments, allocatedSubjects, getStudentsInGradeAndStream, courses, assessmentMarks, selectedStreamFilter]);
 
     // Broadsheet Data Calculation
     const broadsheetData = useMemo(() => {
@@ -896,7 +997,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     };
 
     // ──────────────────────────────────────────────────────────────────────────
-    // MARKS ENTRY VIEW (WITH FAST KEYBOARD NAVIGATION & RAPID INPUT)
+    // MARKS ENTRY VIEW (RAW MARKS SHEET WITH FAST NUMPAD KEYBOARD NAVIGATION)
     // ──────────────────────────────────────────────────────────────────────────
     if (selectedAssessment) {
         const subject = allocatedSubjects.find(s => s.id === selectedAssessment.subjectId);
@@ -907,25 +1008,30 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                     <div>
                         <button
                             onClick={() => setSelectedAssessment(null)}
-                            className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors mb-2"
+                            className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors mb-2"
                         >
                             <ChevronLeft className="w-4 h-4" /> Back to Marks Hub
                         </button>
                         <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase flex items-center gap-2">
-                            <span>{selectedAssessment.title}</span>
-                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold capitalize">
+                            <span>Raw Marks Entry Sheet • {selectedAssessment.title}</span>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-bold capitalize">
                                 {selectedAssessment.type}
                             </span>
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
                             {subject?.name || 'Subject'} ({subject?.code || '—'}) • Out of <strong className="text-slate-800 dark:text-slate-200">{selectedAssessment.maxMarks} marks</strong> • Date: {new Date(selectedAssessment.assessmentDate).toLocaleDateString()}
+                            {selectedStreamFilter !== 'all' && (
+                                <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold">
+                                    Stream: {selectedStreamFilter}
+                                </span>
+                            )}
                         </p>
                     </div>
 
                     {/* Quick Stats Pill */}
                     <div className="flex items-center gap-3 self-start sm:self-auto bg-slate-50 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
                         <div className="text-center px-3 border-r border-slate-200 dark:border-slate-700">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Actual Enrolled</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Enrolled</p>
                             <p className="text-sm font-black text-slate-900 dark:text-white">{activeAssessmentStats.total}</p>
                         </div>
                         <div className="text-center px-3 border-r border-slate-200 dark:border-slate-700">
@@ -934,44 +1040,14 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                         </div>
                         <div className="text-center px-3">
                             <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Average</p>
-                            <p className="text-sm font-black text-indigo-600 dark:text-indigo-400">{activeAssessmentStats.avgPercentage.toFixed(1)}%</p>
+                            <p className="text-sm font-black text-blue-600 dark:text-blue-400">{activeAssessmentStats.avgPercentage.toFixed(1)}%</p>
                         </div>
                     </div>
                 </div>
 
-                {/* Fast Entry Toolbar & Filter Bar */}
+                {/* Fast Entry Toolbar */}
                 <div className="bg-white dark:bg-slate-800/90 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                                onClick={() => setMarksStreamFilter('all')}
-                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                    marksStreamFilter === 'all'
-                                        ? 'bg-blue-600 text-white shadow-sm'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                }`}
-                            >
-                                All Classes ({eligibleStudentsForAssessment.length})
-                            </button>
-                            {distinctStreamsInSelected.map((stream: string) => {
-                                const countInStream = eligibleStudentsForAssessment.filter(st => resolveRealStudentClass(st, [], courses, '') === stream).length;
-                                return (
-                                    <button
-                                        key={stream}
-                                        onClick={() => setMarksStreamFilter(stream)}
-                                        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
-                                            marksStreamFilter === stream
-                                                ? 'bg-blue-600 text-white shadow-sm'
-                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                                        }`}
-                                    >
-                                        {stream} ({countInStream})
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {/* Quick Actions: Missing Only & Fast Fill */}
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"
@@ -994,15 +1070,6 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                 Set Unmarked as 0
                             </button>
                         </div>
-                    </div>
-
-                    {/* Search Learner Box with Numpad Keyboard Tip */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400"><ArrowDown className="w-3 h-3" /> Press Enter or Arrow Down to jump to next student</span>
-                            <span>•</span>
-                            <span>Ctrl+S to save</span>
-                        </div>
 
                         <div className="relative w-full sm:w-64">
                             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1016,6 +1083,13 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                         </div>
                     </div>
 
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                            <ArrowDown className="w-3 h-3" /> Press Enter or Arrow Down to jump to next student
+                        </span>
+                        <span>Ctrl+S to save raw marks</span>
+                    </div>
+
                     {/* Marks Table with Keyboard Navigation */}
                     <div className="border border-slate-100 dark:border-slate-700/60 rounded-2xl overflow-hidden">
                         <table className="w-full text-left text-xs">
@@ -1024,15 +1098,16 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                     <th className="py-3 px-4">#</th>
                                     <th className="py-3 px-4">Adm No.</th>
                                     <th className="py-3 px-4">Learner Name</th>
-                                    <th className="py-3 px-4">Class</th>
-                                    <th className="py-3 px-4 w-36">Score (/ {selectedAssessment.maxMarks})</th>
+                                    <th className="py-3 px-4">Grade & Stream</th>
+                                    <th className="py-3 px-4 w-36">Raw Score (/ {selectedAssessment.maxMarks})</th>
                                     <th className="py-3 px-4 w-48">Remarks</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                                 {displayedStudentsInMarksEntry.map((student, idx) => {
                                     const entry = marks.get(student.id) || { marks: null, comments: '' };
-                                    const studentClass = resolveRealStudentClass(student, [], courses, '');
+                                    const studentGrade = getStudentGrade(student, courses);
+                                    const studentStream = getStudentStream(student, courses);
 
                                     return (
                                         <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-750/30">
@@ -1045,7 +1120,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                             </td>
                                             <td className="py-3 px-4">
                                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                                    {studentClass}
+                                                    {studentGrade}{studentStream ? ` • ${studentStream}` : ''}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4">
@@ -1094,7 +1169,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                 {displayedStudentsInMarksEntry.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className="py-8 text-center text-slate-400">
-                                            No learners match the current filter.
+                                            No learners found matching this grade and stream filter.
                                         </td>
                                     </tr>
                                 )}
@@ -1105,7 +1180,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                     {/* Bottom Save Action Bar */}
                     <div className="flex items-center justify-between pt-2">
                         <div className="text-xs text-slate-500 font-medium">
-                            Graded <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.graded}</strong> out of <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.total}</strong> actual enrolled learners.
+                            Graded <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.graded}</strong> out of <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.total}</strong> enrolled learners.
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -1119,7 +1194,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                 disabled={saveStatus === 'saving'}
                                 className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
                             >
-                                {saveStatus === 'saving' ? 'Saving Marks...' : 'Save Marks (Ctrl+S)'}
+                                {saveStatus === 'saving' ? 'Saving Marks...' : 'Save Raw Marks (Ctrl+S)'}
                             </button>
                         </div>
                     </div>
@@ -1129,7 +1204,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // MAIN MARKS HUB VIEW (MATCHING USER'S SCREENSHOT)
+    // MAIN MARKS HUB VIEW (MATCHING USER'S SCREENSHOT WITH 3 FILTERS)
     // ──────────────────────────────────────────────────────────────────────────
     return (
         <div className="space-y-6">
@@ -1149,7 +1224,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                         </span>
                     </h3>
                     <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                        {isAdminOrDos ? 'School examination papers, broadsheets and marks entry overview' : 'Record and manage examination scores for your allocated subjects'}
+                        {isAdminOrDos ? 'School examination papers, broadsheets and raw marks entry overview' : 'Record and manage examination scores for your allocated subjects'}
                     </p>
                 </div>
 
@@ -1168,8 +1243,10 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 <NewAssessmentForm
                     user={user}
                     allocatedSubjects={allocatedSubjects}
-                    availableGrades={allSchoolGrades}
-                    getEnrollmentForGrade={getEnrollmentForGrade}
+                    availableGrades={allCleanGradesList}
+                    getEnrollmentForGrade={getEnrollmentCount}
+                    initialGrade={selectedGradeFilter !== 'all' ? selectedGradeFilter : undefined}
+                    initialSubject={selectedSubjectFilter !== 'all' ? selectedSubjectFilter : undefined}
                     onAddAssessment={onAddAssessment}
                     onCancel={() => setIsAdding(false)}
                 />
@@ -1180,8 +1257,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 <EditAssessmentModal
                     assessment={editingAssessment}
                     allocatedSubjects={allocatedSubjects}
-                    availableGrades={allSchoolGrades}
-                    getEnrollmentForGrade={getEnrollmentForGrade}
+                    availableGrades={allCleanGradesList}
+                    getEnrollmentForGrade={getEnrollmentCount}
                     onSave={handleSaveEditedAssessment}
                     onCancel={() => setEditingAssessment(null)}
                 />
@@ -1234,280 +1311,325 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             {/* ────────────────────────────────────────────────────────── */}
             {activeSubTab === 'progress' && (
                 <div className="space-y-4">
-                    {/* Filters Bar */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 text-xs">
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <div className="flex items-center gap-1 text-slate-400 font-bold uppercase text-[10px]">
-                                <Filter className="w-3.5 h-3.5 text-blue-500" /> Grade:
+                    {/* ────────────────────────────────────────────────────────── */}
+                    {/* 3 FILTERS: GRADE, STREAM, SUBJECT + ENTER RAW MARKS OPTION */}
+                    {/* ────────────────────────────────────────────────────────── */}
+                    <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 space-y-3 text-xs">
+                        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2.5 flex-1">
+                                {/* 1. GRADE FILTER */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-sm">
+                                    <span className="text-slate-400 font-black uppercase text-[10px] flex items-center gap-1">
+                                        <Filter className="w-3.5 h-3.5 text-blue-500" /> Grade:
+                                    </span>
+                                    <select
+                                        value={selectedGradeFilter}
+                                        onChange={e => {
+                                            setSelectedGradeFilter(e.target.value);
+                                            setSelectedStreamFilter('all');
+                                        }}
+                                        className="bg-transparent font-bold text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
+                                    >
+                                        <option value="all">All Grades</option>
+                                        {allCleanGradesList.map(g => (
+                                            <option key={g} value={g}>{g} ({getEnrollmentCount(g, 'all')} students)</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 2. STREAM FILTER */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-sm">
+                                    <span className="text-slate-400 font-black uppercase text-[10px]">Stream:</span>
+                                    <select
+                                        value={selectedStreamFilter}
+                                        onChange={e => setSelectedStreamFilter(e.target.value)}
+                                        className="bg-transparent font-bold text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
+                                    >
+                                        <option value="all">All Streams</option>
+                                        {availableStreamsList.map(st => (
+                                            <option key={st} value={st}>{st} ({getEnrollmentCount(selectedGradeFilter, st)} students)</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* 3. SUBJECT FILTER */}
+                                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 shadow-sm">
+                                    <span className="text-slate-400 font-black uppercase text-[10px]">Subject:</span>
+                                    <select
+                                        value={selectedSubjectFilter}
+                                        onChange={e => setSelectedSubjectFilter(e.target.value)}
+                                        className="bg-transparent font-bold text-slate-800 dark:text-slate-100 outline-none cursor-pointer max-w-[190px] truncate"
+                                    >
+                                        <option value="all">All Subjects ({allocatedSubjects.length})</option>
+                                        {allocatedSubjects.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Search Filter */}
+                                <div className="relative flex-1 min-w-[140px] max-w-[200px]">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Filter paper..."
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                                    />
+                                </div>
                             </div>
-                            <select
-                                value={selectedGradeFilter}
-                                onChange={e => setSelectedGradeFilter(e.target.value)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs"
-                            >
-                                <option value="all">All Grades</option>
-                                {allSchoolGrades.map(g => <option key={g} value={g}>{g}</option>)}
-                            </select>
 
-                            <select
-                                value={selectedSubjectFilter}
-                                onChange={e => setSelectedSubjectFilter(e.target.value)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs"
-                            >
-                                <option value="all">All Subjects ({allocatedSubjects.length})</option>
-                                {allocatedSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="relative w-full sm:w-60">
-                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                                type="text"
-                                placeholder="Filter paper or grade..."
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
-                            />
+                            {/* TEACHER OPTION TO ENTER RAW MARKS */}
+                            <div className="flex items-center gap-2 self-end lg:self-auto">
+                                <button
+                                    type="button"
+                                    onClick={handleOpenRawMarksEntry}
+                                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md shadow-blue-500/20 transition-all whitespace-nowrap"
+                                >
+                                    <BookOpen className="w-4 h-4" />
+                                    <span>Enter Raw Marks</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     {/* Table Container with Dark Navy Header */}
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                        {/* Table Header: Dark Navy */}
-                        <div className="bg-[#243347] text-white px-6 py-3.5 grid grid-cols-12 items-center text-xs font-black uppercase tracking-wider select-none">
-                            <div className="col-span-12 sm:col-span-4 flex items-center gap-2">PAPER</div>
-                            <div className="hidden sm:block sm:col-span-3">SUBJECT TEACHER</div>
-                            <div className="hidden sm:block sm:col-span-1 text-center">ENROLLMENT</div>
-                            <div className="hidden sm:block sm:col-span-3">MARKS ENTRY PROGRESS</div>
-                            <div className="hidden sm:block sm:col-span-1 text-right">ACTION</div>
-                        </div>
+                        <div className="overflow-x-auto">
+                            <div className="min-w-[760px]">
+                                {/* Table Header: Dark Navy with Well-Spaced Columns */}
+                                <div className="bg-[#243347] text-white px-6 py-3.5 flex items-center justify-between text-xs font-black uppercase tracking-wider select-none">
+                                    <div className="w-[32%] min-w-[190px]">PAPER</div>
+                                    <div className="w-[20%] min-w-[130px]">SUBJECT TEACHER</div>
+                                    <div className="w-[14%] min-w-[90px] text-center">ENROLLMENT</div>
+                                    <div className="w-[22%] min-w-[150px]">MARKS ENTRY PROGRESS</div>
+                                    <div className="w-[12%] min-w-[90px] text-right">ACTION</div>
+                                </div>
 
-                        {/* Accordion Rows Grouped by Class/Grade */}
-                        <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {gradeGroups.map((group: GradeGroup) => {
-                                const isExpanded = !!expandedGrades[group.gradeName];
+                                {/* Accordion Rows Grouped by Class/Grade */}
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {gradeGroups.map((group: GradeGroup) => {
+                                        const isExpanded = !!expandedGrades[group.gradeName];
 
-                                return (
-                                    <div key={group.gradeName} className="transition-colors">
-                                        {/* Class Summary Row (Matching Screenshot: > Grade 8 2026 | 174 | 0% progress [bar] | View Broadsheet) */}
-                                        <div
-                                            onClick={() => toggleGradeExpand(group.gradeName)}
-                                            className="px-6 py-4 grid grid-cols-12 items-center hover:bg-slate-50 dark:hover:bg-slate-850/60 cursor-pointer select-none transition-colors border-b border-slate-100/80 dark:border-slate-800/80"
-                                        >
-                                            {/* Column 1: Chevron + Grade Name */}
-                                            <div className="col-span-12 sm:col-span-4 flex items-center gap-2.5">
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { e.stopPropagation(); toggleGradeExpand(group.gradeName); }}
-                                                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-transform"
+                                        return (
+                                            <div key={group.gradeName} className="transition-colors">
+                                                {/* Class Summary Row (Matching Screenshot: > Grade 8 2026 | 174 | 0% progress [bar] | View Broadsheet) */}
+                                                <div
+                                                    onClick={() => toggleGradeExpand(group.gradeName)}
+                                                    className="px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-850/60 cursor-pointer select-none transition-colors border-b border-slate-100/80 dark:border-slate-800/80"
                                                 >
-                                                    {isExpanded ? (
-                                                        <ChevronDown className="w-4 h-4 text-slate-500" />
-                                                    ) : (
-                                                        <ChevronRight className="w-4 h-4 text-slate-500" />
-                                                    )}
-                                                </button>
-                                                <span className="font-bold text-slate-900 dark:text-white text-sm">
-                                                    {group.gradeName}
-                                                </span>
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
-                                                    {group.papers.length} Paper{group.papers.length !== 1 ? 's' : ''}
-                                                </span>
-                                            </div>
-
-                                            {/* Column 2: Subject Teacher (Blank on Grade Summary Row as shown in screenshot) */}
-                                            <div className="hidden sm:block sm:col-span-3 text-slate-400 text-xs">
-                                                {/* Left blank per screenshot design */}
-                                            </div>
-
-                                            {/* Column 3: Enrollment (Accurate student count, e.g. 174) */}
-                                            <div className="hidden sm:block sm:col-span-1 text-center font-bold text-slate-900 dark:text-white text-sm">
-                                                {group.enrollment}
-                                            </div>
-
-                                            {/* Column 4: Marks Entry Progress (0% progress + Progress Bar) */}
-                                            <div className="hidden sm:flex sm:col-span-3 items-center gap-3">
-                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-20">
-                                                    {group.overallProgressPct}% progress
-                                                </span>
-                                                <div className="w-32 h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-1 max-w-[140px]">
-                                                    <div
-                                                        className={`h-full rounded-full transition-all duration-500 ${
-                                                            group.overallProgressPct === 100
-                                                                ? 'bg-emerald-500'
-                                                                : group.overallProgressPct > 0
-                                                                ? 'bg-blue-600'
-                                                                : 'bg-transparent'
-                                                        }`}
-                                                        style={{ width: `${group.overallProgressPct}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Column 5: Action (View Broadsheet Link) */}
-                                            <div className="hidden sm:block sm:col-span-1 text-right">
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setBroadsheetGrade(group.gradeName);
-                                                    }}
-                                                    className="text-blue-600 dark:text-blue-400 font-bold text-xs hover:underline cursor-pointer"
-                                                >
-                                                    View Broadsheet
-                                                </button>
-                                            </div>
-
-                                            {/* Mobile Summary Sub-row */}
-                                            <div className="sm:hidden col-span-12 flex items-center justify-between pt-2 text-xs">
-                                                <span className="text-slate-500 font-medium">
-                                                    Enrolled: <strong className="text-slate-800 dark:text-white">{group.enrollment}</strong> • {group.overallProgressPct}%
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setBroadsheetGrade(group.gradeName);
-                                                    }}
-                                                    className="text-blue-600 font-bold"
-                                                >
-                                                    View Broadsheet
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Expanded Papers Under This Grade */}
-                                        {isExpanded && (
-                                            <div className="bg-slate-50/50 dark:bg-slate-900/40 divide-y divide-slate-100 dark:divide-slate-800/60">
-                                                {group.papers.map((paper: Assessment) => {
-                                                    const subject = allocatedSubjects.find(s => s.id === paper.subjectId);
-                                                    const teacherUser = users.find(u => u.id === paper.lecturerId);
-                                                    const teacherName = teacherUser?.name || 'Assigned Subject Teacher';
-                                                    
-                                                    // Count graded learners for this paper
-                                                    const gradedCount = (assessmentMarks || []).filter(m => 
-                                                        m.assessmentId === paper.id && m.marks !== null && m.marks !== undefined
-                                                    ).length;
-                                                    const paperStudents = getStudentsInGrade(paper.grade || paper.className || paper.targetClass || group.gradeName);
-                                                    const paperEnrollment = paperStudents.length > 0 ? paperStudents.length : group.enrollment;
-                                                    const paperProgressPct = Math.min(100, Math.round((gradedCount / (paperEnrollment > 0 ? paperEnrollment : 1)) * 100));
-
-                                                    return (
-                                                        <div
-                                                            key={paper.id}
-                                                            className="px-6 py-3 pl-12 grid grid-cols-12 items-center hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                                                    {/* Column 1: Chevron + Grade Name */}
+                                                    <div className="w-[32%] min-w-[190px] flex items-center gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => { e.stopPropagation(); toggleGradeExpand(group.gradeName); }}
+                                                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-transform"
                                                         >
-                                                            {/* Paper Title & Subject */}
-                                                            <div className="col-span-12 sm:col-span-4 flex items-center gap-2">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                                                                <div>
-                                                                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                                                                        <span>{paper.title}</span>
+                                                            {isExpanded ? (
+                                                                <ChevronDown className="w-4 h-4 text-slate-500" />
+                                                            ) : (
+                                                                <ChevronRight className="w-4 h-4 text-slate-500" />
+                                                            )}
+                                                        </button>
+                                                        <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                                            {group.gradeName}
+                                                            {selectedStreamFilter !== 'all' && (
+                                                                <span className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold">
+                                                                    • {selectedStreamFilter}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                                            {group.papers.length} Paper{group.papers.length !== 1 ? 's' : ''}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Column 2: Subject Teacher (Blank on Grade Summary Row as shown in screenshot) */}
+                                                    <div className="w-[20%] min-w-[130px] text-slate-400 text-xs">
+                                                        {/* Left blank per screenshot design */}
+                                                    </div>
+
+                                                    {/* Column 3: Enrollment (Accurate student count, never 1438!) */}
+                                                    <div className="w-[14%] min-w-[90px] text-center font-bold text-slate-900 dark:text-white text-sm">
+                                                        {group.enrollment}
+                                                    </div>
+
+                                                    {/* Column 4: Marks Entry Progress (0% progress + Progress Bar) */}
+                                                    <div className="w-[22%] min-w-[150px] flex items-center gap-3">
+                                                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-16">
+                                                            {group.overallProgressPct}% progress
+                                                        </span>
+                                                        <div className="w-28 h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-1 max-w-[120px]">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-500 ${
+                                                                    group.overallProgressPct === 100
+                                                                        ? 'bg-emerald-500'
+                                                                        : group.overallProgressPct > 0
+                                                                        ? 'bg-blue-600'
+                                                                        : 'bg-transparent'
+                                                                }`}
+                                                                style={{ width: `${group.overallProgressPct}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Column 5: Action (View Broadsheet Link) */}
+                                                    <div className="w-[12%] min-w-[90px] text-right">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setBroadsheetGrade(group.gradeName);
+                                                            }}
+                                                            className="text-blue-600 dark:text-blue-400 font-bold text-xs hover:underline cursor-pointer"
+                                                        >
+                                                            View Broadsheet
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Expanded Papers Under This Grade */}
+                                                {isExpanded && (
+                                                    <div className="bg-slate-50/50 dark:bg-slate-900/40 divide-y divide-slate-100 dark:divide-slate-800/60">
+                                                        {group.papers.map((paper: Assessment) => {
+                                                            const subject = allocatedSubjects.find(s => s.id === paper.subjectId);
+                                                            const teacherUser = users.find(u => u.id === paper.lecturerId);
+                                                            const teacherName = teacherUser?.name || 'Assigned Subject Teacher';
+                                                            
+                                                            const gradedCount = (assessmentMarks || []).filter(m => {
+                                                                if (m.assessmentId !== paper.id || m.marks === null || m.marks === undefined) return false;
+                                                                return group.studentsInGrade.some(st => st.id === m.studentId);
+                                                            }).length;
+
+                                                            const paperEnrollment = group.enrollment;
+                                                            const paperProgressPct = Math.min(100, Math.round((gradedCount / (paperEnrollment > 0 ? paperEnrollment : 1)) * 100));
+
+                                                            return (
+                                                                <div
+                                                                    key={paper.id}
+                                                                    className="px-6 py-3 pl-12 flex items-center justify-between hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                                                                >
+                                                                    {/* Paper Title & Subject */}
+                                                                    <div className="w-[32%] min-w-[190px] flex items-center gap-2">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                                                        <div>
+                                                                            <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                                                                <span>{paper.title}</span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    title="Edit exam paper settings"
+                                                                                    onClick={(e) => { e.stopPropagation(); setEditingAssessment(paper); }}
+                                                                                    className="text-slate-400 hover:text-blue-600 transition-colors"
+                                                                                >
+                                                                                    <Edit3 className="w-3 h-3" />
+                                                                                </button>
+                                                                            </p>
+                                                                            <p className="text-[10px] text-slate-400 font-medium">
+                                                                                {subject?.name || 'Subject'} • {paper.type} • {paper.maxMarks} Marks
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Subject Teacher */}
+                                                                    <div className="w-[20%] min-w-[130px] text-xs font-semibold text-slate-600 dark:text-slate-300">
+                                                                        {teacherName}
+                                                                    </div>
+
+                                                                    {/* Enrollment */}
+                                                                    <div className="w-[14%] min-w-[90px] text-center text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                                        {paperEnrollment}
+                                                                    </div>
+
+                                                                    {/* Marks Entry Progress */}
+                                                                    <div className="w-[22%] min-w-[150px] flex items-center gap-3">
+                                                                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-16">
+                                                                            {paperProgressPct}% ({gradedCount}/{paperEnrollment})
+                                                                        </span>
+                                                                        <div className="w-28 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-1 max-w-[100px]">
+                                                                            <div
+                                                                                className={`h-full rounded-full ${
+                                                                                    paperProgressPct === 100 ? 'bg-emerald-500' : 'bg-blue-600'
+                                                                                }`}
+                                                                                style={{ width: `${paperProgressPct}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Action: Fast Edit / Delete / Enter Marks */}
+                                                                    <div className="w-[12%] min-w-[90px] flex items-center justify-end gap-1.5">
                                                                         <button
                                                                             type="button"
                                                                             title="Edit exam paper settings"
-                                                                            onClick={(e) => { e.stopPropagation(); setEditingAssessment(paper); }}
-                                                                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                                                                            onClick={() => setEditingAssessment(paper)}
+                                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
                                                                         >
-                                                                            <Edit3 className="w-3 h-3" />
+                                                                            <Edit3 className="w-3.5 h-3.5" />
                                                                         </button>
-                                                                    </p>
-                                                                    <p className="text-[10px] text-slate-400 font-medium">
-                                                                        {subject?.name || 'Subject'} • {paper.type} • {paper.maxMarks} Marks
-                                                                    </p>
+
+                                                                        {isAdminOrDos && (
+                                                                            <button
+                                                                                type="button"
+                                                                                title="Delete assessment"
+                                                                                onClick={() => {
+                                                                                    if (window.confirm(`Are you sure you want to delete "${paper.title}"? Associated student marks will also be deleted.`)) {
+                                                                                        onDeleteAssessment(paper.id);
+                                                                                    }
+                                                                                }}
+                                                                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                                                            >
+                                                                                <XIcon className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        )}
+
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleSelectAssessment(paper)}
+                                                                            className="px-3 py-1.5 rounded-lg bg-[#243347] hover:bg-slate-900 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all whitespace-nowrap"
+                                                                        >
+                                                                            {gradedCount > 0 ? 'Update Marks' : 'Enter Raw Marks'}
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            );
+                                                        })}
 
-                                                            {/* Subject Teacher */}
-                                                            <div className="hidden sm:block sm:col-span-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                                                                {teacherName}
-                                                            </div>
-
-                                                            {/* Enrollment */}
-                                                            <div className="hidden sm:block sm:col-span-1 text-center text-xs font-bold text-slate-700 dark:text-slate-300">
-                                                                {paperEnrollment}
-                                                            </div>
-
-                                                            {/* Marks Entry Progress */}
-                                                            <div className="hidden sm:flex sm:col-span-3 items-center gap-3">
-                                                                <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-20">
-                                                                    {paperProgressPct}% ({gradedCount}/{paperEnrollment})
-                                                                </span>
-                                                                <div className="w-32 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-1 max-w-[120px]">
-                                                                    <div
-                                                                        className={`h-full rounded-full ${
-                                                                            paperProgressPct === 100 ? 'bg-emerald-500' : 'bg-blue-600'
-                                                                        }`}
-                                                                        style={{ width: `${paperProgressPct}%` }}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Action: Fast Edit / Delete / Enter Marks */}
-                                                            <div className="col-span-12 sm:col-span-1 flex items-center justify-end gap-1.5 pt-2 sm:pt-0">
+                                                        {group.papers.length === 0 && (
+                                                            <div className="px-12 py-5 text-center text-xs text-slate-400 flex items-center justify-center gap-3">
+                                                                <span>No examination papers scheduled for {group.gradeName} yet.</span>
                                                                 <button
                                                                     type="button"
-                                                                    title="Edit exam paper settings"
-                                                                    onClick={() => setEditingAssessment(paper)}
-                                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
+                                                                    onClick={() => {
+                                                                        setSelectedGradeFilter(group.gradeName);
+                                                                        setIsAdding(true);
+                                                                    }}
+                                                                    className="text-blue-600 hover:underline font-bold"
                                                                 >
-                                                                    <Edit3 className="w-3.5 h-3.5" />
-                                                                </button>
-
-                                                                {isAdminOrDos && (
-                                                                    <button
-                                                                        type="button"
-                                                                        title="Delete assessment"
-                                                                        onClick={() => {
-                                                                            if (window.confirm(`Are you sure you want to delete "${paper.title}"? Associated student marks will also be deleted.`)) {
-                                                                                onDeleteAssessment(paper.id);
-                                                                            }
-                                                                        }}
-                                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                                                                    >
-                                                                        <XIcon className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                )}
-
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleSelectAssessment(paper)}
-                                                                    className="px-3 py-1.5 rounded-lg bg-[#243347] hover:bg-slate-900 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all whitespace-nowrap"
-                                                                >
-                                                                    {gradedCount > 0 ? 'Update Marks' : 'Enter Marks'}
+                                                                    + Create Paper
                                                                 </button>
                                                             </div>
-                                                        </div>
-                                                    );
-                                                })}
-
-                                                {group.papers.length === 0 && (
-                                                    <div className="px-12 py-4 text-xs text-slate-400">
-                                                        No examination papers scheduled for this grade yet.
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                        );
+                                    })}
 
-                            {gradeGroups.length === 0 && (
-                                <div className="p-12 text-center space-y-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
-                                        <AlertCircle className="w-6 h-6" />
-                                    </div>
-                                    <p className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                                        No assessments found
-                                    </p>
-                                    <p className="text-xs text-slate-400 max-w-md mx-auto">
-                                        {isAdminOrDos
-                                            ? 'Click the "+ New Assessment" button above to configure examination papers and tests for the institution.'
-                                            : 'Once the Director of Studies or administrator schedules an assessment for your assigned subjects, it will appear here.'
-                                        }
-                                    </p>
+                                    {gradeGroups.length === 0 && (
+                                        <div className="p-12 text-center space-y-3">
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                                                <AlertCircle className="w-6 h-6" />
+                                            </div>
+                                            <p className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                                No assessments found matching the selected filters
+                                            </p>
+                                            <p className="text-xs text-slate-400 max-w-md mx-auto">
+                                                Try changing your Grade, Stream or Subject filter above, or click the "Enter Raw Marks" button to create a new assessment.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1681,6 +1803,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-0.5">
                                     {broadsheetData.rows.length} Enrolled Learners • {broadsheetData.papers.length} Scheduled Examination Papers
+                                    {selectedStreamFilter !== 'all' && ` • Stream: ${selectedStreamFilter}`}
                                 </p>
                             </div>
 
