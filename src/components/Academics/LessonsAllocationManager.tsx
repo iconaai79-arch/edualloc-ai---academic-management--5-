@@ -13,9 +13,11 @@ import { BookOpenIcon } from '../icons/BookOpenIcon';
 import { BuildingOfficeIcon } from '../icons/BuildingOfficeIcon';
 import { RectangleStackIcon } from '../icons/RectangleStackIcon';
 import { apiService } from '../../services/apiService';
-import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../../utils/academicSubjectUtils';
+import { isSubjectApplicableToClass, isSubjectAssignedToClassStream, resolveApplicableSubjectsForClass } from '../../utils/academicSubjectUtils';
 import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream } from '../../utils/academicUtils';
 import { extractStreamOnly } from './BroadsheetReportView';
+
+const ClassSubjectAllocationModal = React.lazy(() => import('../ClassSubjectAllocationModal').then(m => ({ default: m?.ClassSubjectAllocationModal || m?.default || m })));
 
 /**
  * Accurately matches candidate class/grade against target class/grade,
@@ -203,6 +205,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [saveToast, setSaveToast] = useState<string | null>(null);
     const [isAddAllocationModalOpen, setIsAddAllocationModalOpen] = useState(false);
+    const [isManageSubjectsModalOpen, setIsManageSubjectsModalOpen] = useState(false);
 
     // Form modal state
     const [modalClassName, setModalClassName] = useState('');
@@ -246,7 +249,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     const reloadClassAllocations = useCallback(() => {
         try {
             const instIdKey = currentInstitution?.id || 'default_inst';
-            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instIdKey}`);
+            const saved = localStorage.getItem(`eduai_class_subject_allocations_${instIdKey}`) ||
+                          localStorage.getItem('eduai_class_subject_allocations');
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed && typeof parsed === 'object') {
@@ -264,6 +268,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             const merged = { ...prev, ...match.allocations };
                             try {
                                 localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                                localStorage.setItem('eduai_class_subject_allocations', JSON.stringify(merged));
                             } catch(e) {}
                             return merged;
                         });
@@ -272,6 +277,12 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 .catch(() => {});
         }
     }, [currentInstitution]);
+
+    const handleQuickSyncSubjects = useCallback(() => {
+        reloadClassAllocations();
+        setSaveToast('🔄 Re-synchronized exact subjects with Subjects Allocation');
+        setTimeout(() => setSaveToast(null), 3000);
+    }, [reloadClassAllocations]);
 
     useEffect(() => {
         reloadClassAllocations();
@@ -826,122 +837,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         });
     }, []);
 
-    // Helper to get applicable subjects for any given class name (strictly deduplicated by subject name)
+    // Helper to get applicable subjects for any given class name (strictly authoritative from resolveApplicableSubjectsForClass)
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
-        const cClean = clsName.trim();
-        const cLower = cClean.toLowerCase();
-        const parsed = extractClassAndStream(cClean);
-        const baseClass = (parsed.className || cClean).trim();
-        const baseLower = baseClass.toLowerCase();
-
-        let rawList: any[] = [];
-        let hasExplicitStore = false;
-
-        // 1. Check persistent per-class allocation store configured in Manage Subjects per Class Stream
-        let storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
-        if (!storedAssignedIds && baseClass && baseLower !== cLower) {
-            storedAssignedIds = classAllocationsStore[baseClass] ?? classAllocationsStore[baseLower];
-        }
-
-        if (Array.isArray(storedAssignedIds)) {
-            hasExplicitStore = true;
-            const set = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));
-            rawList = subjects.filter(s => {
-                const sId = (s.id || '').toLowerCase().trim();
-                const sName = (s.name || '').toLowerCase().trim();
-                const sCode = (s.code || '').toLowerCase().trim();
-                return set.has(sId) || set.has(sName) || (sCode && set.has(sCode));
-            });
-            storedAssignedIds.forEach(idOrName => {
-                const clean = String(idOrName).trim();
-                const cleanLow = clean.toLowerCase();
-                const exists = rawList.some(r => r.id === clean || (r.name || '').toLowerCase() === cleanLow || (r.code && r.code.toLowerCase() === cleanLow));
-                if (!exists) {
-                    const matchedSub = subjects.find(s => s.id === clean || (s.name || '').toLowerCase() === cleanLow || (s.code && s.code.toLowerCase() === cleanLow));
-                    if (matchedSub) {
-                        rawList.push(matchedSub);
-                    } else {
-                        rawList.push({ id: `sub_${clean}`, name: clean, code: `${clean.substring(0, 4).toUpperCase()} 101`, periodsPerWeek: 5 });
-                    }
-                }
-            });
-        } else if (subjects && subjects.length > 0) {
-            // 2. Check explicit targetClasses / assignedClasses array on subject
-            const explicitMatch = subjects.filter(s => {
-                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
-                if (Array.isArray(targetCls) && targetCls.length > 0) {
-                    return targetCls.some((tc: string) => {
-                        const cleanTC = (tc || '').toLowerCase().trim();
-                        const parsedTC = extractClassAndStream(cleanTC).className.toLowerCase().trim();
-                        return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower) ||
-                               (parsedTC && (parsedTC === cLower || parsedTC === baseLower));
-                    });
-                }
-                return false;
-            });
-
-            if (explicitMatch.length > 0) {
-                rawList = explicitMatch;
-                hasExplicitStore = true;
-            } else {
-                // 3. Fallback to standard grade-level applicability rules
-                const applicable = subjects.filter(s => isSubjectAssignedToClassStream(s, clsName, courses));
-                if (applicable.length > 0) {
-                    rawList = applicable;
-                }
-            }
-        }
-
-        // 4. Ensure any subjects that have active teacher allocations for this class stream are ALWAYS included
-        const classTeacherAllocs = (allocations || []).filter(a => {
-            const aCls = (a.className || '').toLowerCase().trim();
-            return aCls === cLower || (baseLower && aCls === baseLower);
-        });
-        classTeacherAllocs.forEach(a => {
-            const aSubName = (a.subjectName || '').toLowerCase().trim();
-            const alreadyIncluded = rawList.some(r => (r.name || '').toLowerCase().trim() === aSubName);
-            if (!alreadyIncluded && a.subjectName) {
-                const matchedSub = subjects.find(s => (s.name || '').toLowerCase().trim() === aSubName);
-                if (matchedSub) {
-                    rawList.push(matchedSub);
-                } else {
-                    rawList.push({
-                        id: `sub_${a.subjectName.replace(/\s+/g, '_')}`,
-                        name: a.subjectName,
-                        code: a.subjectCode || `${a.subjectName.substring(0, 4).toUpperCase()} 101`,
-                        periodsPerWeek: a.lessonsPerWeek || 5
-                    });
-                }
-            }
-        });
-
-        if (rawList.length === 0 && !hasExplicitStore) {
-            rawList = [
-                { id: 'sub_math', name: 'Mathematics', code: 'MATH 101', periodsPerWeek: 6 },
-                { id: 'sub_eng', name: 'English', code: 'ENGL 101', periodsPerWeek: 6 },
-                { id: 'sub_kisw', name: 'Kiswahili', code: 'KISW 101', periodsPerWeek: 5 },
-                { id: 'sub_sci', name: 'Integrated Science', code: 'SCI 101', periodsPerWeek: 5 },
-                { id: 'sub_soc', name: 'Social Studies', code: 'SST 101', periodsPerWeek: 4 },
-                { id: 'sub_cre', name: 'Religious Education', code: 'CRE 101', periodsPerWeek: 3 }
-            ];
-        }
-
-        // Enforce strict deduplication by normalized subject name
-        const seenNames = new Set<string>();
-        const deduplicated: any[] = [];
-
-        rawList.forEach(s => {
-            if (!s || !s.name) return;
-            const normName = String(s.name).trim().toLowerCase();
-            if (!seenNames.has(normName)) {
-                seenNames.add(normName);
-                deduplicated.push(s);
-            }
-        });
-
-        return deduplicated;
-    }, [subjects, courses, classAllocationsStore, allocations]);
+        return resolveApplicableSubjectsForClass(clsName, subjects, courses, classAllocationsStore);
+    }, [subjects, courses, classAllocationsStore]);
 
     // Sync selectedClass and modalClassName when classOptions resolves
     useEffect(() => {
@@ -1446,15 +1346,19 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             }
         });
 
-        // 3. Convert to array and filter out deleted/removed keys and search query
+        // 3. Convert to array and filter out search query ONLY (respecting explicit configuration)
+        const hasExplicitConfig = Boolean(classAllocationsStore[activeTargetClassName] || classAllocationsStore[activeTargetClassName.toLowerCase()] || classAllocationsStore[selectedClass] || classAllocationsStore[selectedClass.toLowerCase()]);
+
         return Array.from(map.values()).filter(a => {
-            if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`) || (!isStreamSpecific && removedFromClassKeys.has(`${selectedClass}_${a.subjectName}`))) return false;
+            if (!hasExplicitConfig) {
+                if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`) || (!isStreamSpecific && removedFromClassKeys.has(`${selectedClass}_${a.subjectName}`))) return false;
+            }
             if (!q) return true;
             return a.className.toLowerCase().includes(q) ||
                    a.subjectName.toLowerCase().includes(q) ||
                    (a.teacherName && a.teacherName.toLowerCase().includes(q));
         });
-    }, [selectedClass, activeTargetClassName, isStreamSpecific, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
+    }, [selectedClass, activeTargetClassName, isStreamSpecific, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys, classAllocationsStore]);
 
     // All allocations dynamically gathered across classOptions strictly matching applicable subjects
     const allAllocations = useMemo(() => {
@@ -1841,6 +1745,24 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                     📋 Copy from Base {selectedClass}
                                 </button>
                             )}
+
+                            <button
+                                type="button"
+                                onClick={() => setIsManageSubjectsModalOpen(true)}
+                                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 rounded-xl border border-indigo-200 dark:border-indigo-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                title="Open Manage Subjects per Class & Streams modal"
+                            >
+                                <BookOpenIcon className="w-3.5 h-3.5 text-indigo-500" /> Manage Subjects per Class
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleQuickSyncSubjects}
+                                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 rounded-xl border border-teal-200 dark:border-teal-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                title="Auto-synchronize exact subjects from Subjects Allocation"
+                            >
+                                <ArrowPathIcon className="w-3.5 h-3.5 text-teal-500" /> Sync Exact Subjects
+                            </button>
                         </div>
                     </div>
 
@@ -2623,6 +2545,21 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         </form>
                     </div>
                 </div>
+            )}
+
+            {isManageSubjectsModalOpen && (
+                <React.Suspense fallback={null}>
+                    <ClassSubjectAllocationModal
+                        onClose={() => {
+                            setIsManageSubjectsModalOpen(false);
+                            reloadClassAllocations();
+                        }}
+                        subjects={subjects}
+                        courses={courses}
+                        classOptions={classOptions}
+                        currentInstitution={currentInstitution}
+                    />
+                </React.Suspense>
             )}
         </div>
     );

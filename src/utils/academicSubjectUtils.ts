@@ -1,4 +1,5 @@
 import type { Subject, Course } from '../types';
+import { extractClassAndStream } from './academicUtils';
 
 /**
  * Checks if a subject is applicable to a particular class/grade according to Kenyan CBC & 8-4-4 curriculum rules
@@ -181,3 +182,140 @@ export const isSubjectAssignedToClassStream = (
     // 3. Fallback to standard CBC grade level applicability
     return isSubjectApplicableToClass(subject, className);
 };
+
+/**
+ * Single Authoritative Subject Resolver per Class / Stream
+ * Used synchronously across ClassSubjectAllocationModal, LessonsAllocationManager, ExamUnitsManager, and GradingSystemManager.
+ * Guarantees that the exact same subjects and exact same count are resolved everywhere.
+ */
+export const resolveApplicableSubjectsForClass = (
+    className: string,
+    subjects: Subject[] = [],
+    courses: Course[] = [],
+    classAllocationsStore: Record<string, string[]> = {}
+): Subject[] => {
+    if (!className || !className.trim()) return [];
+
+    const clsClean = className.trim();
+    const clsLower = clsClean.toLowerCase();
+    const clsNorm = clsLower.replace(/[^a-z0-9]/g, '');
+    const parsed = extractClassAndStream(clsClean);
+    const baseClass = (parsed.className || clsClean).trim();
+    const baseLower = baseClass.toLowerCase();
+    const baseNorm = baseLower.replace(/[^a-z0-9]/g, '');
+
+    // Deduplicate the base subject pool strictly by ID and (code + name)
+    const deduplicatedPool: Subject[] = [];
+    const seenSubjectPool = new Set<string>();
+    (subjects || []).forEach(s => {
+        if (!s || !s.name) return;
+        const sName = (s.name || '').toLowerCase().trim();
+        const sCode = (s.code || '').toLowerCase().trim();
+        const key = s.id ? `id_${s.id}` : `${sCode}__${sName}`;
+        const nameCodeKey = `${sCode}__${sName}`;
+        if (!seenSubjectPool.has(key) && !seenSubjectPool.has(nameCodeKey)) {
+            seenSubjectPool.add(key);
+            if (sName) seenSubjectPool.add(nameCodeKey);
+            deduplicatedPool.push(s);
+        }
+    });
+
+    // Priority 1: Ground Truth Persistent Per-Class / Per-Stream Allocation Store
+    // Match exact class name, lower, normalized, or base class name
+    const storeKeys = Object.keys(classAllocationsStore || {});
+    const matchedKey = storeKeys.find(k => {
+        const kClean = (k || '').trim();
+        const kLower = kClean.toLowerCase();
+        const kNorm = kLower.replace(/[^a-z0-9]/g, '');
+        return kClean === clsClean || kLower === clsLower || (clsNorm && kNorm === clsNorm);
+    }) || (baseClass && baseLower !== clsLower ? storeKeys.find(k => {
+        const kClean = (k || '').trim();
+        const kLower = kClean.toLowerCase();
+        const kNorm = kLower.replace(/[^a-z0-9]/g, '');
+        return kClean === baseClass || kLower === baseLower || (baseNorm && kNorm === baseNorm);
+    }) : undefined);
+
+    const storedAssignedIds = matchedKey ? classAllocationsStore[matchedKey] : undefined;
+
+    if (Array.isArray(storedAssignedIds)) {
+        const storedSet = new Set(storedAssignedIds.map(id => String(id).toLowerCase().trim()));
+        const matched: Subject[] = [];
+        const seenNames = new Set<string>();
+
+        // Match from deduplicated pool by ID, normalized name, or code
+        deduplicatedPool.forEach(s => {
+            const sId = (s.id || '').toLowerCase().trim();
+            const sName = (s.name || '').toLowerCase().trim();
+            const sCode = (s.code || '').toLowerCase().trim();
+            if (storedSet.has(sId) || storedSet.has(sName) || (sCode && storedSet.has(sCode))) {
+                if (!seenNames.has(sName)) {
+                    seenNames.add(sName);
+                    matched.push(s);
+                }
+            }
+        });
+
+        // Ensure custom subjects configured in storedAssignedIds are preserved
+        storedAssignedIds.forEach(idOrName => {
+            const clean = String(idOrName).trim();
+            const cleanLow = clean.toLowerCase();
+            if (!seenNames.has(cleanLow)) {
+                const found = deduplicatedPool.find(s =>
+                    (s.id || '').toLowerCase().trim() === cleanLow ||
+                    (s.name || '').toLowerCase().trim() === cleanLow ||
+                    (s.code && (s.code || '').toLowerCase().trim() === cleanLow)
+                );
+                if (found) {
+                    const fName = (found.name || '').toLowerCase().trim();
+                    if (!seenNames.has(fName)) {
+                        seenNames.add(fName);
+                        matched.push(found);
+                    }
+                } else if (clean && !clean.startsWith('sub_') && clean.length > 1) {
+                    seenNames.add(cleanLow);
+                    matched.push({
+                        id: `sub_${clean.replace(/\s+/g, '_')}`,
+                        name: clean,
+                        code: `${clean.substring(0, 4).toUpperCase()} 101`,
+                        periodsPerWeek: 5
+                    } as Subject);
+                }
+            }
+        });
+
+        return matched;
+    }
+
+    // Priority 2: Fallback if not explicitly configured in classAllocationsStore
+    // Evaluate EVERY subject independently matching ClassSubjectAllocationModal logic
+    const matched: Subject[] = [];
+    const seenNames = new Set<string>();
+
+    deduplicatedPool.forEach(s => {
+        const sNameLower = (s.name || '').toLowerCase().trim();
+        const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
+
+        let isAssigned = false;
+
+        // Case A: Explicit targetClasses defined on subject
+        if (Array.isArray(targetCls) && targetCls.length > 0) {
+            isAssigned = targetCls.some(tc => {
+                const cleanTC = (tc || '').toLowerCase().trim();
+                const parsedTC = extractClassAndStream(cleanTC).className.toLowerCase().trim();
+                return cleanTC === clsLower || clsLower.startsWith(cleanTC) || cleanTC.startsWith(clsLower) ||
+                       (parsedTC && (parsedTC === clsLower || parsedTC === baseLower));
+            });
+        } else {
+            // Case B: Fallback to standard curriculum & course level applicability
+            isAssigned = isSubjectAssignedToClassStream(s, clsClean, courses);
+        }
+
+        if (isAssigned && !seenNames.has(sNameLower)) {
+            seenNames.add(sNameLower);
+            matched.push(s);
+        }
+    });
+
+    return matched;
+};
+

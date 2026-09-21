@@ -10,7 +10,7 @@ import { PlusIcon } from './icons/PlusIcon';
 import { PencilIcon } from './icons/PencilIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { apiService } from '../services/apiService';
-import { isSubjectApplicableToClass, isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
+import { isSubjectApplicableToClass, isSubjectAssignedToClassStream, resolveApplicableSubjectsForClass } from '../utils/academicSubjectUtils';
 import { extractClassAndStream, naturalClassSort } from '../utils/academicUtils';
 
 interface ClassSubjectAllocationModalProps {
@@ -128,6 +128,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         setClassAllocationsStore(updatedStore);
         try {
             localStorage.setItem(classAllocKey, JSON.stringify(updatedStore));
+            localStorage.setItem('eduai_class_subject_allocations', JSON.stringify(updatedStore));
         } catch(e) {}
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('class_subject_allocations', {
@@ -301,88 +302,41 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         return Array.from(keys);
     }, [effectiveClassOptions, availableStreamsForClass, activeAllocationTarget]);
 
-    // Re-sync assignments when subjects/dbAllocations/classAllocationsStore update
-    // Priority 0: Ground Truth Persistent Per-Class Store (classAllocationsStore)
-    // Priority 1: Explicit targetClasses / assignedClasses array on subject
-    // Priority 2: DB subject_allocations records from Lessons & Allocation Manager
-    // Priority 3: Grade-level applicability fallback rules
+    // Re-sync assignments using the authoritative resolveApplicableSubjectsForClass helper
     useEffect(() => {
         setAssignments(() => {
             const updated: Record<string, Set<string>> = {};
-            
-            // Build map of DB allocations per class name (case-insensitive)
-            const dbAllocationsByClass: Record<string, Set<string>> = {};
-            if (dbAllocations && dbAllocations.length > 0) {
-                dbAllocations.forEach(alloc => {
-                    const cKey = (alloc.className || '').trim().toLowerCase();
-                    const sKey = (alloc.subjectName || '').toLowerCase().trim();
-                    if (cKey && sKey) {
-                        if (!dbAllocationsByClass[cKey]) dbAllocationsByClass[cKey] = new Set();
-                        dbAllocationsByClass[cKey].add(sKey);
-                    }
-                });
-            }
+            const pool = localSubjects && localSubjects.length > 0 ? localSubjects : subjects;
 
-            (localSubjects && localSubjects.length > 0 ? localSubjects : subjects).forEach(s => {
-                const set = new Set<string>();
-                const sNameLower = (s.name || '').toLowerCase().trim();
-                const sCodeLower = (s.code || '').toLowerCase().trim();
-                const targetCls = (s as any).targetClasses || (s as any).assignedClasses || (s as any).classes;
-
-                allEvaluationKeys.forEach(cKey => {
-                    const cClean = (cKey || '').trim();
-                    const cLower = cClean.toLowerCase();
-                    const parsed = extractClassAndStream(cClean);
-                    const baseClass = (parsed.className || '').trim();
-                    const baseLower = baseClass.toLowerCase();
-
-                    // Case 0: Ground Truth Persistent Per-Class / Per-Stream Store
-                    let storedAssignedIds = classAllocationsStore[cClean] ?? classAllocationsStore[cLower];
-                    if (!storedAssignedIds && baseClass && baseClass.toLowerCase() !== cLower) {
-                        storedAssignedIds = classAllocationsStore[baseClass] ?? classAllocationsStore[baseLower];
-                    }
-
-                    if (Array.isArray(storedAssignedIds)) {
-                        if (storedAssignedIds.includes(s.id) || storedAssignedIds.includes(sNameLower) || (sCodeLower && storedAssignedIds.includes(sCodeLower))) {
-                            set.add(cClean);
-                        }
-                        return;
-                    }
-
-                    // Case A: Explicit targetClasses array defined on subject (even if empty [])
-                    if (Array.isArray(targetCls)) {
-                        const hasExplicitMatch = targetCls.some(tc => {
-                            const cleanTC = (tc || '').toLowerCase().trim();
-                            const parsedTC = extractClassAndStream(cleanTC).className.toLowerCase().trim();
-                            return cleanTC === cLower || cLower.startsWith(cleanTC) || cleanTC.startsWith(cLower) ||
-                                   (parsedTC && (parsedTC === cLower || parsedTC === baseLower));
-                        });
-                        if (hasExplicitMatch) {
-                            set.add(cClean);
-                        }
-                        return;
-                    }
-
-                    // Case B: DB allocations exist for this specific class/stream (from Lessons & Allocation)
-                    const classDbSet = dbAllocationsByClass[cLower] || (baseLower ? dbAllocationsByClass[baseLower] : undefined);
-                    if (classDbSet && classDbSet.size > 0) {
-                        if (classDbSet.has(sNameLower)) {
-                            set.add(cClean);
-                        }
-                        return;
-                    }
-
-                    // Case C: Fallback to standard grade-level applicability rules
-                    if (isSubjectAssignedToClassStream(s, cClean, courses)) {
-                        set.add(cClean);
-                    }
-                });
-
-                updated[s.id] = set;
+            // Initialize empty sets for each subject
+            pool.forEach(s => {
+                updated[s.id] = new Set<string>();
             });
+
+            // For each class / stream, resolve authoritative assigned subjects
+            allEvaluationKeys.forEach(cKey => {
+                const applicable = resolveApplicableSubjectsForClass(cKey, pool, courses, classAllocationsStore);
+                applicable.forEach(appSub => {
+                    if (updated[appSub.id]) {
+                        updated[appSub.id].add(cKey);
+                    }
+                    // Also cross-link if subject shares normalized name or code
+                    const appName = (appSub.name || '').toLowerCase().trim();
+                    const appCode = (appSub.code || '').toLowerCase().trim();
+                    pool.forEach(s => {
+                        const sName = (s.name || '').toLowerCase().trim();
+                        const sCode = (s.code || '').toLowerCase().trim();
+                        if ((appName && sName === appName) || (appCode && sCode === appCode)) {
+                            if (!updated[s.id]) updated[s.id] = new Set<string>();
+                            updated[s.id].add(cKey);
+                        }
+                    });
+                });
+            });
+
             return updated;
         });
-    }, [subjects, localSubjects, allEvaluationKeys, courses, dbAllocations, classAllocationsStore]);
+    }, [subjects, localSubjects, allEvaluationKeys, courses, classAllocationsStore]);
 
     useEffect(() => {
         if (effectiveClassOptions.length > 0 && (!selectedClass || !effectiveClassOptions.includes(selectedClass))) {
@@ -615,6 +569,23 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         }
 
         setToastMessage(`Removed all subjects from ${activeAllocationTarget}`);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+
+    // Save and sync all classes and streams to persistent storage
+    const handleSaveAndSyncAll = async () => {
+        const fullStore: Record<string, string[]> = { ...classAllocationsStore };
+        allEvaluationKeys.forEach(cKey => {
+            const activeSubs = deduplicatedSubjects.filter(s => assignments[s.id]?.has(cKey));
+            if (activeSubs.length > 0) {
+                const ids = activeSubs.map(s => s.id);
+                const clean = cKey.trim();
+                fullStore[clean] = ids;
+                fullStore[clean.toLowerCase()] = ids;
+            }
+        });
+        await saveClassAllocationsStore(fullStore);
+        setToastMessage(`✨ Successfully synchronized subject allocations for all classes and streams!`);
         setTimeout(() => setToastMessage(null), 3000);
     };
 
@@ -1107,7 +1078,15 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            type="button"
+                            onClick={handleSaveAndSyncAll}
+                            className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5 cursor-pointer"
+                            title="Synchronize all active class and stream subject allocations across the entire system"
+                        >
+                            💾 Save & Sync All
+                        </button>
                         <button
                             onClick={handleSelectAll}
                             className="px-4 py-2 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
