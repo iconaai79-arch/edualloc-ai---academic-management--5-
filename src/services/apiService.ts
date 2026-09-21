@@ -2061,6 +2061,9 @@ export const apiService = {
                         if (!req.courseLevelSelections && (prefs.courseLevelSelections || prefs.course_level_selections || req.course_level_selections)) {
                             req.courseLevelSelections = prefs.courseLevelSelections || prefs.course_level_selections || req.course_level_selections;
                         }
+                        if (!req.createdAt && (req.timestamp || (req as any).created_at)) {
+                            req.createdAt = req.timestamp || (req as any).created_at;
+                        }
                     });
                 }
 
@@ -2626,6 +2629,17 @@ export const apiService = {
                     }
                     delete item.courseLevelSelections;
                     delete item.course_level_selections;
+                }
+                if (item.createdAt || item.created_at) {
+                    if (!item.timestamp) {
+                        item.timestamp = item.createdAt || item.created_at;
+                    }
+                    delete item.createdAt;
+                    delete item.created_at;
+                }
+                if (item.updatedAt || item.updated_at) {
+                    delete item.updatedAt;
+                    delete item.updated_at;
                 }
             }
 

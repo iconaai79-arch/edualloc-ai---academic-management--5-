@@ -2858,6 +2858,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete copy.course_level_selections;
                         delete copy.courseLevelSelections;
                     }
+                    // Harmonize timestamp / created_at to avoid schema cache stale retries on un-cached columns
+                    if (copy.created_at || copy.createdAt) {
+                        if (!copy.timestamp) {
+                            copy.timestamp = copy.created_at || copy.createdAt;
+                        }
+                        delete copy.createdAt;
+                        delete copy.created_at;
+                    }
+                    if (copy.updated_at || copy.updatedAt) {
+                        delete copy.updatedAt;
+                        delete copy.updated_at;
+                    }
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanAllocationRequest) : cleanAllocationRequest(currentPayload);
@@ -3857,6 +3869,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         delete copy.course_level_selections;
                         delete copy.courseLevelSelections;
+                    }
+                    if (copy.created_at || copy.createdAt) {
+                        if (!copy.timestamp) {
+                            copy.timestamp = copy.created_at || copy.createdAt;
+                        }
+                        delete copy.createdAt;
+                        delete copy.created_at;
+                    }
+                    if (copy.updated_at || copy.updatedAt) {
+                        delete copy.updatedAt;
+                        delete copy.updated_at;
                     }
                     currentUpdateData = copy;
                 }

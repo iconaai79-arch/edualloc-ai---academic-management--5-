@@ -176,6 +176,8 @@ CREATE TABLE IF NOT EXISTS allocation_requests (
     academic_year_id TEXT REFERENCES academic_years(id) ON DELETE SET NULL,
     semester_id TEXT REFERENCES semesters(id) ON DELETE SET NULL,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     preferences JSONB,
     signature_url TEXT,
     course_level_ids TEXT[] DEFAULT '{}',
