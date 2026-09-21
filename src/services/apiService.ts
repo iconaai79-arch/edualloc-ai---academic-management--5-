@@ -2050,6 +2050,14 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'allocation_requests' && Array.isArray(result)) {
+                    result.forEach((req: any) => {
+                        const prefs = typeof req.preferences === 'object' && req.preferences !== null ? req.preferences : {};
+                        if (!req.courseLevelSelections && (prefs.courseLevelSelections || prefs.course_level_selections || req.course_level_selections)) {
+                            req.courseLevelSelections = prefs.courseLevelSelections || prefs.course_level_selections || req.course_level_selections;
+                        }
+                    });
+                }
 
                 if (Array.isArray(result)) {
                     const localData = queryLocal();
@@ -2585,6 +2593,34 @@ export const apiService = {
 
                 if (item.metadata && typeof item.metadata === 'object' && Object.keys(item.metadata).length === 0) {
                     delete item.metadata;
+                }
+            }
+
+            // Allocation requests normalization to avoid un-cached column schema cache errors
+            if (module === 'allocation_requests') {
+                const selections = item.courseLevelSelections || item.course_level_selections;
+                if (selections) {
+                    const currentPrefs = (item.preferences && typeof item.preferences === 'object') ? item.preferences : {};
+                    item.preferences = {
+                        ...currentPrefs,
+                        courseLevelSelections: selections,
+                        course_level_selections: selections
+                    };
+
+                    if (!item.course_level_ids || !Array.isArray(item.course_level_ids) || item.course_level_ids.length === 0) {
+                        const levelIds: string[] = [];
+                        if (typeof selections === 'object') {
+                            Object.values(selections).forEach((val: any) => {
+                                if (Array.isArray(val)) levelIds.push(...val);
+                                else if (typeof val === 'string' && val.trim()) levelIds.push(val.trim());
+                            });
+                        }
+                        if (levelIds.length > 0) {
+                            item.course_level_ids = Array.from(new Set(levelIds));
+                        }
+                    }
+                    delete item.courseLevelSelections;
+                    delete item.course_level_selections;
                 }
             }
 

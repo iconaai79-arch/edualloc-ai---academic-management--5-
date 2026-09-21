@@ -2831,6 +2831,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            if (moduleName === 'allocation_requests' || targetDbTable === 'allocation_requests') {
+                const cleanAllocationRequest = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const selections = copy.course_level_selections || copy.courseLevelSelections;
+                    if (selections) {
+                        const currentPrefs = (copy.preferences && typeof copy.preferences === 'object') ? copy.preferences : {};
+                        copy.preferences = {
+                            ...currentPrefs,
+                            courseLevelSelections: selections,
+                            course_level_selections: selections
+                        };
+                        if (!copy.course_level_ids || !Array.isArray(copy.course_level_ids) || copy.course_level_ids.length === 0) {
+                            const levelIds: string[] = [];
+                            if (typeof selections === 'object') {
+                                Object.values(selections).forEach((val: any) => {
+                                    if (Array.isArray(val)) levelIds.push(...val);
+                                    else if (typeof val === 'string' && val.trim()) levelIds.push(val.trim());
+                                });
+                            }
+                            if (levelIds.length > 0) {
+                                copy.course_level_ids = Array.from(new Set(levelIds));
+                            }
+                        }
+                        delete copy.course_level_selections;
+                        delete copy.courseLevelSelections;
+                    }
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanAllocationRequest) : cleanAllocationRequest(currentPayload);
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 3;
@@ -3800,6 +3832,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if ('vehicle_id' in copy && (!copy.vehicle_id || copy.vehicle_id === '')) copy.vehicle_id = null;
                     if ('driver_id' in copy && (!copy.driver_id || copy.driver_id === '')) copy.driver_id = null;
                     if ('security_id' in copy && (!copy.security_id || copy.security_id === '')) copy.security_id = null;
+                    currentUpdateData = copy;
+                } else if ((moduleName === 'allocation_requests' || targetDbTable === 'allocation_requests') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const selections = copy.course_level_selections || copy.courseLevelSelections;
+                    if (selections) {
+                        const currentPrefs = (copy.preferences && typeof copy.preferences === 'object') ? copy.preferences : {};
+                        copy.preferences = {
+                            ...currentPrefs,
+                            courseLevelSelections: selections,
+                            course_level_selections: selections
+                        };
+                        if (!copy.course_level_ids || !Array.isArray(copy.course_level_ids) || copy.course_level_ids.length === 0) {
+                            const levelIds: string[] = [];
+                            if (typeof selections === 'object') {
+                                Object.values(selections).forEach((val: any) => {
+                                    if (Array.isArray(val)) levelIds.push(...val);
+                                    else if (typeof val === 'string' && val.trim()) levelIds.push(val.trim());
+                                });
+                            }
+                            if (levelIds.length > 0) {
+                                copy.course_level_ids = Array.from(new Set(levelIds));
+                            }
+                        }
+                        delete copy.course_level_selections;
+                        delete copy.courseLevelSelections;
+                    }
                     currentUpdateData = copy;
                 }
                 let data: any = null;
