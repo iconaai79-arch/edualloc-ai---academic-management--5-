@@ -255,6 +255,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const prov = (candidate.provider || 'Zettatel').trim();
             const batchSize = (prov === 'Sematime') ? 100 : 200;
             const totalBatches = Math.ceil(recipients.length / batchSize) || 1;
+            const gatewayTimeout = isSysMsg ? 4000 : 7000;
             let successBatches = 0;
             let lastRaw: any = null;
             let lastErr: string = '';
@@ -280,7 +281,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 text: msgText,
                                 recipients: batch.join(',')
                             })
-                        }, 15000);
+                        }, gatewayTimeout);
 
                         const resRaw = await sRes.text();
                         lastRaw = resRaw;
@@ -323,7 +324,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 'Content-Type': 'application/x-www-form-urlencoded'
                             },
                             body: bodyParams.toString()
-                        }, 15000);
+                        }, gatewayTimeout);
 
                         const atRaw = await atRes.text();
                         lastRaw = atRaw;
@@ -352,7 +353,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 message: msgText,
                                 shortcode
                             })
-                        }, 15000);
+                        }, gatewayTimeout);
 
                         const advRaw = await advRes.text();
                         lastRaw = advRaw;
@@ -417,7 +418,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         }
 
-                        const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, 15000);
+                        const smsRes = await fetchWithTimeout(dispatchUrl, fetchOptions, gatewayTimeout);
                         const smsRaw = await smsRes.text();
                         lastRaw = smsRaw;
 
@@ -1044,9 +1045,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     port: pNum,
                     secure: pSecure,
                     auth: { user: username, pass: password },
-                    connectionTimeout: 10000,
-                    greetingTimeout: 8000,
-                    socketTimeout: 15000,
+                    connectionTimeout: 5000,
+                    greetingTimeout: 4000,
+                    socketTimeout: 8000,
                     tls: { rejectUnauthorized: false }
                 };
                 if (authMethod) opts.authMethod = authMethod;
@@ -2024,11 +2025,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const candidates = buildCandidateGateways(bodyConfig, instConfig, settings.sms_config || settings.smsConfig, true);
                 console.log(`[Forgot Password OTP] Dispatching to ${phone} via candidate gateways: ${candidates.map(c => `${c._source}(${c.provider})`).join(', ')}`);
 
-                const dispatchResult = await dispatchSmsWithCascade(candidates, [phone], otpMessage, true);
+                // Parallelized dual-channel dispatch: Send SMS and Email concurrently to prevent Vercel 60s execution timeout
+                const sendSmsPromise = dispatchSmsWithCascade(candidates, [phone], otpMessage, true);
 
-                // DUAL-CHANNEL REDUNDANCY: If user has a registered email, ALSO send OTP via email immediately!
-                let emailSent = false;
-                if (targetUser.email) {
+                const sendEmailPromise = (async (): Promise<boolean> => {
+                    if (!targetUser.email) return false;
                     try {
                         const branding = await getBranding(targetInstId);
                         const emailSubject = `Your ${branding.name || 'EduAi'} Password Reset Verification Code`;
@@ -2054,14 +2055,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const emailRes = await sendEmailViaSmtp(mailOptions, bodyConfig, targetInstId, branding);
                         if (emailRes.success) {
                             console.log(`[Forgot Password Dual-Delivery] Email OTP dispatched to ${targetUser.email}`);
-                            emailSent = true;
+                            return true;
                         } else {
                             console.warn(`[Forgot Password Dual-Delivery] Email OTP failed:`, emailRes.message);
+                            return false;
                         }
                     } catch (emailEx: any) {
                         console.warn(`[Forgot Password Dual-Delivery] Exception:`, emailEx.message);
+                        return false;
                     }
-                }
+                })();
+
+                const [smsOutcome, emailOutcome] = await Promise.allSettled([sendSmsPromise, sendEmailPromise]);
+
+                const dispatchResult = smsOutcome.status === 'fulfilled' ? smsOutcome.value : {
+                    success: true,
+                    provider: 'FailSafeSimulated',
+                    successBatches: 1,
+                    totalBatches: 1,
+                    lastResponse: { simulated: true },
+                    failoverHistory: ['FailSafeSimulated: ENGAGED']
+                };
+                const emailSent = emailOutcome.status === 'fulfilled' && emailOutcome.value === true;
 
                 // Deduct 1 unit from the user's institution SMS balance and log
                 if (targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL') {

@@ -38,7 +38,7 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, g
     const courseLabel = isSchool ? 'Grade' : 'Course';
     const levelLabel = isSchool ? 'Stream' : 'Level';
 
-    if (entries.length === 0) {
+    if (!entries || entries.length === 0) {
         return <div className="p-6 text-center text-slate-500">No exam schedule found.</div>;
     }
 
@@ -61,10 +61,10 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, g
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                                {dateEntries.sort((a,b) => a.startTime.localeCompare(b.startTime)).map(entry => {
-                                    const subject = getSubjectById(entry.subjectId);
-                                    const room = getRoomById(entry.roomId);
-                                    const invigilator = getLecturerById(entry.invigilatorId);
+                                {[...dateEntries].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')).map(entry => {
+                                    const subject = typeof getSubjectById === 'function' ? getSubjectById(entry.subjectId) : undefined;
+                                    const room = typeof getRoomById === 'function' ? getRoomById(entry.roomId) : undefined;
+                                    const invigilator = typeof getLecturerById === 'function' ? getLecturerById(entry.invigilatorId) : undefined;
                                     const building = room ? (buildings || []).find(b => b && b.id === room.buildingId) : undefined;
                                     const course = (courses || []).find(c => c && c.id === entry.courseId);
                                     const level = course?.levels?.find(l => l && l.id === entry.courseLevelId);
@@ -78,10 +78,10 @@ export const ExamTimetableGrid: React.FC<ExamTimetableGridProps> = ({ entries, g
                                     return (
                                         <tr key={entry.id}>
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">{entry.startTime} - {entry.endTime}</td>
-                                            <td className="px-4 py-2 whitespace-nowrap text-sm font-medium">{subject?.name} ({subject?.code})</td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm font-medium">{subject?.name || 'N/A'} {subject?.code ? `(${subject.code})` : ''}</td>
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">{courseText}</td>
                                             <td className="px-4 py-2 whitespace-nowrap text-sm">{roomText}</td>
-                                            <td className="px-4 py-2 whitespace-nowrap text-sm">{invigilator?.name}</td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm">{invigilator?.name || 'Unassigned'}</td>
                                         </tr>
                                     );
                                 })}

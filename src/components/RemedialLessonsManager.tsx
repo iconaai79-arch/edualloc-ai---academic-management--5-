@@ -5,7 +5,7 @@ import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
-    DollarSign, AlertCircle, Trash2, Shield, Eye, EyeOff, Award, BookOpen, Layers, UserCheck,
+    AlertCircle, Trash2, Shield, Eye, EyeOff, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
@@ -1478,11 +1478,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const isSun = allocDay === 'Sunday';
 
         if (isSat) {
-            const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [
-                { periodNum: 1, startTime: saturdayStartTime || '08:00', endTime: '09:00', label: `Period 1 (${saturdayStartTime || '08:00'} - 09:00)` },
-                { periodNum: 2, startTime: '09:00', endTime: saturdayBreakStartTime || '10:00', label: `Period 2 (09:00 - ${saturdayBreakStartTime || '10:00'})` },
-            ];
-            if (includeSaturdayBreak) {
+            const count = Math.max(1, saturdayPeriodsCount || 5);
+            const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [];
+            const preBreakCount = includeSaturdayBreak ? Math.min(2, Math.max(1, count - 1)) : count;
+
+            let curStart = saturdayStartTime || '08:00';
+            for (let p = 1; p <= preBreakCount; p++) {
+                const nextEnd = (includeSaturdayBreak && p === preBreakCount)
+                    ? (saturdayBreakStartTime || '10:00')
+                    : addMinutesToTime(curStart, 60);
+                slots.push({
+                    periodNum: p,
+                    startTime: curStart,
+                    endTime: nextEnd,
+                    label: `Period ${p} (${curStart} - ${nextEnd})`
+                });
+                curStart = nextEnd;
+            }
+
+            if (includeSaturdayBreak && count > preBreakCount) {
                 slots.push({
                     periodNum: 0,
                     startTime: saturdayBreakStartTime || '10:00',
@@ -1490,20 +1504,43 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     label: `Recess (${saturdayBreakStartTime || '10:00'} - ${saturdayBreakEndTime || '10:30'})`,
                     isBreak: true
                 });
+                curStart = saturdayBreakEndTime || '10:30';
+                for (let p = preBreakCount + 1; p <= count; p++) {
+                    const nextEnd = (p === count && saturdayEndTime && saturdayEndTime > curStart)
+                        ? saturdayEndTime
+                        : addMinutesToTime(curStart, 60);
+                    slots.push({
+                        periodNum: p,
+                        startTime: curStart,
+                        endTime: nextEnd,
+                        label: `Period ${p} (${curStart} - ${nextEnd})`
+                    });
+                    curStart = nextEnd;
+                }
             }
-            slots.push(
-                { periodNum: 3, startTime: saturdayBreakEndTime || '10:30', endTime: '11:30', label: `Period 3 (${saturdayBreakEndTime || '10:30'} - 11:30)` },
-                { periodNum: 4, startTime: '11:30', endTime: saturdayEndTime || '12:30', label: `Period 4 (11:30 - ${saturdayEndTime || '12:30'})` }
-            );
             return slots;
         }
 
         if (isSun) {
-            const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [
-                { periodNum: 1, startTime: sundayStartTime || '09:00', endTime: '10:00', label: `Period 1 (${sundayStartTime || '09:00'} - 10:00)` },
-                { periodNum: 2, startTime: '10:00', endTime: sundayBreakStartTime || '11:00', label: `Period 2 (10:00 - ${sundayBreakStartTime || '11:00'})` },
-            ];
-            if (includeSundayBreak) {
+            const count = Math.max(1, sundayPeriodsCount || 4);
+            const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [];
+            const preBreakCount = includeSundayBreak ? Math.min(2, Math.max(1, count - 1)) : count;
+
+            let curStart = sundayStartTime || '09:00';
+            for (let p = 1; p <= preBreakCount; p++) {
+                const nextEnd = (includeSundayBreak && p === preBreakCount)
+                    ? (sundayBreakStartTime || '11:00')
+                    : addMinutesToTime(curStart, 60);
+                slots.push({
+                    periodNum: p,
+                    startTime: curStart,
+                    endTime: nextEnd,
+                    label: `Period ${p} (${curStart} - ${nextEnd})`
+                });
+                curStart = nextEnd;
+            }
+
+            if (includeSundayBreak && count > preBreakCount) {
                 slots.push({
                     periodNum: 0,
                     startTime: sundayBreakStartTime || '11:00',
@@ -1511,11 +1548,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     label: `Recess (${sundayBreakStartTime || '11:00'} - ${sundayBreakEndTime || '11:30'})`,
                     isBreak: true
                 });
+                curStart = sundayBreakEndTime || '11:30';
+                for (let p = preBreakCount + 1; p <= count; p++) {
+                    const nextEnd = (p === count && sundayEndTime && sundayEndTime > curStart)
+                        ? sundayEndTime
+                        : addMinutesToTime(curStart, 60);
+                    slots.push({
+                        periodNum: p,
+                        startTime: curStart,
+                        endTime: nextEnd,
+                        label: `Period ${p} (${curStart} - ${nextEnd})`
+                    });
+                    curStart = nextEnd;
+                }
             }
-            slots.push(
-                { periodNum: 3, startTime: sundayBreakEndTime || '11:30', endTime: '12:30', label: `Period 3 (${sundayBreakEndTime || '11:30'} - 12:30)` },
-                { periodNum: 4, startTime: '12:30', endTime: sundayEndTime || '13:30', label: `Period 4 (12:30 - ${sundayEndTime || '13:30'})` }
-            );
             return slots;
         }
 
@@ -1529,7 +1575,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         ];
 
         return slots;
-    }, [allocDay, saturdayStartTime, saturdayEndTime, saturdayBreakStartTime, saturdayBreakEndTime, includeSaturdayBreak, sundayStartTime, sundayEndTime, sundayBreakStartTime, sundayBreakEndTime, includeSundayBreak, weekdayStartTime, weekdayEndTime]);
+    }, [allocDay, saturdayStartTime, saturdayEndTime, saturdayBreakStartTime, saturdayBreakEndTime, includeSaturdayBreak, saturdayPeriodsCount, sundayStartTime, sundayEndTime, sundayBreakStartTime, sundayBreakEndTime, includeSundayBreak, sundayPeriodsCount, weekdayStartTime, weekdayEndTime]);
 
     // Active slot conflict detection for currently selected start and end time
     const activeModalSlotConflicts = useMemo(() => {
@@ -7124,7 +7170,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <div className={`p-2.5 rounded-xl transition-colors ${
                                     activeTab === 'payouts' ? 'bg-white/20 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform'
                                 }`}>
-                                    <DollarSign className="w-4 h-4" />
+                                    <Banknote className="w-4 h-4" />
                                 </div>
                                 <div>
                                     <span>Teacher Payouts</span>
@@ -8797,11 +8843,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     const isSunday = day === 'Sunday';
 
                     if (isSaturday) {
-                        const satSlots: AscGridSlot[] = [
-                            { periodNum: 1, startTime: saturdayStartTime || '08:00', endTime: '09:00', label: 'P1 (08-09)' },
-                            { periodNum: 2, startTime: '09:00', endTime: saturdayBreakStartTime || '10:00', label: 'P2 (09-10)' }
-                        ];
-                        if (includeSaturdayBreak) {
+                        const count = Math.max(1, saturdayPeriodsCount || 5);
+                        const satSlots: AscGridSlot[] = [];
+                        const preBreakCount = includeSaturdayBreak ? Math.min(2, Math.max(1, count - 1)) : count;
+
+                        let curStart = saturdayStartTime || '08:00';
+                        for (let p = 1; p <= preBreakCount; p++) {
+                            const nextEnd = (includeSaturdayBreak && p === preBreakCount)
+                                ? (saturdayBreakStartTime || '10:00')
+                                : addMinutesToTime(curStart, 60);
+                            satSlots.push({
+                                periodNum: p,
+                                startTime: curStart,
+                                endTime: nextEnd,
+                                label: `P${p} (${curStart.slice(0, 5)}-${nextEnd.slice(0, 5)})`
+                            });
+                            curStart = nextEnd;
+                        }
+
+                        if (includeSaturdayBreak && count > preBreakCount) {
                             satSlots.push({
                                 periodNum: 0,
                                 startTime: saturdayBreakStartTime || '10:00',
@@ -8809,12 +8869,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 label: 'RECESS',
                                 isBreak: true
                             });
+                            curStart = saturdayBreakEndTime || '10:30';
+                            for (let p = preBreakCount + 1; p <= count; p++) {
+                                const nextEnd = (p === count && saturdayEndTime && saturdayEndTime > curStart)
+                                    ? saturdayEndTime
+                                    : addMinutesToTime(curStart, 60);
+                                satSlots.push({
+                                    periodNum: p,
+                                    startTime: curStart,
+                                    endTime: nextEnd,
+                                    label: `P${p} (${curStart.slice(0, 5)}-${nextEnd.slice(0, 5)})`
+                                });
+                                curStart = nextEnd;
+                            }
                         }
-                        satSlots.push(
-                            { periodNum: 3, startTime: saturdayBreakEndTime || '10:30', endTime: '11:30', label: 'P3 (10:30-11:30)' },
-                            { periodNum: 4, startTime: '11:30', endTime: '12:30', label: 'P4 (11:30-12:30)' },
-                            { periodNum: 5, startTime: '12:30', endTime: saturdayEndTime || '13:30', label: 'P5 (12:30-13:30)' }
-                        );
 
                         // Check if any allocations have extra start times
                         allocations.filter(a => a.dayOfWeek === 'Saturday' && a.startTime).forEach(a => {
@@ -8828,11 +8896,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     }
 
                     if (isSunday) {
-                        const sunSlots: AscGridSlot[] = [
-                            { periodNum: 1, startTime: sundayStartTime || '09:00', endTime: '10:00', label: 'P1 (09-10)' },
-                            { periodNum: 2, startTime: '10:00', endTime: sundayBreakStartTime || '11:00', label: 'P2 (10-11)' }
-                        ];
-                        if (includeSundayBreak) {
+                        const count = Math.max(1, sundayPeriodsCount || 4);
+                        const sunSlots: AscGridSlot[] = [];
+                        const preBreakCount = includeSundayBreak ? Math.min(2, Math.max(1, count - 1)) : count;
+
+                        let curStart = sundayStartTime || '09:00';
+                        for (let p = 1; p <= preBreakCount; p++) {
+                            const nextEnd = (includeSundayBreak && p === preBreakCount)
+                                ? (sundayBreakStartTime || '11:00')
+                                : addMinutesToTime(curStart, 60);
+                            sunSlots.push({
+                                periodNum: p,
+                                startTime: curStart,
+                                endTime: nextEnd,
+                                label: `P${p} (${curStart.slice(0, 5)}-${nextEnd.slice(0, 5)})`
+                            });
+                            curStart = nextEnd;
+                        }
+
+                        if (includeSundayBreak && count > preBreakCount) {
                             sunSlots.push({
                                 periodNum: 0,
                                 startTime: sundayBreakStartTime || '11:00',
@@ -8840,11 +8922,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 label: 'RECESS',
                                 isBreak: true
                             });
+                            curStart = sundayBreakEndTime || '11:30';
+                            for (let p = preBreakCount + 1; p <= count; p++) {
+                                const nextEnd = (p === count && sundayEndTime && sundayEndTime > curStart)
+                                    ? sundayEndTime
+                                    : addMinutesToTime(curStart, 60);
+                                sunSlots.push({
+                                    periodNum: p,
+                                    startTime: curStart,
+                                    endTime: nextEnd,
+                                    label: `P${p} (${curStart.slice(0, 5)}-${nextEnd.slice(0, 5)})`
+                                });
+                                curStart = nextEnd;
+                            }
                         }
-                        sunSlots.push(
-                            { periodNum: 3, startTime: sundayBreakEndTime || '11:30', endTime: '12:30', label: 'P3 (11:30-12:30)' },
-                            { periodNum: 4, startTime: '12:30', endTime: sundayEndTime || '13:30', label: 'P4 (12:30-13:30)' }
-                        );
 
                         // Check if any allocations have extra start times
                         allocations.filter(a => a.dayOfWeek === 'Sunday' && a.startTime).forEach(a => {
@@ -11181,44 +11272,44 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             {/* 1. Teacher Hourly Pay Rates (Weekdays vs Weekends) */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
                                 <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                    <DollarSign className="w-3.5 h-3.5" /> Teacher Hourly Pay Tariffs
+                                    <Banknote className="w-3.5 h-3.5" /> Teacher Hourly Pay Tariffs (KES)
                                 </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Lesson Rate (/hr)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Lesson Rate (KES / hr)</label>
                                         <div className="relative group">
-                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">KES</span>
                                             <input 
                                                 type="number"
                                                 value={weekdayHourlyRate}
                                                 onChange={e => setWeekdayHourlyRate(Number(e.target.value))}
-                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
                                                 placeholder="1000"
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Lesson Rate (/hr)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekend Lesson Rate (KES / hr)</label>
                                         <div className="relative group">
-                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">KES</span>
                                             <input 
                                                 type="number"
                                                 value={weekendHourlyRate}
                                                 onChange={e => setWeekendHourlyRate(Number(e.target.value))}
-                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
                                                 placeholder="1500"
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Duty Flat Rate (per day)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Duty Flat Rate (KES / day)</label>
                                         <div className="relative group">
-                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">KES</span>
                                             <input 
                                                 type="number"
                                                 value={weekdayDutyFlatRate}
                                                 onChange={e => setWeekdayDutyFlatRate(Number(e.target.value))}
-                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
                                                 placeholder="200"
                                             />
                                         </div>
@@ -11658,30 +11749,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             {/* 4. Parent Fees */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
                                 <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                    <CreditCard className="w-3.5 h-3.5" /> Student Parent Billing Fees
+                                    <CreditCard className="w-3.5 h-3.5" /> Student Parent Billing Fees (KES)
                                 </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Fee Per Student (per session)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Fee Per Student (KES / session)</label>
                                         <div className="relative group">
-                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">KES</span>
                                             <input 
                                                 type="number"
                                                 value={feePerStudent}
                                                 onChange={e => setFeePerStudent(Number(e.target.value))}
-                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                placeholder="200"
                                             />
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Flat Term Fee (Flat fee billed)</label>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Flat Term Fee (KES flat fee billed)</label>
                                         <div className="relative group">
-                                            <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600" />
+                                            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">KES</span>
                                             <input 
                                                 type="number"
                                                 value={termFee}
                                                 onChange={e => setTermFee(Number(e.target.value))}
-                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 transition-all dark:text-white font-mono"
+                                                placeholder="3000"
                                             />
                                         </div>
                                     </div>
@@ -12039,7 +12132,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     onClick={() => setActiveTab('payouts')}
                                     className="px-4 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
                                 >
-                                    Manage Payouts <DollarSign className="w-3.5 h-3.5" />
+                                    Manage Payouts <Banknote className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         </div>
@@ -12176,7 +12269,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-1">
                             <div className="flex items-center justify-between text-slate-400">
                                 <span className="text-[10px] font-black uppercase tracking-wider">Teacher Pay Liability</span>
-                                <DollarSign className="w-4 h-4 text-violet-500" />
+                                <Banknote className="w-4 h-4 text-violet-500" />
                             </div>
                             <h4 className="text-2xl font-black text-violet-600 dark:text-violet-400">
                                 KES {Math.round(reportKpis.totalAccruedLiability).toLocaleString()}
@@ -12225,7 +12318,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
                                 }`}
                             >
-                                <DollarSign className="w-3.5 h-3.5" /> Teacher Payout Ledger
+                                <Banknote className="w-3.5 h-3.5" /> Teacher Payout Ledger
                             </button>
 
                             <button
@@ -13932,7 +14025,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40'
                                 : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/40'
                         }`}>
-                            <DollarSign className="w-3.5 h-3.5" />
+                            <Banknote className="w-3.5 h-3.5" />
                             <span>
                                 {['Saturday', 'Sunday'].includes(allocDay)
                                     ? `Weekend Tariff — KES ${weekendHourlyRate?.toLocaleString()}/hr`

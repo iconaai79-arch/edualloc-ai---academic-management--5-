@@ -30,7 +30,7 @@ export const Futuristic3DExamAnalyticsDashboard: React.FC<Futuristic3DExamAnalyt
     // ── DYNAMIC EXAM TITLES FROM ASSESSMENTS OR INSTITUTION ──
     const availableExamOptions = useMemo(() => {
         if (assessments && assessments.length > 0) {
-            return assessments.map(a => a.name || a.title || 'Assessment').filter(Boolean);
+            return assessments.map(a => (a as any).name || a.title || 'Assessment').filter(Boolean);
         }
         return [
             'END OF TERM TWO EXAMS 2026 (TERM 2 2026)',
@@ -47,7 +47,7 @@ export const Futuristic3DExamAnalyticsDashboard: React.FC<Futuristic3DExamAnalyt
     // ── DATA FOR CHART 1: LAST 3 EXAMS CLASS MEAN SCORES ──
     const seriesData = useMemo(() => {
         const examNames = assessments && assessments.length >= 3
-            ? assessments.slice(-3).map(a => a.name || a.title)
+            ? assessments.slice(-3).map(a => (a as any).name || a.title)
             : [];
 
         const series1Name = examNames[0] || 'END OF MAY EXAMS';
@@ -272,8 +272,7 @@ export const Futuristic3DExamAnalyticsDashboard: React.FC<Futuristic3DExamAnalyt
                                                         fill="none"
                                                         stroke={s.color}
                                                         strokeWidth="1.5"
-                                                        opacity="0.5"
-                                                        className="animate-ping"
+                                                        opacity="0.35"
                                                     />
                                                 </g>
                                             ))}
@@ -316,8 +315,8 @@ export const Futuristic3DExamAnalyticsDashboard: React.FC<Futuristic3DExamAnalyt
                         </div>
 
                         {/* 3D Cylindrical Holographic Donut Chart SVG */}
-                        <div className="relative w-full h-[180px] flex items-center justify-center my-2">
-                            <svg className="w-48 h-48 drop-shadow-[0_10px_25px_rgba(239,68,68,0.25)]" viewBox="0 0 100 100" style={{ transform: 'perspective(400px) rotateX(25deg)' }}>
+                        <div className="relative w-full h-[180px] flex items-center justify-center my-2" style={{ perspective: '600px' }}>
+                            <svg className="w-48 h-48 drop-shadow-lg" viewBox="0 0 100 100" style={{ transform: 'rotateX(20deg)' }}>
                                 {/* 0-19% (60% slice: Angle 0 -> 216deg) */}
                                 <circle
                                     cx="50" cy="50" r="35"

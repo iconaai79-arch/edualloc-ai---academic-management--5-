@@ -1562,6 +1562,10 @@ export interface Assessment {
     academicYearId?: string;
     curriculumType?: 'Standard' | 'CBC';
     isInternal?: boolean; // If true, only visible to teachers/admins
+    grade?: string;
+    className?: string;
+    targetClass?: string;
+    subjectName?: string;
     institutionId: string;
     createdAt: string;
 }

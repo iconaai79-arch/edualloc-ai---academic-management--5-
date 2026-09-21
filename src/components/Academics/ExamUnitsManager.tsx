@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
@@ -40,6 +40,9 @@ export interface ExamUnitRecord {
     rankingScope?: 'overall' | 'per_class';
     customRankingSubjectsCount?: number;
     perClassRankingSettings?: Record<string, { criteria: 'Points' | 'Total Marks' | 'Mean Score'; subjectsCount: number; enabled: boolean }>;
+    gradingSystem?: string;
+    gradingSystemId?: string;
+    grading_system_id?: string;
 }
 
 export interface TestedPaperConfig {
@@ -123,6 +126,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     }
                 })
                 .catch(() => { });
+        }
+    }, [currentInstitution]);
+
+    // Helper to atomically sync exams state to cloud (institution_module_states) and localStorage
+    const syncExamsToCloud = useCallback(async (nextExams: ExamUnitRecord[]) => {
+        if (!currentInstitution?.id) return;
+        const targetInstId = currentInstitution.id;
+        try {
+            localStorage.setItem(`eduai_exam_units_${targetInstId}`, JSON.stringify(nextExams));
+        } catch (e) { }
+
+        try {
+            await apiService.saveModuleRecord('institution_module_states', {
+                id: `ims_exam_units_${targetInstId}`,
+                institution_id: targetInstId,
+                institutionId: targetInstId,
+                module_id: 'exam_units',
+                moduleId: 'exam_units',
+                moduleName: 'Exam Units',
+                status: 'active',
+                data: nextExams,
+                settings: nextExams,
+                stateData: nextExams,
+                updated_at: new Date().toISOString()
+            });
+        } catch (err) {
+            console.warn('[ExamUnitsManager] Failed to sync exams to cloud:', err);
         }
     }, [currentInstitution]);
 
@@ -942,6 +972,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return {};
     });
 
+    const examMarksStoreRef = useRef(examMarksStore);
+    useEffect(() => {
+        examMarksStoreRef.current = examMarksStore;
+    }, [examMarksStore]);
+    const loadedExamIdRef = useRef<string | null>(null);
+
     // Helper to identify student records across all schema types
     const isStudentUser = useCallback((u: any) => {
         if (!u) return false;
@@ -1556,7 +1592,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
             apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
                 .then(records => {
-                    const match = (records || []).find(r => r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                    const match = (records || []).find(r => r.id === `ims_exam_broadsheets_${currentInstitution.id}` || r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
                     const storeData = match?.settings || match?.stateData || match?.data;
                     if (storeData && typeof storeData === 'object') {
                         setExamMarksStore(prev => {
@@ -1568,6 +1604,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         });
                         if (selectedExamId && storeData[selectedExamId] && Array.isArray(storeData[selectedExamId]) && storeData[selectedExamId].length > 0) {
                             setBroadsheetStudentRows(sanitizeBroadsheetRows(storeData[selectedExamId]));
+                        }
+                    }
+
+                    const examUnitsMatch = (records || []).find(r => r.id === `ims_exam_units_${currentInstitution.id}` || r.module_id === 'exam_units' || r.moduleId === 'exam_units');
+                    if (examUnitsMatch) {
+                        const rawData = examUnitsMatch.data || examUnitsMatch.settings || examUnitsMatch.stateData;
+                        const remoteExams = Array.isArray(rawData) ? rawData : (rawData?.exams || []);
+                        if (remoteExams.length > 0) {
+                            const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
+                            const cleanRemote = remoteExams.filter((e: any) => e && e.id && !dummyIds.has(e.id));
+                            setExams(prev => {
+                                const map = new Map<string, ExamUnitRecord>();
+                                prev.filter(e => !dummyIds.has(e.id)).forEach(e => map.set(e.id, e));
+                                cleanRemote.forEach((r: any) => map.set(r.id, { ...map.get(r.id), ...r }));
+                                const merged = Array.from(map.values());
+                                try {
+                                    localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
+                                } catch (e) { }
+                                return merged;
+                            });
                         }
                     }
                 })
@@ -1630,9 +1686,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return list;
     }, [displayStudentsList, studentPickerSearch]);
 
-    // Update broadsheet rows whenever selectedExamId changes
+    // Update broadsheet rows whenever selectedExamId changes (optimized without infinite re-render loops)
     useEffect(() => {
         if (!selectedExamId) return;
+
+        const currentStore = examMarksStoreRef.current;
+        const existingRows = currentStore[selectedExamId];
 
         let activeStList = allRealStudents.length > 0
             ? allRealStudents
@@ -1660,17 +1719,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return isStudentInTargetClasses(stClass || st, targetClasses);
         });
 
-        const dummyNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau', 'Maxine Jelimo', 'Dennis Kiplagat'];
-
         // 1. Check in-memory store
-        if (examMarksStore[selectedExamId] && Array.isArray(examMarksStore[selectedExamId]) && examMarksStore[selectedExamId].length > 0) {
-            const existingRows = examMarksStore[selectedExamId];
+        if (existingRows && Array.isArray(existingRows) && existingRows.length > 0) {
             const hasGenericStudentNames = existingRows.some(r => r.name && r.name.toLowerCase().startsWith('student '));
-            const isDummyRows = existingRows.some(r => dummyNames.includes(r.name));
-            const hasFewerRowsThanReal = matchingRealStudents.length > existingRows.length && (isDummyRows || existingRows.length <= 15);
+            const hasPlaceholderAdm = existingRows.some(r => !r.admNo || r.admNo === 'N/A' || /^ADM-10\d{2,}$/i.test(r.admNo));
+            const hasFewerRowsThanReal = matchingRealStudents.length > existingRows.length && (hasPlaceholderAdm || existingRows.length <= 15);
 
-            // If store contains generic "Student 1" names or dummy placeholder rows and real students are available, refresh with real student names
-            if ((hasGenericStudentNames || isDummyRows || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
+            // If store contains generic "Student 1" names or placeholder rows and real students are available, refresh with real student names
+            if ((hasGenericStudentNames || hasPlaceholderAdm || hasFewerRowsThanReal) && matchingRealStudents.length > 0 && loadedExamIdRef.current !== selectedExamId) {
+                loadedExamIdRef.current = selectedExamId;
                 const freshSource = matchingRealStudents.map((st, idx) => {
                     const adm = resolveCleanAdmNo(st, idx);
                     const cleanName = resolveCleanStudentName(st, idx);
@@ -1705,6 +1762,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return;
             }
 
+            loadedExamIdRef.current = selectedExamId;
             setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
             return;
         }
@@ -1716,10 +1774,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const parsed = JSON.parse(savedBroadsheet);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     const hasGenericStudentNames = parsed.some((r: any) => r.name && r.name.toLowerCase().startsWith('student '));
-                    const isDummyRows = parsed.some((r: any) => dummyNames.includes(r.name));
-                    const hasFewerRowsThanReal = matchingRealStudents.length > parsed.length && (isDummyRows || parsed.length <= 15);
+                    const hasPlaceholderAdm = parsed.some((r: any) => !r.admNo || r.admNo === 'N/A' || /^ADM-10\d{2,}$/i.test(r.admNo));
+                    const hasFewerRowsThanReal = matchingRealStudents.length > parsed.length && (hasPlaceholderAdm || parsed.length <= 15);
 
-                    if ((hasGenericStudentNames || isDummyRows || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
+                    if ((hasGenericStudentNames || hasPlaceholderAdm || hasFewerRowsThanReal) && matchingRealStudents.length > 0 && loadedExamIdRef.current !== selectedExamId) {
+                        loadedExamIdRef.current = selectedExamId;
                         const freshSource = matchingRealStudents.map((st, idx) => {
                             const adm = resolveCleanAdmNo(st, idx);
                             const cleanName = resolveCleanStudentName(st, idx);
@@ -1754,6 +1813,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         return;
                     }
 
+                    loadedExamIdRef.current = selectedExamId;
                     const sanitized = sanitizeBroadsheetRows(parsed);
                     setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
                     setBroadsheetStudentRows(sanitized);
@@ -1767,11 +1827,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             apiService.fetchModuleRecords<any>('exam_broadsheets', currentInstitution.id)
                 .then(records => {
                     const match = (records || []).find(r => r.id === selectedExamId || r.examId === selectedExamId);
-                    if (match && match.rows && Array.isArray(match.rows)) {
-                        const dummyNames = ['Amina Kiprop', 'Brian Omondi', 'Cynthia Wambui', 'David Cheruiyot', 'Emmanuel Kamau', 'Maxine Jelimo', 'Dennis Kiplagat'];
-                        const isDummyRows = match.rows.some((r: any) => dummyNames.includes(r.name));
-                        const hasFewerRowsThanReal = matchingRealStudents.length > match.rows.length && (isDummyRows || match.rows.length <= 15);
-                        if ((isDummyRows || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
+                    if (match && match.rows && Array.isArray(match.rows) && match.rows.length > 0) {
+                        const hasPlaceholderAdm = match.rows.some((r: any) => !r.admNo || r.admNo === 'N/A' || /^ADM-10\d{2,}$/i.test(r.admNo));
+                        const hasFewerRowsThanReal = matchingRealStudents.length > match.rows.length && (hasPlaceholderAdm || match.rows.length <= 15);
+                        if ((hasPlaceholderAdm || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
                             const freshSource = matchingRealStudents.map((st, idx) => {
                                 const adm = resolveCleanAdmNo(st, idx);
                                 const cleanName = resolveCleanStudentName(st, idx);
@@ -1808,6 +1867,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // 4. Default clean rows for target classes (using matching real students or official student registry)
+        loadedExamIdRef.current = selectedExamId;
         let cleanRows: any[] = [];
         if (matchingRealStudents.length > 0) {
             cleanRows = matchingRealStudents.map((st, idx) => ({
@@ -1843,7 +1903,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
-    }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, resolveCleanStudentName, examMarksStore]);
+    }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, resolveCleanStudentName]);
 
     // Distinct unique grades available across the ENTIRE institution (used in Add Exam Modal)
     const institutionAvailableGrades = useMemo(() => {
@@ -3017,6 +3077,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams));
                 } catch (e) { }
 
+                syncExamsToCloud(nextExams);
+
                 const updatedExam = nextExams.find(e => e.id === selectedExamId);
                 if (updatedExam && currentInstitution?.id) {
                     apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
@@ -3145,6 +3207,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         setExams(prev => {
                             const nextExams = prev.map(e => e.id === activeExam.id ? updatedExam : e);
                             try { localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(nextExams)); } catch (e) { }
+                            syncExamsToCloud(nextExams);
                             return nextExams;
                         });
                         if (currentInstitution?.id) {
@@ -3189,6 +3252,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 try {
                     localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
                 } catch (e) { }
+                syncExamsToCloud(nextExams);
                 return nextExams;
             });
 
@@ -3261,6 +3325,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
             } catch (e) { }
+            syncExamsToCloud(nextExams);
             return nextExams;
         });
 
@@ -3396,6 +3461,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             try {
                 localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
             } catch (e) { }
+            syncExamsToCloud(nextExams);
 
             const updatedExam = nextExams.find(e => e.id === activeExam.id);
             if (updatedExam && currentInstitution?.id) {
@@ -3426,6 +3492,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 try {
                     localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
                 } catch (e) { }
+                syncExamsToCloud(nextExams);
                 if (nextExams.length > 0) {
                     setSelectedExamId(nextExams[0].id);
                 } else {
@@ -4300,7 +4367,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 >
                                                     All Grades
                                                 </button>
-                                                {availableGrades.map(g => (
+                                                {availableGrades.map((g: string) => (
                                                     <button
                                                         key={g}
                                                         type="button"
@@ -4728,6 +4795,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 try {
                                                     localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(next));
                                                 } catch (err) { }
+                                                syncExamsToCloud(next);
                                                 return next;
                                             });
 
@@ -4834,7 +4902,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         className="bg-transparent text-xs font-bold text-slate-900 dark:text-white border-none focus:outline-none cursor-pointer"
                                     >
                                         <option value="all">All Grades</option>
-                                        {availableGrades.map(gName => (
+                                        {availableGrades.map((gName: string) => (
                                             <option key={gName} value={gName}>{gName}</option>
                                         ))}
                                     </select>

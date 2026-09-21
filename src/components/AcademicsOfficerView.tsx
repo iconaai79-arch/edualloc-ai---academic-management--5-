@@ -118,23 +118,20 @@ interface AcademicsOfficerViewProps {
     currentInstitution?: Institution | null;
     onUpdateInstitution?: (institutionId: string, data: Partial<Omit<Institution, 'id'>>) => void;
     smsConfig?: SmsConfig;
-    logoUrl?: string;
-    footerImageUrl?: string;
     studentAttendances?: any[];
-    onSaveAttendance?: (attendances: any[]) => Promise<void>;
-    assessments?: Assessment[];
-    marks?: AssessmentMark[];
-    activityLog?: ActivityLog[];
-    incidents?: DisciplineIncident[];
-    onAddIncident?: (incident: DisciplineIncident) => Promise<void>;
+    onSaveAttendance?: (lessonIdOrAttendances: any, data?: any) => Promise<void>;
     onAddAssessment?: (assessment: Assessment) => Promise<void>;
     onDeleteAssessment?: (assessmentId: string) => Promise<void>;
     onSaveAssessmentMarks?: (assessmentId: string, marks: AssessmentMark[]) => Promise<void>;
-    onAccessAlumnaPortal?: () => void;
+    onAccessAlumnaPortal?: (school?: any) => void;
     schoolRegistry?: any[];
-    onTimetableGenerated?: (entries: TimetableEntry[]) => Promise<void>;
-    academicLevels?: AcademicLevel[];
+    onTimetableGenerated?: (entries: any, academicYearId?: string, semesterId?: string) => Promise<void>;
     allocations?: any[];
+    companyDetails?: any;
+    examTimetableSettings?: any;
+    onLogAction?: (message: string) => void;
+    themeColor?: string;
+    timeOffRequests?: any[];
 }
 
 export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props) => {
@@ -195,6 +192,30 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
 
+    const safeGetSubjectById = useCallback((id: string) => {
+        if (typeof getSubjectById === 'function') {
+            const found = getSubjectById(id);
+            if (found) return found;
+        }
+        return (subjects || []).find(s => s && s.id === id);
+    }, [getSubjectById, subjects]);
+
+    const safeGetLecturerById = useCallback((id: string) => {
+        if (typeof getLecturerById === 'function') {
+            const found = getLecturerById(id);
+            if (found) return found;
+        }
+        return (users || []).find(u => u && u.id === id);
+    }, [getLecturerById, users]);
+
+    const safeGetRoomById = useCallback((id: string) => {
+        if (typeof getRoomById === 'function') {
+            const found = getRoomById(id);
+            if (found) return found;
+        }
+        return (rooms || []).find(r => r && r.id === id);
+    }, [getRoomById, rooms]);
+
     const canGenerate = useMemo(() => {
         return activeAcademicYear && activeSemester && (activeSemester.sessions || []).some(s => (s.examPeriods || []).length > 0);
     }, [activeAcademicYear, activeSemester]);
@@ -222,11 +243,11 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 };
 
                 const rawTimetable = await generateExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], lecturers, Array.isArray(rooms) ? rooms : [], examPeriod, (courseSizes || new Map()), (examTimetableSettings || {} as any));
-                await onExamTimetableGenerated(rawTimetable, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
+                await onExamTimetableGenerated?.(rawTimetable, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
                 onLogAction?.(`Generated AI exam timetable for ${activeSemester?.name || 'Term'} (${activeAcademicYear?.name || 'Year'})`);
             } else {
                 const standardEntries = generateStandardExamTimetable(subjectsWithExams, Array.isArray(courses) ? courses : [], Array.isArray(users) ? users : [], Array.isArray(rooms) ? rooms : [], activeSemester, (examTimetableSettings || {} as any), allocations);
-                await onExamTimetableGenerated(standardEntries, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
+                await onExamTimetableGenerated?.(standardEntries, (activeAcademicYear?.id || ""), (activeSemester?.id || ""));
                 onLogAction?.(`Generated standard exam timetable for ${activeSemester?.name || 'Term'} (${activeAcademicYear?.name || 'Year'})`);
             }
         } catch (err: any) {
@@ -262,7 +283,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const handleDownloadPdf = async () => {
         setIsGeneratingPdf(true);
         try {
-            const pdfUrl = await generateExamTimetablePdf(filteredExamTimetable, getSubjectById, getLecturerById, getRoomById, buildings, courses, title, letterheadConfig, footerImageUrl || null, logoUrl || null);
+            const pdfUrl = await generateExamTimetablePdf(filteredExamTimetable, safeGetSubjectById, safeGetLecturerById, safeGetRoomById, buildings, courses, title, letterheadConfig, footerImageUrl || null, logoUrl || null);
             const link = document.createElement('a');
             link.href = pdfUrl;
             link.download = `Exam_Timetable.pdf`;
@@ -506,7 +527,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                                         <div className="text-sm text-slate-500 dark:text-slate-400">
                                             {activeSemester?.sessions?.map(session => (
                                                 session?.examPeriods?.map(examPeriod => (
-                                                    <div key={examPeriod?.id || Math.random()}>- {session?.name || 'Session'} / {examPeriod?.name || 'Period'}: {examPeriod?.startDate} to {examPeriod?.endDate}</div>
+                                                    <div key={examPeriod?.id || `${session?.id || 'session'}_${examPeriod?.name || 'ep'}`}>- {session?.name || 'Session'} / {examPeriod?.name || 'Period'}: {examPeriod?.startDate} to {examPeriod?.endDate}</div>
                                                 ))
                                             ))}
                                         </div>
@@ -560,9 +581,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             {/* FIXED: currentInstitution is now correctly passed to ExamTimetableGrid */}
                             <ExamTimetableGrid
                                 entries={filteredExamTimetable}
-                                getSubjectById={getSubjectById}
-                                getLecturerById={getLecturerById}
-                                getRoomById={getRoomById}
+                                getSubjectById={safeGetSubjectById}
+                                getLecturerById={safeGetLecturerById}
+                                getRoomById={safeGetRoomById}
                                 buildings={props.buildings || []}
                                 courses={courses}
                                 title={title}
@@ -577,9 +598,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 <div className="space-y-6 animate-fade-in w-full">
                     <TimetableManagerModule
                         entries={filteredExamTimetable}
-                        getSubjectById={getSubjectById}
-                        getLecturerById={getLecturerById}
-                        getRoomById={getRoomById}
+                        getSubjectById={safeGetSubjectById}
+                        getLecturerById={safeGetLecturerById}
+                        getRoomById={safeGetRoomById}
                         buildings={props.buildings || []}
                         courses={courses}
                         departments={departments || []}
@@ -719,7 +740,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         activeAcademicYear={activeAcademicYear}
                         activeSemester={activeSemester}
                         studentAttendances={props.studentAttendances}
-                        onSaveAttendance={props.onSaveAttendance}
+                        onSaveAttendance={props.onSaveAttendance as any}
                         onLogAction={onLogAction}
                     />
                 </div>
@@ -996,13 +1017,13 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     lecturers={users.filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u))}
                     rooms={rooms}
                     courses={courses}
-                    timetableSettings={timetableSettings}
+                    timetableSettings={timetableSettings || {} as any}
                     activeAcademicYear={activeAcademicYear || null}
                     activeSemester={activeSemester || null}
                     currentInstitution={currentInstitution}
                     courseSizes={courseSizes}
                     timeOffRequests={props.timeOffRequests || []}
-                    onTimetableGenerated={props.onTimetableGenerated || (async () => { })}
+                    onTimetableGenerated={props.onTimetableGenerated ? ((entries: any, ay?: any, sem?: any) => (props.onTimetableGenerated as any)(entries, ay, sem)) : (async () => { })}
                     onLogAction={onLogAction}
                 />
             )}

@@ -42,7 +42,8 @@ const PUBLIC_MODULES = [
   'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts',
   'coop_expenses', 'coop_income', 'car_appraisals', 'car_test_drives', 'car_invoices',
   'car_payments', 'fee_promises', 'timetable_entries', 'exam_timetable_entries',
-  'bursary_disbursements', 'stock_transactions', 'appointments'
+  'bursary_disbursements', 'stock_transactions', 'appointments',
+  'assessments', 'assessment_marks', 'exam_units', 'exam_broadsheets'
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

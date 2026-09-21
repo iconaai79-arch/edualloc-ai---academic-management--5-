@@ -122,8 +122,6 @@ export const invalidateModuleCache = (module?: string) => {
 
 const _unsupportedServerModules = new Set<string>([
     'class_subject_allocations',
-    'exam_units',
-    'exam_broadsheets',
     'his_branding',
     'his_consultation_rates',
     'his_hospital_rooms',
@@ -1350,7 +1348,203 @@ export const apiService = {
                 return finalResult;
             };
 
-            if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
+            if (module === 'exam_units') {
+                const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
+                let remoteExams: any[] = [];
+
+                if (_supabase) {
+                    try {
+                        let query = _supabase.from('institution_module_states').select('*');
+                        if (institutionId && institutionId !== 'ALL') {
+                            query = query.eq('institution_id', institutionId);
+                        }
+                        const { data: imsData, error: imsErr } = await query;
+                        if (!imsErr && imsData && imsData.length > 0) {
+                            const camelRows = toCamelCase(imsData);
+                            for (const row of camelRows) {
+                                const modId = row.moduleId || row.module_id;
+                                const rowId = row.id || '';
+                                if (modId === 'exam_units' || rowId.includes('exam_units')) {
+                                    const rawData = row.data || row.settings || row.stateData || row.state_data;
+                                    if (Array.isArray(rawData)) {
+                                        remoteExams.push(...rawData);
+                                    } else if (rawData && Array.isArray(rawData.exams)) {
+                                        remoteExams.push(...rawData.exams);
+                                    } else if (rawData && typeof rawData === 'object' && rawData.id) {
+                                        remoteExams.push(rawData);
+                                    }
+                                } else if (modId === 'exam_unit' || rowId.includes('_exam_unit_')) {
+                                    const rawData = row.data || row.settings || row.stateData || row;
+                                    if (rawData && rawData.id) {
+                                        remoteExams.push(rawData);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] Supabase fetch for exam_units failed:', e);
+                    }
+                }
+
+                // If remoteExams is empty, try API records endpoint
+                if (remoteExams.length === 0) {
+                    try {
+                        let token = await apiService.getAuthToken();
+                        const url = new URL(`${window.location.origin}/api/records`);
+                        url.searchParams.append('module', 'institution_module_states');
+                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                        const response = await fetch(url.toString(), {
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            const resJson = await response.json();
+                            const fetched = resJson.data || resJson || [];
+                            if (Array.isArray(fetched) && fetched.length > 0) {
+                                const camelRows = toCamelCase(fetched);
+                                for (const row of camelRows) {
+                                    const modId = row.moduleId || row.module_id;
+                                    const rowId = row.id || '';
+                                    if (modId === 'exam_units' || rowId.includes('exam_units')) {
+                                        const rawData = row.data || row.settings || row.stateData || row.state_data;
+                                        if (Array.isArray(rawData)) {
+                                            remoteExams.push(...rawData);
+                                        } else if (rawData && Array.isArray(rawData.exams)) {
+                                            remoteExams.push(...rawData.exams);
+                                        } else if (rawData && typeof rawData === 'object' && rawData.id) {
+                                            remoteExams.push(rawData);
+                                        }
+                                    } else if (modId === 'exam_unit' || rowId.includes('_exam_unit_')) {
+                                        const rawData = row.data || row.settings || row.stateData || row;
+                                        if (rawData && rawData.id) {
+                                            remoteExams.push(rawData);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] API records fetch for exam_units failed:', e);
+                    }
+                }
+
+                // Filter out legacy dummy sample exams
+                const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
+                const cleanRemote = remoteExams.filter(e => e && e.id && !dummyIds.has(e.id)).map(e => toCamelCase(e));
+
+                // Local storage fallback / merge
+                let localUnits: any[] = [];
+                try {
+                    const saved = localStorage.getItem(`eduai_exam_units_${targetInstId}`);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) localUnits = parsed;
+                    }
+                } catch (e) {}
+                if (localUnits.length === 0) {
+                    const lsRecs = ls.get('exam_units');
+                    if (Array.isArray(lsRecs)) localUnits = lsRecs;
+                }
+                const cleanLocal = localUnits.filter(e => e && e.id && !dummyIds.has(e.id)).map(e => toCamelCase(e));
+
+                // CleanRemote takes priority; merge in any local units not yet on remote
+                const examsMap = new Map<string, any>();
+                cleanLocal.forEach(e => examsMap.set(e.id, e));
+                cleanRemote.forEach(e => examsMap.set(e.id, { ...examsMap.get(e.id), ...e }));
+                const finalExams = Array.from(examsMap.values());
+
+                // Write through cache
+                try {
+                    if (targetInstId) {
+                        localStorage.setItem(`eduai_exam_units_${targetInstId}`, JSON.stringify(finalExams));
+                    }
+                    ls.set('exam_units', finalExams);
+                } catch (e) {}
+
+                return finalExams as T[];
+            }
+
+            if (module === 'exam_broadsheets') {
+                const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
+                let remoteStore: Record<string, any> = {};
+
+                if (_supabase) {
+                    try {
+                        let query = _supabase.from('institution_module_states').select('*');
+                        if (institutionId && institutionId !== 'ALL') {
+                            query = query.eq('institution_id', institutionId);
+                        }
+                        const { data: imsData, error: imsErr } = await query;
+                        if (!imsErr && imsData && imsData.length > 0) {
+                            const camelRows = toCamelCase(imsData);
+                            const match = camelRows.find((r: any) => 
+                                r.id === `ims_exam_broadsheets_${targetInstId}` ||
+                                r.id === `broadsheets_${targetInstId}` ||
+                                r.moduleId === 'exam_broadsheets' ||
+                                r.module_id === 'exam_broadsheets'
+                            );
+                            const storeData = match?.settings || match?.stateData || match?.data;
+                            if (storeData && typeof storeData === 'object') {
+                                remoteStore = storeData;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] Supabase fetch for exam_broadsheets failed:', e);
+                    }
+                }
+
+                if (Object.keys(remoteStore).length === 0) {
+                    try {
+                        let token = await apiService.getAuthToken();
+                        const url = new URL(`${window.location.origin}/api/records`);
+                        url.searchParams.append('module', 'institution_module_states');
+                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                        const response = await fetch(url.toString(), {
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            const resJson = await response.json();
+                            const fetched = resJson.data || resJson || [];
+                            if (Array.isArray(fetched) && fetched.length > 0) {
+                                const camelRows = toCamelCase(fetched);
+                                const match = camelRows.find((r: any) => 
+                                    r.id === `ims_exam_broadsheets_${targetInstId}` ||
+                                    r.id === `broadsheets_${targetInstId}` ||
+                                    r.moduleId === 'exam_broadsheets' ||
+                                    r.module_id === 'exam_broadsheets'
+                                );
+                                const storeData = match?.settings || match?.stateData || match?.data;
+                                if (storeData && typeof storeData === 'object') {
+                                    remoteStore = storeData;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[apiService] API fetch for exam_broadsheets failed:', e);
+                    }
+                }
+
+                let localStore: Record<string, any> = {};
+                try {
+                    const saved = localStorage.getItem(`eduai_exam_broadsheets_${targetInstId}`);
+                    if (saved) localStore = JSON.parse(saved) || {};
+                } catch (e) {}
+
+                const mergedStore = { ...localStore, ...remoteStore };
+                try {
+                    localStorage.setItem(`eduai_exam_broadsheets_${targetInstId}`, JSON.stringify(mergedStore));
+                    ls.set('exam_broadsheets', mergedStore);
+                } catch (e) {}
+
+                return [mergedStore] as any;
+            }
+
+            if (_unsupportedServerModules.has(module) || !_supabase) {
                 return queryLocal();
             }
 
@@ -1434,7 +1628,7 @@ export const apiService = {
                     });
                 }
 
-                const fetchTimeoutMs = (module === 'app_notifications' || module === 'activity_log') ? 6000 : 15000;
+                const fetchTimeoutMs = module === 'activity_log' ? 8000 : 15000;
                 const doFetch = (tkn: string) => {
                     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
                     const timeoutId = controller ? setTimeout(() => controller.abort(), fetchTimeoutMs) : null;
@@ -2550,7 +2744,76 @@ export const apiService = {
             }
         }
 
-        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
+        if (module === 'exam_units') {
+            const instId = (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localExams: any[] = [];
+            try {
+                const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (saved) localExams = JSON.parse(saved) || [];
+            } catch (e) {}
+            if (localExams.length === 0) localExams = ls.get('exam_units') || [];
+            const index = localExams.findIndex((r: any) => r.id === id);
+            if (index >= 0) {
+                localExams[index] = { ...localExams[index], ...payload };
+            } else {
+                localExams.push({ id, ...payload });
+            }
+            try {
+                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(localExams));
+                ls.set('exam_units', localExams);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_exam_units_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_units',
+                    moduleId: 'exam_units',
+                    moduleName: 'Exam Units',
+                    status: 'active',
+                    data: localExams,
+                    settings: localExams,
+                    stateData: localExams,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return toCamelCase(payload);
+        }
+
+        if (module === 'exam_broadsheets') {
+            const instId = (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localStore: Record<string, any> = {};
+            try {
+                const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+                if (saved) localStore = JSON.parse(saved) || {};
+            } catch (e) {}
+
+            localStore[id] = payload.rows || payload.data || payload;
+            try {
+                localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(localStore));
+                ls.set('exam_broadsheets', localStore);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_exam_broadsheets_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_broadsheets',
+                    moduleId: 'exam_broadsheets',
+                    moduleName: 'Exam Broadsheets',
+                    status: 'active',
+                    data: localStore,
+                    settings: localStore,
+                    stateData: localStore,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return toCamelCase(payload);
+        }
+
+        if (_unsupportedServerModules.has(module) || !_supabase) {
             const records = ls.get(module);
             const index = records.findIndex((r: any) => r.id === id);
             if (index >= 0) {
@@ -2658,8 +2921,75 @@ export const apiService = {
             }
         }
 
+        if (module === 'exam_units') {
+            const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localExams: any[] = [];
+            try {
+                const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (saved) localExams = JSON.parse(saved) || [];
+            } catch (e) {}
+            if (localExams.length === 0) localExams = ls.get('exam_units') || [];
+
+            const remaining = localExams.filter((e: any) => e && !idsSet.has(e.id));
+            try {
+                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(remaining));
+                ls.set('exam_units', remaining);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_exam_units_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_units',
+                    moduleId: 'exam_units',
+                    moduleName: 'Exam Units',
+                    status: 'active',
+                    data: remaining,
+                    settings: remaining,
+                    stateData: remaining,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return;
+        }
+
+        if (module === 'exam_broadsheets') {
+            const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localStore: Record<string, any> = {};
+            try {
+                const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+                if (saved) localStore = JSON.parse(saved) || {};
+            } catch (e) {}
+
+            idsArray.forEach(id => {
+                delete localStore[id];
+            });
+            try {
+                localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(localStore));
+                ls.set('exam_broadsheets', localStore);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_exam_broadsheets_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_broadsheets',
+                    moduleId: 'exam_broadsheets',
+                    moduleName: 'Exam Broadsheets',
+                    status: 'active',
+                    data: localStore,
+                    settings: localStore,
+                    stateData: localStore,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return;
+        }
+
         // Local storage mode for unsupported server modules - do not query Supabase tables that do not exist
-        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module)) {
+        if (_unsupportedServerModules.has(module)) {
             return;
         }
 
@@ -2788,7 +3118,102 @@ export const apiService = {
         ls.upsert(module, payload);
         try { localDb.upsert(module, payload).catch(() => {}); } catch (_) {}
 
-        if (module === 'exam_units' || module === 'exam_broadsheets' || module === 'class_subject_allocations' || _unsupportedServerModules.has(module)) {
+        if (module === 'exam_units') {
+            const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+
+            let allExams: any[] = [];
+            try {
+                const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (saved) allExams = JSON.parse(saved) || [];
+            } catch (e) {}
+            if (allExams.length === 0) {
+                const lsRecs = ls.get('exam_units');
+                if (Array.isArray(lsRecs)) allExams = lsRecs;
+            }
+
+            if (Array.isArray(data)) {
+                allExams = data;
+            } else if (payload && Array.isArray(payload.exams)) {
+                allExams = payload.exams;
+            } else if (payload && payload.id) {
+                const idx = allExams.findIndex(e => e.id === payload.id);
+                if (idx >= 0) {
+                    allExams[idx] = { ...allExams[idx], ...payload };
+                } else {
+                    allExams = [payload, ...allExams];
+                }
+            }
+
+            try {
+                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(allExams));
+                ls.set('exam_units', allExams);
+            } catch (e) {}
+
+            if (instId) {
+                const stateData = {
+                    id: `ims_exam_units_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_units',
+                    moduleId: 'exam_units',
+                    moduleName: 'Exam Units',
+                    status: 'active',
+                    data: allExams,
+                    settings: allExams,
+                    stateData: allExams,
+                    updated_at: new Date().toISOString()
+                };
+                apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
+                    console.warn('[apiService] saveModuleRecord exam_units error:', err);
+                });
+            }
+            return toCamelCase(payload);
+        }
+
+        if (module === 'exam_broadsheets') {
+            const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+
+            let store: Record<string, any> = {};
+            try {
+                const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+                if (saved) store = JSON.parse(saved) || {};
+            } catch (e) {}
+
+            if (payload && payload.examId && (payload.rows || payload.data)) {
+                store[payload.examId] = payload.rows || payload.data;
+            } else if (payload && typeof payload === 'object' && !payload.examId && !payload.id) {
+                store = { ...store, ...payload };
+            } else if (data && typeof data === 'object' && !(data as any).examId && !(data as any).id) {
+                store = { ...store, ...data };
+            }
+
+            try {
+                localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(store));
+                ls.set('exam_broadsheets', store);
+            } catch (e) {}
+
+            if (instId) {
+                const stateData = {
+                    id: `ims_exam_broadsheets_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_broadsheets',
+                    moduleId: 'exam_broadsheets',
+                    moduleName: 'Exam Broadsheets',
+                    status: 'active',
+                    data: store,
+                    settings: store,
+                    stateData: store,
+                    updated_at: new Date().toISOString()
+                };
+                apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
+                    console.warn('[apiService] saveModuleRecord exam_broadsheets error:', err);
+                });
+            }
+            return toCamelCase(payload);
+        }
+
+        if (module === 'class_subject_allocations' || _unsupportedServerModules.has(module)) {
             const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || 'default';
             if (_supabase && instId) {
                 const stateData = { id: `${instId}_${module}_${payload.id || 'state'}`, institutionId: instId, moduleId: module, data: payload, updatedAt: new Date().toISOString() };
@@ -3128,7 +3553,81 @@ export const apiService = {
             });
         }
 
-        if (module === 'exam_units' || module === 'exam_broadsheets' || _unsupportedServerModules.has(module) || !_supabase) {
+        if (module === 'exam_units') {
+            const instId = (data[0] as any)?.institutionId || (data[0] as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localExams: any[] = [];
+            try {
+                const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
+                if (saved) localExams = JSON.parse(saved) || [];
+            } catch (e) {}
+            if (localExams.length === 0) localExams = ls.get('exam_units') || [];
+            payload.forEach((item: any) => {
+                const index = localExams.findIndex((r: any) => r && r.id === item.id);
+                if (index >= 0) {
+                    localExams[index] = { ...localExams[index], ...item };
+                } else {
+                    localExams.push(item);
+                }
+            });
+            try {
+                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(localExams));
+                ls.set('exam_units', localExams);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_exam_units_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_units',
+                    moduleId: 'exam_units',
+                    moduleName: 'Exam Units',
+                    status: 'active',
+                    data: localExams,
+                    settings: localExams,
+                    stateData: localExams,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return data;
+        }
+
+        if (module === 'exam_broadsheets') {
+            const instId = (data[0] as any)?.institutionId || (data[0] as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            let store: Record<string, any> = {};
+            try {
+                const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+                if (saved) store = JSON.parse(saved) || {};
+            } catch (e) {}
+            payload.forEach((item: any) => {
+                if (item.examId && (item.rows || item.data)) {
+                    store[item.examId] = item.rows || item.data;
+                }
+            });
+            try {
+                localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(store));
+                ls.set('exam_broadsheets', store);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_exam_broadsheets_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'exam_broadsheets',
+                    moduleId: 'exam_broadsheets',
+                    moduleName: 'Exam Broadsheets',
+                    status: 'active',
+                    data: store,
+                    settings: store,
+                    stateData: store,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return data;
+        }
+
+        if (_unsupportedServerModules.has(module) || !_supabase) {
             const records = ls.get(module);
             payload.forEach((item: any) => {
                 const index = records.findIndex((r: any) => r && r.id === item.id);

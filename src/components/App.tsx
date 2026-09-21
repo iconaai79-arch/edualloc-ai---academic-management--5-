@@ -1255,11 +1255,25 @@ CREATE OR REPLACE TRIGGER trg_allocate_tenant_sms_bonus
                             NOTIFY pgrst, 'reload schema';
                         `).catch(() => {});
 
-                        apiService.runMigration(`
+                        const visitorNotifSyncedKey = 'eduai_visitor_notif_synced_v407';
+                        if (!sessionStorage.getItem(visitorNotifSyncedKey)) {
+                            sessionStorage.setItem(visitorNotifSyncedKey, 'true');
+                            apiService.runMigration(`
+                                ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS notify_host_sms BOOLEAN DEFAULT FALSE;
+                                ALTER TABLE public.visitors ADD COLUMN IF NOT EXISTS host_phone TEXT;
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_user_id ON public.app_notifications(user_id);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_institution_id ON public.app_notifications(institution_id);
+                                NOTIFY pgrst, 'reload schema';
+                            `).catch(() => {});
+                        }
+
+                        const teacherCheckinSyncedKey = 'eduai_teacher_checkin_synced_v278';
+                        if (!sessionStorage.getItem(teacherCheckinSyncedKey)) {
+                            sessionStorage.setItem(teacherCheckinSyncedKey, 'true');
+                            apiService.runMigration(`
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT);
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(UUID, UUID, VARCHAR, VARCHAR, TEXT);
 DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT, TEXT, TIMESTAMPTZ);
-DROP FUNCTION IF EXISTS public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT, TEXT, TIMESTAMP WITH TIME ZONE);
 
 CREATE OR REPLACE FUNCTION public.process_teacher_checkin(
     p_teacher_id TEXT,
@@ -1320,6 +1334,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VARCHAR, TEXT, TEXT, TIMESTAMP WITH TIME ZONE) TO anon, authenticated, service_role;
                         `).catch(() => {});
+                        }
                     }
                 }, 1000);
 

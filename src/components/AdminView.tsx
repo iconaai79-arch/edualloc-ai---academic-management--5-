@@ -780,9 +780,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('auto_marketplace');
             } else if (isFuelStation) {
                 setActiveTab('fuel_station');
-            } else if (isMilling || role === 'miller_admin' || role === 'weighbridge_operator') {
+            } else if (isMilling || (role as string) === 'miller_admin' || (role as string) === 'weighbridge_operator') {
                 setActiveTab('milling');
-            } else if (isInvoicing || role === 'invoicing_admin') {
+            } else if (isInvoicing || (role as string) === 'invoicing_admin') {
                 setActiveTab('corporate_invoices');
             } else if (isEdu || isSchool) {
                 const isLeadership = ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'dos', 'director_of_studies', 'admin'].includes(role || '');
@@ -2891,9 +2891,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     activeSemester={activeSemester}
                                     onExamTimetableGenerated={async (entries: any, ay: any, sem: any) => apiService.saveExamTimetable(props.currentUser!.institutionId, ay, sem, entries)}
                                     examTimetable={props.examTimetable || []}
-                                    getSubjectById={props.getSubjectById}
-                                    getLecturerById={props.getLecturerById}
-                                    getRoomById={props.getRoomById}
+                                    getSubjectById={props.getSubjectById || ((id: string) => (props.subjects || []).find(s => s && s.id === id))}
+                                    getLecturerById={props.getLecturerById || ((id: string) => (props.users || []).find(u => u && u.id === id))}
+                                    getRoomById={props.getRoomById || ((id: string) => (props.rooms || []).find(r => r && r.id === id))}
                                     courseSizes={props.courseSizes || new Map()}
                                     academicYears={props.academicYears}
                                     semesters={props.semesters}

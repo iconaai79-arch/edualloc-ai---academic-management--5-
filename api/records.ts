@@ -154,7 +154,7 @@ const PUBLIC_MODULES = [
   'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
   'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
   'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads',
-  'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks',
+  'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks', 'assessments', 'assessment_marks', 'exam_units', 'exam_broadsheets',
   'transport_bills', 'fee_promises', 'sms_outbox', 'sms_logs', 'institution_extension_requests', 'absence_requests',
   'v_today_teacher_checkins', 'v_house_statistics', 'v_bed_occupancy',
   'bc_students', 'bc_courses', 'bc_trainers', 'bc_invoices', 'bc_payments', 'bc_practicals', 'bc_settings', 'bc_fee_structures',
@@ -665,7 +665,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)
                     ? 100000
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : (moduleName === 'app_notifications' ? 100 : 10000))
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) ? 500 : (moduleName === 'app_notifications' ? 100 : 10000)))
             );
             if (isNaN(finalLimit)) finalLimit = 100000;
             if (finalLimit > 100000) {
@@ -679,7 +679,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            const queryTimeout = (moduleName === 'app_notifications' || moduleName === 'activity_log') ? 4000 : 12000;
+            const queryTimeout = moduleName === 'activity_log' ? 5000 : (moduleName === 'app_notifications' ? 15000 : 12000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -1339,6 +1339,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // 8. Status
                 if (copy.status) {
                     meta.status = copy.status;
+                }
+
+                // 9. Host notification & phone
+                if ('notifyHostSms' in copy || 'notify_host_sms' in copy) {
+                    const nh = copy.notify_host_sms ?? copy.notifyHostSms;
+                    copy.notify_host_sms = Boolean(nh);
+                    meta.notify_host_sms = Boolean(nh);
+                    delete copy.notifyHostSms;
+                }
+                if ('hostPhone' in copy || 'host_phone' in copy) {
+                    const hp = copy.host_phone ?? copy.hostPhone;
+                    copy.host_phone = hp;
+                    meta.host_phone = hp;
+                    delete copy.hostPhone;
                 }
 
                 copy.metadata = meta;
@@ -2153,6 +2167,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         meta.status = copy.status;
                     }
 
+                    // 9. Host notification & phone
+                    if ('notifyHostSms' in copy || 'notify_host_sms' in copy) {
+                        const nh = copy.notify_host_sms ?? copy.notifyHostSms;
+                        copy.notify_host_sms = Boolean(nh);
+                        meta.notify_host_sms = Boolean(nh);
+                        delete copy.notifyHostSms;
+                    }
+                    if ('hostPhone' in copy || 'host_phone' in copy) {
+                        const hp = copy.host_phone ?? copy.hostPhone;
+                        copy.host_phone = hp;
+                        meta.host_phone = hp;
+                        delete copy.hostPhone;
+                    }
+
                     copy.metadata = meta;
                     return copy;
                 };
@@ -2734,7 +2762,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by'].forEach(k => {
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id'].forEach(k => {
                             if (k in copy) copy[k] = null;
                         });
                         return copy;
@@ -3622,6 +3650,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
                         const copy = { ...currentUpdateData };
                         if (copy.id && !isValidUUID(copy.id)) delete copy.id;
+                        currentUpdateData = copy;
+                        patchRetries--;
+                        continue;
+                    } else if ((error.code === '23503' || String(error.message || '').includes('foreign key constraint')) && patchRetries > 0) {
+                        console.warn(`[api/records PATCH] Foreign key constraint note on [${moduleName}]: nulling relational IDs and retrying...`);
+                        const copy = { ...currentUpdateData };
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id'].forEach(k => {
+                            if (k in copy) copy[k] = null;
+                        });
                         currentUpdateData = copy;
                         patchRetries--;
                         continue;
