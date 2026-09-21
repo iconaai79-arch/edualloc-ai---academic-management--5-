@@ -276,6 +276,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [newGradingSystem, setNewGradingSystem] = useState('Main grading system');
     const [newExamStartDate, setNewExamStartDate] = useState('2026-07-26');
     const [newExamSubmissionDate, setNewExamSubmissionDate] = useState('2026-08-05');
+    const [showAllTeachersProgress, setShowAllTeachersProgress] = useState(false);
+    const [showAllClassesProgress, setShowAllClassesProgress] = useState(false);
+    const [showAllSubjectsProgress, setShowAllSubjectsProgress] = useState(false);
 
     // Dynamically compute current registered classes/grades and class+stream combinations
     const registeredClasses = useMemo(() => {
@@ -3856,45 +3859,153 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </div>
                             </div>
 
-                            {/* 3 Progress Columns matching screenshot */}
+                            {/* 3 Progress Columns matching screenshot with minimal display & View All */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
                                 {/* Column 1: PROGRESS PER TEACHER */}
-                                <div className="space-y-3">
-                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS PER TEACHER</h4>
-                                    <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                        {teacherProgressList.map((t, idx) => (
-                                            <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                                                <span>{t.name}</span>
-                                                <span className="font-mono text-slate-900 dark:text-white">{t.progress}%</span>
-                                            </div>
-                                        ))}
+                                <div className="p-4 bg-slate-50/80 dark:bg-slate-950/40 rounded-xl border border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shadow-xs">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">PROGRESS PER TEACHER</h4>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-slate-500">
+                                                {teacherProgressList.length}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {(showAllTeachersProgress ? teacherProgressList : teacherProgressList.slice(0, 5)).map((t, idx) => (
+                                                <div key={idx} className="group py-1 border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+                                                    <div className="flex justify-between items-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        <span className="truncate pr-2 font-bold max-w-[200px]" title={t.name}>{t.name}</span>
+                                                        <span className={`font-mono text-[11px] font-black shrink-0 ${
+                                                            t.progress >= 100 ? 'text-emerald-600 dark:text-emerald-400' :
+                                                            t.progress > 0 ? 'text-blue-600 dark:text-blue-400' :
+                                                            'text-slate-400 dark:text-slate-500'
+                                                        }`}>
+                                                            {t.progress}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-200/70 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                                                        <div 
+                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                t.progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
+                                                                t.progress >= 50 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
+                                                                t.progress > 0 ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+                                                                'bg-slate-200 dark:bg-slate-800'
+                                                            }`}
+                                                            style={{ width: `${Math.min(Math.max(t.progress, 0), 100)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {teacherProgressList.length > 5 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllTeachersProgress(prev => !prev)}
+                                            className="w-full mt-3 py-1.5 px-3 text-[11px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-dashed border-blue-200 dark:border-blue-900/60"
+                                        >
+                                            <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform duration-200 ${showAllTeachersProgress ? 'rotate-180' : ''}`} />
+                                            {showAllTeachersProgress ? 'Show Minimal (5)' : `View All (${teacherProgressList.length})`}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Column 2: PROGRESS BY CLASS */}
-                                <div className="space-y-3">
-                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS BY CLASS</h4>
-                                    <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                        {classProgressList.map((c, idx) => (
-                                            <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                                                <span>{c.name}</span>
-                                                <span className="font-mono text-slate-900 dark:text-white">{c.progress}%</span>
-                                            </div>
-                                        ))}
+                                <div className="p-4 bg-slate-50/80 dark:bg-slate-950/40 rounded-xl border border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shadow-xs">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">PROGRESS BY CLASS</h4>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-slate-500">
+                                                {classProgressList.length}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {(showAllClassesProgress ? classProgressList : classProgressList.slice(0, 5)).map((c, idx) => (
+                                                <div key={idx} className="group py-1 border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+                                                    <div className="flex justify-between items-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        <span className="truncate pr-2 font-bold max-w-[200px]" title={c.name}>{c.name}</span>
+                                                        <span className={`font-mono text-[11px] font-black shrink-0 ${
+                                                            c.progress >= 100 ? 'text-emerald-600 dark:text-emerald-400' :
+                                                            c.progress > 0 ? 'text-blue-600 dark:text-blue-400' :
+                                                            'text-slate-400 dark:text-slate-500'
+                                                        }`}>
+                                                            {c.progress}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-200/70 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                                                        <div 
+                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                c.progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
+                                                                c.progress >= 50 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
+                                                                c.progress > 0 ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+                                                                'bg-slate-200 dark:bg-slate-800'
+                                                            }`}
+                                                            style={{ width: `${Math.min(Math.max(c.progress, 0), 100)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {classProgressList.length > 5 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllClassesProgress(prev => !prev)}
+                                            className="w-full mt-3 py-1.5 px-3 text-[11px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-dashed border-blue-200 dark:border-blue-900/60"
+                                        >
+                                            <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform duration-200 ${showAllClassesProgress ? 'rotate-180' : ''}`} />
+                                            {showAllClassesProgress ? 'Show Minimal (5)' : `View All (${classProgressList.length})`}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Column 3: PROGRESS BY SUBJECT */}
-                                <div className="space-y-3">
-                                    <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">PROGRESS BY SUBJECT</h4>
-                                    <div className="space-y-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                                        {subjectProgressList.map((s, idx) => (
-                                            <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 dark:border-slate-800">
-                                                <span>{s.name}</span>
-                                                <span className="font-mono text-slate-900 dark:text-white">{s.progress}%</span>
-                                            </div>
-                                        ))}
+                                <div className="p-4 bg-slate-50/80 dark:bg-slate-950/40 rounded-xl border border-slate-200/80 dark:border-slate-800/80 flex flex-col justify-between shadow-xs">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                                            <h4 className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">PROGRESS BY SUBJECT</h4>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-slate-500">
+                                                {subjectProgressList.length}
+                                            </span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {(showAllSubjectsProgress ? subjectProgressList : subjectProgressList.slice(0, 5)).map((s, idx) => (
+                                                <div key={idx} className="group py-1 border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+                                                    <div className="flex justify-between items-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        <span className="truncate pr-2 font-bold max-w-[200px]" title={s.name}>{s.name}</span>
+                                                        <span className={`font-mono text-[11px] font-black shrink-0 ${
+                                                            s.progress >= 100 ? 'text-emerald-600 dark:text-emerald-400' :
+                                                            s.progress > 0 ? 'text-blue-600 dark:text-blue-400' :
+                                                            'text-slate-400 dark:text-slate-500'
+                                                        }`}>
+                                                            {s.progress}%
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-200/70 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                                                        <div 
+                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                s.progress >= 100 ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
+                                                                s.progress >= 50 ? 'bg-gradient-to-r from-blue-500 to-indigo-500' :
+                                                                s.progress > 0 ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+                                                                'bg-slate-200 dark:bg-slate-800'
+                                                            }`}
+                                                            style={{ width: `${Math.min(Math.max(s.progress, 0), 100)}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {subjectProgressList.length > 5 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllSubjectsProgress(prev => !prev)}
+                                            className="w-full mt-3 py-1.5 px-3 text-[11px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-dashed border-blue-200 dark:border-blue-900/60"
+                                        >
+                                            <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform duration-200 ${showAllSubjectsProgress ? 'rotate-180' : ''}`} />
+                                            {showAllSubjectsProgress ? 'Show Minimal (5)' : `View All (${subjectProgressList.length})`}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
