@@ -274,12 +274,17 @@ const ls = {
             return [];
         }
     },
-    set: (table: string, data: any[]) => {
+    set: (table: string, data: any) => {
         try {
-            const safeData = Array.isArray(data) ? data : [];
-            // Cap oversized local caches to the most recent 150 items to prevent local storage quota saturation
-            const trimmedData = safeData.length > 150 ? safeData.slice(-150) : safeData;
-            safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
+            if (Array.isArray(data)) {
+                // Cap oversized local caches to the most recent 150 items to prevent local storage quota saturation
+                const trimmedData = data.length > 150 ? data.slice(-150) : data;
+                safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
+            } else if (data && typeof data === 'object') {
+                safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(data));
+            } else {
+                safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify([]));
+            }
         } catch (e: any) {
             // Suppress storage error
         }
@@ -6283,6 +6288,9 @@ export const apiService = {
             const maxTeacherSun = r.maxSundayLessonsPerTeacherPerDay ?? r.max_sunday_lessons_per_teacher_per_day ?? meta.maxSundayLessonsPerTeacherPerDay ?? meta.max_sunday_lessons_per_teacher_per_day ?? maxTeacherWeekend ?? 2;
             const satPeriods = r.saturdayPeriodsCount ?? r.saturday_periods_count ?? meta.saturdayPeriodsCount ?? meta.saturday_periods_count ?? 5;
             const sunPeriods = r.sundayPeriodsCount ?? r.sunday_periods_count ?? meta.sundayPeriodsCount ?? meta.sunday_periods_count ?? 4;
+            const wDutyRate = r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200;
+            const tPrefs = r.teacherPreferences || r.teacher_preferences || meta.teacherPreferences || meta.teacher_preferences || {};
+            const tCodes = r.teacherCodes || r.teacher_codes || meta.teacherCodes || meta.teacher_codes || {};
 
             return {
                 ...r,
