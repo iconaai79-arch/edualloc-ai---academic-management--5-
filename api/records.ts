@@ -2903,7 +2903,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     name: cleanName,
                                     code: sId.substring(0, 10).toUpperCase(),
                                     institution_id: instId
-                                }).catch(() => {});
+                                });
                             }
                         } catch (_) {}
                     }
@@ -3943,7 +3943,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     name: cleanName,
                                     code: sId.substring(0, 10).toUpperCase(),
                                     institution_id: instId
-                                }).catch(() => {});
+                                });
                             }
                         } catch (_) {}
                     }
