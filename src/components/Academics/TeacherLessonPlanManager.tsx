@@ -112,7 +112,15 @@ export const TeacherLessonPlanManager: React.FC<TeacherLessonPlanManagerProps> =
             apiService.fetchModuleRecords<LessonPlanRecord>('teacher_lesson_plans', currentInstitution.id)
                 .then(records => {
                     if (records && Array.isArray(records) && records.length > 0) {
-                        setSavedPlans(records);
+                        const normalized = records.map(r => ({
+                            ...r,
+                            trajectory: r.trajectory || (r as any).lesson_trajectory || (r as any).lessonTrajectory || {
+                                introduction: '',
+                                development: '',
+                                conclusion: ''
+                            }
+                        }));
+                        setSavedPlans(normalized);
                     }
                 }).catch(() => { });
 
@@ -544,41 +552,45 @@ export const TeacherLessonPlanManager: React.FC<TeacherLessonPlanManagerProps> =
                                     </div>
                                 </div>
 
-                                {/* Trajectory Steps */}
-                                <div className="space-y-3 pt-2">
-                                    <span className="text-xs font-black uppercase tracking-widest text-slate-400">
-                                        ⏱️ Lesson Trajectory & Flow
-                                    </span>
-
-                                    <div className="space-y-3">
-                                        <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block mb-1">
-                                                Introduction (5 Minutes)
+                                {(() => {
+                                    const traj = currentPlan.trajectory || (currentPlan as any).lesson_trajectory || (currentPlan as any).lessonTrajectory || { introduction: '', development: '', conclusion: '' };
+                                    return (
+                                        <div className="space-y-3 pt-2">
+                                            <span className="text-xs font-black uppercase tracking-widest text-slate-400">
+                                                ⏱️ Lesson Trajectory & Flow
                                             </span>
-                                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                                                {currentPlan.trajectory.introduction}
-                                            </p>
-                                        </div>
 
-                                        <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block mb-1">
-                                                Lesson Body & Activities (25 Minutes)
-                                            </span>
-                                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                                                {currentPlan.trajectory.development}
-                                            </p>
-                                        </div>
+                                            <div className="space-y-3">
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block mb-1">
+                                                        Introduction (5 Minutes)
+                                                    </span>
+                                                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                                        {traj.introduction}
+                                                    </p>
+                                                </div>
 
-                                        <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 block mb-1">
-                                                Conclusion & Plenary (10 Minutes)
-                                            </span>
-                                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                                                {currentPlan.trajectory.conclusion}
-                                            </p>
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 block mb-1">
+                                                        Lesson Body & Activities (25 Minutes)
+                                                    </span>
+                                                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                                        {traj.development}
+                                                    </p>
+                                                </div>
+
+                                                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 block mb-1">
+                                                        Conclusion & Plenary (10 Minutes)
+                                                    </span>
+                                                    <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                                        {traj.conclusion}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
+                                    );
+                                })()}
 
                                 {/* Reflection Section */}
                                 <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-2">

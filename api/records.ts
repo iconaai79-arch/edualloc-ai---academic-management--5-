@@ -1228,6 +1228,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
                 });
+            if (moduleName === 'teacher_lesson_plans' && Array.isArray(data)) {
+                (data as any[]).forEach(r => {
+                    if (r && typeof r === 'object') {
+                        const traj = r.trajectory || r.lesson_trajectory || r.lessonTrajectory || {};
+                        r.trajectory = traj;
+                        r.lesson_trajectory = traj;
+                        r.lessonTrajectory = traj;
+                    }
+                });
             }
 
             if (moduleName === 'vehicles' && Array.isArray(data)) {
@@ -2954,6 +2963,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            if (moduleName === 'teacher_lesson_plans' || targetDbTable === 'teacher_lesson_plans') {
+                const cleanLessonPlan = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    const traj = copy.trajectory || copy.lesson_trajectory || copy.lessonTrajectory;
+                    if (traj) {
+                        copy.lesson_trajectory = traj;
+                        delete copy.trajectory;
+                        delete copy.lessonTrajectory;
+                    }
+                    if (copy.teacherId && !copy.teacher_id) copy.teacher_id = copy.teacherId;
+                    if (copy.teacherName && !copy.teacher_name) copy.teacher_name = copy.teacherName;
+                    if (copy.subjectId && !copy.subject_id) copy.subject_id = copy.subjectId;
+                    if (copy.subjectName && !copy.subject_name) copy.subject_name = copy.subjectName;
+                    if (copy.className && !copy.class_name) copy.class_name = copy.className;
+                    if (copy.learningOutcomes && !copy.learning_outcomes) copy.learning_outcomes = copy.learningOutcomes;
+                    if (copy.keyQuestions && !copy.key_questions) copy.key_questions = copy.keyQuestions;
+                    if (copy.coreCompetencies && !copy.core_competencies) copy.core_competencies = copy.coreCompetencies;
+                    if (copy.learningResources && !copy.learning_resources) copy.learning_resources = copy.learningResources;
+                    if (copy.hodComment && !copy.hod_comment) copy.hod_comment = copy.hodComment;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    delete copy.teacherId;
+                    delete copy.teacherName;
+                    delete copy.subjectId;
+                    delete copy.subjectName;
+                    delete copy.className;
+                    delete copy.learningOutcomes;
+                    delete copy.keyQuestions;
+                    delete copy.coreCompetencies;
+                    delete copy.learningResources;
+                    delete copy.hodComment;
+                    delete copy.institutionId;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanLessonPlan) : cleanLessonPlan(currentPayload);
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 3;
@@ -3991,6 +4039,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         } catch (_) {}
                     }
+                } else if ((moduleName === 'teacher_lesson_plans' || targetDbTable === 'teacher_lesson_plans') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const traj = copy.trajectory || copy.lesson_trajectory || copy.lessonTrajectory;
+                    if (traj) {
+                        copy.lesson_trajectory = traj;
+                        delete copy.trajectory;
+                        delete copy.lessonTrajectory;
+                    }
+                    if (copy.teacherId && !copy.teacher_id) copy.teacher_id = copy.teacherId;
+                    if (copy.teacherName && !copy.teacher_name) copy.teacher_name = copy.teacherName;
+                    if (copy.subjectId && !copy.subject_id) copy.subject_id = copy.subjectId;
+                    if (copy.subjectName && !copy.subject_name) copy.subject_name = copy.subjectName;
+                    if (copy.className && !copy.class_name) copy.class_name = copy.className;
+                    if (copy.learningOutcomes && !copy.learning_outcomes) copy.learning_outcomes = copy.learningOutcomes;
+                    if (copy.keyQuestions && !copy.key_questions) copy.key_questions = copy.keyQuestions;
+                    if (copy.coreCompetencies && !copy.core_competencies) copy.core_competencies = copy.coreCompetencies;
+                    if (copy.learningResources && !copy.learning_resources) copy.learning_resources = copy.learningResources;
+                    if (copy.hodComment && !copy.hod_comment) copy.hod_comment = copy.hodComment;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    delete copy.teacherId;
+                    delete copy.teacherName;
+                    delete copy.subjectId;
+                    delete copy.subjectName;
+                    delete copy.className;
+                    delete copy.learningOutcomes;
+                    delete copy.keyQuestions;
+                    delete copy.coreCompetencies;
+                    delete copy.learningResources;
+                    delete copy.hodComment;
+                    delete copy.institutionId;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+                    currentUpdateData = copy;
                 }
                 let data: any = null;
                 let error: any = null;

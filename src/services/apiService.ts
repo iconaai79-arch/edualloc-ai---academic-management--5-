@@ -1361,6 +1361,18 @@ export const apiService = {
                         }
                     });
                 }
+                if (module === 'teacher_lesson_plans' && Array.isArray(finalResult)) {
+                    finalResult.forEach((p: any) => {
+                        const traj = p.trajectory || p.lesson_trajectory || p.lessonTrajectory || {
+                            introduction: '',
+                            development: '',
+                            conclusion: ''
+                        };
+                        p.trajectory = traj;
+                        p.lesson_trajectory = traj;
+                        p.lessonTrajectory = traj;
+                    });
+                }
                 return finalResult;
             };
 
@@ -2601,6 +2613,15 @@ export const apiService = {
 
                 if (item.metadata && typeof item.metadata === 'object' && Object.keys(item.metadata).length === 0) {
                     delete item.metadata;
+                }
+            }
+
+            if (module === 'teacher_lesson_plans') {
+                const traj = item.trajectory || item.lesson_trajectory || item.lessonTrajectory;
+                if (traj) {
+                    item.lesson_trajectory = traj;
+                    delete item.trajectory;
+                    delete item.lessonTrajectory;
                 }
             }
 
