@@ -795,6 +795,37 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         setTimeout(() => setSaveToast(null), 3000);
     };
 
+    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>(() => {
+        try {
+            const instKey = currentInstitution?.id || 'default_inst';
+            const saved = localStorage.getItem(`eduai_subject_allocations_${instKey}`) || 
+                          localStorage.getItem('eduai_subject_allocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch(e) {}
+        return [];
+    });
+    const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(() => {
+        try {
+            const raw = localStorage.getItem('eduai_removed_allocation_keys');
+            return raw ? new Set(JSON.parse(raw)) : new Set();
+        } catch {
+            return new Set();
+        }
+    });
+
+    const updateRemovedKeys = useCallback((updater: (prev: Set<string>) => Set<string>) => {
+        setRemovedFromClassKeys(prev => {
+            const next = updater(prev);
+            try {
+                localStorage.setItem('eduai_removed_allocation_keys', JSON.stringify(Array.from(next)));
+            } catch {}
+            return next;
+        });
+    }, []);
+
     // Helper to get applicable subjects for any given class name (strictly deduplicated by subject name)
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
@@ -911,37 +942,6 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
         return deduplicated;
     }, [subjects, courses, classAllocationsStore, allocations]);
-
-    const [allocations, setAllocations] = useState<SubjectAllocationRecord[]>(() => {
-        try {
-            const instKey = currentInstitution?.id || 'default_inst';
-            const saved = localStorage.getItem(`eduai_subject_allocations_${instKey}`) || 
-                          localStorage.getItem('eduai_subject_allocations');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            }
-        } catch(e) {}
-        return [];
-    });
-    const [removedFromClassKeys, setRemovedFromClassKeys] = useState<Set<string>>(() => {
-        try {
-            const raw = localStorage.getItem('eduai_removed_allocation_keys');
-            return raw ? new Set(JSON.parse(raw)) : new Set();
-        } catch {
-            return new Set();
-        }
-    });
-
-    const updateRemovedKeys = useCallback((updater: (prev: Set<string>) => Set<string>) => {
-        setRemovedFromClassKeys(prev => {
-            const next = updater(prev);
-            try {
-                localStorage.setItem('eduai_removed_allocation_keys', JSON.stringify(Array.from(next)));
-            } catch {}
-            return next;
-        });
-    }, []);
 
     // Sync selectedClass and modalClassName when classOptions resolves
     useEffect(() => {
