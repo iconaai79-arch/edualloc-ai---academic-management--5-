@@ -3,11 +3,13 @@ import type { User, Assessment, AssessmentMark, Subject, Course } from '../types
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
 import { CheckIcon } from './icons/CheckIcon';
-import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
+import { resolveRealStudentClass, naturalClassSort, extractClassAndStream } from '../utils/academicUtils';
+import { apiService } from '../services/apiService';
 import { 
     CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, Filter, 
     Search, Sparkles, AlertCircle, Printer, Download,
-    AlertTriangle, FileSpreadsheet, History, CheckCheck
+    AlertTriangle, FileSpreadsheet, History, CheckCheck,
+    Edit3, Zap, ArrowDown, ArrowUp, Users, Check
 } from 'lucide-react';
 
 interface AssessmentManagerProps {
@@ -22,6 +24,7 @@ interface AssessmentManagerProps {
     onAddAssessment: (data: Omit<Assessment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onDeleteAssessment: (assessmentId: string) => void;
     onSaveAssessmentMarks: (assessmentId: string, marksData: { studentId: string; marks: number | null; comments?: string }[]) => void;
+    onUpdateAssessment?: (assessmentId: string, data: Partial<Assessment>) => void;
 }
 
 interface MarksAuditLog {
@@ -53,20 +56,26 @@ interface BroadsheetStudentRow {
     gradedCount: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NEW ASSESSMENT FORM
+// ─────────────────────────────────────────────────────────────────────────────
 const NewAssessmentForm: React.FC<{
     user: User;
     allocatedSubjects: Subject[];
-    allocatedGrades?: string[];
+    availableGrades: string[];
+    getEnrollmentForGrade: (g: string) => number;
     onAddAssessment: (data: Omit<Assessment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onCancel: () => void;
-}> = ({ user, allocatedSubjects, allocatedGrades = [], onAddAssessment, onCancel }) => {
+}> = ({ user, allocatedSubjects, availableGrades, getEnrollmentForGrade, onAddAssessment, onCancel }) => {
     const [title, setTitle] = useState('');
     const [subjectId, setSubjectId] = useState(allocatedSubjects[0]?.id || '');
-    const [targetGrade, setTargetGrade] = useState('all');
+    const [targetGrade, setTargetGrade] = useState(availableGrades[0] || 'all');
     const [type, setType] = useState<string>('Mid Term');
     const [description, setDescription] = useState('');
     const [maxMarks, setMaxMarks] = useState<number | ''>(100);
     const [assessmentDate, setAssessmentDate] = useState(new Date().toISOString().split('T')[0]);
+
+    const liveEnrollment = useMemo(() => getEnrollmentForGrade(targetGrade), [targetGrade, getEnrollmentForGrade]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -83,7 +92,7 @@ const NewAssessmentForm: React.FC<{
             maxMarks: Number(maxMarks),
             assessmentDate,
             status: 'Draft',
-            ...(targetGrade !== 'all' ? { grade: targetGrade, className: targetGrade } : {})
+            ...(targetGrade !== 'all' ? { grade: targetGrade, className: targetGrade, targetClass: targetGrade } : {})
         } as any);
         onCancel();
     };
@@ -114,11 +123,19 @@ const NewAssessmentForm: React.FC<{
                 </div>
 
                 <div>
-                    <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Target Grade / Class Level</label>
-                    <select value={targetGrade} onChange={e => setTargetGrade(e.target.value)} className="form-select text-xs">
-                        <option value="all">All Applicable Grades for this Subject</option>
-                        {allocatedGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                    <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Target Grade / Class Level *</label>
+                    <select value={targetGrade} onChange={e => setTargetGrade(e.target.value)} className="form-select text-xs font-semibold">
+                        <option value="all">All School Grades ({getEnrollmentForGrade('all')} total learners)</option>
+                        {availableGrades.map(g => (
+                            <option key={g} value={g}>
+                                {g} ({getEnrollmentForGrade(g)} enrolled learners)
+                            </option>
+                        ))}
                     </select>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-blue-600 dark:text-blue-400 font-bold">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Actual Enrollment: <strong>{liveEnrollment} learners</strong> will be registered for this exam</span>
+                    </div>
                 </div>
 
                 <div className="md:col-span-2">
@@ -163,6 +180,151 @@ const NewAssessmentForm: React.FC<{
     );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EDIT ASSESSMENT MODAL (FAST EDIT FEATURE)
+// ─────────────────────────────────────────────────────────────────────────────
+const EditAssessmentModal: React.FC<{
+    assessment: Assessment;
+    allocatedSubjects: Subject[];
+    availableGrades: string[];
+    getEnrollmentForGrade: (g: string) => number;
+    onSave: (updated: Assessment) => Promise<void>;
+    onCancel: () => void;
+}> = ({ assessment, allocatedSubjects, availableGrades, getEnrollmentForGrade, onSave, onCancel }) => {
+    const [title, setTitle] = useState(assessment.title);
+    const [subjectId, setSubjectId] = useState(assessment.subjectId);
+    const [targetGrade, setTargetGrade] = useState(assessment.grade || assessment.className || assessment.targetClass || 'all');
+    const [type, setType] = useState<string>(assessment.type || 'Mid Term');
+    const [maxMarks, setMaxMarks] = useState<number | ''>(assessment.maxMarks || 100);
+    const [assessmentDate, setAssessmentDate] = useState(assessment.assessmentDate ? assessment.assessmentDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+    const [description, setDescription] = useState(assessment.description || '');
+    const [isSaving, setIsSaving] = useState(false);
+
+    const liveEnrollment = useMemo(() => getEnrollmentForGrade(targetGrade), [targetGrade, getEnrollmentForGrade]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!title.trim() || !subjectId || !maxMarks || !assessmentDate) {
+            alert('Please fill in all required fields (Subject, Title, Max Marks, Date).');
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const updated: Assessment = {
+                ...assessment,
+                title: title.trim(),
+                subjectId,
+                type: type as any,
+                maxMarks: Number(maxMarks),
+                assessmentDate,
+                description: description.trim(),
+                grade: targetGrade !== 'all' ? targetGrade : undefined,
+                className: targetGrade !== 'all' ? targetGrade : undefined,
+                targetClass: targetGrade !== 'all' ? targetGrade : undefined
+            };
+            await onSave(updated);
+            onCancel();
+        } catch (err: any) {
+            alert('Failed to save assessment changes: ' + (err.message || 'Unknown error'));
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-xl w-full p-6 space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-md shadow-blue-500/20">
+                            <Edit3 className="w-4 h-4" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Edit Examination Paper Details</h4>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Fast update for paper title, grade level, and settings</p>
+                        </div>
+                    </div>
+                    <button type="button" onClick={onCancel} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Subject *</label>
+                            <select value={subjectId} onChange={e => setSubjectId(e.target.value)} required className="form-select text-xs">
+                                {allocatedSubjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Target Grade / Class Level *</label>
+                            <select value={targetGrade} onChange={e => setTargetGrade(e.target.value)} className="form-select text-xs font-semibold">
+                                <option value="all">All School Grades ({getEnrollmentForGrade('all')} total learners)</option>
+                                {availableGrades.map(g => (
+                                    <option key={g} value={g}>
+                                        {g} ({getEnrollmentForGrade(g)} enrolled learners)
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
+                                <Users className="w-3 h-3" />
+                                <span>Enrollment: <strong>{liveEnrollment} learners</strong></span>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Assessment / Exam Title *</label>
+                            <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="form-input text-xs" />
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Assessment Type</label>
+                            <select value={type} onChange={e => setType(e.target.value)} required className="form-select text-xs capitalize">
+                                <option value="Mid Term">Mid Term Exam</option>
+                                <option value="End Term">End Term Exam</option>
+                                <option value="CAT">Continuous Assessment Test (CAT)</option>
+                                <option value="formative">Formative Assessment</option>
+                                <option value="summative">Summative Assessment</option>
+                                <option value="CBC">CBC Strand Assessment</option>
+                            </select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Max Marks *</label>
+                                <input type="number" value={maxMarks} onChange={e => setMaxMarks(e.target.value === '' ? '' : parseInt(e.target.value, 10))} required min="1" className="form-input text-xs font-bold" />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Exam Date *</label>
+                                <input type="date" value={assessmentDate} onChange={e => setAssessmentDate(e.target.value)} required className="form-input text-xs" />
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-2">
+                            <label className="block text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1">Description / Syllabus Coverage</label>
+                            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="form-input text-xs"></textarea>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end items-center gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit" disabled={isSaving} className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 flex items-center gap-2">
+                            {isSaving ? 'Saving Changes...' : 'Save Changes'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN ASSESSMENT MANAGER COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     user,
     isDos = false,
@@ -174,12 +336,16 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     courses,
     onAddAssessment,
     onDeleteAssessment,
-    onSaveAssessmentMarks
+    onSaveAssessmentMarks,
+    onUpdateAssessment
 }) => {
-    // ──────────────────────────────────────────────────────────────────────────
-    // ADMIN / DOS PERMISSION CHECK
-    // Fix: When exam is created by DOS, ALL admins & authorized heads can see it
-    // ──────────────────────────────────────────────────────────────────────────
+    // Local assessments state for instantaneous 0ms UI updates
+    const [localAssessments, setLocalAssessments] = useState<Assessment[]>(assessments || []);
+    useEffect(() => {
+        setLocalAssessments(assessments || []);
+    }, [assessments]);
+
+    // Admin / DOS permission check
     const isAdminOrDos = useMemo(() => {
         if (isDos) return true;
         if (!user) return false;
@@ -203,6 +369,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
 
     // UI state
     const [isAdding, setIsAdding] = useState(false);
+    const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
     const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
     const [marks, setMarks] = useState<Map<string, { marks: number | null; comments: string }>>(new Map());
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -210,7 +377,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     // Broadsheet modal state
     const [broadsheetGrade, setBroadsheetGrade] = useState<string | null>(null);
 
-    // Accordion state: map of grade -> boolean (default expanded)
+    // Accordion state
     const [expandedGrades, setExpandedGrades] = useState<Record<string, boolean>>({});
 
     // Filter states
@@ -218,9 +385,10 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>('all');
     const [searchQuery, setSearchQuery] = useState<string>('');
     
-    // Marks entry local stream filter & search
+    // Marks entry local stream filter & search & missing-only toggle
     const [marksStreamFilter, setMarksStreamFilter] = useState<string>('all');
     const [searchStudentQuery, setSearchStudentQuery] = useState<string>('');
+    const [showMissingOnlyInMarksheet, setShowMissingOnlyInMarksheet] = useState<boolean>(false);
 
     // Audit logs for EDIT HISTORY tab
     const [auditLogs, setAuditLogs] = useState<MarksAuditLog[]>(() => {
@@ -237,11 +405,87 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     const allowedSubjectNames = useMemo(() => new Set(allocatedSubjects.map(s => s.name.trim().toLowerCase())), [allocatedSubjects]);
 
     // ──────────────────────────────────────────────────────────────────────────
+    // ALL SCHOOL GRADES & ACCURATE ENROLLMENT RESOLVER
+    // ──────────────────────────────────────────────────────────────────────────
+    const allSchoolGrades = useMemo<string[]>(() => {
+        const gradesSet = new Set<string>();
+
+        // 1. From student records
+        users.filter(u => u.role === 'student' || (u as any).role === 'learner' || (u as any).role === 'pupil').forEach(st => {
+            const c = resolveRealStudentClass(st, [], courses, '');
+            if (c && c !== 'Unclassified' && c !== '—') {
+                gradesSet.add(c);
+                const canonical = extractClassAndStream(c).className;
+                if (canonical && canonical !== 'Unclassified') gradesSet.add(canonical);
+            }
+        });
+
+        // 2. From courses / levels
+        courses.forEach(c => {
+            (c.levels || []).forEach(l => {
+                if (l.name && l.name.trim()) {
+                    gradesSet.add(l.name.trim());
+                    const canonical = extractClassAndStream(l.name).className;
+                    if (canonical) gradesSet.add(canonical);
+                }
+            });
+        });
+
+        // 3. From allocatedGrades prop
+        (allocatedGrades || []).forEach(g => {
+            if (g && g.trim()) gradesSet.add(g.trim());
+        });
+
+        // 4. From existing assessments
+        localAssessments.forEach(a => {
+            const ag = a.grade || a.className || a.targetClass;
+            if (ag && ag.trim()) gradesSet.add(ag.trim());
+        });
+
+        return naturalClassSort(Array.from(gradesSet));
+    }, [users, courses, allocatedGrades, localAssessments]);
+
+    // Robust function to get ALL active students enrolled in a grade/class
+    const getStudentsInGrade = useCallback((targetGradeName: string): User[] => {
+        if (!targetGradeName || targetGradeName === 'all') {
+            return users.filter(u => {
+                if (u.role !== 'student' && (u as any).role !== 'learner' && (u as any).role !== 'pupil') return false;
+                const status = ((u as any).status || '').toLowerCase();
+                return status !== 'inactive' && status !== 'archived' && status !== 'alumni' && status !== 'graduated';
+            });
+        }
+        const cleanTarget = targetGradeName.toLowerCase().trim();
+        const canonicalTarget = extractClassAndStream(targetGradeName).className.toLowerCase().trim();
+
+        return users.filter(u => {
+            if (u.role !== 'student' && (u as any).role !== 'learner' && (u as any).role !== 'pupil') return false;
+            const status = ((u as any).status || '').toLowerCase();
+            if (status === 'inactive' || status === 'archived' || status === 'alumni' || status === 'graduated') return false;
+
+            const rawClass = resolveRealStudentClass(u, [], courses, '').toLowerCase().trim();
+            const canonicalClass = extractClassAndStream(rawClass).className.toLowerCase().trim();
+
+            // Direct match
+            if (rawClass === cleanTarget || canonicalClass === canonicalTarget) return true;
+            // Canonical match (e.g. "Grade 8 East" matches "Grade 8 2026")
+            if (canonicalClass && canonicalTarget && (canonicalClass === canonicalTarget || canonicalClass.includes(canonicalTarget) || canonicalTarget.includes(canonicalClass))) {
+                return true;
+            }
+            if (rawClass.includes(cleanTarget) || cleanTarget.includes(rawClass)) return true;
+
+            return false;
+        }).sort((a, b) => a.name.localeCompare(b.name));
+    }, [users, courses]);
+
+    const getEnrollmentForGrade = useCallback((gradeName: string): number => {
+        return getStudentsInGrade(gradeName).length;
+    }, [getStudentsInGrade]);
+
+    // ──────────────────────────────────────────────────────────────────────────
     // FILTERED ASSESSMENTS
-    // Non-admins only see allocated subjects. Admins & DOS see ALL school exams.
     // ──────────────────────────────────────────────────────────────────────────
     const visibleAssessments = useMemo(() => {
-        let list = assessments || [];
+        let list = localAssessments || [];
 
         // If not Admin or DOS: teachers can ONLY view assigned subjects for marks entry
         if (!isAdminOrDos) {
@@ -268,12 +512,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 if (targetG) {
                     return targetG.includes(gClean) || gClean.includes(targetG);
                 }
-                const matchingLevels = courses.flatMap(c => (c.levels || []).filter(l => l.subjectIds && l.subjectIds.includes(a.subjectId)));
-                const levelNames = matchingLevels.map(l => (l.name || '').toLowerCase().trim());
-                if (levelNames.some(ln => ln && (ln.includes(gClean) || gClean.includes(ln)))) {
-                    return true;
-                }
-                const studentsInGrade = users.filter(u => u.role === 'student' && resolveRealStudentClass(u, [], courses, '').toLowerCase().includes(gClean));
+                const studentsInGrade = getStudentsInGrade(selectedGradeFilter);
                 return studentsInGrade.length > 0;
             });
         }
@@ -289,10 +528,10 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         }
 
         return list.sort((a, b) => new Date(b.assessmentDate).getTime() - new Date(a.assessmentDate).getTime());
-    }, [assessments, isAdminOrDos, allowedSubjectIds, allowedSubjectNames, user.id, selectedSubjectFilter, selectedGradeFilter, searchQuery, courses, users]);
+    }, [localAssessments, isAdminOrDos, allowedSubjectIds, allowedSubjectNames, user.id, selectedSubjectFilter, selectedGradeFilter, searchQuery, getStudentsInGrade]);
 
     // ──────────────────────────────────────────────────────────────────────────
-    // GROUP ASSESSMENTS BY CLASS / GRADE FOR THE NEW TABLE VIEW
+    // GROUP ASSESSMENTS BY CLASS / GRADE WITH ACCURATE ENROLLMENT
     // ──────────────────────────────────────────────────────────────────────────
     const gradeGroups = useMemo<GradeGroup[]>(() => {
         const gradeMap = new Map<string, Assessment[]>();
@@ -306,49 +545,31 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             gradeMap.get(g)!.push(a);
         });
 
-        // 2. Also ensure teacher's allocatedGrades appear
-        if (allocatedGrades && allocatedGrades.length > 0) {
-            allocatedGrades.forEach(g => {
-                const trimmed = g.trim();
-                if (!gradeMap.has(trimmed)) {
-                    const matching = visibleAssessments.filter(a => {
-                        const target = (a.grade || a.className || a.targetClass || '').toLowerCase().trim();
-                        return target.includes(trimmed.toLowerCase()) || trimmed.toLowerCase().includes(target);
-                    });
-                    gradeMap.set(trimmed, matching);
-                }
-            });
-        }
-
-        // 3. If empty, extract from student classes
-        if (gradeMap.size === 0) {
-            const studentClasses = new Set<string>();
-            users.filter(u => u.role === 'student').forEach(st => {
-                const c = resolveRealStudentClass(st, [], courses, '');
-                if (c && c !== 'Unclassified') studentClasses.add(c);
-            });
-            studentClasses.forEach(c => gradeMap.set(c, []));
-        }
+        // 2. Add available school grades
+        allSchoolGrades.forEach(g => {
+            const trimmed = g.trim();
+            if (!gradeMap.has(trimmed)) {
+                const matching = visibleAssessments.filter(a => {
+                    const target = (a.grade || a.className || a.targetClass || '').toLowerCase().trim();
+                    return target.includes(trimmed.toLowerCase()) || trimmed.toLowerCase().includes(target);
+                });
+                gradeMap.set(trimmed, matching);
+            }
+        });
 
         const sortedKeys: string[] = naturalClassSort(Array.from(gradeMap.keys()));
 
         return sortedKeys.map((gradeName: string): GradeGroup => {
             const papers = gradeMap.get(gradeName) || [];
-            
-            const gradeClean = gradeName.toLowerCase().trim();
-            const studentsInGrade = users.filter(u => {
-                if (u.role !== 'student') return false;
-                const studentClass = resolveRealStudentClass(u, [], courses, '').toLowerCase().trim();
-                return studentClass === gradeClean || studentClass.includes(gradeClean) || gradeClean.includes(studentClass);
-            });
-
-            const enrollment = studentsInGrade.length > 0 ? studentsInGrade.length : (papers.length > 0 ? 1 : 0);
+            const studentsInGrade = getStudentsInGrade(gradeName);
+            const enrollment = studentsInGrade.length;
 
             let totalPossibleEntries = 0;
             let totalGradedEntries = 0;
 
             papers.forEach((paper: Assessment) => {
-                const paperMax = studentsInGrade.length > 0 ? studentsInGrade.length : 1;
+                const paperStudents = getStudentsInGrade(paper.grade || paper.className || paper.targetClass || gradeName);
+                const paperMax = paperStudents.length > 0 ? paperStudents.length : (enrollment > 0 ? enrollment : 1);
                 totalPossibleEntries += paperMax;
 
                 const gradedCount = (assessmentMarks || []).filter(m => 
@@ -371,7 +592,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 totalPossibleEntries
             };
         });
-    }, [visibleAssessments, allocatedGrades, users, courses, assessmentMarks]);
+    }, [visibleAssessments, allSchoolGrades, getStudentsInGrade, assessmentMarks]);
 
     // Expand all grades by default initially
     useEffect(() => {
@@ -396,57 +617,9 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     // ──────────────────────────────────────────────────────────────────────────
     const eligibleStudentsForAssessment = useMemo(() => {
         if (!selectedAssessment) return [];
-        const subjectId = selectedAssessment.subjectId;
-        const subject = allocatedSubjects.find(s => s.id === subjectId);
-        const cleanSubName = (subject?.name || '').toLowerCase().trim();
-
-        const relevantCourseLevelIds = new Set<string>();
-        courses.forEach(course => {
-            (course.levels || []).forEach(level => {
-                if (level.subjectIds && level.subjectIds.includes(subjectId)) {
-                    relevantCourseLevelIds.add(level.id);
-                }
-            });
-        });
-
-        const targetGradeClean = (selectedAssessment.grade || selectedAssessment.className || selectedAssessment.targetClass || '').toLowerCase().trim();
-
-        return users.filter(u => {
-            if (u.role !== 'student') return false;
-
-            const studentClass = resolveRealStudentClass(u, [], courses, '');
-            const studentClassLower = studentClass.toLowerCase();
-
-            if (targetGradeClean && !studentClassLower.includes(targetGradeClean) && !targetGradeClean.includes(studentClassLower)) {
-                return false;
-            }
-
-            if (!isAdminOrDos && allocatedGrades && allocatedGrades.length > 0) {
-                const inAllocatedGrade = allocatedGrades.some(g => {
-                    const gLower = g.toLowerCase().trim();
-                    return studentClassLower.includes(gLower) || gLower.includes(studentClassLower);
-                });
-                if (!inAllocatedGrade) return false;
-            }
-
-            if (relevantCourseLevelIds.size > 0 && u.courseLevelId && relevantCourseLevelIds.has(u.courseLevelId)) {
-                return true;
-            }
-
-            const studentSubs: string[] = (u as any).enrolledSubjects || (u as any).subjects || [];
-            if (Array.isArray(studentSubs) && studentSubs.length > 0) {
-                if (studentSubs.some(s => s === subjectId || (typeof s === 'string' && s.toLowerCase().trim() === cleanSubName))) {
-                    return true;
-                }
-            }
-
-            if (studentClass && studentClass !== 'Unclassified') {
-                return true;
-            }
-
-            return false;
-        }).sort((a, b) => a.name.localeCompare(b.name));
-    }, [selectedAssessment, allocatedSubjects, courses, users, isAdminOrDos, allocatedGrades]);
+        const targetClass = selectedAssessment.grade || selectedAssessment.className || selectedAssessment.targetClass || '';
+        return getStudentsInGrade(targetClass);
+    }, [selectedAssessment, getStudentsInGrade]);
 
     // Distinct streams for active assessment
     const distinctStreamsInSelected = useMemo<string[]>(() => {
@@ -458,7 +631,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         return naturalClassSort(Array.from(streams));
     }, [eligibleStudentsForAssessment, courses]);
 
-    // Displayed students in marksheet
+    // Displayed students in marksheet with missing-only filter
     const displayedStudentsInMarksEntry = useMemo(() => {
         let list = eligibleStudentsForAssessment;
 
@@ -467,6 +640,13 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             list = list.filter(st => {
                 const cls = resolveRealStudentClass(st, [], courses, '').toLowerCase();
                 return cls === cleanStream || cls.includes(cleanStream);
+            });
+        }
+
+        if (showMissingOnlyInMarksheet) {
+            list = list.filter(st => {
+                const entry = marks.get(st.id);
+                return !entry || entry.marks === null || entry.marks === undefined;
             });
         }
 
@@ -480,13 +660,14 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         }
 
         return list;
-    }, [eligibleStudentsForAssessment, marksStreamFilter, searchStudentQuery, courses]);
+    }, [eligibleStudentsForAssessment, marksStreamFilter, showMissingOnlyInMarksheet, searchStudentQuery, marks, courses]);
 
     // Select assessment for marks entry
     const handleSelectAssessment = useCallback((assessment: Assessment) => {
         setSelectedAssessment(assessment);
         setMarksStreamFilter('all');
         setSearchStudentQuery('');
+        setShowMissingOnlyInMarksheet(false);
         const initialMarks = new Map<string, { marks: number | null; comments: string }>();
         const existingMarks = (assessmentMarks || []).filter(m => m.assessmentId === assessment.id);
         existingMarks.forEach(mark => {
@@ -508,8 +689,23 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         setMarks(prev => new Map(prev).set(studentId, { ...(prev.get(studentId) || { marks: null }), comments: value }));
     };
 
-    // Save marks and append to Edit History audit log
-    const handleSaveMarks = () => {
+    // FAST FILL REMAINING AS ZERO
+    const handleFillRemainingAsZero = () => {
+        if (!selectedAssessment) return;
+        setMarks(prev => {
+            const next = new Map(prev);
+            eligibleStudentsForAssessment.forEach(st => {
+                const current = next.get(st.id);
+                if (!current || current.marks === null || current.marks === undefined) {
+                    next.set(st.id, { ...(current || { comments: '' }), marks: 0 });
+                }
+            });
+            return next;
+        });
+    };
+
+    // FAST SAVE WITH AUDIT LOGGING
+    const handleSaveMarks = useCallback(() => {
         if (!selectedAssessment) return;
         setSaveStatus('saving');
         const marksData = Array.from(marks.entries()).map(([studentId, data]) => ({
@@ -543,9 +739,36 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             setSaveStatus('saved');
             setTimeout(() => setSaveStatus('idle'), 2500);
         }, 800);
+    }, [selectedAssessment, marks, onSaveAssessmentMarks, user, allocatedSubjects, eligibleStudentsForAssessment.length, auditLogs]);
+
+    // Ctrl+S / Cmd+S Keyboard Shortcut for Saving Marks
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+                if (selectedAssessment) {
+                    e.preventDefault();
+                    handleSaveMarks();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedAssessment, handleSaveMarks]);
+
+    // Fast Save Edited Assessment (0ms UI update + remote save)
+    const handleSaveEditedAssessment = async (updated: Assessment) => {
+        setLocalAssessments(prev => prev.map(a => a.id === updated.id ? updated : a));
+        try {
+            await apiService.saveModuleRecord('assessments', updated);
+            if (onUpdateAssessment) {
+                onUpdateAssessment(updated.id, updated);
+            }
+        } catch (e) {
+            console.error("Failed to save edited assessment:", e);
+        }
     };
 
-    // Calculate marks statistics for active assessment
+    // Active assessment statistics
     const activeAssessmentStats = useMemo(() => {
         if (!selectedAssessment) return { total: 0, graded: 0, average: 0, avgPercentage: 0 };
         const total = eligibleStudentsForAssessment.length;
@@ -565,9 +788,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         return { total, graded, average, avgPercentage };
     }, [selectedAssessment, eligibleStudentsForAssessment, marks]);
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // IRREGULARITIES & MISSING MARKS CALCULATION
-    // ──────────────────────────────────────────────────────────────────────────
+    // Irregularities & Missing Marks
     const irregularitiesList = useMemo(() => {
         const issues: Array<{
             id: string;
@@ -580,14 +801,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
 
         visibleAssessments.forEach(assessment => {
             const subject = allocatedSubjects.find(s => s.id === assessment.subjectId);
-            const targetGrade = (assessment.grade || assessment.className || assessment.targetClass || '').toLowerCase().trim();
-
-            const eligible = users.filter(u => {
-                if (u.role !== 'student') return false;
-                const sc = resolveRealStudentClass(u, [], courses, '').toLowerCase();
-                if (targetGrade && !sc.includes(targetGrade) && !targetGrade.includes(sc)) return false;
-                return true;
-            });
+            const targetClass = assessment.grade || assessment.className || assessment.targetClass || '';
+            const eligible = getStudentsInGrade(targetClass);
 
             eligible.forEach(st => {
                 const markObj = (assessmentMarks || []).find(m => m.assessmentId === assessment.id && m.studentId === st.id);
@@ -605,11 +820,9 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         });
 
         return issues;
-    }, [visibleAssessments, allocatedSubjects, users, courses, assessmentMarks]);
+    }, [visibleAssessments, allocatedSubjects, getStudentsInGrade, courses, assessmentMarks]);
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // BROADSHEET DATA CALCULATION FOR SELECTED GRADE
-    // ──────────────────────────────────────────────────────────────────────────
+    // Broadsheet Data Calculation
     const broadsheetData = useMemo(() => {
         if (!broadsheetGrade) return null;
         const group: GradeGroup | undefined = gradeGroups.find((g: GradeGroup) => g.gradeName === broadsheetGrade);
@@ -683,7 +896,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     };
 
     // ──────────────────────────────────────────────────────────────────────────
-    // MARKS ENTRY VIEW (WHEN AN ASSESSMENT IS OPENED)
+    // MARKS ENTRY VIEW (WITH FAST KEYBOARD NAVIGATION & RAPID INPUT)
     // ──────────────────────────────────────────────────────────────────────────
     if (selectedAssessment) {
         const subject = allocatedSubjects.find(s => s.id === selectedAssessment.subjectId);
@@ -712,7 +925,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                     {/* Quick Stats Pill */}
                     <div className="flex items-center gap-3 self-start sm:self-auto bg-slate-50 dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
                         <div className="text-center px-3 border-r border-slate-200 dark:border-slate-700">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Learners</p>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Actual Enrolled</p>
                             <p className="text-sm font-black text-slate-900 dark:text-white">{activeAssessmentStats.total}</p>
                         </div>
                         <div className="text-center px-3 border-r border-slate-200 dark:border-slate-700">
@@ -726,18 +939,15 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                     </div>
                 </div>
 
-                {/* In-Sheet Grade / Stream Filter and Search */}
+                {/* Fast Entry Toolbar & Filter Bar */}
                 <div className="bg-white dark:bg-slate-800/90 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
-                                <Filter className="w-3.5 h-3.5 text-indigo-500" /> Class:
-                            </span>
+                        <div className="flex items-center gap-2 flex-wrap">
                             <button
                                 onClick={() => setMarksStreamFilter('all')}
                                 className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
                                     marksStreamFilter === 'all'
-                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        ? 'bg-blue-600 text-white shadow-sm'
                                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                                 }`}
                             >
@@ -751,7 +961,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                         onClick={() => setMarksStreamFilter(stream)}
                                         className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
                                             marksStreamFilter === stream
-                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                ? 'bg-blue-600 text-white shadow-sm'
                                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
                                         }`}
                                     >
@@ -761,7 +971,40 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                             })}
                         </div>
 
-                        <div className="relative w-full md:w-64">
+                        {/* Quick Actions: Missing Only & Fast Fill */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowMissingOnlyInMarksheet(!showMissingOnlyInMarksheet)}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all ${
+                                    showMissingOnlyInMarksheet
+                                        ? 'bg-amber-600 text-white shadow-sm'
+                                        : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/60'
+                                }`}
+                            >
+                                <Zap className="w-3.5 h-3.5" />
+                                {showMissingOnlyInMarksheet ? 'Showing Missing Only' : 'Missing Marks Only'}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleFillRemainingAsZero}
+                                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black uppercase tracking-wider transition-colors"
+                            >
+                                Set Unmarked as 0
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Search Learner Box with Numpad Keyboard Tip */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400"><ArrowDown className="w-3 h-3" /> Press Enter or Arrow Down to jump to next student</span>
+                            <span>•</span>
+                            <span>Ctrl+S to save</span>
+                        </div>
+
+                        <div className="relative w-full sm:w-64">
                             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                                 type="text"
@@ -773,7 +1016,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                         </div>
                     </div>
 
-                    {/* Marks Table */}
+                    {/* Marks Table with Keyboard Navigation */}
                     <div className="border border-slate-100 dark:border-slate-700/60 rounded-2xl overflow-hidden">
                         <table className="w-full text-left text-xs">
                             <thead className="bg-[#243347] text-white uppercase text-[10px] font-black tracking-wider">
@@ -782,8 +1025,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                     <th className="py-3 px-4">Adm No.</th>
                                     <th className="py-3 px-4">Learner Name</th>
                                     <th className="py-3 px-4">Class</th>
-                                    <th className="py-3 px-4 w-32">Score (/ {selectedAssessment.maxMarks})</th>
-                                    <th className="py-3 px-4 w-44">Remarks</th>
+                                    <th className="py-3 px-4 w-36">Score (/ {selectedAssessment.maxMarks})</th>
+                                    <th className="py-3 px-4 w-48">Remarks</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -807,13 +1050,32 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                             </td>
                                             <td className="py-3 px-4">
                                                 <input
+                                                    id={`score_input_${idx}`}
                                                     type="number"
                                                     min="0"
                                                     max={selectedAssessment.maxMarks}
                                                     value={entry.marks === null || entry.marks === undefined ? '' : entry.marks}
                                                     onChange={e => handleMarkChange(student.id, e.target.value)}
+                                                    onFocus={e => e.target.select()}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                                                            e.preventDefault();
+                                                            const next = document.getElementById(`score_input_${idx + 1}`);
+                                                            if (next) {
+                                                                (next as HTMLInputElement).focus();
+                                                                (next as HTMLInputElement).select();
+                                                            }
+                                                        } else if (e.key === 'ArrowUp') {
+                                                            e.preventDefault();
+                                                            const prev = document.getElementById(`score_input_${idx - 1}`);
+                                                            if (prev) {
+                                                                (prev as HTMLInputElement).focus();
+                                                                (prev as HTMLInputElement).select();
+                                                            }
+                                                        }
+                                                    }}
                                                     placeholder="—"
-                                                    className="w-24 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-center text-xs focus:ring-2 focus:ring-indigo-500"
+                                                    className="w-24 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-center text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </td>
                                             <td className="py-3 px-4">
@@ -822,7 +1084,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                     value={entry.comments}
                                                     onChange={e => handleCommentChange(student.id, e.target.value)}
                                                     placeholder="Teacher's remark..."
-                                                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-indigo-500"
+                                                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-blue-500"
                                                 />
                                             </td>
                                         </tr>
@@ -832,7 +1094,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                 {displayedStudentsInMarksEntry.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className="py-8 text-center text-slate-400">
-                                            No eligible learners found for the selected filter.
+                                            No learners match the current filter.
                                         </td>
                                     </tr>
                                 )}
@@ -843,21 +1105,21 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                     {/* Bottom Save Action Bar */}
                     <div className="flex items-center justify-between pt-2">
                         <div className="text-xs text-slate-500 font-medium">
-                            Graded <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.graded}</strong> out of <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.total}</strong> learners.
+                            Graded <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.graded}</strong> out of <strong className="text-slate-900 dark:text-white">{activeAssessmentStats.total}</strong> actual enrolled learners.
                         </div>
 
                         <div className="flex items-center gap-3">
                             {saveStatus === 'saved' && (
                                 <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 animate-fade-in">
-                                    <CheckIcon className="w-4 h-4" /> Marks Saved Successfully!
+                                    <Check className="w-4 h-4" /> Marks Saved Successfully!
                                 </span>
                             )}
                             <button
                                 onClick={handleSaveMarks}
                                 disabled={saveStatus === 'saving'}
-                                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-blue-500/20 transition-all disabled:opacity-50"
+                                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider shadow-md shadow-blue-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
                             >
-                                {saveStatus === 'saving' ? 'Saving Marks...' : 'Save Marks'}
+                                {saveStatus === 'saving' ? 'Saving Marks...' : 'Save Marks (Ctrl+S)'}
                             </button>
                         </div>
                     </div>
@@ -906,9 +1168,22 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 <NewAssessmentForm
                     user={user}
                     allocatedSubjects={allocatedSubjects}
-                    allocatedGrades={allocatedGrades}
+                    availableGrades={allSchoolGrades}
+                    getEnrollmentForGrade={getEnrollmentForGrade}
                     onAddAssessment={onAddAssessment}
                     onCancel={() => setIsAdding(false)}
+                />
+            )}
+
+            {/* Edit Assessment Modal */}
+            {editingAssessment && (
+                <EditAssessmentModal
+                    assessment={editingAssessment}
+                    allocatedSubjects={allocatedSubjects}
+                    availableGrades={allSchoolGrades}
+                    getEnrollmentForGrade={getEnrollmentForGrade}
+                    onSave={handleSaveEditedAssessment}
+                    onCancel={() => setEditingAssessment(null)}
                 />
             )}
 
@@ -971,7 +1246,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                 className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs"
                             >
                                 <option value="all">All Grades</option>
-                                {allocatedGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                                {allSchoolGrades.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
 
                             <select
@@ -1045,7 +1320,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                 {/* Left blank per screenshot design */}
                                             </div>
 
-                                            {/* Column 3: Enrollment */}
+                                            {/* Column 3: Enrollment (Accurate student count, e.g. 174) */}
                                             <div className="hidden sm:block sm:col-span-1 text-center font-bold text-slate-900 dark:text-white text-sm">
                                                 {group.enrollment}
                                             </div>
@@ -1109,11 +1384,13 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                     const teacherUser = users.find(u => u.id === paper.lecturerId);
                                                     const teacherName = teacherUser?.name || 'Assigned Subject Teacher';
                                                     
+                                                    // Count graded learners for this paper
                                                     const gradedCount = (assessmentMarks || []).filter(m => 
                                                         m.assessmentId === paper.id && m.marks !== null && m.marks !== undefined
                                                     ).length;
-                                                    const paperEnrollment = group.enrollment > 0 ? group.enrollment : 1;
-                                                    const paperProgressPct = Math.min(100, Math.round((gradedCount / paperEnrollment) * 100));
+                                                    const paperStudents = getStudentsInGrade(paper.grade || paper.className || paper.targetClass || group.gradeName);
+                                                    const paperEnrollment = paperStudents.length > 0 ? paperStudents.length : group.enrollment;
+                                                    const paperProgressPct = Math.min(100, Math.round((gradedCount / (paperEnrollment > 0 ? paperEnrollment : 1)) * 100));
 
                                                     return (
                                                         <div
@@ -1124,8 +1401,16 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                             <div className="col-span-12 sm:col-span-4 flex items-center gap-2">
                                                                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                                                                 <div>
-                                                                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                                                                        {paper.title}
+                                                                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                                                        <span>{paper.title}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            title="Edit exam paper settings"
+                                                                            onClick={(e) => { e.stopPropagation(); setEditingAssessment(paper); }}
+                                                                            className="text-slate-400 hover:text-blue-600 transition-colors"
+                                                                        >
+                                                                            <Edit3 className="w-3 h-3" />
+                                                                        </button>
                                                                     </p>
                                                                     <p className="text-[10px] text-slate-400 font-medium">
                                                                         {subject?.name || 'Subject'} • {paper.type} • {paper.maxMarks} Marks
@@ -1140,13 +1425,13 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
 
                                                             {/* Enrollment */}
                                                             <div className="hidden sm:block sm:col-span-1 text-center text-xs font-bold text-slate-700 dark:text-slate-300">
-                                                                {group.enrollment}
+                                                                {paperEnrollment}
                                                             </div>
 
                                                             {/* Marks Entry Progress */}
                                                             <div className="hidden sm:flex sm:col-span-3 items-center gap-3">
                                                                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 min-w-20">
-                                                                    {paperProgressPct}% ({gradedCount}/{group.enrollment})
+                                                                    {paperProgressPct}% ({gradedCount}/{paperEnrollment})
                                                                 </span>
                                                                 <div className="w-32 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-1 max-w-[120px]">
                                                                     <div
@@ -1158,21 +1443,32 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                                 </div>
                                                             </div>
 
-                                                            {/* Action: Enter Marks / Update Marks */}
-                                                            <div className="col-span-12 sm:col-span-1 flex items-center justify-end gap-2 pt-2 sm:pt-0">
+                                                            {/* Action: Fast Edit / Delete / Enter Marks */}
+                                                            <div className="col-span-12 sm:col-span-1 flex items-center justify-end gap-1.5 pt-2 sm:pt-0">
+                                                                <button
+                                                                    type="button"
+                                                                    title="Edit exam paper settings"
+                                                                    onClick={() => setEditingAssessment(paper)}
+                                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors"
+                                                                >
+                                                                    <Edit3 className="w-3.5 h-3.5" />
+                                                                </button>
+
                                                                 {isAdminOrDos && (
                                                                     <button
                                                                         type="button"
+                                                                        title="Delete assessment"
                                                                         onClick={() => {
                                                                             if (window.confirm(`Are you sure you want to delete "${paper.title}"? Associated student marks will also be deleted.`)) {
                                                                                 onDeleteAssessment(paper.id);
                                                                             }
                                                                         }}
-                                                                        className="text-rose-500 hover:text-rose-700 text-xs font-bold px-2 py-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                                                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                                                                     >
-                                                                        Delete
+                                                                        <XIcon className="w-3.5 h-3.5" />
                                                                     </button>
                                                                 )}
+
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => handleSelectAssessment(paper)}
