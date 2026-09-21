@@ -454,7 +454,7 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             // --- PRIORITY 5: Fallback only if NO explicit allocations exist ---
             (subjects || []).forEach((s: any) => {
                 const sName = (s.name || s.title || '').trim();
-                if (sName && isSubjectAssignedToClassStream(s, cName, courses)) {
+                if (sName && isSubjectAssignedToClassStream(s, clsName, courses)) {
                     addEntry(sName, s.code || '');
                 }
             });
