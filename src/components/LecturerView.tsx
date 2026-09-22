@@ -299,6 +299,50 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         );
     }, [user, (props as any).activeRole]);
 
+    // Class supervisor & leave out rights check (shared permissions)
+    const canAccessLeaveOutAndSupervisor = useMemo(() => {
+        if (!user) return false;
+        if (isDos) return true;
+        const role = ((props as any).activeRole || user.role || '').toLowerCase();
+        const adminRoles = [
+            'admin', 'super_admin', 'head_teacher', 'principal', 
+            'deputy', 'dos', 'director_of_studies', 'academics_officer', 
+            'academic_director', 'hoi', 'managing_director', 'boarding_master', 'matron'
+        ];
+        if (adminRoles.includes(role)) return true;
+        const userRoles = Array.isArray((user as any).roles) 
+            ? (user as any).roles.map((r: any) => String(r).toLowerCase()) 
+            : [];
+        if (userRoles.some((r: string) => adminRoles.includes(r))) return true;
+        if ((user as any).isDos || (user as any).is_dos || (user as any).isAdmin || (user as any).is_admin) return true;
+        if ((user as any).isClassSupervisor || (user as any).is_class_supervisor) return true;
+        if ((user as any).supervisedClass || (user as any).supervised_class || (user as any).studentClass) return true;
+        if (courses && courses.length > 0) {
+            const isClassTeacher = courses.some(c => 
+                (c.levels || []).some(l => 
+                    l.classTeacherId === user.id || 
+                    (l as any).supervisorId === user.id ||
+                    ((l as any).classTeacher && user.name && (l as any).classTeacher.toLowerCase().trim() === user.name.toLowerCase().trim())
+                )
+            );
+            if (isClassTeacher) return true;
+        }
+        if (subjectAllocations && subjectAllocations.length > 0) {
+            const uId = user.id;
+            const uName = (user.name || '').toLowerCase().trim();
+            const isAllocatedSupervisor = subjectAllocations.some(a => 
+                (a.teacherId === uId || (uName && a.teacherName && a.teacherName.toLowerCase().trim() === uName)) &&
+                (a.isClassTeacher || a.is_class_teacher || a.isSupervisor || a.is_supervisor || a.role === 'class_teacher' || a.role === 'class_supervisor')
+            );
+            if (isAllocatedSupervisor) return true;
+        }
+        const perms: string[] = (user as any).permissions || [];
+        if (perms.some(p => ['leave_out', 'student_leave_out', 'class_supervisor', 'class_supervisor_attendance', 'attendance'].includes(p.toLowerCase()))) {
+            return true;
+        }
+        return false;
+    }, [user, isDos, courses, subjectAllocations, (props as any).activeRole]);
+
     // Teacher's assigned subjects (only assigned subjects if teacher, all subjects if DOS)
     const teacherAllocatedSubjects = useMemo(() => {
         if (isDos) {
@@ -610,11 +654,22 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     };
 
     const menuTabs = useMemo(() => {
-        const base = ['dashboard', 'lesson_plans', 'class_supervisor_attendance', 'student_leave_out', 'academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin'];
+        const base = ['dashboard', 'lesson_plans'];
+        if (canAccessLeaveOutAndSupervisor) {
+            base.push('class_supervisor_attendance', 'student_leave_out');
+        }
+        base.push('academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin');
         if (useRequests) base.push('my_requests');
         if (props.inventoryItems && props.inventoryItems.length > 0) base.push('inventory');
         return base;
-    }, [useRequests, props.inventoryItems]);
+    }, [canAccessLeaveOutAndSupervisor, useRequests, props.inventoryItems]);
+
+    // Safety fallback: if user loses supervisor rights or navigates directly to supervisor tabs, reset to dashboard
+    useEffect(() => {
+        if (!canAccessLeaveOutAndSupervisor && (activeTab === 'class_supervisor_attendance' || activeTab === 'student_leave_out')) {
+            setActiveTab('dashboard');
+        }
+    }, [canAccessLeaveOutAndSupervisor, activeTab]);
 
 
     const [showIssueModal, setShowIssueModal] = useState(false);
@@ -724,6 +779,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         <div className="animate-fade-in-up">
                             <LecturerDashboard
                                 user={user}
+                                canAccessSupervisor={canAccessLeaveOutAndSupervisor}
                                 requests={requests}
                                 allocations={allocations}
                                 subjects={subjects}
@@ -755,12 +811,15 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         </div>
                     )}
 
-                    {activeTab === 'class_supervisor_attendance' && (
+                    {activeTab === 'class_supervisor_attendance' && canAccessLeaveOutAndSupervisor && (
                         <div className="animate-fade-in-up">
                             <ClassSupervisorAttendanceManager
                                 currentUser={user}
                                 students={props.users ? props.users.filter(u => u.role === 'student') : []}
                                 users={props.users || []}
+                                courses={courses}
+                                allocatedGrades={teacherAllocatedGrades}
+                                subjectAllocations={subjectAllocations}
                                 currentInstitution={currentInstitution}
                                 activeAcademicYear={props.activeAcademicYear}
                                 activeSemester={props.activeSemester}
@@ -769,7 +828,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         </div>
                     )}
 
-                    {activeTab === 'student_leave_out' && (
+                    {activeTab === 'student_leave_out' && canAccessLeaveOutAndSupervisor && (
                         <div className="animate-fade-in-up">
                             <Suspense fallback={<div className="p-8 text-center text-slate-400 font-bold">Loading Student Leave Out & Exeat Hub...</div>}>
                                 <StudentLeaveOutManager
@@ -2010,6 +2069,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 {[
                                     { id: 'academic_hub', label: 'Academic Hub' },
                                     { id: 'remedials', label: 'Remedials Hub' },
+                                    { id: 'class_supervisor_attendance', label: 'Class Attendance', enabled: canAccessLeaveOutAndSupervisor },
+                                    { id: 'student_leave_out', label: 'Student Leave Out', enabled: canAccessLeaveOutAndSupervisor },
                                     { id: 'scan_session', label: 'Scanner Module' },
                                     { id: 'synergy_hub', label: 'Synergy Hub' },
                                     { id: 'my_requests', label: 'Load Requests', enabled: useRequests },

@@ -1,15 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { User, StudentAttendance, Institution, AcademicYear, Semester } from '../../types';
+import type { User, StudentAttendance, Institution, AcademicYear, Semester, Course } from '../../types';
 import { apiService } from '../../services/apiService';
+import { extractClassAndStream, naturalClassSort } from '../../utils/academicUtils';
 import { 
-    CheckCircle2, XCircle, Clock, AlertTriangle, Users, 
-    Calendar, CheckCheck, Send, Printer, Search, Sparkles, Filter, ShieldCheck, ChevronRight
+    CheckCircle2, XCircle, Clock, Users, 
+    CheckCheck, Send, Printer, Search, ShieldCheck
 } from 'lucide-react';
 
 export interface ClassSupervisorAttendanceManagerProps {
     currentUser: User;
     students?: User[];
     users?: User[];
+    courses?: Course[];
+    allocatedGrades?: string[];
+    subjectAllocations?: any[];
     currentInstitution?: Institution | null;
     activeAcademicYear?: AcademicYear | null;
     activeSemester?: Semester | null;
@@ -21,6 +25,9 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
     currentUser,
     students = [],
     users = [],
+    courses = [],
+    allocatedGrades = [],
+    subjectAllocations = [],
     currentInstitution,
     activeAcademicYear,
     activeSemester,
@@ -28,53 +35,155 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
     onLogAction
 }) => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [selectedClass, setSelectedClass] = useState<string>(currentUser.supervisedClass || currentUser.studentClass || 'Form 3 East');
     const [searchQuery, setSearchQuery] = useState('');
     const [notifyParentsSms, setNotifyParentsSms] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-    // Get all students
+    // Get all student users
     const allStudents = useMemo(() => {
         if (students.length > 0) return students;
-        return users.filter(u => u.role === 'student');
+        return users.filter(u => {
+            const r = (u.role || '').toLowerCase();
+            return r === 'student' || r === 'learner' || r === 'pupil' || !!u.admissionNumber;
+        });
     }, [students, users]);
 
-    // Extract available classes/streams from students list
+    // Extract available classes/streams from supervisor assignments, courses, and student records
     const availableClasses = useMemo(() => {
         const set = new Set<string>();
-        if (currentUser.supervisedClass) set.add(currentUser.supervisedClass);
-        if (currentUser.studentClass) set.add(currentUser.studentClass);
 
-        allStudents.forEach(s => {
-            if (s.studentClass) set.add(s.studentClass);
-            if (s.courseLevelId) set.add(s.courseLevelId);
+        // 1. Direct supervisor class on user
+        if (currentUser.supervisedClass) set.add(currentUser.supervisedClass.trim());
+        if ((currentUser as any).supervised_class) set.add(String((currentUser as any).supervised_class).trim());
+        if (currentUser.studentClass) set.add(currentUser.studentClass.trim());
+
+        // 2. From courses where current user is class teacher/supervisor
+        (courses || []).forEach(c => {
+            (c.levels || []).forEach(lvl => {
+                if (lvl.classTeacherId === currentUser.id || 
+                    (lvl as any).supervisorId === currentUser.id ||
+                    ((lvl as any).classTeacher && currentUser.name && (lvl as any).classTeacher.toLowerCase().trim() === currentUser.name.toLowerCase().trim())) {
+                    if (lvl.name) set.add(lvl.name.trim());
+                }
+            });
         });
 
-        const list = Array.from(set);
-        return list.length > 0 ? list : ['Form 3 East', 'Form 4 North', 'Grade 4 Blue', 'Grade 5 Red'];
-    }, [allStudents, currentUser]);
+        // 3. From subjectAllocations where user is class supervisor/teacher
+        const uId = currentUser.id;
+        const uName = (currentUser.name || '').toLowerCase().trim();
+        (subjectAllocations || []).forEach(a => {
+            if (!a) return;
+            const isMe = a.teacherId === uId || (uName && a.teacherName && a.teacherName.toLowerCase().trim() === uName);
+            if (isMe && (a.isClassTeacher || a.is_class_teacher || a.isSupervisor || a.is_supervisor || a.role === 'class_teacher' || a.role === 'class_supervisor')) {
+                const cName = a.className || a.class || a.grade;
+                if (cName) set.add(cName.trim());
+            }
+        });
+
+        // 4. From allocatedGrades
+        (allocatedGrades || []).forEach(g => {
+            if (g && g.trim()) set.add(g.trim());
+        });
+
+        // 5. If no specific supervised class found, fallback to classes in student directory
+        if (set.size === 0) {
+            allStudents.forEach(s => {
+                if (s.studentClass) set.add(s.studentClass.trim());
+                const gr = (s as any).gradeLevel || (s as any).grade || (s as any).academicLevel;
+                if (gr) set.add(String(gr).trim());
+            });
+        }
+
+        const list = Array.from(set).filter(Boolean);
+        return list.length > 0 ? naturalClassSort(list) : ['Grade 9'];
+    }, [currentUser, courses, subjectAllocations, allocatedGrades, allStudents]);
+
+    // Active selected class state
+    const [selectedClass, setSelectedClass] = useState<string>(() => {
+        return currentUser.supervisedClass || currentUser.studentClass || availableClasses[0] || 'Grade 9';
+    });
 
     useEffect(() => {
         if (!availableClasses.includes(selectedClass) && availableClasses.length > 0) {
-            setSelectedClass(availableClasses[0]);
+            setSelectedClass(currentUser.supervisedClass && availableClasses.includes(currentUser.supervisedClass) 
+                ? currentUser.supervisedClass 
+                : availableClasses[0]);
         }
-    }, [availableClasses, selectedClass]);
+    }, [availableClasses, selectedClass, currentUser.supervisedClass]);
 
-    // Filter students for the selected supervised class
+    // Resilient class matching helper
+    const doesStudentMatchClass = (s: User, targetClass: string): boolean => {
+        if (!targetClass || targetClass === 'all') return true;
+        const cleanTarget = targetClass.toLowerCase().trim();
+        const parsedTarget = extractClassAndStream(targetClass);
+        const canonicalTarget = parsedTarget.className.toLowerCase().trim();
+        const targetStream = parsedTarget.stream.toLowerCase().trim();
+
+        // Direct user class properties
+        const studentProps = [
+            s.studentClass,
+            (s as any).gradeLevel,
+            (s as any).grade,
+            (s as any).academicLevel,
+            (s as any).currentClass,
+            (s as any).class,
+            (s as any).className
+        ].filter(Boolean).map(x => String(x).toLowerCase().trim());
+
+        for (const prop of studentProps) {
+            if (prop === cleanTarget || prop === canonicalTarget) return true;
+            const parsedProp = extractClassAndStream(prop);
+            const canonicalProp = parsedProp.className.toLowerCase().trim();
+            if (canonicalProp === canonicalTarget || canonicalProp === cleanTarget) {
+                if (!targetStream || parsedProp.stream.toLowerCase().trim() === targetStream) {
+                    return true;
+                }
+            }
+            if (prop.includes(cleanTarget) || cleanTarget.includes(prop)) return true;
+        }
+
+        if (s.courseLevelId) {
+            if (s.courseLevelId === targetClass) return true;
+            if (courses && courses.length > 0) {
+                for (const c of courses) {
+                    const lvl = (c.levels || []).find(l => l.id === s.courseLevelId);
+                    if (lvl && lvl.name) {
+                        const lName = lvl.name.toLowerCase().trim();
+                        if (lName === cleanTarget || lName === canonicalTarget || lName.includes(cleanTarget)) return true;
+                    }
+                }
+            }
+        }
+
+        // Digit check (e.g. 9 in Grade 9)
+        const targetDigits = (targetClass.match(/\d+/) || [])[0];
+        if (targetDigits) {
+            for (const prop of studentProps) {
+                const pDigits = (prop.match(/\d+/) || [])[0];
+                if (pDigits && pDigits === targetDigits) return true;
+            }
+        }
+
+        return false;
+    };
+
+    // Filter students for the active supervised class
     const classStudents = useMemo(() => {
         return allStudents.filter(s => {
-            const matchClass = !selectedClass || s.studentClass === selectedClass || s.courseLevelId === selectedClass || s.courseId === selectedClass;
-            const q = searchQuery.toLowerCase();
-            const matchSearch = !q || s.name.toLowerCase().includes(q) || (s.admissionNumber || s.admission_number || '').toLowerCase().includes(q);
+            const matchClass = doesStudentMatchClass(s, selectedClass);
+            const q = searchQuery.toLowerCase().trim();
+            const matchSearch = !q || 
+                (s.name || '').toLowerCase().includes(q) || 
+                (s.admissionNumber || (s as any).admission_number || '').toLowerCase().includes(q);
             return matchClass && matchSearch;
-        });
+        }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }, [allStudents, selectedClass, searchQuery]);
 
     // State for student statuses
     const [attendanceMap, setAttendanceMap] = useState<Record<string, { status: 'present' | 'absent' | 'late' | 'excused'; remarks: string }>>({});
 
-    // Initialize or load attendance
+    // Initialize attendance on class or date change
     useEffect(() => {
         const initial: Record<string, { status: 'present' | 'absent' | 'late' | 'excused'; remarks: string }> = {};
         classStudents.forEach(s => {
@@ -137,7 +246,7 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
 
         setIsSubmitting(true);
         try {
-            const recordId = `att_class_${selectedClass}_${selectedDate}`;
+            const recordId = `att_class_${selectedClass.replace(/\s+/g, '_')}_${selectedDate}`;
             const attendanceList = classStudents.map(s => ({
                 studentId: s.id,
                 status: attendanceMap[s.id]?.status || 'present',
@@ -163,18 +272,6 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
                 await onSaveAttendance(recordId, attendanceList as any);
             }
 
-            // Dispatch SMS alerts to parents if enabled
-            if (notifyParentsSms) {
-                const absentOrLate = classStudents.filter(s => {
-                    const st = attendanceMap[s.id]?.status;
-                    return st === 'absent' || st === 'late';
-                });
-
-                if (absentOrLate.length > 0) {
-                    console.log(`[ClassSupervisor] Dispatched SMS alerts to ${absentOrLate.length} parents for class ${selectedClass}`);
-                }
-            }
-
             if (onLogAction) {
                 onLogAction(`Class Supervisor ${currentUser.name} submitted daily attendance for ${selectedClass} on ${selectedDate}`);
             }
@@ -190,7 +287,7 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
     };
 
     return (
-        <div className="space-y-6 text-left no-print">
+        <div className="space-y-6 text-left no-print animate-fade-in">
             {/* ── SUPERVISOR HERO BANNER ── */}
             <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-900 p-6 md:p-8 text-white border border-indigo-500/30 shadow-2xl backdrop-blur-2xl">
                 <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-[90px] pointer-events-none" />
@@ -207,25 +304,12 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
                             <span>Daily Student Attendance Register</span>
                         </h2>
                         <p className="text-xs text-slate-300 mt-1 max-w-xl font-medium">
-                            Assigned Supervisor: <strong className="text-cyan-300">{currentUser.name}</strong> • Responsible for taking & verifying morning roll call.
+                            Supervisor: <strong className="text-cyan-300">{currentUser.name}</strong> • Active Class: <strong className="text-emerald-400 px-2.5 py-0.5 bg-emerald-950/80 rounded-lg border border-emerald-500/40">{selectedClass}</strong>
                         </p>
                     </div>
 
-                    {/* Class Selector & Date Control */}
-                    <div className="flex flex-wrap items-center gap-3 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 shadow-lg">
-                        <div>
-                            <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block px-2">Assigned Class</label>
-                            <select
-                                value={selectedClass}
-                                onChange={e => setSelectedClass(e.target.value)}
-                                className="bg-slate-950 text-xs font-black text-white px-3 py-2 rounded-xl border border-slate-700/80 focus:ring-2 focus:ring-cyan-500 outline-none cursor-pointer"
-                            >
-                                {availableClasses.map(cls => (
-                                    <option key={cls} value={cls}>{cls}</option>
-                                ))}
-                            </select>
-                        </div>
-
+                    {/* Date Control */}
+                    <div className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-lg">
                         <div>
                             <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block px-2">Register Date</label>
                             <input
@@ -236,6 +320,49 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
                             />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* ── ACTIVE CLASS TABS BAR ── */}
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-3 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm space-y-2">
+                <div className="flex items-center justify-between px-2 pt-0.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Active Supervised Class Tabs</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400">
+                        {availableClasses.length} Supervised Class{availableClasses.length !== 1 ? 'es' : ''}
+                    </span>
+                </div>
+
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
+                    {availableClasses.map(cls => {
+                        const isActive = selectedClass === cls;
+                        const studentCount = allStudents.filter(s => doesStudentMatchClass(s, cls)).length;
+                        return (
+                            <button
+                                key={cls}
+                                type="button"
+                                onClick={() => setSelectedClass(cls)}
+                                className={`px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2.5 transition-all cursor-pointer whitespace-nowrap shadow-sm ${
+                                    isActive
+                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 ring-2 ring-indigo-500/50'
+                                        : 'bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50'
+                                }`}
+                            >
+                                <Users className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                                <span>{cls}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                }`}>
+                                    {studentCount} Students
+                                </span>
+                                {isActive && (
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                )}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -364,12 +491,12 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
                                                     {st.name}
                                                 </div>
                                                 <div className="text-[10px] font-mono text-indigo-500 font-bold">
-                                                    ADM: {st.admissionNumber || st.admission_number || st.admissionNo || 'N/A'}
+                                                    ADM: {st.admissionNumber || (st as any).admission_number || (st as any).admissionNo || 'N/A'}
                                                 </div>
                                             </td>
                                             <td className="p-4 text-slate-500 uppercase font-bold">{st.gender || 'N/A'}</td>
                                             <td className="p-4 font-mono text-slate-600 dark:text-slate-300">
-                                                {st.phoneNumber || st.parentPhone2 || 'N/A'}
+                                                {st.phoneNumber || (st as any).parentPhone2 || 'N/A'}
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex items-center justify-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 w-fit mx-auto">
