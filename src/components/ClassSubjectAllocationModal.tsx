@@ -38,16 +38,54 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     onAddSubject,
     onDeleteSubject
 }) => {
-    // Normalize and deduplicate class options so they represent pure classes / grades (not individual streams)
+    const activeInstId = currentInstitution?.id;
+
+    // Strictly enforce account tenancy: only include subjects belonging to current account
+    const accountSubjects = useMemo(() => {
+        if (!activeInstId) return subjects || [];
+        return (subjects || []).filter(s => {
+            if (!s) return false;
+            const sInst = s.institutionId || (s as any).institution_id;
+            return sInst === activeInstId;
+        });
+    }, [subjects, activeInstId]);
+
+    // Strictly enforce account tenancy: only include courses belonging to current account
+    const accountCourses = useMemo(() => {
+        if (!activeInstId) return courses || [];
+        return (courses || []).filter(c => {
+            if (typeof c === 'string') return true;
+            const cInst = (c as any).institutionId || (c as any).institution_id;
+            return !cInst || cInst === activeInstId;
+        });
+    }, [courses, activeInstId]);
+
+    // Normalize and deduplicate class options so they represent pure classes / grades for this account only
     const effectiveClassOptions = useMemo<string[]>(() => {
         const set = new Set<string>();
+        const instType = (currentInstitution?.institutionType || '').toLowerCase();
+        const instName = (currentInstitution?.name || '').toLowerCase();
+        const isPrimaryOnly = (instType.includes('primary') || instName.includes('primary') || instType.includes('kindergarten') || instType.includes('nursery') || instType.includes('prep') || instType.includes('junior')) && !instType.includes('secondary') && !instType.includes('college') && !instType.includes('university');
+        const isSecondaryOnly = (instType.includes('secondary') || instName.includes('secondary') || instType.includes('high school')) && !instType.includes('primary') && !instType.includes('college') && !instType.includes('university');
+
         (classOptions || []).forEach(c => {
             if (!c) return;
             const parsed = extractClassAndStream(c);
             const base = (parsed.className || c).trim();
-            if (base) set.add(base);
+            if (base) {
+                const bLower = base.toLowerCase();
+                // Filter out foreign tier classes that don't belong to this school level
+                if (isPrimaryOnly && (bLower.includes('bsc') || bLower.includes('degree') || bLower.includes('diploma') || bLower.includes('csdf') || bLower.includes('dnd') || bLower.startsWith('form'))) {
+                    return;
+                }
+                if (isSecondaryOnly && (bLower.includes('bsc') || bLower.includes('degree') || bLower.includes('diploma') || bLower.includes('playgroup') || bLower.includes('pp1') || bLower.includes('pp2') || bLower.startsWith('grade'))) {
+                    return;
+                }
+                set.add(base);
+            }
         });
-        (courses || []).forEach(c => {
+
+        (accountCourses || []).forEach(c => {
             const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
             if (name) {
                 const parsed = extractClassAndStream(name);
@@ -55,15 +93,27 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 if (base) set.add(base);
             }
         });
+
+        if (currentInstitution && Array.isArray((currentInstitution as any).classes)) {
+            (currentInstitution as any).classes.forEach((c: any) => {
+                const name = typeof c === 'string' ? c : c.name;
+                if (name) {
+                    const parsed = extractClassAndStream(name);
+                    const base = (parsed.className || name).trim();
+                    if (base) set.add(base);
+                }
+            });
+        }
+
         const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
         const cleaned = Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
         return (naturalClassSort(cleaned) || []) as string[];
-    }, [classOptions, courses]);
+    }, [classOptions, accountCourses, currentInstitution, activeInstId]);
 
     const [selectedClass, setSelectedClass] = useState<string>(() => {
-        if (classOptions.length > 0) {
-            const parsed = extractClassAndStream(classOptions[0]);
-            return (parsed.className || classOptions[0]).trim();
+        if (effectiveClassOptions.length > 0) {
+            const parsed = extractClassAndStream(effectiveClassOptions[0]);
+            return (parsed.className || effectiveClassOptions[0]).trim();
         }
         return 'Grade 1';
     });
@@ -74,7 +124,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     const [copyFromClass, setCopyFromClass] = useState<string>('');
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-    const [localSubjects, setLocalSubjects] = useState<Subject[]>(subjects);
+    const [localSubjects, setLocalSubjects] = useState<Subject[]>(accountSubjects);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
 
@@ -87,10 +137,27 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     });
 
     useEffect(() => {
-        setLocalSubjects(subjects);
-    }, [subjects]);
+        setLocalSubjects(accountSubjects);
+    }, [accountSubjects]);
 
-    const instId = currentInstitution?.id || 'default_inst';
+    // Live query to guarantee 100% up-to-date strictly scoped subjects for this account
+    useEffect(() => {
+        if (activeInstId) {
+            apiService.fetchSubjects(activeInstId).then(fetched => {
+                if (Array.isArray(fetched)) {
+                    const strictlyMine = fetched.filter(s => {
+                        const sInst = s.institutionId || (s as any).institution_id;
+                        return sInst === activeInstId;
+                    });
+                    if (strictlyMine.length > 0) {
+                        setLocalSubjects(strictlyMine);
+                    }
+                }
+            }).catch(() => {});
+        }
+    }, [activeInstId]);
+
+    const instId = activeInstId || 'default_inst';
     const classAllocKey = `eduai_class_subject_allocations_${instId}`;
 
     // Allocations store: Record<className, string[] (array of active subjectIds or subjectNames)>
@@ -145,9 +212,9 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     // Available streams for the currently selected class
     const availableStreamsForClass = useMemo<string[]>(() => {
         const set = new Set<string>();
-        const targetClean = selectedClass.trim().toLowerCase();
+        const targetClean = (selectedClass || '').trim().toLowerCase();
 
-        (courses || []).forEach((c: any) => {
+        (accountCourses || []).forEach((c: any) => {
             const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
             const parsed = extractClassAndStream(cName);
             const baseName = (parsed.className || cName).trim().toLowerCase();
@@ -183,7 +250,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         });
 
         return (naturalClassSort(Array.from(set)) || []) as string[];
-    }, [selectedClass, courses, classOptions, classAllocationsStore]);
+    }, [selectedClass, accountCourses, classOptions, classAllocationsStore]);
 
     // Reset stream selection whenever active base class changes
     useEffect(() => {
@@ -204,10 +271,10 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     // Map of subjectId -> set of classNames assigned
     const [assignments, setAssignments] = useState<Record<string, Set<string>>>(() => {
         const initial: Record<string, Set<string>> = {};
-        subjects.forEach(s => {
+        accountSubjects.forEach(s => {
             const set = new Set<string>();
             effectiveClassOptions.forEach((c: string) => {
-                if (isSubjectAssignedToClassStream(s, c, courses)) {
+                if (isSubjectAssignedToClassStream(s, c, accountCourses)) {
                     set.add(c);
                 }
             });
@@ -237,9 +304,9 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
     // Helper to find all stream / course level names associated with a class
     const getRelatedStreamKeys = (className: string): string[] => {
         const keys = new Set<string>();
-        const targetClean = className.trim().toLowerCase();
+        const targetClean = (className || '').trim().toLowerCase();
         
-        (courses || []).forEach((c: any) => {
+        (accountCourses || []).forEach((c: any) => {
             const cName = typeof c === 'string' ? c : (c.name || c.title || c.code || '');
             const parsed = extractClassAndStream(cName);
             const baseName = (parsed.className || cName).trim().toLowerCase();
@@ -315,7 +382,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
 
             // For each class / stream, resolve authoritative assigned subjects
             allEvaluationKeys.forEach(cKey => {
-                const applicable = resolveApplicableSubjectsForClass(cKey, pool, courses, classAllocationsStore);
+                const applicable = resolveApplicableSubjectsForClass(cKey, pool, accountCourses, classAllocationsStore);
                 applicable.forEach(appSub => {
                     if (updated[appSub.id]) {
                         updated[appSub.id].add(cKey);
@@ -336,7 +403,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
 
             return updated;
         });
-    }, [subjects, localSubjects, allEvaluationKeys, courses, classAllocationsStore]);
+    }, [subjects, localSubjects, allEvaluationKeys, accountCourses, classAllocationsStore]);
 
     useEffect(() => {
         if (effectiveClassOptions.length > 0 && (!selectedClass || !effectiveClassOptions.includes(selectedClass))) {
@@ -350,6 +417,13 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
         const unique: Subject[] = [];
         (localSubjects || []).forEach(s => {
             if (!s) return;
+            // Strict account isolation: NEVER display subjects from other accounts
+            if (activeInstId) {
+                const sInst = s.institutionId || (s as any).institution_id;
+                if (sInst && sInst !== activeInstId) {
+                    return;
+                }
+            }
             const sName = (s.name || '').toLowerCase().trim();
             const sCode = (s.code || '').toLowerCase().trim();
             const key = s.id ? `id_${s.id}` : `${sCode}__${sName}`;
@@ -362,7 +436,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             }
         });
         return unique;
-    }, [localSubjects]);
+    }, [localSubjects, activeInstId]);
 
     const filteredSubjects = useMemo(() => {
         let list = deduplicatedSubjects;
@@ -732,6 +806,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 abbreviation: abbr,
                 shortName: abbr,
                 departmentId: formData.departmentId || undefined,
+                institutionId: editingSubject.institutionId || activeInstId || currentInstitution?.id,
                 lessonStructure
             };
 
@@ -750,6 +825,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
             const abbr = (formData.abbreviation || '').trim().toUpperCase();
             const newSubjData: any = {
                 id: newId,
+                institutionId: currentInstitution?.id || activeInstId || 'default',
                 name: formData.name.trim(),
                 code: formData.code.trim().toUpperCase(),
                 abbreviation: abbr,
@@ -772,7 +848,7 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 }
             }
 
-            const fullCreated: Subject = { ...newSubjData, institutionId: currentInstitution?.id || 'default' } as Subject;
+            const fullCreated: Subject = { ...newSubjData, institutionId: currentInstitution?.id || activeInstId || 'default' } as Subject;
             setLocalSubjects(prev => [...prev, fullCreated]);
             setAssignments(prev => ({
                 ...prev,
@@ -900,10 +976,16 @@ export const ClassSubjectAllocationModal: React.FC<ClassSubjectAllocationModalPr
                 {/* Header */}
                 <div className="p-6 md:p-8 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                     <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <span className="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border border-indigo-200 dark:border-indigo-800">
                                 Class & Stream Curriculum Allocation
                             </span>
+                            {currentInstitution?.name && (
+                                <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-sm">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    {currentInstitution.name}
+                                </span>
+                            )}
                             {isStreamSpecific && (
                                 <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
                                     isStreamCustomized 

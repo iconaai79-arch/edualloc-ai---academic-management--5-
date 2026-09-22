@@ -746,28 +746,18 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 </div>
             )}
 
-            {activeTab === 'students' && (
+            {(activeTab === 'students' || activeTab === 'teachers') && (
                 <div className="animate-fade-in space-y-6">
                     <StudentEnrollmentManager
                         context="academic"
                         currentInstitution={currentInstitution!}
-                        activeTab="students"
+                        activeTab={activeTab}
                         companyDetails={companyDetails}
                         currentUser={currentUser!}
                         onLogAction={onLogAction}
-                    />
-                </div>
-            )}
-
-            {activeTab === 'teachers' && (
-                <div className="animate-fade-in space-y-6">
-                    <StudentEnrollmentManager
-                        context="academic"
-                        currentInstitution={currentInstitution!}
-                        activeTab="teachers"
-                        companyDetails={companyDetails}
-                        currentUser={currentUser!}
-                        onLogAction={onLogAction}
+                        initialUsers={users}
+                        initialSubjects={subjects}
+                        initialCourses={courses}
                     />
                 </div>
             )}

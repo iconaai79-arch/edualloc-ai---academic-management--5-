@@ -3139,6 +3139,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 companyDetails={props.companyDetails}
                                 currentUser={props.currentUser!}
                                 onLogAction={props.onLogAction}
+                                initialUsers={props.users}
+                                initialSubjects={props.subjects}
+                                initialCourses={props.courses}
                             />
                         </div>
                     </div>
@@ -3161,6 +3164,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             companyDetails={props.companyDetails}
                             currentUser={props.currentUser!}
                             onLogAction={props.onLogAction}
+                            initialUsers={props.users}
+                            initialSubjects={props.subjects}
+                            initialCourses={props.courses}
                         />
                     </div>
                 )}

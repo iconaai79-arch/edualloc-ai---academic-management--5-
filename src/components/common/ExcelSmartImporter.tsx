@@ -40,135 +40,197 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
     const [availableSheets, setAvailableSheets] = useState<string[]>([]);
     const [selectedSheet, setSelectedSheet] = useState<string>('');
 
+    const cleanStr = (s: string) => s.toLowerCase().replace(/['"’`]/g, '').replace(/[\s_.-]+/g, ' ').trim();
+
+    const detectHeaderRowIndex = (rows: any[][]): number => {
+        if (!rows || rows.length === 0) return 0;
+        const keywords = ['name', 'learner', 'student', 'pupil', 'candidate', 'adm', 'admission', 'assess', 'knec', 'kpsea', 'gender', 'sex', 'grade', 'stream', 'class', 'phone', 'contact', 'dob', 'parent', 'upi', 'nemis', 'email'];
+        let bestIndex = 0;
+        let maxMatches = 0;
+
+        const maxScan = Math.min(rows.length, 20);
+        for (let i = 0; i < maxScan; i++) {
+            const row = rows[i];
+            if (!Array.isArray(row) || row.length === 0) continue;
+            const textCells = row.filter(cell => cell !== null && cell !== undefined && String(cell).trim().length > 0);
+            if (textCells.length === 0) continue;
+
+            let matches = 0;
+            textCells.forEach(cell => {
+                const str = String(cell).toLowerCase().replace(/[^a-z0-9]/g, '');
+                if (keywords.some(kw => str.includes(kw))) {
+                    matches++;
+                }
+            });
+
+            if (matches > maxMatches) {
+                maxMatches = matches;
+                bestIndex = i;
+            }
+        }
+
+        return bestIndex;
+    };
+
     const autoMapHeaders = (headers: string[]) => {
         const initialMapping: Record<string, string> = {};
-        const lowerHeaders = headers.map(h => ({ raw: h, low: h.toLowerCase().trim() }));
+        const lowerHeaders = headers.map(h => ({ 
+            raw: h, 
+            low: h.toLowerCase().trim(),
+            clean: cleanStr(h)
+        }));
 
         fields.forEach(f => {
             const fKey = f.key;
-            const fLabel = f.label.toLowerCase();
+            const fLabel = cleanStr(f.label);
 
             // 1. Exact or strict keyword matching
             let matchedHeader: string | undefined;
 
             if (fKey === 'name') {
-                // Must be student name, avoid parent/father/mother/guardian/teacher/staff
+                // Must be student/learner name; strictly avoid parent/guardian/teacher/staff
                 const match = lowerHeaders.find(h => 
-                    !/(parent|father|mother|guardian|teacher|officer|staff|contact\s*person)/i.test(h.low) &&
+                    !/(parent|father|mother|guardian|teacher|officer|staff|contact\s*person|next\s*of\s*kin)/i.test(h.clean) &&
                     (
-                        /^(student|learner|pupil|candidate|full|official)?\s*(name|names)$/i.test(h.low) ||
-                        h.low.includes('student name') ||
-                        h.low.includes('learner name') ||
-                        h.low.includes('pupil name') ||
-                        h.low.includes('candidate name') ||
-                        h.low.includes('full name') ||
-                        h.low === 'name' ||
-                        h.low === 'names' ||
-                        h.low === 'student' ||
-                        h.low === 'learner'
+                        /^(student|learner|pupil|candidate|full|official)?\s*(s)?\s*(name|names)$/i.test(h.clean) ||
+                        h.clean.includes('learner name') ||
+                        h.clean.includes('learners name') ||
+                        h.clean.includes('student name') ||
+                        h.clean.includes('students name') ||
+                        h.clean.includes('pupil name') ||
+                        h.clean.includes('pupils name') ||
+                        h.clean.includes('candidate name') ||
+                        h.clean.includes('candidate names') ||
+                        h.clean.includes('full name') ||
+                        h.clean.includes('full names') ||
+                        h.clean.includes('official name') ||
+                        h.clean.includes('official names') ||
+                        h.clean.includes('name of learner') ||
+                        h.clean.includes('names of learner') ||
+                        h.clean.includes('name of student') ||
+                        h.clean.includes('names of student') ||
+                        h.clean.includes('name of pupil') ||
+                        h.clean.includes('names of pupil') ||
+                        h.clean.includes('name of candidate') ||
+                        h.clean.includes('names of candidate') ||
+                        h.clean === 'name' ||
+                        h.clean === 'names' ||
+                        h.clean === 'student' ||
+                        h.clean === 'students' ||
+                        h.clean === 'learner' ||
+                        h.clean === 'learners' ||
+                        h.clean === 'pupil' ||
+                        h.clean === 'pupils' ||
+                        h.clean === 'candidate' ||
+                        h.clean === 'candidates' ||
+                        h.clean === 'surname' ||
+                        h.clean.includes('surname')
                     )
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'parentName') {
                 const match = lowerHeaders.find(h => 
-                    /(parent|father|mother|guardian|sponsor|contact\s*person)/i.test(h.low) &&
-                    (h.low.includes('name') || h.low.includes('guardian') || h.low.includes('parent'))
+                    /(parent|father|mother|guardian|sponsor|contact\s*person)/i.test(h.clean) &&
+                    (h.clean.includes('name') || h.clean.includes('guardian') || h.clean.includes('parent'))
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'admissionNumber') {
                 const match = lowerHeaders.find(h => 
-                    /^(adm|admission|reg|registration|student\s*id|index|roll|matric)[\s_.-]*(no|number|num|code)?$/i.test(h.low) ||
-                    h.low.includes('adm no') ||
-                    h.low.includes('adm number') ||
-                    h.low.includes('admission no') ||
-                    h.low.includes('admission number') ||
-                    h.low.includes('reg no') ||
-                    h.low.includes('registration no') ||
-                    h.low.includes('index no') ||
-                    h.low.includes('student id') ||
-                    h.low === 'adm' ||
-                    h.low === 'reg'
+                    /^(adm|admission|reg|registration|student\s*id|index|roll|matric)[\s_.-]*(no|number|num|code)?$/i.test(h.clean) ||
+                    h.clean.includes('adm no') ||
+                    h.clean.includes('adm number') ||
+                    h.clean.includes('admission no') ||
+                    h.clean.includes('admission number') ||
+                    h.clean.includes('reg no') ||
+                    h.clean.includes('registration no') ||
+                    h.clean.includes('index no') ||
+                    h.clean.includes('index number') ||
+                    h.clean.includes('student id') ||
+                    h.clean === 'adm' ||
+                    h.clean === 'reg' ||
+                    h.clean === 'admission'
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'assessmentNo') {
                 const match = lowerHeaders.find(h => 
-                    h.low.includes('assess') || 
-                    h.low.includes('knec') || 
-                    h.low.includes('kpsea') || 
-                    h.low.includes('cbe') || 
-                    h.low.includes('upi') || 
-                    h.low.includes('nemis') || 
-                    h.low.includes('nemba')
+                    h.clean.includes('assess') || 
+                    h.clean.includes('knec') || 
+                    h.clean.includes('kpsea') || 
+                    h.clean.includes('cbe') || 
+                    h.clean.includes('cba') || 
+                    h.clean.includes('upi') || 
+                    h.clean.includes('nemis') || 
+                    h.clean.includes('nemba')
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'gradeLevel') {
                 const match = lowerHeaders.find(h => 
-                    /^(grade|class|level|form|standard|cohort)[\s_.-]*(level|name|no)?$/i.test(h.low) ||
-                    h.low.includes('grade level') ||
-                    h.low.includes('class level') ||
-                    h.low === 'grade' ||
-                    h.low === 'class' ||
-                    h.low === 'form' ||
-                    h.low === 'level'
+                    /^(grade|class|level|form|standard|cohort)[\s_.-]*(level|name|no)?$/i.test(h.clean) ||
+                    h.clean.includes('grade level') ||
+                    h.clean.includes('class level') ||
+                    h.clean === 'grade' ||
+                    h.clean === 'class' ||
+                    h.clean === 'form' ||
+                    h.clean === 'level'
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'stream') {
                 const match = lowerHeaders.find(h => 
-                    h.low.includes('stream') || 
-                    h.low.includes('section') || 
-                    h.low.includes('arm') || 
-                    h.low.includes('track')
+                    h.clean.includes('stream') || 
+                    h.clean.includes('section') || 
+                    h.clean.includes('arm') || 
+                    h.clean.includes('track')
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'gender') {
                 const match = lowerHeaders.find(h => 
-                    h.low === 'gender' || 
-                    h.low === 'sex' || 
-                    h.low.includes('gender') || 
-                    h.low.includes('sex')
+                    h.clean === 'gender' || 
+                    h.clean === 'sex' || 
+                    h.clean.includes('gender') || 
+                    h.clean.includes('sex')
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'parentPhone') {
                 const match = lowerHeaders.find(h => 
-                    /(parent|father|mother|guardian|sponsor)/i.test(h.low) && 
-                    /(phone|mobile|contact|tel|cell|number)/i.test(h.low)
+                    /(parent|father|mother|guardian|sponsor)/i.test(h.clean) && 
+                    /(phone|mobile|contact|tel|cell|number)/i.test(h.clean)
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'secondaryPhone') {
                 const match = lowerHeaders.find(h => 
-                    h.low.includes('secondary') || 
-                    h.low.includes('alt') || 
-                    h.low.includes('phone 2') || 
-                    h.low.includes('phone2') || 
-                    h.low.includes('mobile 2') || 
-                    h.low.includes('other phone') || 
-                    h.low.includes('emergency')
+                    h.clean.includes('secondary') || 
+                    h.clean.includes('alt') || 
+                    h.clean.includes('phone 2') || 
+                    h.clean.includes('phone2') || 
+                    h.clean.includes('mobile 2') || 
+                    h.clean.includes('other phone') || 
+                    h.clean.includes('emergency')
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'phoneNumber' || fKey === 'studentPhone') {
                 const match = lowerHeaders.find(h => 
-                    !/(parent|father|mother|guardian|secondary|alt|phone\s*2)/i.test(h.low) &&
+                    !/(parent|father|mother|guardian|secondary|alt|phone\s*2)/i.test(h.clean) &&
                     (
-                        h.low.includes('student phone') ||
-                        h.low.includes('mobile') ||
-                        h.low.includes('phone') ||
-                        h.low.includes('contact') ||
-                        h.low.includes('tel')
+                        h.clean.includes('student phone') ||
+                        h.clean.includes('mobile') ||
+                        h.clean.includes('phone') ||
+                        h.clean.includes('contact') ||
+                        h.clean.includes('tel')
                     )
                 );
                 matchedHeader = match?.raw;
             } else if (fKey === 'email') {
                 const match = lowerHeaders.find(h => 
-                    !/(parent|guardian)/i.test(h.low) && 
-                    (h.low.includes('email') || h.low.includes('mail'))
+                    !/(parent|guardian)/i.test(h.clean) && 
+                    (h.clean.includes('email') || h.clean.includes('mail'))
                 );
                 matchedHeader = match?.raw;
             } else {
                 // Generic fallback
                 const match = lowerHeaders.find(h => 
-                    h.low.includes(fLabel) || 
-                    h.low.includes(fKey.toLowerCase()) || 
-                    fLabel.includes(h.low)
+                    h.clean.includes(fLabel) || 
+                    h.clean.includes(fKey.toLowerCase()) || 
+                    fLabel.includes(h.clean)
                 );
                 matchedHeader = match?.raw;
             }
@@ -203,8 +265,9 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
             const ws = wb.Sheets[activeWsName];
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-            if (data.length > 0) {
-                const headers = data[0].filter(h => !!h).map(h => String(h).trim());
+            if (data && data.length > 0) {
+                const headerRowIdx = detectHeaderRowIndex(data);
+                const headers = (data[headerRowIdx] || []).filter(h => !!h).map(h => String(h).trim());
                 setRawHeaders(headers);
                 const mapping = autoMapHeaders(headers);
                 setHeaderMapping(mapping);
@@ -223,13 +286,25 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
         const ws = workbook.Sheets[targetWsName];
         if (ws) {
             const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-            if (data.length > 0) {
-                const headers = data[0].filter(h => !!h).map(h => String(h).trim());
+            if (data && data.length > 0) {
+                const headerRowIdx = detectHeaderRowIndex(data);
+                const headers = (data[headerRowIdx] || []).filter(h => !!h).map(h => String(h).trim());
                 setRawHeaders(headers);
                 const mapping = autoMapHeaders(headers);
                 setHeaderMapping(mapping);
             }
         }
+    };
+
+    const getRowVal = (row: any, headerKey: string) => {
+        if (!row || !headerKey) return undefined;
+        if (row[headerKey] !== undefined && row[headerKey] !== null) return row[headerKey];
+        const cleanTarget = cleanStr(headerKey);
+        for (const k of Object.keys(row)) {
+            if (k.trim() === headerKey.trim()) return row[k];
+            if (cleanStr(k) === cleanTarget) return row[k];
+        }
+        return undefined;
     };
 
     const processData = () => {
@@ -246,37 +321,53 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
         sheetsToRead.forEach(wsname => {
             const ws = workbook.Sheets[wsname];
             if (!ws) return;
-            const sheetRows = XLSX.utils.sheet_to_json(ws) as any[];
+            const dataGrid = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+            const headerRowIdx = detectHeaderRowIndex(dataGrid);
+            const sheetRows = XLSX.utils.sheet_to_json(ws, { range: headerRowIdx }) as any[];
 
             sheetRows.forEach(row => {
                 const obj: any = {};
                 fields.forEach(f => {
                     const mappedHeader = headerMapping[f.key];
                     if (mappedHeader) {
-                        const val = row[mappedHeader];
+                        const val = getRowVal(row, mappedHeader);
                         obj[f.key] = val !== undefined && val !== null ? String(val).trim() : '';
                     } else {
                         obj[f.key] = '';
                     }
                 });
 
-                // Check for split name columns (First Name, Middle Name, Last Name / Surname) if name is empty
+                // Check for split name columns (e.g. SURNAME + OTHER NAMES or First Name + Middle Name + Last Name) if name is empty
                 if (!obj.name) {
                     const rowKeys = Object.keys(row);
+                    const surnameKey = rowKeys.find(k => /^(surname|last[\s_.-]*name|lname)$/i.test(k.trim()));
+                    const otherNamesKey = rowKeys.find(k => /^(other[\s_.-]*names?)$/i.test(k.trim()));
                     const firstKey = rowKeys.find(k => /^(first[\s_.-]*name|fname)$/i.test(k.trim()));
-                    const middleKey = rowKeys.find(k => /^(middle[\s_.-]*name|mname)$/i.test(k.trim()));
-                    const lastKey = rowKeys.find(k => /^(last[\s_.-]*name|surname|lname)$/i.test(k.trim()));
+                    const middleKey = rowKeys.find(k => !otherNamesKey && /^(middle[\s_.-]*name|mname)$/i.test(k.trim()));
 
-                    if (firstKey || lastKey) {
+                    if (surnameKey && otherNamesKey) {
+                        const sVal = String(row[surnameKey] || '').trim();
+                        const oVal = String(row[otherNamesKey] || '').trim();
+                        if (sVal || oVal) {
+                            obj.name = `${sVal} ${oVal}`.trim();
+                        }
+                    } else if (firstKey || surnameKey) {
                         const parts = [
                             firstKey ? String(row[firstKey] || '').trim() : '',
                             middleKey ? String(row[middleKey] || '').trim() : '',
-                            lastKey ? String(row[lastKey] || '').trim() : ''
+                            surnameKey ? String(row[surnameKey] || '').trim() : ''
                         ].filter(Boolean);
                         if (parts.length > 0) {
                             obj.name = parts.join(' ');
                         }
                     }
+                }
+
+                // Guarantee studentName and fullName aliases are present
+                if (obj.name) {
+                    obj.studentName = obj.name;
+                    obj.fullName = obj.name;
+                    obj.learnerName = obj.name;
                 }
 
                 // If gradeLevel is empty and sheet name looks like a grade (e.g. "Grade 4", "Form 2", "PP1"), infer it
@@ -287,12 +378,13 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                     }
                 }
 
-                // Validation: Skip row only if completely blank (no name, no admission number, no phone)
+                // Validation: Skip row only if completely blank (no name, no admission number, no assessment number, no phone)
                 const hasName = Boolean(obj.name && obj.name.trim() !== '');
                 const hasAdmNo = Boolean(obj.admissionNumber && obj.admissionNumber.trim() !== '');
+                const hasAssessNo = Boolean(obj.assessmentNo && obj.assessmentNo.trim() !== '');
                 const hasContact = Boolean(obj.phoneNumber || obj.parentPhone || obj.email);
 
-                if (!hasName && !hasAdmNo && !hasContact) {
+                if (!hasName && !hasAdmNo && !hasAssessNo && !hasContact) {
                     return; // Skip genuinely empty rows
                 }
 
@@ -305,7 +397,7 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                 
                 // Ensure slug uniqueness by appending the short ID
                 const hash = baseId.split('_').pop() || '000';
-                obj.slug = `${slugify(obj.name || obj.admissionNumber || 'record')}-${hash.substring(0, 5)}`;
+                obj.slug = `${slugify(obj.name || obj.admissionNumber || obj.assessmentNo || 'record')}-${hash.substring(0, 5)}`;
                 
                 obj.createdAt = new Date().toISOString();
                 obj.updatedAt = new Date().toISOString();
@@ -344,8 +436,16 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                     {/* Step 1: Upload */}
                     {step === 1 && (
                         <div className="flex flex-col items-center justify-center h-full py-12">
-                            <label className="w-full max-w-lg cursor-pointer group">
-                                <div className="border-4 border-dashed border-slate-100 dark:border-slate-800 rounded-[3rem] p-16 text-center hover:border-emerald-500/30 transition-all bg-slate-50 group-hover:bg-emerald-50/10 active:scale-95">
+                            <div className="relative w-full max-w-lg cursor-pointer group">
+                                <input
+                                    type="file"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                    accept=".xlsx, .xls, .csv"
+                                    onChange={handleFileUpload}
+                                    disabled={isLoading}
+                                    title="Choose Excel File"
+                                />
+                                <div className="border-4 border-dashed border-slate-100 dark:border-slate-800 rounded-[3rem] p-16 text-center group-hover:border-emerald-500/30 transition-all bg-slate-50 group-hover:bg-emerald-50/10 pointer-events-none">
                                     {isLoading ? (
                                         <Loader2 className="w-16 h-16 text-emerald-600 animate-spin mx-auto mb-6" />
                                     ) : (
@@ -353,9 +453,8 @@ export const ExcelSmartImporter: React.FC<ExcelSmartImporterProps> = ({ fields, 
                                     )}
                                     <h4 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Choose Excel File</h4>
                                     <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2 italic">Support: .XLSX, .XLS, .CSV</p>
-                                    <input type="file" className="hidden" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} />
                                 </div>
-                            </label>
+                            </div>
                             
                             {children && (
                                 <div className="w-full max-w-lg mt-6">

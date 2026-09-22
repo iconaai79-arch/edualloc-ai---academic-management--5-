@@ -120,12 +120,33 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
         return departments;
     }, [departments, currentUser]);
 
+    const activeInstId = currentInstitution?.id;
+
+    // Strictly scoped institution subjects & courses
+    const institutionSubjects = useMemo(() => {
+        if (!activeInstId) return subjects || [];
+        return (subjects || []).filter(s => {
+            if (!s) return false;
+            const sInst = s.institutionId || (s as any).institution_id;
+            return sInst === activeInstId;
+        });
+    }, [subjects, activeInstId]);
+
+    const institutionCourses = useMemo(() => {
+        if (!activeInstId) return courses || [];
+        return (courses || []).filter(c => {
+            if (typeof c === 'string') return true;
+            const cInst = (c as any).institutionId || (c as any).institution_id;
+            return !cInst || cInst === activeInstId;
+        });
+    }, [courses, activeInstId]);
+
     // Dynamic list of registered classes (strictly class / grade level, not individual streams)
     const classOptions = useMemo<string[]>(() => {
         const set = new Set<string>();
 
-        if (courses && courses.length > 0) {
-            courses.forEach(c => {
+        if (institutionCourses && institutionCourses.length > 0) {
+            institutionCourses.forEach(c => {
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
                 if (name) {
                     const parsed = extractClassAndStream(name);
@@ -172,16 +193,38 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
             }
         }
 
+        const instType = (currentInstitution?.institutionType || '').toLowerCase();
+        const instName = (currentInstitution?.name || '').toLowerCase();
+        const isPrimaryOnly = (instType.includes('primary') || instName.includes('primary') || instType.includes('kindergarten') || instType.includes('nursery') || instType.includes('prep') || instType.includes('junior')) && !instType.includes('secondary') && !instType.includes('college') && !instType.includes('university');
+        const isSecondaryOnly = (instType.includes('secondary') || instName.includes('secondary') || instType.includes('high school')) && !instType.includes('primary') && !instType.includes('college') && !instType.includes('university');
+
         const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
-        const cleaned = Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
+        const cleaned = Array.from(set).filter(cName => {
+            if (!cName) return false;
+            if (standaloneStreams.has(cName.trim().toLowerCase())) return false;
+            const bLower = cName.trim().toLowerCase();
+            if (isPrimaryOnly && (bLower.includes('bsc') || bLower.includes('degree') || bLower.includes('diploma') || bLower.includes('csdf') || bLower.includes('dnd') || bLower.startsWith('form'))) {
+                return false;
+            }
+            if (isSecondaryOnly && (bLower.includes('bsc') || bLower.includes('degree') || bLower.includes('diploma') || bLower.includes('playgroup') || bLower.includes('pp1') || bLower.includes('pp2') || bLower.startsWith('grade'))) {
+                return false;
+            }
+            return true;
+        });
         return naturalClassSort(cleaned);
-    }, [courses, currentInstitution, isPrimarySchool]);
+    }, [institutionCourses, currentInstitution, isPrimarySchool, activeInstId]);
 
     const filteredSubjects = useMemo(() => {
         // Merge prop subjects with any locally added ones (from direct apiService save)
         const existingIds = new Set(subjects.map(s => s.id));
         const merged = [...subjects, ...locallyAddedSubjects.filter(s => !existingIds.has(s.id))];
         let list = merged;
+        if (activeInstId) {
+            list = list.filter(s => {
+                const sInst = s.institutionId || (s as any).institution_id;
+                return sInst === activeInstId;
+            });
+        }
         if (currentUser.role === 'tto' && currentUser.departmentId) list = list.filter(s => s.departmentId === currentUser.departmentId);
         return list.filter(s => {
             const matchesDept = departmentFilter === 'all' || s.departmentId === departmentFilter;
@@ -687,8 +730,8 @@ export const SubjectManager: React.FC<SubjectManagerProps> = ({
                 <React.Suspense fallback={null}>
                     <ClassSubjectAllocationModal
                         onClose={() => setIsClassAllocationOpen(false)}
-                        subjects={subjects}
-                        courses={courses}
+                        subjects={institutionSubjects}
+                        courses={institutionCourses}
                         classOptions={classOptions}
                         departments={visibleDepartments}
                         currentInstitution={currentInstitution}

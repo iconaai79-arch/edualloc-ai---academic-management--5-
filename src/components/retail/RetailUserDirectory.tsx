@@ -341,12 +341,17 @@ export function RetailUserDirectory({
                                 {displayUsers.length} total registered {role === 'teacher' ? 'teachers' : role === 'support_staff' ? 'support staff' : 'students'}
                             </p>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                            <button
-                                onClick={() => {
-                                    const input = document.createElement('input');
-                                    input.type = 'file';
-                                    input.accept = '.csv,.xlsx,.xls';
-                                    input.onchange = (e: any) => {
+                            <div
+                                className="relative inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98 cursor-pointer overflow-hidden"
+                            >
+                                <UploadIcon className="w-3.5 h-3.5 pointer-events-none" />
+                                <span className="pointer-events-none">Import {role === 'teacher' ? 'Teachers' : role === 'support_staff' ? 'Support Staff' : 'Students'}</span>
+                                <input
+                                    type="file"
+                                    accept=".csv,.xlsx,.xls"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    title={`Import ${role === 'teacher' ? 'Teachers' : role === 'support_staff' ? 'Support Staff' : 'Students'}`}
+                                    onChange={(e: any) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
                                             const reader = new FileReader();
@@ -397,18 +402,15 @@ export function RetailUserDirectory({
                                                 } catch (err: any) {
                                                     console.error("Failed to parse and import file:", err);
                                                     alert("Import failed: " + err.message);
+                                                } finally {
+                                                    e.target.value = '';
                                                 }
                                             };
                                             reader.readAsBinaryString(file);
                                         }
-                                    };
-                                    input.click();
-                                }}
-                                className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98"
-                            >
-                                <UploadIcon className="w-3.5 h-3.5" />
-                                Import {role === 'teacher' ? 'Teachers' : role === 'support_staff' ? 'Support Staff' : 'Students'}
-                            </button>
+                                    }}
+                                />
+                            </div>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
                             <button
                                 onClick={() => {

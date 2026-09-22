@@ -270,21 +270,20 @@ export function TimetableUserDirectory({
                                     {displayUsers.length} total active {role === 'teacher' ? 'teachers' : 'students'}
                                 </p>
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".csv,.xlsx,.xls"
-                                    className="hidden"
-                                    onChange={handleFileImport}
-                                />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isImporting}
-                                    className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed"
+                                <div
+                                    className="relative inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 rounded-lg transition-all hover:scale-102 active:scale-98 cursor-pointer overflow-hidden"
                                 >
-                                    <UploadIcon className={`w-3.5 h-3.5 ${isImporting ? 'animate-spin' : ''}`} />
-                                    {isImporting ? 'Importing...' : `Import ${role === 'teacher' ? 'Teachers' : 'Students'}`}
-                                </button>
+                                    <UploadIcon className={`w-3.5 h-3.5 pointer-events-none ${isImporting ? 'animate-spin' : ''}`} />
+                                    <span className="pointer-events-none">{isImporting ? 'Importing...' : `Import ${role === 'teacher' ? 'Teachers' : 'Students'}`}</span>
+                                    <input
+                                        type="file"
+                                        accept=".csv,.xlsx,.xls"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        disabled={isImporting}
+                                        onChange={handleFileImport}
+                                        title={`Import ${role === 'teacher' ? 'Teachers' : 'Students'}`}
+                                    />
+                                </div>
                                 {importResult && (
                                     <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-md">
                                         ✓ {importResult.success} imported

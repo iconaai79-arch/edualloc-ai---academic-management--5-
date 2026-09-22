@@ -102,13 +102,34 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         } catch(e) {}
         return {};
     });
-    // Dynamically compute registered classes from all available sources
+    const activeInstId = currentInstitution?.id;
+
+    // Strictly scoped institution subjects & courses
+    const institutionSubjects = useMemo(() => {
+        if (!activeInstId) return subjects || [];
+        return (subjects || []).filter(s => {
+            if (!s) return false;
+            const sInst = s.institutionId || (s as any).institution_id;
+            return sInst === activeInstId;
+        });
+    }, [subjects, activeInstId]);
+
+    const institutionCourses = useMemo(() => {
+        if (!activeInstId) return courses || [];
+        return (courses || []).filter(c => {
+            if (typeof c === 'string') return true;
+            const cInst = (c as any).institutionId || (c as any).institution_id;
+            return !cInst || cInst === activeInstId;
+        });
+    }, [courses, activeInstId]);
+
+    // Dynamically compute registered classes strictly for this institution
     const classOptions = useMemo(() => {
         const set = new Set<string>();
 
-        // 1. From courses prop
-        if (courses && courses.length > 0) {
-            courses.forEach(c => {
+        // 1. From courses prop (strictly belonging to this institution)
+        if (institutionCourses && institutionCourses.length > 0) {
+            institutionCourses.forEach(c => {
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
                 if (name) {
                     const parsed = extractClassAndStream(name);
@@ -118,9 +139,13 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             });
         }
 
-        // 2. From users prop
+        // 2. From users prop (strictly belonging to this institution)
         if (users && users.length > 0) {
             users.forEach(u => {
+                if (activeInstId) {
+                    const uInst = (u as any).institutionId || (u as any).institution_id;
+                    if (uInst && uInst !== activeInstId) return;
+                }
                 const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
                 if (cl && typeof cl === 'string' && cl.trim()) {
                     const parsed = extractClassAndStream(cl.trim());
@@ -180,9 +205,25 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             }
         }
 
+        const instType = (currentInstitution?.institutionType || '').toLowerCase();
+        const instName = (currentInstitution?.name || '').toLowerCase();
+        const isPrimaryOnly = (instType.includes('primary') || instName.includes('primary') || instType.includes('kindergarten') || instType.includes('nursery') || instType.includes('prep') || instType.includes('junior')) && !instType.includes('secondary') && !instType.includes('college') && !instType.includes('university');
+        const isSecondaryOnly = (instType.includes('secondary') || instName.includes('secondary') || instType.includes('high school')) && !instType.includes('primary') && !instType.includes('college') && !instType.includes('university');
+
         const standaloneStreams = new Set(['east', 'west', 'north', 'south', 'central', 'red', 'blue', 'green', 'yellow', 'stream a', 'stream b', 'stream c']);
-        return Array.from(set).filter(cName => !standaloneStreams.has(cName.trim().toLowerCase()));
-    }, [courses, users, currentInstitution]);
+        return Array.from(set).filter(cName => {
+            if (!cName) return false;
+            if (standaloneStreams.has(cName.trim().toLowerCase())) return false;
+            const bLower = cName.trim().toLowerCase();
+            if (isPrimaryOnly && (bLower.includes('bsc') || bLower.includes('degree') || bLower.includes('diploma') || bLower.includes('csdf') || bLower.includes('dnd') || bLower.startsWith('form'))) {
+                return false;
+            }
+            if (isSecondaryOnly && (bLower.includes('bsc') || bLower.includes('degree') || bLower.includes('diploma') || bLower.includes('playgroup') || bLower.includes('pp1') || bLower.includes('pp2') || bLower.startsWith('grade'))) {
+                return false;
+            }
+            return true;
+        });
+    }, [institutionCourses, users, currentInstitution, activeInstId]);
 
     const [selectedClass, setSelectedClass] = useState<string>('');
     const [selectedStream, setSelectedStream] = useState<string>('all');
@@ -836,7 +877,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                           localStorage.getItem('eduai_subject_allocations');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    return parsed.filter(a => a && typeof a.className === 'string' && a.className.trim() && typeof a.subjectName === 'string' && a.subjectName.trim());
+                }
             }
         } catch(e) {}
         return [];
@@ -863,8 +906,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     // Helper to get applicable subjects for any given class name (strictly authoritative from resolveApplicableSubjectsForClass)
     const getApplicableSubjectsForClass = useCallback((clsName: string) => {
         if (!clsName) return [];
-        return resolveApplicableSubjectsForClass(clsName, subjects, courses, classAllocationsStore);
-    }, [subjects, courses, classAllocationsStore]);
+        return resolveApplicableSubjectsForClass(clsName, institutionSubjects, institutionCourses, classAllocationsStore);
+    }, [institutionSubjects, institutionCourses, classAllocationsStore]);
 
     // Sync selectedClass and modalClassName when classOptions resolves
     useEffect(() => {
@@ -880,10 +923,18 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             apiService.fetchModuleRecords<SubjectAllocationRecord>('subject_allocations', currentInstitution.id)
                 .then(dbAllocations => {
                     if (dbAllocations && dbAllocations.length > 0) {
+                        const validDb = dbAllocations.filter(a => a && typeof a.className === 'string' && a.className.trim() && typeof a.subjectName === 'string' && a.subjectName.trim());
                         setAllocations(prev => {
                             const map = new Map<string, SubjectAllocationRecord>();
-                            prev.forEach(p => map.set(p.id || `${p.className}_${p.subjectName}`, p));
-                            dbAllocations.forEach(d => map.set(d.id || `${d.className}_${d.subjectName}`, { ...map.get(d.id || `${d.className}_${d.subjectName}`), ...d }));
+                            prev.forEach(p => {
+                                if (p && p.className && p.subjectName) {
+                                    map.set(p.id || `${p.className}_${p.subjectName}`, p);
+                                }
+                            });
+                            validDb.forEach(d => {
+                                const key = d.id || `${d.className}_${d.subjectName}`;
+                                map.set(key, { ...map.get(key), ...d });
+                            });
                             const merged = Array.from(map.values());
                             try {
                                 localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
@@ -901,7 +952,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         if (saved) {
                             const parsed = JSON.parse(saved);
                             if (Array.isArray(parsed) && parsed.length > 0) {
-                                setAllocations(prev => prev.length > 0 ? prev : parsed);
+                                const valid = parsed.filter(a => a && typeof a.className === 'string' && a.className.trim() && typeof a.subjectName === 'string' && a.subjectName.trim());
+                                setAllocations(prev => prev.length > 0 ? prev : valid);
                             }
                         }
                     } catch (e) {}
@@ -922,7 +974,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         
         let found = false;
         const updatedAllocations = allocations.map(a => {
-            if (a.id === allocId || (classNameOverride && a.className.toLowerCase().trim() === classNameOverride.toLowerCase().trim() && a.subjectName.toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim())) {
+            if (a.id === allocId || (classNameOverride && (a?.className || '').toLowerCase().trim() === classNameOverride.toLowerCase().trim() && (a?.subjectName || '').toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim())) {
                 found = true;
                 return {
                     ...a,
@@ -956,7 +1008,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                 localStorage.setItem('eduai_subject_allocations', JSON.stringify(updatedAllocations));
             }
         } catch (e) {}
-        const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className.toLowerCase().trim() === (classNameOverride || '').toLowerCase().trim() && a.subjectName.toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim()));
+        const targetRecord = updatedAllocations.find(a => a.id === allocId || ((a?.className || '').toLowerCase().trim() === (classNameOverride || '').toLowerCase().trim() && (a?.subjectName || '').toLowerCase().trim() === (subjectNameOverride || '').toLowerCase().trim()));
         if (targetRecord && currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});
         }
@@ -1006,7 +1058,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             institutionId: currentInstitution?.id || 'inst_1',
             className: targetClassStream,
             subjectName: modalSubjectName,
-            subjectCode: `${modalSubjectName.substring(0, 4).toUpperCase()} 101`,
+            subjectCode: `${(modalSubjectName || 'SUBJ').substring(0, 4).toUpperCase()} 101`,
             teacherId: modalTeacherId,
             teacherName: teacherObj ? teacherObj.name : 'Unassigned',
             lessonsPerWeek: modalLessons,
@@ -1014,7 +1066,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         };
 
         setAllocations(prev => {
-            const filtered = prev.filter(a => !(a.className.toLowerCase().trim() === targetClassStream.toLowerCase().trim() && a.subjectName.toLowerCase().trim() === modalSubjectName.toLowerCase().trim()));
+            const filtered = prev.filter(a => !((a?.className || '').toLowerCase().trim() === targetClassStream.toLowerCase().trim() && (a?.subjectName || '').toLowerCase().trim() === modalSubjectName.toLowerCase().trim()));
             return [newRecord, ...filtered];
         });
 
@@ -1266,7 +1318,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     // Copy subject allocations from Base Class to active stream
     const handleCopyFromBaseClass = async () => {
         if (!isStreamSpecific || !selectedClass) return;
-        const baseAllocations = allocations.filter(a => a.className.toLowerCase().trim() === selectedClass.toLowerCase().trim());
+        const selClean = (selectedClass || '').toLowerCase().trim();
+        const tgtClean = (activeTargetClassName || '').toLowerCase().trim();
+        const baseAllocations = allocations.filter(a => (a?.className || '').toLowerCase().trim() === selClean);
         if (baseAllocations.length === 0) {
             const applicable = getApplicableSubjectsForClass(selectedClass);
             const createdAllocs: SubjectAllocationRecord[] = applicable.map((subj, idx) => {
@@ -1276,14 +1330,14 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     institutionId: currentInstitution?.id || 'inst_1',
                     className: activeTargetClassName,
                     subjectName: subj.name,
-                    subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                    subjectCode: subj.code || `${(subj.name || 'SUBJ').substring(0, 4).toUpperCase()} 101`,
                     teacherId: defaultTeacher ? defaultTeacher.id : '',
                     teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
                     lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
                     status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
                 };
             });
-            setAllocations(prev => [...createdAllocs, ...prev.filter(a => a.className.toLowerCase().trim() !== activeTargetClassName.toLowerCase().trim())]);
+            setAllocations(prev => [...createdAllocs, ...prev.filter(a => (a?.className || '').toLowerCase().trim() !== tgtClean)]);
             if (currentInstitution?.id) {
                 for (const a of createdAllocs) {
                     await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
@@ -1292,10 +1346,10 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         } else {
             const copiedAllocs: SubjectAllocationRecord[] = baseAllocations.map(ba => ({
                 ...ba,
-                id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${ba.subjectName.replace(/\s+/g, '_')}_${Date.now()}`,
+                id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${(ba.subjectName || 'subj').replace(/\s+/g, '_')}_${Date.now()}`,
                 className: activeTargetClassName
             }));
-            setAllocations(prev => [...copiedAllocs, ...prev.filter(a => a.className.toLowerCase().trim() !== activeTargetClassName.toLowerCase().trim())]);
+            setAllocations(prev => [...copiedAllocs, ...prev.filter(a => (a?.className || '').toLowerCase().trim() !== tgtClean)]);
             if (currentInstitution?.id) {
                 for (const a of copiedAllocs) {
                     await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
@@ -1310,7 +1364,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     const classAllocations = useMemo(() => {
         if (!selectedClass) return [];
 
-        const q = searchQuery.toLowerCase().trim();
+        const q = (searchQuery || '').toLowerCase().trim();
         const map = new Map<string, SubjectAllocationRecord>();
 
         // 1. Authoritative: Get applicable subjects for activeTargetClassName (or selectedClass)
@@ -1318,25 +1372,27 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
         // Helper to find saved allocation for a subject
         const findSavedAlloc = (sName: string, sCode?: string) => {
-            const sNameClean = sName.toLowerCase().trim();
+            const sNameClean = (sName || '').toLowerCase().trim();
             const sCodeClean = (sCode || '').toLowerCase().trim();
+            const tgtClean = (activeTargetClassName || '').toLowerCase().trim();
+            const selClean = (selectedClass || '').toLowerCase().trim();
 
             // Check exact match for activeTargetClassName
             let match = (allocations || []).find(a => 
-                a.className.toLowerCase().trim() === activeTargetClassName.toLowerCase().trim() &&
-                ((a.subjectName || '').toLowerCase().trim() === sNameClean || (sCodeClean && (a.subjectCode || '').toLowerCase().trim() === sCodeClean))
+                (a?.className || '').toLowerCase().trim() === tgtClean &&
+                (((a?.subjectName || '').toLowerCase().trim() === sNameClean) || (sCodeClean && (a?.subjectCode || '').toLowerCase().trim() === sCodeClean))
             );
 
             // If stream-specific and not found, check base class allocation to inherit
             if (!match && isStreamSpecific) {
                 const baseMatch = (allocations || []).find(ba => 
-                    ba.className.toLowerCase().trim() === selectedClass.toLowerCase().trim() &&
-                    ((ba.subjectName || '').toLowerCase().trim() === sNameClean || (sCodeClean && (ba.subjectCode || '').toLowerCase().trim() === sCodeClean))
+                    (ba?.className || '').toLowerCase().trim() === selClean &&
+                    (((ba?.subjectName || '').toLowerCase().trim() === sNameClean) || (sCodeClean && (ba?.subjectCode || '').toLowerCase().trim() === sCodeClean))
                 );
                 if (baseMatch) {
                     match = {
                         ...baseMatch,
-                        id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${baseMatch.subjectName.replace(/\s+/g, '_')}`,
+                        id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${(baseMatch.subjectName || 'subj').replace(/\s+/g, '_')}`,
                         className: activeTargetClassName
                     };
                 }
@@ -1346,6 +1402,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
         // 2. Hydrate each authoritative subject with its teacher and lesson count
         applicableSubjects.forEach((subj, idx) => {
+            if (!subj) return;
             const sName = subj.name;
             const key = (sName || '').toLowerCase().trim();
             if (!key || map.has(key)) return;
@@ -1360,7 +1417,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     institutionId: currentInstitution?.id || 'inst_1',
                     className: activeTargetClassName,
                     subjectName: subj.name,
-                    subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                    subjectCode: subj.code || `${(subj.name || 'SUBJ').substring(0, 4).toUpperCase()} 101`,
                     teacherId: defaultTeacher ? defaultTeacher.id : '',
                     teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
                     lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
@@ -1370,36 +1427,38 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         });
 
         // 3. Convert to array and filter out search query ONLY (respecting explicit configuration)
-        const hasExplicitConfig = Boolean(classAllocationsStore[activeTargetClassName] || classAllocationsStore[activeTargetClassName.toLowerCase()] || classAllocationsStore[selectedClass] || classAllocationsStore[selectedClass.toLowerCase()]);
+        const hasExplicitConfig = Boolean(classAllocationsStore[activeTargetClassName] || classAllocationsStore[(activeTargetClassName || '').toLowerCase()] || classAllocationsStore[selectedClass] || classAllocationsStore[(selectedClass || '').toLowerCase()]);
 
         return Array.from(map.values()).filter(a => {
             if (!hasExplicitConfig) {
                 if (removedFromClassKeys.has(`${a.className}_${a.subjectName}`) || (!isStreamSpecific && removedFromClassKeys.has(`${selectedClass}_${a.subjectName}`))) return false;
             }
             if (!q) return true;
-            return a.className.toLowerCase().includes(q) ||
-                   a.subjectName.toLowerCase().includes(q) ||
-                   (a.teacherName && a.teacherName.toLowerCase().includes(q));
+            return (a?.className || '').toLowerCase().includes(q) ||
+                   (a?.subjectName || '').toLowerCase().includes(q) ||
+                   (a?.teacherName && a.teacherName.toLowerCase().includes(q));
         });
     }, [selectedClass, activeTargetClassName, isStreamSpecific, allocations, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys, classAllocationsStore]);
 
     // All allocations dynamically gathered across classOptions strictly matching applicable subjects
     const allAllocations = useMemo(() => {
-        const q = searchQuery.toLowerCase().trim();
+        const q = (searchQuery || '').toLowerCase().trim();
         const map = new Map<string, SubjectAllocationRecord>();
 
         (classOptions || []).forEach(cls => {
+            if (!cls) return;
             const applicable = getApplicableSubjectsForClass(cls);
             applicable.forEach((subj, idx) => {
+                if (!subj) return;
                 const sNameLower = (subj.name || '').toLowerCase().trim();
                 const sCodeLower = (subj.code || '').toLowerCase().trim();
-                const key = `${cls.toLowerCase().trim()}_${sNameLower}`;
+                const key = `${(cls || '').toLowerCase().trim()}_${sNameLower}`;
                 if (map.has(key)) return;
 
                 const existingAlloc = (allocations || []).find(a => 
-                    a.className.toLowerCase().trim() === cls.toLowerCase().trim() && 
-                    ((a.subjectName || '').toLowerCase().trim() === sNameLower || 
-                     (sCodeLower && (a.subjectCode || '').toLowerCase().trim() === sCodeLower))
+                    (a?.className || '').toLowerCase().trim() === (cls || '').toLowerCase().trim() && 
+                    (((a?.subjectName || '').toLowerCase().trim() === sNameLower) || 
+                     (sCodeLower && (a?.subjectCode || '').toLowerCase().trim() === sCodeLower))
                 );
 
                 if (existingAlloc) {
@@ -1411,7 +1470,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                         institutionId: currentInstitution?.id || 'inst_1',
                         className: cls,
                         subjectName: subj.name,
-                        subjectCode: subj.code || `${subj.name.substring(0, 4).toUpperCase()} 101`,
+                        subjectCode: subj.code || `${(subj.name || 'SUBJ').substring(0, 4).toUpperCase()} 101`,
                         teacherId: defaultTeacher ? defaultTeacher.id : '',
                         teacherName: defaultTeacher ? defaultTeacher.name : 'Unassigned',
                         lessonsPerWeek: (subj as any).periodsPerWeek || (subj as any).lessonsPerWeek || (idx % 2 === 0 ? 7 : 6),
@@ -1424,9 +1483,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         const list = Array.from(map.values()).filter(a => !removedFromClassKeys.has(`${a.className}_${a.subjectName}`));
         if (!q) return list;
         return list.filter(a =>
-            a.className.toLowerCase().includes(q) ||
-            a.subjectName.toLowerCase().includes(q) ||
-            (a.teacherName && a.teacherName.toLowerCase().includes(q))
+            (a?.className || '').toLowerCase().includes(q) ||
+            (a?.subjectName || '').toLowerCase().includes(q) ||
+            (a?.teacherName && a.teacherName.toLowerCase().includes(q))
         );
     }, [allocations, classOptions, getApplicableSubjectsForClass, teacherUsers, currentInstitution, searchQuery, removedFromClassKeys]);
 
@@ -1434,8 +1493,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
     const displayedClassOptions = useMemo(() => {
         if (!autoHideUnallocatedClasses) return classOptions;
         const withAllocs = classOptions.filter(cls => {
+            const clsClean = (cls || '').toLowerCase().trim();
             const classAllocs = (allAllocations || []).filter(a => 
-                (a.className.toLowerCase().trim() === cls.toLowerCase().trim() || a.className.toLowerCase().startsWith(cls.toLowerCase().trim())) &&
+                ((a?.className || '').toLowerCase().trim() === clsClean || (a?.className || '').toLowerCase().startsWith(clsClean)) &&
                 a.teacherId && a.teacherName && a.teacherName !== 'Unassigned'
             );
             return classAllocs.length > 0;
@@ -1623,15 +1683,16 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     {/* Class Selector Pills */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar-horizontal">
                         {displayedClassOptions.map(cls => {
+                            const clsClean = (cls || '').toLowerCase().trim();
                             const rawApplicable = getApplicableSubjectsForClass(cls);
                             const count = rawApplicable.length;
-                            const classAllocs = (allAllocations || []).filter(a => a.className.toLowerCase().trim() === cls.toLowerCase().trim());
+                            const classAllocs = (allAllocations || []).filter(a => (a?.className || '').toLowerCase().trim() === clsClean);
                             const unassigned = rawApplicable.filter(subj => {
-                                const sNameLower = (subj.name || '').toLowerCase().trim();
-                                const sCodeLower = (subj.code || '').toLowerCase().trim();
+                                const sNameLower = (subj?.name || '').toLowerCase().trim();
+                                const sCodeLower = (subj?.code || '').toLowerCase().trim();
                                 const alloc = classAllocs.find(a => 
-                                    (a.subjectName || '').toLowerCase().trim() === sNameLower ||
-                                    (sCodeLower && (a.subjectCode || '').toLowerCase().trim() === sCodeLower)
+                                    (a?.subjectName || '').toLowerCase().trim() === sNameLower ||
+                                    (sCodeLower && (a?.subjectCode || '').toLowerCase().trim() === sCodeLower)
                                 );
                                 return !alloc || alloc.status === 'unassigned' || !alloc.teacherId;
                             }).length;
@@ -1683,9 +1744,9 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
                             {/* Individual Stream Pills strictly assigned to this grade */}
                             {availableStreamsForClass.map(st => {
-                                const isSelected = selectedStream.toLowerCase() === st.toLowerCase();
+                                const isSelected = (selectedStream || '').toLowerCase() === (st || '').toLowerCase();
                                 const streamClassKey = `${selectedClass} ${st}`.toLowerCase().trim();
-                                const streamAllocsCount = allocations.filter(a => a.className.toLowerCase().trim() === streamClassKey).length;
+                                const streamAllocsCount = allocations.filter(a => (a?.className || '').toLowerCase().trim() === streamClassKey).length;
 
                                 return (
                                     <button
@@ -2019,15 +2080,17 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                                 {displayedClassOptions.map(cls => {
+                                    const clsClean = (cls || '').toLowerCase().trim();
                                     // Collect streams for this class
                                     const classStreams = new Set<string>();
                                     (allocations || []).forEach(a => {
-                                        if (a.className.toLowerCase().startsWith(cls.toLowerCase()) && a.className.toLowerCase() !== cls.toLowerCase()) {
+                                        const aClass = (a?.className || '').toLowerCase();
+                                        if (aClass.startsWith(clsClean) && aClass !== clsClean) {
                                             const strOnly = extractStreamOnly(a.className, cls);
                                             if (strOnly && !/^\d+$/.test(strOnly)) classStreams.add(strOnly.toUpperCase());
                                         }
                                     });
-                                    if (cls.toLowerCase() === selectedClass.toLowerCase()) {
+                                    if (clsClean === (selectedClass || '').toLowerCase().trim()) {
                                         availableStreamsForClass.forEach(st => classStreams.add(st));
                                     }
 
@@ -2050,7 +2113,7 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                                 </td>
                                                 {matrixSubjectColumns.map(subCol => {
                                                     const subName = subCol.name;
-                                                    const subObj = (subjects || []).find(s => s.name.toLowerCase().trim() === subName.toLowerCase().trim());
+                                                    const subObj = (subjects || []).find(s => (s?.name || '').toLowerCase().trim() === (subName || '').toLowerCase().trim());
                                                     
                                                     // Check if subject is assigned or applicable to this class stream
                                                     const isApplicable = subObj 
@@ -2066,8 +2129,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                                                     }
 
                                                     const alloc = allAllocations.find(a => 
-                                                        a.className.toLowerCase().trim() === targetCls.toLowerCase().trim() && 
-                                                        (a.subjectName.toLowerCase().trim() === subName.toLowerCase().trim() || (subCol.code && a.subjectCode === subCol.code))
+                                                        (a?.className || '').toLowerCase().trim() === (targetCls || '').toLowerCase().trim() && 
+                                                        ((a?.subjectName || '').toLowerCase().trim() === (subName || '').toLowerCase().trim() || (subCol.code && a.subjectCode === subCol.code))
                                                     );
 
                                                     return (
@@ -2577,8 +2640,8 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                             setIsManageSubjectsModalOpen(false);
                             reloadClassAllocations();
                         }}
-                        subjects={subjects}
-                        courses={courses}
+                        subjects={institutionSubjects}
+                        courses={institutionCourses}
                         classOptions={classOptions}
                         currentInstitution={currentInstitution}
                     />

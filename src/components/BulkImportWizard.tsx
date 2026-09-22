@@ -95,10 +95,10 @@ export const BulkImportWizard: React.FC<BulkImportWizardProps> = ({
                                 <p className="text-slate-400 text-sm font-medium">Select an .xlsx or .csv file containing {type} records.</p>
                             </div>
                             <div className="flex flex-col items-center">
-                                <label className="cursor-pointer bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200">
-                                    Choose File
-                                    <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} />
-                                </label>
+                                <div className="relative cursor-pointer bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 overflow-hidden">
+                                    <span className="pointer-events-none">Choose File</span>
+                                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".xlsx,.xls,.csv" onChange={handleFileUpload} title="Choose File" />
+                                </div>
                                 <button className="mt-4 text-xs font-black text-indigo-600 uppercase tracking-widest">Download Sample Template</button>
                             </div>
                         </div>

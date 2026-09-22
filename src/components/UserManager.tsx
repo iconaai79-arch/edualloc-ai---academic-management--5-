@@ -1391,11 +1391,23 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 <h3 className="text-xl font-semibold">User Management</h3>
                 {canManageUserRecords && (
                     <div className="flex items-center gap-2">
-                        <button onClick={() => { setIsAdding(!isAdding); if (!isAdding) resetForm(); }} className="btn-primary">{isAdding ? 'Cancel' : 'Add User'}</button>
-                        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileImport} accept=".xlsx, .xls, .csv" />
-                        <button onClick={() => { activeTab === 'staff' ? setIsImportModalOpen(true) : fileInputRef.current?.click() }} className="btn-secondary flex items-center gap-2">
-                            <ArrowUpTrayIcon className="w-5 h-5" /> Import
-                        </button>
+                        {activeTab === 'staff' ? (
+                            <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary flex items-center gap-2">
+                                <ArrowUpTrayIcon className="w-5 h-5" /> Import
+                            </button>
+                        ) : (
+                            <div className="relative btn-secondary flex items-center gap-2 cursor-pointer overflow-hidden">
+                                <ArrowUpTrayIcon className="w-5 h-5 pointer-events-none" />
+                                <span className="pointer-events-none">Import</span>
+                                <input
+                                    type="file"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    onChange={handleFileImport}
+                                    accept=".xlsx, .xls, .csv"
+                                    title="Import Users"
+                                />
+                            </div>
+                        )}
                         {isEdu && activeTab === 'student' && canManageUserRecords && (
                             <button onClick={() => setIsPromoteModalOpen(true)} className="btn-secondary flex items-center gap-2 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300">
                                 <AcademicCapIcon className="w-5 h-5" /> Promote Students

@@ -281,7 +281,27 @@ interface StudentEnrollmentManagerProps {
     companyDetails?: CompanyDetails;
     currentUser?: User;
     onLogAction?: (message: string) => Promise<void>;
+    initialUsers?: User[];
+    initialSubjects?: Subject[];
+    initialCourses?: Course[];
 }
+
+interface EnrollmentManagerCache {
+    enrollments: StudentEnrollment[];
+    users: User[];
+    instructors: User[];
+    courses: Course[];
+    subjects: Subject[];
+    academicLevels: AcademicLevel[];
+    broadcasterMessages: any[];
+    events: any[];
+    eventPins: any[];
+    visitors: Visitor[];
+    timestamp: number;
+}
+
+const globalEnrollmentCache: Record<string, EnrollmentManagerCache> = {};
+let hasRunEnrollmentSchemaMigration = false;
 
 export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> = ({ 
     context, 
@@ -289,9 +309,46 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     activeTab: passedActiveTab,
     companyDetails,
     currentUser,
-    onLogAction
+    onLogAction,
+    initialUsers,
+    initialSubjects,
+    initialCourses
 }) => {
-    const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
+    const instId = currentInstitution?.id || 'default_inst';
+    const cacheKey = `${instId}_${context}`;
+
+    // Read initial data synchronously from in-memory cache or localStorage
+    const initialCached = useMemo(() => {
+        if (globalEnrollmentCache[cacheKey]) {
+            return globalEnrollmentCache[cacheKey];
+        }
+        let localEnrs: StudentEnrollment[] = [];
+        let localUsers: User[] = [];
+        try {
+            const savedEnrs = localStorage.getItem(`eduai_student_enrollments_${instId}`) || localStorage.getItem('eduai_student_enrollments');
+            if (savedEnrs) localEnrs = JSON.parse(savedEnrs) || [];
+            const savedUsers = localStorage.getItem(`eduai_users_${instId}`);
+            if (savedUsers) localUsers = JSON.parse(savedUsers) || [];
+        } catch (e) {}
+        
+        const effectiveUsers = (initialUsers && initialUsers.length > 0) ? initialUsers : localUsers;
+        const effectiveInstructors = effectiveUsers.filter(u => u && (u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
+        return {
+            enrollments: localEnrs,
+            users: effectiveUsers,
+            instructors: effectiveInstructors,
+            courses: initialCourses || [],
+            subjects: initialSubjects || [],
+            academicLevels: [],
+            broadcasterMessages: [],
+            events: [],
+            eventPins: [],
+            visitors: [],
+            timestamp: 0
+        };
+    }, [cacheKey, instId, initialUsers, initialCourses, initialSubjects]);
+
+    const [enrollments, setEnrollments] = useState<StudentEnrollment[]>(() => initialCached.enrollments);
     const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
     const [editingStaff, setEditingStaff] = useState<User | null>(null);
     const [isClassSupervisor, setIsClassSupervisor] = useState(false);
@@ -307,11 +364,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [roleModalNewRole, setRoleModalNewRole] = useState<string>('');
     const [roleModalSaving, setRoleModalSaving] = useState(false);
     const [roleModalSourceTab, setRoleModalSourceTab] = useState<'teachers' | 'support_staff'>('support_staff');
-    const [users, setUsers] = useState<User[]>([]);
-    const [instructors, setInstructors] = useState<User[]>([]);
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [academicLevels, setAcademicLevels] = useState<AcademicLevel[]>([]);
+    const [users, setUsers] = useState<User[]>(() => initialCached.users);
+    const [instructors, setInstructors] = useState<User[]>(() => initialCached.instructors);
+    const [courses, setCourses] = useState<Course[]>(() => initialCached.courses);
+    const [subjects, setSubjects] = useState<Subject[]>(() => initialCached.subjects);
+    const [academicLevels, setAcademicLevels] = useState<AcademicLevel[]>(() => initialCached.academicLevels);
     const [importGradeLevel, setImportGradeLevel] = useState('');
     const [importStream, setImportStream] = useState('');
     const [pinExecutionReport, setPinExecutionReport] = useState<{
@@ -361,11 +418,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         if (enr.metadata?.name && !isNameUnknown(enr.metadata.name)) {
             return enr.metadata.name.trim();
         }
+        if ((enr as any).studentName && !isNameUnknown((enr as any).studentName)) {
+            return String((enr as any).studentName).trim();
+        }
+        if ((enr as any).name && !isNameUnknown((enr as any).name)) {
+            return String((enr as any).name).trim();
+        }
+        if (enr.metadata?.fullName && !isNameUnknown(enr.metadata.fullName)) {
+            return enr.metadata.fullName.trim();
+        }
         if (enr.metadata?.parentName && enr.metadata.parentName.trim()) {
             return enr.metadata.parentName.trim();
         }
         if (enr.metadata?.parents?.[0]?.name && enr.metadata.parents[0].name.trim()) {
             return enr.metadata.parents[0].name.trim();
+        }
+        if (enr.admissionNumber) {
+            return `Student ${enr.admissionNumber}`;
+        }
+        if (enr.assessmentNo || enr.metadata?.assessmentNo) {
+            return `Student ${enr.assessmentNo || enr.metadata?.assessmentNo}`;
         }
         return 'Unknown Student';
     };
@@ -405,10 +477,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const activeTab = passedActiveTab || 'students';
     
     // New Feature Lists
-    const [broadcasterMessages, setBroadcasterMessages] = useState<any[]>([]);
-    const [events, setEvents] = useState<any[]>([]);
-    const [eventPins, setEventPins] = useState<any[]>([]);
-    const [visitors, setVisitors] = useState<Visitor[]>([]);
+    const [broadcasterMessages, setBroadcasterMessages] = useState<any[]>(() => initialCached.broadcasterMessages);
+    const [events, setEvents] = useState<any[]>(() => initialCached.events);
+    const [eventPins, setEventPins] = useState<any[]>(() => initialCached.eventPins);
+    const [visitors, setVisitors] = useState<Visitor[]>(() => initialCached.visitors);
 
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -867,8 +939,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info' | 'idle', message: string }>({ type: 'idle', message: '' });
 
     // Load Data
-    const loadAllData = async () => {
-        setIsLoading(true);
+    const loadAllData = async (silent: boolean = false) => {
+        if (!silent) {
+            setIsLoading(true);
+        }
         try {
             const [
                 enrollmentsData, 
@@ -933,23 +1007,40 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(hydrated));
                     localStorage.setItem('eduai_student_enrollments', JSON.stringify(hydrated));
                     localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(hydrated));
+                    if (usersData && usersData.length > 0) {
+                        localStorage.setItem(`eduai_users_${currentInstitution.id}`, JSON.stringify(usersData));
+                    }
                 }
             } catch (e) {}
-            setInstructors(usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
+            const instructorsList = usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer');
+            setInstructors(instructorsList);
             setCourses(coursesData);
             setSubjects(subjectsData);
             setBroadcasterMessages(broadcastsData || []);
             setEvents(eventsData || []);
-            setEventPins(prev => {
+            const finalPins = (() => {
                 const pinMap = new Map();
                 (pinsData || []).forEach((p: any) => pinMap.set(p.id, p));
-                prev.forEach((p: any) => {
-                    if (!pinMap.has(p.id)) pinMap.set(p.id, p);
-                });
                 return Array.from(pinMap.values());
-            });
+            })();
+            setEventPins(finalPins);
             setVisitors(visitorsData || []);
             setAcademicLevels(academicLevelsData || []);
+
+            // Save to global in-memory cache for instant zero-fetch rendering
+            globalEnrollmentCache[cacheKey] = {
+                enrollments: filteredEnrs,
+                users: Array.from(userMap.values()),
+                instructors: instructorsList,
+                courses: coursesData,
+                subjects: subjectsData,
+                broadcasterMessages: broadcastsData || [],
+                events: eventsData || [],
+                eventPins: finalPins,
+                visitors: visitorsData || [],
+                academicLevels: academicLevelsData || [],
+                timestamp: Date.now()
+            };
         } catch (err) {
             console.error("Error loading enrollment data:", err);
         } finally {
@@ -958,9 +1049,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     useEffect(() => {
+        let isMounted = true;
         const runSetup = async () => {
-            // Auto-create necessary tables if not exist in database
-            const createTableSql = `
+            const hasMigrated = hasRunEnrollmentSchemaMigration || (typeof window !== 'undefined' && sessionStorage.getItem('eduai_student_enrollments_schema_migrated'));
+            if (!hasMigrated) {
+                // Auto-create necessary tables if not exist in database
+                const createTableSql = `
                 CREATE TABLE IF NOT EXISTS public.student_enrollments (
                     id TEXT PRIMARY KEY,
                     institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
@@ -1060,18 +1154,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 DROP POLICY IF EXISTS "Public select: users" ON public.users;
                 CREATE POLICY "Public select: users" ON public.users FOR SELECT USING (true);
             `;
-            try {
-                await apiService.runMigration(createTableSql);
-            } catch (err) {
-                console.warn("Auto-migration of schema tables failed:", err);
+                try {
+                    await apiService.runMigration(createTableSql);
+                    hasRunEnrollmentSchemaMigration = true;
+                    if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('eduai_student_enrollments_schema_migrated', 'true');
+                    }
+                } catch (err) {
+                    console.warn("Auto-migration of schema tables failed:", err);
+                }
             }
             
-            if (currentInstitution?.id) {
-                loadAllData();
+            if (currentInstitution?.id && isMounted) {
+                const hasExistingData = Boolean(
+                    (globalEnrollmentCache[cacheKey] && (globalEnrollmentCache[cacheKey].users.length > 0 || globalEnrollmentCache[cacheKey].enrollments.length > 0)) ||
+                    (initialUsers && initialUsers.length > 0) ||
+                    (initialCached.users.length > 0 || initialCached.enrollments.length > 0)
+                );
+                loadAllData(hasExistingData);
             }
         };
         
         runSetup();
+        return () => { isMounted = false; };
     }, [currentInstitution?.id, context]);
 
     // Handle Form Submit
@@ -1678,16 +1783,23 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     try {
                         let userId = '';
                         const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-                        const inputName = item.name ? String(item.name).trim() : '';
+                        const inputName = (item.name || item.studentName || item.fullName || item.learnerName || item.student_name || item.names || '').toString().trim();
                         const inputAdmNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
+                        const inputAssessNo = (item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || '').toString().trim();
                         const inputEmail = item.email ? String(item.email).trim().toLowerCase() : '';
                         
-                        // 1. Check if an enrollment already exists strictly by Admission Number within this institution
+                        // 1. Check if an enrollment already exists strictly by Admission Number or Assessment Number within this institution
                         let existingEnrollment: StudentEnrollment | undefined = undefined;
                         if (inputAdmNo) {
                             existingEnrollment = currentEnrollmentsList.find(e => 
                                 e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
                             );
+                        }
+                        if (!existingEnrollment && inputAssessNo) {
+                            existingEnrollment = currentEnrollmentsList.find(e => {
+                                const enrAssess = e.assessmentNo || e.metadata?.assessmentNo;
+                                return enrAssess && cleanAdm(enrAssess) === cleanAdm(inputAssessNo);
+                            });
                         }
 
                         let existingUser: User | undefined = undefined;
@@ -1716,17 +1828,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                         const dobImportVal = item.dateOfBirth ? String(item.dateOfBirth).trim() : (item.dob ? String(item.dob).trim() : (item.birthDate ? String(item.birthDate).trim() : ''));
 
+                        // Determine the definitive student name
+                        const hasValidInputName = inputName && !isNameUnknown(inputName);
+                        let finalName = '';
+                        if (hasValidInputName) {
+                            finalName = inputName;
+                        } else if (existingUser && !isNameUnknown(existingUser.name)) {
+                            finalName = existingUser.name;
+                        } else if (existingEnrollment?.metadata?.studentName && !isNameUnknown(existingEnrollment.metadata.studentName)) {
+                            finalName = existingEnrollment.metadata.studentName;
+                        } else if (inputAdmNo) {
+                            finalName = `Student ${inputAdmNo}`;
+                        } else {
+                            finalName = 'Student';
+                        }
+
                         if (existingUser) {
                             userId = existingUser.id;
                             const finalDob = dobImportVal || existingUser.dateOfBirth || existingUser.metadata?.dateOfBirth || '';
                             const updatedUser: User = {
                                 ...existingUser,
-                                name: (inputName && inputName.toLowerCase() !== 'unknown student') ? inputName : existingUser.name,
+                                name: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : existingUser.name,
                                 gender: (item.gender || existingUser.gender) as any,
                                 dateOfBirth: finalDob,
                                 dob: finalDob,
                                 metadata: {
                                     ...(existingUser.metadata || {}),
+                                    studentName: (hasValidInputName || isNameUnknown(existingUser.name)) ? finalName : (existingUser.metadata?.studentName || existingUser.name),
                                     dateOfBirth: finalDob,
                                     dob: finalDob
                                 }
@@ -1744,7 +1872,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             
                             const newUser: User = {
                                 id: newUserId,
-                                name: inputName || 'Student',
+                                name: finalName,
                                 email: generatedEmail,
                                 phoneNumber: item.phoneNumber ? String(item.phoneNumber).trim() : '',
                                 dateOfBirth: dobImportVal,
@@ -1753,6 +1881,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 institutionId: currentInstitution.id,
                                 createdAt: new Date().toISOString(),
                                 metadata: {
+                                    studentName: finalName,
                                     dateOfBirth: dobImportVal,
                                     dob: dobImportVal
                                 }
@@ -1769,6 +1898,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             existingEnrollment = currentEnrollmentsList.find(e => 
                                 e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(inputAdmNo)
                             );
+                        }
+                        if (!existingEnrollment && inputAssessNo) {
+                            existingEnrollment = currentEnrollmentsList.find(e => {
+                                const enrAssess = e.assessmentNo || e.metadata?.assessmentNo;
+                                return enrAssess && cleanAdm(enrAssess) === cleanAdm(inputAssessNo);
+                            });
                         }
 
                         const admissionNumberValue = inputAdmNo || (existingEnrollment?.admissionNumber || `ADM-${Date.now().toString().slice(-5)}${Math.floor(100 + Math.random() * 900)}`);
@@ -1793,12 +1928,15 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         }
 
                         const secondaryPhoneVal = item.secondaryPhone || existingEnrollment?.metadata?.secondaryPhone || '';
-                        const assessmentNoVal = item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
+                        const assessmentNoVal = inputAssessNo || existingEnrollment?.assessmentNo || existingEnrollment?.metadata?.assessmentNo || (existingEnrollment as any)?.assessmentNo || '';
                         const resolvedEnrollmentDob = dobImportVal || existingEnrollment?.dateOfBirth || existingEnrollment?.metadata?.dateOfBirth || '';
                         const leadershipImportVal = item.leadershipPosition || item.leadership_position || item.leadershipRole || item.leadership_role || item.position || item.prefectRole || item.leadership || existingEnrollment?.leadershipPosition || existingEnrollment?.metadata?.leadershipPosition || '';
 
                         const metadataObj = {
                             ...(existingEnrollment?.metadata || {}),
+                            studentName: finalName,
+                            name: finalName,
+                            fullName: finalName,
                             gender: item.gender || existingEnrollment?.metadata?.gender || '',
                             licenseCategory: item.licenseCategory || existingEnrollment?.metadata?.licenseCategory || '',
                             gradeLevel: item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '',
@@ -1826,6 +1964,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 metadata: metadataObj,
                                 updatedAt: new Date().toISOString()
                             };
+                            (updated as any).studentName = finalName;
+                            (updated as any).name = finalName;
                             await apiService.updateModuleRecord('student_enrollments', existingEnrollment.id, updated);
                         } else {
                             const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
@@ -1844,6 +1984,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                 metadata: metadataObj,
                                 createdAt: new Date().toISOString()
                             };
+                            (newEnrollment as any).studentName = finalName;
+                            (newEnrollment as any).name = finalName;
                             await apiService.saveModuleRecord('student_enrollments', newEnrollment);
                             currentEnrollmentsList.push(newEnrollment);
                         }
@@ -1881,7 +2023,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const batch = data.slice(i, i + batchSize);
                 await Promise.all(batch.map(async (item) => {
                     const admNo = item.admissionNumber ? String(item.admissionNumber).trim() : '';
-                    const studentNameVal = item.name ? String(item.name).trim() : '';
+                    const assessNo = (item.assessmentNo || item.assessmentNumber || item.assessment_no || item.knecAssessmentNo || item.upi || item.nemba || '').toString().trim();
+                    const studentNameVal = (item.name || item.studentName || item.fullName || item.learnerName || item.student_name || item.names || '').toString().trim();
                     const nameRaw = studentNameVal ? studentNameVal.toLowerCase() : '';
                     const parentPhoneVal = item.parentPhone ? String(item.parentPhone).trim() : '';
                     const studentPhoneVal = item.studentPhone ? String(item.studentPhone).trim() : '';
@@ -1891,7 +2034,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const streamVal = item.stream ? String(item.stream).trim() : (item.classStream ? String(item.classStream).trim() : '');
                     const dobVal = item.dateOfBirth ? String(item.dateOfBirth).trim() : (item.dob ? String(item.dob).trim() : (item.birthDate ? String(item.birthDate).trim() : ''));
 
-                    const displayName = studentNameVal || admNo || 'Unknown';
+                    const displayName = studentNameVal || admNo || assessNo || 'Unknown';
 
                     if (!parentPhoneVal && !studentPhoneVal && !secPhoneVal && !parentNameVal && !gradeLevelVal && !streamVal && !studentNameVal && !dobVal) {
                         results.push({ name: displayName, status: 'skipped' });
@@ -1901,11 +2044,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     const cleanAdm = (s: any) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
                     const cleanStr = (s: any) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
-                    // Match enrollment by admission number or student name
+                    // Match enrollment by admission number, assessment number, or student name
                     let matchedEnrollment = enrollments.find(e =>
                         (admNo && e.admissionNumber && cleanAdm(e.admissionNumber) === cleanAdm(admNo))
                     );
-                    if (!matchedEnrollment && nameRaw) {
+                    if (!matchedEnrollment && assessNo) {
+                        matchedEnrollment = enrollments.find(e => {
+                            const enrAssess = e.assessmentNo || e.metadata?.assessmentNo;
+                            return enrAssess && cleanAdm(enrAssess) === cleanAdm(assessNo);
+                        });
+                    }
+                    if (!matchedEnrollment && nameRaw && !isNameUnknown(studentNameVal)) {
                         matchedEnrollment = enrollments.find(e => {
                             const user = users.find(u => u.id === e.userId);
                             return user && cleanStr(user.name) === cleanStr(studentNameVal);
@@ -5207,12 +5356,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const user = users.find(u => u.id === enr.userId);
             return {
                 id: enr.userId,
-                name: user?.name || 'Unknown Student',
+                name: getStudentDisplayName(enr, user),
                 admissionNumber: enr.admissionNumber || '',
                 gradeLevel: enr.metadata?.gradeLevel || ''
             };
         }).filter(s => !!s.id);
-    }, [enrollments, users]);
+    }, [enrollments, users, getStudentDisplayName]);
 
     // Filtered students for matching search queries in selection panel
     const filteredStudentsForSelection = useMemo(() => {
@@ -5227,12 +5376,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const hasUnknownStudents = useMemo(() => {
         return enrollments.some(enr => {
             const user = users.find(u => u.id === enr.userId);
-            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-            const isUnknown = !user?.name || 
-                user.name.trim() === '' || 
-                user.name.toLowerCase() === 'unknown student' || 
-                user.name.toLowerCase() === 'unknown';
-            return isUnknown && !!parentName.trim();
+            const isUnknown = isNameUnknown(user?.name) && isNameUnknown(enr.metadata?.studentName);
+            const canFix = !!(enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || enr.admissionNumber || enr.assessmentNo);
+            return isUnknown && canFix;
         });
     }, [enrollments, users]);
 
@@ -5502,9 +5648,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const handleBulkFixUnknownNames = async () => {
         const targets = enrollments.filter(enr => {
             const user = users.find(u => u.id === enr.userId);
-            const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-            const isUnknown = isNameUnknown(user?.name);
-            return isUnknown && !!parentName.trim();
+            const isUnknown = isNameUnknown(user?.name) && isNameUnknown(enr.metadata?.studentName);
+            const canFix = !!(enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || enr.admissionNumber || enr.assessmentNo);
+            return isUnknown && canFix;
         });
 
         // Filter unique targets by userId to avoid concurrent updates on the same user record
@@ -5518,12 +5664,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
 
         if (uniqueTargets.length === 0) {
-            setStatusMsg({ type: 'info', message: 'No unknown student names found with parent names.' });
+            setStatusMsg({ type: 'info', message: 'No unknown student records found that need resolution.' });
             setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 3000);
             return;
         }
 
-        if (!window.confirm(`Are you sure you want to copy the parent's name to replace "Unknown Student" for all ${uniqueTargets.length} record(s)?`)) {
+        if (!window.confirm(`Are you sure you want to resolve "Unknown Student" names (using parent names or admission numbers) for all ${uniqueTargets.length} record(s)?`)) {
             return;
         }
 
@@ -5554,13 +5700,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         if (!associatedUser) return;
 
                         const parentName = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || '';
-                        const newName = parentName && parentName.trim() ? parentName.trim() : 'Student';
+                        let newName = '';
+                        if (parentName && parentName.trim()) {
+                            newName = parentName.trim();
+                        } else if (enr.admissionNumber) {
+                            newName = `Student ${enr.admissionNumber}`;
+                        } else if (enr.assessmentNo || enr.metadata?.assessmentNo) {
+                            newName = `Student ${enr.assessmentNo || enr.metadata?.assessmentNo}`;
+                        } else {
+                            newName = 'Student';
+                        }
 
                         // Send full user object with updated name and ensure correct institutionId
                         const updatedUser = { 
                             ...associatedUser, 
                             name: newName,
-                            institutionId: currentInstitution.id 
+                            institutionId: currentInstitution.id,
+                            metadata: {
+                                ...(associatedUser.metadata || {}),
+                                studentName: newName
+                            }
                         };
                         console.log('[BulkFixName] Updating user:', associatedUser.id, '->', newName);
                         await apiService.updateModuleRecord('users', associatedUser.id, updatedUser);
@@ -5570,13 +5729,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         const updatedMeta = {
                             ...(enr.metadata || {}),
                             studentName: newName,
-                            name: newName
+                            name: newName,
+                            fullName: newName
                         };
                         const updatedEnrollment = {
                             ...enr,
                             metadata: updatedMeta,
                             updatedAt: new Date().toISOString()
                         };
+                        (updatedEnrollment as any).studentName = newName;
+                        (updatedEnrollment as any).name = newName;
                         await apiService.updateModuleRecord('student_enrollments', enr.id, updatedEnrollment).catch(() => {});
 
                         updatedCount++;
@@ -7357,17 +7519,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                         >
                                                             <UserCheck className="w-3 h-3" /> Attendance &amp; Analysis
                                                         </button>
-                                                        <label
-                                                            className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                                                        <div
+                                                            className="relative px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 overflow-hidden"
                                                         >
-                                                            <FileSpreadsheet className="w-3 h-3" /> Excel
+                                                            <FileSpreadsheet className="w-3 h-3 pointer-events-none" />
+                                                            <span className="pointer-events-none">Excel</span>
                                                             <input
                                                                 type="file"
                                                                 accept=".xlsx,.xls,.csv"
                                                                 onChange={e => handleInviteExternalExcel(event, e)}
-                                                                className="hidden"
+                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                                title="Import Excel"
                                                             />
-                                                        </label>
+                                                        </div>
                                                     </div>
                                                     {/* Edit, Test & Delete event row */}
                                                     <div className="flex gap-2 pt-1">
@@ -8146,15 +8310,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     )}
                                                 </div>
                                                 <div className="flex flex-col gap-2 w-full">
-                                                    <label className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer text-center">
-                                                        <span>Upload Passport Photo</span>
+                                                    <div className="relative px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer text-center overflow-hidden">
+                                                        <span className="pointer-events-none">Upload Passport Photo</span>
                                                         <input 
                                                             type="file" 
                                                             accept="image/*" 
                                                             onChange={handlePhotoUpload}
-                                                            className="hidden" 
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                                                            title="Upload Passport Photo"
                                                         />
-                                                    </label>
+                                                    </div>
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowCamera(true)}
