@@ -4886,7 +4886,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                 );
                                                             })}
 
-                                                            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {maxTotal}</td>
+                                                            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {singleSubjectMaxTotal}</td>
                                                             <td className="px-4 py-3 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{convertedPct}%</td>
                                                             <td className="px-4 py-3 text-center font-black text-emerald-600">{grade}</td>
                                                             <td className="px-4 py-3 text-center">
