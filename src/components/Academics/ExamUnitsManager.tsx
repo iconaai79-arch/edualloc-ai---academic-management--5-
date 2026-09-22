@@ -128,7 +128,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 })
                 .catch(() => { });
         }
-    }, [currentInstitution]);
+    }, [currentInstitution?.id]);
 
     // Helper to atomically sync exams state to cloud (institution_module_states) and localStorage
     const syncExamsToCloud = useCallback(async (nextExams: ExamUnitRecord[]) => {
@@ -155,7 +155,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         } catch (err) {
             console.warn('[ExamUnitsManager] Failed to sync exams to cloud:', err);
         }
-    }, [currentInstitution]);
+    }, [currentInstitution?.id]);
 
     const [selectedExamId, setSelectedExamId] = useState<string>('');
 
@@ -868,7 +868,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }));
 
         if (!existingExamPapers || existingExamPapers.length === 0) {
-            setTestedPaperConfigs(deduplicatePapers(registeredPaperList));
+            const nextReg = deduplicatePapers(registeredPaperList);
+            setTestedPaperConfigs(prev => {
+                if (
+                    prev.length === nextReg.length &&
+                    prev.every((p, i) =>
+                        p.id === nextReg[i].id &&
+                        p.subject === nextReg[i].subject &&
+                        p.paperName === nextReg[i].paperName &&
+                        p.maxInputScore === nextReg[i].maxInputScore &&
+                        p.convertToHundred === nextReg[i].convertToHundred &&
+                        p.enabled === nextReg[i].enabled
+                    )
+                ) {
+                    return prev;
+                }
+                return nextReg;
+            });
             return;
         }
 
@@ -915,7 +931,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             });
         }
 
-        setTestedPaperConfigs(deduplicatePapers(merged));
+        const nextPapers = deduplicatePapers(merged);
+        setTestedPaperConfigs(prev => {
+            if (
+                prev.length === nextPapers.length &&
+                prev.every((p, i) =>
+                    p.id === nextPapers[i].id &&
+                    p.subject === nextPapers[i].subject &&
+                    p.paperName === nextPapers[i].paperName &&
+                    p.maxInputScore === nextPapers[i].maxInputScore &&
+                    p.convertToHundred === nextPapers[i].convertToHundred &&
+                    p.enabled === nextPapers[i].enabled
+                )
+            ) {
+                return prev;
+            }
+            return nextPapers;
+        });
     }, [currentInstitution, subjects, courses, instId, isPrimarySchool, selectedClasses, selectedClassFilter, activeExam?.id, activeExam?.classes, isAddExamModalOpen, isEditingExam, syncedVersion, getRegisteredSubjectsForClass, deduplicatePapers]);
     const [useCustomRanking, setUseCustomRanking] = useState(false);
     const [rankingScope, setRankingScope] = useState<'overall' | 'per_class'>('overall');
@@ -1751,7 +1783,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 });
                 setBroadsheetStudentRows(freshSource);
                 setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
-                setExams(prev => prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex));
+                setExams(prev => {
+                    const target = prev.find(ex => ex.id === selectedExamId);
+                    if (!target || target.studentsEnrolled === freshSource.length) return prev;
+                    return prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex);
+                });
                 try {
                     localStorage.setItem(`eduai_exam_broadsheet_${selectedExamId}`, JSON.stringify(freshSource));
                     if (currentInstitution?.id) {
@@ -1766,8 +1802,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return;
             }
 
-            loadedExamIdRef.current = selectedExamId;
-            setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
+            if (loadedExamIdRef.current !== selectedExamId) {
+                loadedExamIdRef.current = selectedExamId;
+                setBroadsheetStudentRows(sanitizeBroadsheetRows(existingRows));
+            }
             return;
         }
 
@@ -1802,7 +1840,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         });
                         setBroadsheetStudentRows(freshSource);
                         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
-                        setExams(prev => prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex));
+                        setExams(prev => {
+                            const target = prev.find(ex => ex.id === selectedExamId);
+                            if (!target || target.studentsEnrolled === freshSource.length) return prev;
+                            return prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex);
+                        });
                         try {
                             localStorage.setItem(`eduai_exam_broadsheet_${selectedExamId}`, JSON.stringify(freshSource));
                             if (currentInstitution?.id) {
@@ -1817,10 +1859,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         return;
                     }
 
-                    loadedExamIdRef.current = selectedExamId;
-                    const sanitized = sanitizeBroadsheetRows(parsed);
-                    setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
-                    setBroadsheetStudentRows(sanitized);
+                    if (loadedExamIdRef.current !== selectedExamId) {
+                        loadedExamIdRef.current = selectedExamId;
+                        const sanitized = sanitizeBroadsheetRows(parsed);
+                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                        setBroadsheetStudentRows(sanitized);
+                    }
                     return;
                 }
             }
@@ -1834,7 +1878,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     if (match && match.rows && Array.isArray(match.rows) && match.rows.length > 0) {
                         const hasPlaceholderAdm = match.rows.some((r: any) => !r.admNo || r.admNo === 'N/A' || /^ADM-10\d{2,}$/i.test(r.admNo));
                         const hasFewerRowsThanReal = matchingRealStudents.length > match.rows.length && (hasPlaceholderAdm || match.rows.length <= 15);
-                        if ((hasPlaceholderAdm || hasFewerRowsThanReal) && matchingRealStudents.length > 0) {
+                        if ((hasPlaceholderAdm || hasFewerRowsThanReal) && matchingRealStudents.length > 0 && loadedExamIdRef.current !== selectedExamId) {
+                            loadedExamIdRef.current = selectedExamId;
                             const freshSource = matchingRealStudents.map((st, idx) => {
                                 const adm = resolveCleanAdmNo(st, idx);
                                 const cleanName = resolveCleanStudentName(st, idx);
@@ -1854,16 +1899,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             });
                             setBroadsheetStudentRows(freshSource);
                             setExamMarksStore(prev => ({ ...prev, [selectedExamId]: freshSource }));
-                            setExams(prev => prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex));
+                            setExams(prev => {
+                                const target = prev.find(ex => ex.id === selectedExamId);
+                                if (!target || target.studentsEnrolled === freshSource.length) return prev;
+                                return prev.map(ex => ex.id === selectedExamId ? { ...ex, studentsEnrolled: freshSource.length } : ex);
+                            });
                             try {
                                 localStorage.setItem(`eduai_exam_broadsheet_${selectedExamId}`, JSON.stringify(freshSource));
                             } catch (e) { }
                             return;
                         }
 
-                        const sanitized = sanitizeBroadsheetRows(match.rows);
-                        setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
-                        setBroadsheetStudentRows(sanitized);
+                        if (loadedExamIdRef.current !== selectedExamId) {
+                            loadedExamIdRef.current = selectedExamId;
+                            const sanitized = sanitizeBroadsheetRows(match.rows);
+                            setExamMarksStore(prev => ({ ...prev, [selectedExamId]: sanitized }));
+                            setBroadsheetStudentRows(sanitized);
+                        }
                         return;
                     }
                 })
@@ -1987,7 +2039,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return list;
     }, [activeExamClasses, registeredClasses, allRealStudents, getStudentClass, selectedGradeFilter, extractGradeLabel]);
 
+    const lastFilteredStudentRowsRef = useRef<any[]>([]);
+
     const filteredStudentRows = useMemo(() => {
+        // While Add/Edit exam modal is open, preserve previously filtered student rows
+        // to avoid freezing the UI thread with synchronous calculations across all students
+        if (isAddExamModalOpen && lastFilteredStudentRowsRef.current.length > 0) {
+            return lastFilteredStudentRowsRef.current;
+        }
+
         const activeStList = allRealStudents.length > 0
             ? allRealStudents
             : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
@@ -2019,11 +2079,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 : activeStList;
 
             if (matchedReal.length > 0 && targetClasses.length > 0) {
+                // Pre-index broadsheetStudentRows for instant O(1) lookup
+                const bByAdm = new Map<string, any>();
+                const bByName = new Map<string, any>();
+                (broadsheetStudentRows || []).forEach(r => {
+                    if (r.admNo && r.admNo !== 'N/A') bByAdm.set(String(r.admNo).trim(), r);
+                    if (r.name) bByName.set(String(r.name).trim().toLowerCase(), r);
+                });
+
                 // Map matchedReal strictly to their existing broadsheet row or create clean rows
                 rows = matchedReal.map((st, idx) => {
                     const adm = resolveCleanAdmNo(st, idx);
                     const cleanName = resolveCleanStudentName(st, idx);
-                    const existingRow = broadsheetStudentRows.find(r => r.admNo === adm || (r.name && r.name.toLowerCase().trim() === cleanName.toLowerCase().trim()));
+                    const existingRow = (adm && adm !== 'N/A' && bByAdm.get(String(adm).trim())) ||
+                                        (cleanName && bByName.get(cleanName.toLowerCase().trim()));
                     if (existingRow) {
                         const nameToUse = (cleanName && !cleanName.toLowerCase().startsWith('student ')) ? cleanName : (existingRow.name || cleanName);
                         return { ...existingRow, admNo: adm, name: nameToUse, class: getStudentClass(st) || targetClasses[0] };
@@ -2064,7 +2133,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // Enable student data sorting by Admission Number or Student Name
-        return [...rows].sort((a, b) => {
+        const sorted = [...rows].sort((a, b) => {
             const valA = (sortField === 'admNo' ? (a.admNo || '') : (a.name || '')).toString().trim();
             const valB = (sortField === 'admNo' ? (b.admNo || '') : (b.name || '')).toString().trim();
 
@@ -2079,7 +2148,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const cmp = valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
             return sortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder]);
+
+        lastFilteredStudentRowsRef.current = sorted;
+        return sorted;
+    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder, isAddExamModalOpen]);
 
     const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
         if (activeExam?.status === 'published') {
@@ -2847,8 +2919,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return 'Subject Teacher';
     }, [subjectAllocations, allocations, users, getStudentStreamAndGrade]);
 
+    const lastClassPaperRowsRef = useRef<any[]>([]);
+
     // Dynamic Class Paper Progress Rows based on active exam & broadsheet rows
     const classPaperRows = useMemo(() => {
+        // While Add/Edit exam modal is open, preserve previously computed dashboard rows
+        // to avoid freezing the UI thread with synchronous calculations across all students & classes
+        if (isAddExamModalOpen && lastClassPaperRowsRef.current.length > 0) {
+            return lastClassPaperRowsRef.current;
+        }
+
         // 1. Get classAllocationsStore (Ground truth per-class subjects from Manage Subjects per Class Stream)
         const activeClassAllocationsStore: Record<string, string[]> = (() => {
             try {
@@ -2874,7 +2954,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         const activeExamRows = (activeExam?.id && examMarksStore[activeExam.id]) ? examMarksStore[activeExam.id] : broadsheetStudentRows;
 
-        return activeExamClasses.map((cName, cIdx) => {
+        // O(1) indexed lookups for active exam mark rows
+        const activeRowsByAdm = new Map<string, any>();
+        const activeRowsByName = new Map<string, any>();
+        (activeExamRows || []).forEach(r => {
+            if (r.admNo && r.admNo !== 'N/A') activeRowsByAdm.set(String(r.admNo).trim(), r);
+            if (r.name) activeRowsByName.set(String(r.name).trim().toLowerCase(), r);
+        });
+
+        const computedRows = activeExamClasses.map((cName, cIdx) => {
             const cleanTC = cName.trim();
             const tcLower = cleanTC.toLowerCase();
             const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
@@ -2901,10 +2989,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const targetStudents = baseList.map((st, idx) => {
                 const adm = resolveCleanAdmNo(st, idx);
                 const cleanName = resolveCleanStudentName(st, idx);
-                const markRow = activeExamRows.find(r =>
-                    (adm && String(r.admNo).trim() === String(adm).trim()) ||
-                    (cleanName && r.name && r.name.toLowerCase().trim() === cleanName.toLowerCase().trim())
-                );
+                const markRow = (adm && adm !== 'N/A' && activeRowsByAdm.get(String(adm).trim())) ||
+                                (cleanName && activeRowsByName.get(cleanName.toLowerCase().trim()));
                 return {
                     ...st,
                     ...(markRow || {}),
@@ -2989,7 +3075,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 papers
             };
         });
-    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark, getSubjectTeacherForClass]);
+
+        lastClassPaperRowsRef.current = computedRows;
+        return computedRows;
+    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark, getSubjectTeacherForClass, isAddExamModalOpen]);
 
     const displayClassPaperRows = useMemo(() => {
         if (!dashboardGradeFilter || dashboardGradeFilter === 'all') return classPaperRows;
@@ -3592,6 +3681,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const missing = totalPossibleMarksEntries - enteredCount;
         return Math.max(0, missing);
     }, [activeExam, classPaperRows, getExamSubmittedPercent]);
+
+    // Stable memoized initial classes and handlers for AddEditExamModal to prevent unnecessary re-render passes
+    const initialModalClasses = useMemo(() => {
+        return (selectedClassFilter && selectedClassFilter !== 'all')
+            ? [selectedClassFilter]
+            : (registeredClasses.length > 0 ? [registeredClasses[0]] : []);
+    }, [selectedClassFilter, registeredClasses]);
+
+    const handleOpenPapersModal = useCallback(() => setIsPapersModalOpen(true), []);
+    const handleOpenStudentPicker = useCallback(() => setIsStudentPickerModalOpen(true), []);
+    const handleCloseAddExamModal = useCallback(() => {
+        setIsAddExamModalOpen(false);
+        setWizardStep(1);
+    }, []);
 
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl">
@@ -4229,22 +4332,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 isOpen={isAddExamModalOpen}
                 isEditing={isEditingExam}
                 activeExam={activeExam}
-                initialClasses={(selectedClassFilter && selectedClassFilter !== 'all') ? [selectedClassFilter] : (registeredClasses.length > 0 ? [registeredClasses[0]] : [])}
+                initialClasses={initialModalClasses}
                 registeredClasses={registeredClasses}
                 availableGrades={availableGrades}
                 allRealStudents={allRealStudents}
                 extractGradeLabel={extractGradeLabel}
                 testedPaperConfigs={testedPaperConfigs}
                 setTestedPaperConfigs={setTestedPaperConfigs}
-                onOpenPapersModal={() => setIsPapersModalOpen(true)}
-                onOpenStudentPicker={() => setIsStudentPickerModalOpen(true)}
+                onOpenPapersModal={handleOpenPapersModal}
+                onOpenStudentPicker={handleOpenStudentPicker}
                 handleImportEnrolledSubjects={handleImportEnrolledSubjects}
                 saveToastMessage={saveToastMessage}
                 setSaveToastMessage={setSaveToastMessage}
-                onClose={() => {
-                    setIsAddExamModalOpen(false);
-                    setWizardStep(1);
-                }}
+                onClose={handleCloseAddExamModal}
                 onSave={handleCreateExam}
             />
 

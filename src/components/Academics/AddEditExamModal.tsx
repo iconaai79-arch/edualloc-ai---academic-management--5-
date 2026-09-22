@@ -94,9 +94,25 @@ export const AddEditExamModal: React.FC<AddEditExamModalProps> = React.memo(({
         'Grade 10 Central': { criteria: 'Points', subjectsCount: 7, enabled: true },
     });
 
-    // Initialize/sync form fields whenever modal opens or editing exam changes
+    // Ref tracking to only initialize form when modal opens or when editing a different exam
+    const prevOpenRef = React.useRef(false);
+    const prevExamIdRef = React.useRef<string | null>(null);
+
+    // Initialize/sync form fields ONLY when modal opens or editing exam ID changes
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            prevOpenRef.current = false;
+            return;
+        }
+
+        const justOpened = !prevOpenRef.current;
+        const examChanged = isEditing && activeExam?.id !== prevExamIdRef.current;
+        prevOpenRef.current = true;
+        prevExamIdRef.current = activeExam?.id || null;
+
+        if (!justOpened && !examChanged) {
+            return;
+        }
 
         setWizardStep(1);
         if (isEditing && activeExam) {
@@ -131,7 +147,7 @@ export const AddEditExamModal: React.FC<AddEditExamModalProps> = React.memo(({
             setUseCustomRanking(false);
             setCreationMethod('raw_marks');
         }
-    }, [isOpen, isEditing, activeExam, initialClasses, registeredClasses]);
+    }, [isOpen, isEditing, activeExam?.id]);
 
     if (!isOpen || typeof document === 'undefined') {
         return null;
