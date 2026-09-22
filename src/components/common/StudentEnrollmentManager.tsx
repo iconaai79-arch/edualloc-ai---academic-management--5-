@@ -725,6 +725,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [secondaryPhoneImportResult, setSecondaryPhoneImportResult] = useState<{name: string; status: 'updated' | 'not_found' | 'skipped'}[]>([]);
     const [showCamera, setShowCamera] = useState(false);
     const webcamRef = useRef<Webcam>(null);
+    const previewAdmissionNumberRef = useRef<string>('');
+
+    const getHighestExistingAdmissionNumber = useCallback(() => {
+        let maxNum = 0;
+        (enrollments || []).forEach(e => {
+            const adm = String(e.admissionNumber || '').trim();
+            const match = adm.match(/\d+$/);
+            if (match) {
+                const num = parseInt(match[0], 10);
+                if (!isNaN(num) && num > maxNum) {
+                    maxNum = num;
+                }
+            }
+        });
+        return maxNum;
+    }, [enrollments]);
 
     const capturePhoto = () => {
         if (webcamRef.current) {
@@ -1363,14 +1379,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 setStatusMsg({ type: 'success', message: 'Enrollment record updated successfully.' });
             } else {
                 const enrollmentId = `enr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                let finalAdmNo = formData.admissionNumber;
-                if (!finalAdmNo) {
+                let finalAdmNo = (formData.admissionNumber || '').trim();
+                // If admission number is empty OR it matches the preview number that was never officially committed,
+                // officially commit and increment the sequence number now!
+                if (!finalAdmNo || finalAdmNo === previewAdmissionNumberRef.current) {
                     try {
-                        finalAdmNo = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
+                        const minNum = getHighestExistingAdmissionNumber() + 1;
+                        finalAdmNo = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission', minNum);
                     } catch (e) {
-                        finalAdmNo = `ADM-${Date.now().toString().slice(-5)}`;
+                        finalAdmNo = finalAdmNo || `ADM-${Date.now().toString().slice(-5)}`;
                     }
                 }
+                previewAdmissionNumberRef.current = '';
                 const newEnrollment: StudentEnrollment = {
                     id: enrollmentId,
                     institutionId: currentInstitution.id,
@@ -1446,15 +1466,17 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setTimeout(() => setStatusMsg({ type: 'idle', message: '' }), 4000);
     };
 
-    // Open form for adding new student with auto-generated admission number prefilled
+    // Open form for adding new student with auto-generated admission number preview
     const handleOpenNewEnrollment = async () => {
         setEditingEnrollment(null);
         let nextAdm = '';
         try {
-            nextAdm = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
+            const minNum = getHighestExistingAdmissionNumber() + 1;
+            nextAdm = await apiService.peekNextDocumentNumber(currentInstitution.id, 'admission', minNum);
         } catch (e) {
             nextAdm = `ADM-${Date.now().toString().slice(-5)}`;
         }
+        previewAdmissionNumberRef.current = nextAdm;
         setFormData({
             fullName: '',
             email: '',
@@ -1491,14 +1513,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setIsFormOpen(true);
     };
 
-    // Safeguard: when form opens for a new student, automatically fetch and prefill the next admission number if empty
+    // Safeguard: when form opens for a new student, automatically fetch and prefill the next admission number preview if empty
     useEffect(() => {
         if (isFormOpen && !editingEnrollment && !formData.admissionNumber) {
             let active = true;
             (async () => {
                 try {
-                    const nextAdm = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
+                    const minNum = getHighestExistingAdmissionNumber() + 1;
+                    const nextAdm = await apiService.peekNextDocumentNumber(currentInstitution.id, 'admission', minNum);
                     if (active && nextAdm) {
+                        previewAdmissionNumberRef.current = nextAdm;
                         setFormData(prev => ({
                             ...prev,
                             admissionNumber: prev.admissionNumber || nextAdm
@@ -1506,16 +1530,18 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
                 } catch (e) {
                     if (active) {
+                        const fallbackAdm = `ADM-${Date.now().toString().slice(-5)}`;
+                        previewAdmissionNumberRef.current = fallbackAdm;
                         setFormData(prev => ({
                             ...prev,
-                            admissionNumber: prev.admissionNumber || `ADM-${Date.now().toString().slice(-5)}`
+                            admissionNumber: prev.admissionNumber || fallbackAdm
                         }));
                     }
                 }
             })();
             return () => { active = false; };
         }
-    }, [isFormOpen, editingEnrollment, currentInstitution?.id]);
+    }, [isFormOpen, editingEnrollment, currentInstitution?.id, getHighestExistingAdmissionNumber]);
 
     // Open form for editing
     const handleEdit = (enr: StudentEnrollment) => {

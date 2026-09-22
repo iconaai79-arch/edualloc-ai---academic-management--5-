@@ -353,12 +353,101 @@ export const apiService = {
             return null;
         } catch (e) { return null; }
     },
-    async getNextDocumentNumber(instId: string, docType: string): Promise<string> {
+    async peekNextDocumentNumber(instId: string, docType: string, minNumber?: number): Promise<string> {
+        try {
+            const supabaseClient = _supabase;
+            const cleanInstId = String(instId || '').replace(/^inst_/, '').trim();
+            const defaultPrefixes: Record<string, string> = {
+                invoice: 'INV-',
+                receipt: 'REC-',
+                payment_voucher: 'PV-',
+                credit_note: 'CN-',
+                debit_note: 'DN-',
+                goods_in_lieu: 'GIL-',
+                lpo: 'LPO-',
+                requisition: 'REQ-',
+                admission: 'ADM-',
+                student: 'ADM-',
+                quote: 'QUO-',
+                quotation: 'QUO-'
+            };
+
+            let defaultNextNumber = 1001;
+            if (cleanInstId === 'superadmin' || cleanInstId === 'global') {
+                try {
+                    const sysSettings = ls.get('system_settings') as any;
+                    const settData = sysSettings?.data || sysSettings;
+                    if (settData) {
+                        if (settData.global_invoice_prefix || settData.globalInvoicePrefix) {
+                            defaultPrefixes.invoice = String(settData.global_invoice_prefix || settData.globalInvoicePrefix).trim();
+                        }
+                        if (settData.global_receipt_prefix || settData.globalReceiptPrefix) {
+                            defaultPrefixes.receipt = String(settData.global_receipt_prefix || settData.globalReceiptPrefix).trim();
+                        }
+                        if (settData.global_quote_prefix || settData.globalQuotePrefix) {
+                            defaultPrefixes.quote = String(settData.global_quote_prefix || settData.globalQuotePrefix).trim();
+                            defaultPrefixes.quotation = defaultPrefixes.quote;
+                        }
+                        if (docType === 'invoice' && (settData.global_invoice_next_number || settData.globalInvoiceNextNumber)) {
+                            defaultNextNumber = Number(settData.global_invoice_next_number || settData.globalInvoiceNextNumber);
+                        } else if (docType === 'receipt' && (settData.global_receipt_next_number || settData.globalReceiptNextNumber)) {
+                            defaultNextNumber = Number(settData.global_receipt_next_number || settData.globalReceiptNextNumber);
+                        } else if ((docType === 'quote' || docType === 'quotation') && (settData.global_quote_next_number || settData.globalQuoteNextNumber)) {
+                            defaultNextNumber = Number(settData.global_quote_next_number || settData.globalQuoteNextNumber);
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            if (!supabaseClient) {
+                const prefix = defaultPrefixes[docType] || `${docType.slice(0, 3).toUpperCase()}-`;
+                const num = minNumber && minNumber > defaultNextNumber ? minNumber : defaultNextNumber;
+                return `${prefix}${num}`;
+            }
+
+            let config: any = null;
+            try {
+                const { data: dbConfigs, error: queryErr } = await supabaseClient
+                    .from('finance_numbering_configs')
+                    .select('*')
+                    .or(`institution_id.eq.${instId},institution_id.eq.${cleanInstId},institution_id.eq.inst_${cleanInstId}`)
+                    .eq('document_type', docType)
+                    .limit(1);
+
+                if (!queryErr && Array.isArray(dbConfigs) && dbConfigs.length > 0) {
+                    config = dbConfigs[0];
+                }
+            } catch (qErr) {
+                // Ignore query error and fallback
+            }
+
+            if (!config) {
+                const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId).catch(() => []);
+                config = (numberingConfigs || []).find((c: any) => 
+                    String(c.documentType || c.document_type || '').toLowerCase() === docType.toLowerCase()
+                );
+            }
+
+            const prefix = config?.prefix || defaultPrefixes[docType] || 'DOC-';
+            let currentNum = Number(config?.nextNumber || config?.next_number || defaultNextNumber);
+            if (minNumber && minNumber > currentNum) {
+                currentNum = minNumber;
+            }
+
+            return `${prefix}${currentNum}`;
+        } catch (err) {
+            console.error(`[apiService] Failed to peek next document number for ${docType}:`, err);
+            const fallbackPrefix = (docType === 'admission' || docType === 'student') ? 'ADM-' : docType === 'invoice' ? 'INV-' : docType === 'receipt' ? 'REC-' : 'DOC-';
+            return `${fallbackPrefix}${minNumber || 1001}`;
+        }
+    },
+    async getNextDocumentNumber(instId: string, docType: string, minNumber?: number): Promise<string> {
         try {
             const supabaseClient = _supabase;
             if (!supabaseClient) {
                 // Mock local storage mode
-                return `${docType.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`;
+                const defaultNum = minNumber || 1001;
+                return `${docType.slice(0, 3).toUpperCase()}-${defaultNum}`;
             }
 
             const cleanInstId = String(instId || '').replace(/^inst_/, '').trim();
@@ -404,8 +493,8 @@ export const apiService = {
                 } catch (_) {}
             }
 
-            // Try atomic RPC first to avoid concurrent/race-condition duplicate numbers
-            if (!_rpcGetNextDocFailed) {
+            // Try atomic RPC first to avoid concurrent/race-condition duplicate numbers (only if no minNumber override)
+            if (!_rpcGetNextDocFailed && !minNumber) {
                 try {
                     const { data, error } = await supabaseClient.rpc('get_next_document_number', {
                         p_institution_id: instId,
@@ -449,6 +538,11 @@ export const apiService = {
             const prefix = config?.prefix || defaultPrefixes[docType] || 'DOC-';
             const stableId = config?.id || `num_cfg_${docType}_${cleanInstId || instId}`;
 
+            let initialNext = defaultNextNumber;
+            if (minNumber && minNumber > initialNext) {
+                initialNext = minNumber;
+            }
+
             if (!config) {
                 config = {
                     id: stableId,
@@ -457,8 +551,8 @@ export const apiService = {
                     documentType: docType,
                     document_type: docType,
                     prefix: prefix,
-                    nextNumber: defaultNextNumber,
-                    next_number: defaultNextNumber,
+                    nextNumber: initialNext,
+                    next_number: initialNext,
                     updatedAt: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
@@ -472,7 +566,7 @@ export const apiService = {
                             institution_id: instId,
                             document_type: docType,
                             prefix: prefix,
-                            next_number: defaultNextNumber,
+                            next_number: initialNext,
                             updated_at: new Date().toISOString()
                         }, { onConflict: 'institution_id,document_type' })
                         .select()
@@ -485,7 +579,10 @@ export const apiService = {
                 }
             }
 
-            const nextNum = Number(config.nextNumber || config.next_number || 1001);
+            let nextNum = Number(config.nextNumber || config.next_number || defaultNextNumber);
+            if (minNumber && minNumber > nextNum) {
+                nextNum = minNumber;
+            }
             const formattedNum = `${prefix}${nextNum}`;
 
             // Increment next number
@@ -512,8 +609,8 @@ export const apiService = {
             return formattedNum;
         } catch (err) {
             console.error(`[apiService] Failed to get next document number for ${docType}:`, err);
-            const fallbackPrefix = docType === 'invoice' ? 'INV-' : docType === 'receipt' ? 'REC-' : 'DOC-';
-            return `${fallbackPrefix}${Date.now().toString().slice(-6)}`;
+            const fallbackPrefix = (docType === 'admission' || docType === 'student') ? 'ADM-' : docType === 'invoice' ? 'INV-' : docType === 'receipt' ? 'REC-' : 'DOC-';
+            return `${fallbackPrefix}${minNumber || Date.now().toString().slice(-6)}`;
         }
     },
     async getAuthToken(): Promise<string> {
