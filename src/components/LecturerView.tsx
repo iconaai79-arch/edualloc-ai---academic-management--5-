@@ -168,6 +168,7 @@ interface LecturerViewProps {
     schoolRegistry?: any[];
     onLogAction?: (msg: string) => Promise<void> | void;
     onTeacherLessonCheckIn?: (timetableEntryId: string) => void;
+    enrollments?: any[];
 }
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
@@ -272,6 +273,75 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 .catch(() => {});
         }
     }, [currentInstitution?.id, user?.institutionId]);
+
+    // Student Enrollments Registry (from school enrollment records / localStorage / API)
+    const effectiveInstId = currentInstitution?.id || user?.institutionId || (user as any)?.schoolId || (user as any)?.school_id;
+    const [enrollments, setEnrollments] = useState<any[]>(() => {
+        if (props.enrollments && Array.isArray(props.enrollments) && props.enrollments.length > 0) {
+            return props.enrollments;
+        }
+        try {
+            const keysToTry = [
+                effectiveInstId ? `eduai_student_enrollments_${effectiveInstId}` : null,
+                effectiveInstId ? `eduai_students_${effectiveInstId}` : null,
+                'eduai_student_enrollments',
+                'eduai_student_enrollments_default',
+                'student_enrollments',
+                'eduai_students',
+                'eduai_students_default'
+            ].filter(Boolean) as string[];
+
+            for (const k of keysToTry) {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            }
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('eduai_student_enrollments_') || key.startsWith('eduai_students_'))) {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    }
+                }
+            }
+        } catch (_) {}
+        return [];
+    });
+
+    useEffect(() => {
+        if (props.enrollments && Array.isArray(props.enrollments) && props.enrollments.length > 0) {
+            setEnrollments(props.enrollments);
+            return;
+        }
+        let active = true;
+        (async () => {
+            try {
+                let records: any[] = [];
+                if (effectiveInstId) {
+                    records = await apiService.fetchModuleRecords<any>('student_enrollments', effectiveInstId).catch(() => []);
+                }
+                if (!records || records.length === 0) {
+                    records = await apiService.fetchModuleRecords<any>('student_enrollments').catch(() => []);
+                }
+                if (active && Array.isArray(records) && records.length > 0) {
+                    setEnrollments(records);
+                    if (effectiveInstId) {
+                        try {
+                            localStorage.setItem(`eduai_student_enrollments_${effectiveInstId}`, JSON.stringify(records));
+                        } catch (_) {}
+                    }
+                }
+            } catch (e) {
+                console.warn('[LecturerView] Failed to fetch enrollments:', e);
+            }
+        })();
+        return () => { active = false; };
+    }, [props.enrollments, effectiveInstId]);
 
     // Role check for Director of Studies (DOS)
     const isDos = useMemo(() => {
@@ -417,6 +487,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             });
             (props.users || []).filter(u => u.role === 'student').forEach(st => {
                 const cls = resolveRealStudentClass(st, [], courses, '');
+                if (cls && cls !== 'Unclassified') allGrades.add(cls);
+            });
+            (enrollments || []).forEach(enr => {
+                const cls = enr.studentClass || enr.gradeLevel || enr.className || enr.class || enr.metadata?.gradeLevel || enr.metadata?.studentClass || '';
                 if (cls && cls !== 'Unclassified') allGrades.add(cls);
             });
             return naturalClassSort(Array.from(allGrades));
@@ -872,6 +946,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         subjectAllocations={subjectAllocations}
                                         currentInstitution={currentInstitution}
                                         users={props.users || []}
+                                        enrollments={enrollments}
                                         courses={courses}
                                         onAddAssessment={props.onAddAssessment || (() => { })}
                                         onUpdateAssessment={props.onUpdateAssessment}

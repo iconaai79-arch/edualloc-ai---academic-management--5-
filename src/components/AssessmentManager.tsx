@@ -1151,10 +1151,24 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         const initialMarks = new Map<string, { marks: number | null; comments: string }>();
         const existingMarks = (assessmentMarks || []).filter(m => m.assessmentId === assessment.id);
         existingMarks.forEach(mark => {
+            if (!mark.studentId) return;
             initialMarks.set(mark.studentId, { marks: mark.marks, comments: mark.comments || '' });
+            // Cross-match student by userId, studentId, or admissionNumber
+            const matchedSt = allStudents.find(st => 
+                st.id === mark.studentId || 
+                (st as any).userId === mark.studentId || 
+                ((st as any).studentId && (st as any).studentId === mark.studentId) ||
+                (st.admissionNumber && (st.admissionNumber === mark.studentId || st.admissionNumber === (mark as any).admissionNumber))
+            );
+            if (matchedSt) {
+                initialMarks.set(matchedSt.id, { marks: mark.marks, comments: mark.comments || '' });
+                if ((matchedSt as any).userId) {
+                    initialMarks.set((matchedSt as any).userId, { marks: mark.marks, comments: mark.comments || '' });
+                }
+            }
         });
         setMarks(initialMarks);
-    }, [assessmentMarks]);
+    }, [assessmentMarks, allStudents]);
 
     const handleMarkChange = (studentId: string, value: string) => {
         if (!selectedAssessment) return;
@@ -1214,11 +1228,16 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             });
         }
 
-        const marksData = Array.from(marks.entries()).map(([studentId, data]) => ({
-            studentId,
-            marks: data.marks,
-            comments: data.comments,
-        }));
+        const marksData = Array.from(marks.entries()).map(([studentId, data]) => {
+            const matchedSt = allStudents.find(s => s.id === studentId || (s as any).userId === studentId);
+            return {
+                studentId,
+                marks: data.marks,
+                comments: data.comments,
+                admissionNumber: matchedSt?.admissionNumber,
+                userId: (matchedSt as any)?.userId || studentId
+            };
+        });
 
         onSaveAssessmentMarks(selectedAssessment.id, marksData);
 
@@ -1294,7 +1313,14 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             let gradedCount = 0;
 
             papers.forEach((paper: Assessment) => {
-                const mark = (assessmentMarks || []).find(m => m.assessmentId === paper.id && m.studentId === st.id);
+                const mark = (assessmentMarks || []).find(m => 
+                    m.assessmentId === paper.id && (
+                        m.studentId === st.id ||
+                        ((st as any).userId && m.studentId === (st as any).userId) ||
+                        ((st as any).studentId && m.studentId === (st as any).studentId) ||
+                        (st.admissionNumber && (m.studentId === st.admissionNumber || (m as any).admissionNumber === st.admissionNumber))
+                    )
+                );
                 if (mark && mark.marks !== null && mark.marks !== undefined) {
                     paperScores[paper.id] = Number(mark.marks);
                     total += Number(mark.marks);
@@ -1736,7 +1762,12 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                     
                                                     const gradedCount = (assessmentMarks || []).filter(m => {
                                                         if (m.assessmentId !== paper.id || m.marks === null || m.marks === undefined) return false;
-                                                        return group.studentsInGrade.some(st => st.id === m.studentId);
+                                                        return group.studentsInGrade.some(st => 
+                                                            st.id === m.studentId ||
+                                                            (st as any).userId === m.studentId ||
+                                                            ((st as any).studentId && (st as any).studentId === m.studentId) ||
+                                                            (st.admissionNumber && (m.studentId === st.admissionNumber || (m as any).admissionNumber === st.admissionNumber))
+                                                        );
                                                     }).length;
 
                                                     const paperEnrollment = group.enrollment;
