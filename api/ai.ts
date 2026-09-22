@@ -192,6 +192,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
+    let isTerminated = false;
+    const aiWatchdog = setTimeout(() => {
+        if (!isTerminated && !res.headersSent) {
+            isTerminated = true;
+            console.error('[api/ai WATCHDOG] AI request reached safety timeout limit (48s). Gracefully aborting before Vercel 60s termination.');
+            try {
+                res.status(504).json({
+                    error: 'AI_GATEWAY_TIMEOUT',
+                    message: 'The AI model took too long to generate a response. Please simplify the prompt or try again.'
+                });
+            } catch (_) {}
+        }
+    }, 48000);
+
+    const origJson = res.json.bind(res);
+    const origEnd = res.end.bind(res);
+    res.json = (body: any) => {
+        isTerminated = true;
+        clearTimeout(aiWatchdog);
+        if (isTerminated && res.headersSent) return res;
+        return origJson(body);
+    };
+    res.end = (chunk?: any) => {
+        isTerminated = true;
+        clearTimeout(aiWatchdog);
+        if (isTerminated && res.headersSent) return res;
+        return origEnd(chunk);
+    };
+
     try {
         const supabase = getSupabase();
         if (supabase) {

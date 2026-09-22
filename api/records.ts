@@ -74,6 +74,19 @@ export interface DirectSqlCondition {
   vals?: any[];
 }
 
+// Resilient promise timeout wrapper to prevent any database or async query from hanging
+const executeWithTimeout = async <T>(promise: Promise<T> | any, timeoutMs: number = 8000): Promise<T> => {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Statement timeout (${timeoutMs}ms limit)`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([Promise.resolve(promise), timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const fetchViaDirectPg = async (
   table: string,
   conditions: DirectSqlCondition[],
@@ -130,8 +143,17 @@ const fetchViaDirectPg = async (
 
   let client: any;
   try {
-    client = await pool.connect();
-    const result = await client.query(sql, values);
+    const connectPromise = pool.connect();
+    const timeoutPromise = new Promise<never>((_, rej) =>
+      setTimeout(() => rej(new Error('Direct PG connection timeout (1500ms limit)')), 1500)
+    );
+    client = await Promise.race([connectPromise, timeoutPromise]);
+
+    const queryPromise = client.query(sql, values);
+    const queryTimeoutPromise = new Promise<never>((_, rej) =>
+      setTimeout(() => rej(new Error('Direct PG query timeout (2000ms limit)')), 2000)
+    );
+    const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
     return result.rows || [];
   } catch (err: any) {
@@ -143,10 +165,10 @@ const fetchViaDirectPg = async (
       err?.code === 'ENOTFOUND';
 
     if (isConnTimeout) {
-      _directPgConsecutiveFailures++;
-      const cooldownMs = Math.min(60000 * _directPgConsecutiveFailures, 300000);
+      _directPgConsecutiveFailures = Math.max(_directPgConsecutiveFailures + 1, 2);
+      const cooldownMs = 300000;
       _directPgDisabledUntil = Date.now() + cooldownMs;
-      console.warn(`[fetchViaDirectPg] Connection failed (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
+      console.warn(`[fetchViaDirectPg] Connection failed or timed out (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
 
       if (_pgPool) {
         try { _pgPool.end().catch(() => {}); } catch (_) {}
@@ -675,7 +697,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!moduleName) return res.status(400).json({ success: false, error: 'Module required' });
 
     const requestStartTime = Date.now();
-    const MAX_SAFE_EXECUTION_MS = 7500;
+    const isGetReq = req.method === 'GET';
+    const MAX_SAFE_EXECUTION_MS = isGetReq ? 14000 : 25000;
+
+    // Hard ceiling watchdog: ensures Vercel NEVER forcibly kills this function with a 60s timeout error.
+    // If backend or DB takes too long, we gracefully reply before Vercel terminates the invocation.
+    const WATCHDOG_TIMEOUT_MS = isGetReq ? 18000 : 45000;
+    let isTerminated = false;
+
+    const watchdogTimer = setTimeout(() => {
+        if (!isTerminated && !res.headersSent) {
+            isTerminated = true;
+            console.error(`[api/records WATCHDOG] Operation reached safety limit (${WATCHDOG_TIMEOUT_MS}ms) on ${req.method} /api/records?module=${moduleName}. Returning graceful 503.`);
+            try {
+                res.status(503).json({
+                    success: false,
+                    error: 'Database operation timed out. Please retry or check network latency.',
+                    module: moduleName,
+                    timeout: true
+                });
+            } catch (_) {}
+        }
+    }, WATCHDOG_TIMEOUT_MS);
+
+    const safeEnd = () => {
+        isTerminated = true;
+        clearTimeout(watchdogTimer);
+    };
+
+    const origJson = res.json.bind(res);
+    const origEnd = res.end.bind(res);
+    res.json = (body: any) => {
+        safeEnd();
+        if (isTerminated && res.headersSent) return res;
+        return origJson(body);
+    };
+    res.end = (chunk?: any) => {
+        safeEnd();
+        if (isTerminated && res.headersSent) return res;
+        return origEnd(chunk);
+    };
 
     try {
         const supabase = getSupabase();
@@ -1000,6 +1061,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     let remaining = finalLimit;
 
                     while (remaining > 0) {
+                        if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
+                            console.warn(`[API GET] Chunk fetch approaching safe execution limit (${MAX_SAFE_EXECUTION_MS}ms) for '${moduleName}'. Returning ${data.length} records accumulated.`);
+                            break;
+                        }
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
                         let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
                         
@@ -1228,6 +1293,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
                 });
+            }
+
             if (moduleName === 'teacher_lesson_plans' && Array.isArray(data)) {
                 (data as any[]).forEach(r => {
                     if (r && typeof r === 'object') {
@@ -3014,7 +3081,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     break;
                 }
 
-                const queryRes = await supabase.from(targetDbTable).upsert(currentPayload).select();
+                const queryRes: any = await executeWithTimeout(
+                    supabase.from(targetDbTable).upsert(currentPayload).select(),
+                    8000
+                ).catch((e: any) => ({ data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } }));
                 data = queryRes.data;
                 error = queryRes.error;
 
@@ -3028,6 +3098,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
                     
+                    if (moduleName === 'teacher_lesson_plans' || targetDbTable === 'teacher_lesson_plans') {
+                        const stripLessonPlanCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            if (offendingCol === 'trajectory') {
+                                if (copy.trajectory && !copy.lesson_trajectory) copy.lesson_trajectory = copy.trajectory;
+                                delete copy.trajectory;
+                            } else if (offendingCol === 'lesson_trajectory') {
+                                if (copy.lesson_trajectory && !copy.trajectory) copy.trajectory = copy.lesson_trajectory;
+                                delete copy.lesson_trajectory;
+                            } else {
+                                delete copy[offendingCol];
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripLessonPlanCol) : stripLessonPlanCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     if (moduleName === 'student_enrollments') {
                         // Extended columns added in newer migrations: if one is missing from PostgREST cache,
                         // strip ALL extended columns at once into metadata to prevent 5-6 sequential retries and 504 timeouts.
@@ -4111,7 +4201,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
                     }
 
-                    const queryRes = await q.select();
+                    const queryRes: any = await executeWithTimeout(
+                        q.select(),
+                        8000
+                    ).catch((e: any) => ({ data: null, error: { message: e?.message || 'Database update timed out', code: 'TIMEOUT' } }));
                     data = queryRes.data;
                     error = queryRes.error;
 
@@ -4124,6 +4217,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             patchTableSupportsMetadata = false;
                         }
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
+                        
+                        if (moduleName === 'teacher_lesson_plans' || targetDbTable === 'teacher_lesson_plans') {
+                            if (offendingCol === 'trajectory') {
+                                if (currentUpdateData.trajectory && !currentUpdateData.lesson_trajectory) currentUpdateData.lesson_trajectory = currentUpdateData.trajectory;
+                                delete currentUpdateData.trajectory;
+                            } else if (offendingCol === 'lesson_trajectory') {
+                                if (currentUpdateData.lesson_trajectory && !currentUpdateData.trajectory) currentUpdateData.trajectory = currentUpdateData.lesson_trajectory;
+                                delete currentUpdateData.lesson_trajectory;
+                            } else {
+                                delete currentUpdateData[offendingCol];
+                            }
+                            patchRetries--;
+                            continue;
+                        }
+
                         if (moduleName === 'school_remedial_allocations') {
                             const EXTENDED_ALLOC_COLS = [
                                 'is_joint', 'joint_streams', 'joint_courses', 'joint_label',
