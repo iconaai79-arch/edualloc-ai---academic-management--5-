@@ -1933,7 +1933,7 @@ export const apiService = {
                     });
                 }
 
-                const fetchTimeoutMs = module === 'activity_log' ? 8000 : 15000;
+                const fetchTimeoutMs = module === 'activity_log' ? 8000 : (module === 'institutions' ? 10000 : 15000);
                 const doFetch = (tkn: string) => {
                     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
                     const timeoutId = controller ? setTimeout(() => controller.abort(), fetchTimeoutMs) : null;
@@ -2184,13 +2184,20 @@ export const apiService = {
                     if (result.length === 0 && localData.length > 0) {
                         return localData;
                     }
+                    let finalRecords = result;
                     if (result.length > 0 && localData.length > 0) {
                         const combined = new Map<string, any>();
                         localData.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
                         result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
-                        return Array.from(combined.values());
+                        finalRecords = Array.from(combined.values());
                     }
-                    return result;
+                    if (finalRecords.length > 0 && !options?.offset && !options?.filter) {
+                        try {
+                            const modToCache = (module === 'v_house_statistics' || module === 'v_bed_occupancy') ? 'boarding_houses' : module;
+                            ls.set(modToCache, finalRecords);
+                        } catch (_) {}
+                    }
+                    return finalRecords;
                 }
                 return queryLocal();
             } catch (e: any) {

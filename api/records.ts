@@ -16,6 +16,21 @@ let _pgPool: any = null;
 let _directPgDisabledUntil = 0;
 let _directPgConsecutiveFailures = 0;
 
+// ── In-Memory Auth & Configuration Cache (Sub-millisecond resolution for frequent queries) ──
+interface CachedAuthUser {
+  user: any;
+  expiresAt: number;
+}
+const _authUserCache = new Map<string, CachedAuthUser>();
+
+interface CachedServerModule {
+  data: any[];
+  timestamp: number;
+}
+const _serverModuleMemoryCache = new Map<string, CachedServerModule>();
+const CACHEABLE_MODULES = ['institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings'];
+
+
 const getPgPool = async () => {
   if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
     return null;
@@ -193,11 +208,24 @@ const fetchViaDirectPg = async (
   }
 };
 
-// Simplified Auth check to avoid external lib crashes
+// Simplified Auth check to avoid external lib crashes with token caching
 async function getAuthUser(supabase: any, authHeader?: string) {
   if (!authHeader) return null;
   const token = authHeader.replace(/bearer /i, '').trim();
   if (!token || token === 'undefined' || token === 'null') return null;
+
+  // Check auth cache (0ms)
+  const cached = _authUserCache.get(token);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.user;
+  }
+
+  const cacheUser = (user: any) => {
+    if (user) {
+      _authUserCache.set(token, { user, expiresAt: Date.now() + 60000 });
+    }
+    return user;
+  };
 
   // 1. Fast Admin / Super Admin bypass (0ms overhead, avoids hung PostgREST)
   const lowerToken = token.toLowerCase();
@@ -212,21 +240,20 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     lowerToken.includes('super_admin')
   ) {
     console.log(`[getAuthUser] SuperAdmin bypass active for ${token.substring(0, 15)}...`);
-    return { id: token, institutionId: 'GLOBAL', role: 'super_admin' };
+    return cacheUser({ id: token, institutionId: 'GLOBAL', role: 'super_admin' });
   }
-
-  console.log(`[getAuthUser] Debug: token length ${token.length}, startsWith ${token.substring(0, 10)}...`);
 
   try {
     // 2. Try JWT
     if (token.length > 20 && token.includes('.') && token.split('.').length === 3) {
       let userObj: any = null;
       try {
-        const { data, error: authErr } = await supabase.auth.getUser(token);
-        if (authErr) console.warn('[Auth JWT Warning]', authErr.message);
-        if (data?.user) userObj = data.user;
-      } catch (e) {
-        console.warn('[Auth JWT Exception]', e);
+        const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Auth getUser timeout')), 2000));
+        const authRes: any = await Promise.race([supabase.auth.getUser(token), timeoutP]);
+        if (authRes?.error) console.warn('[Auth JWT Warning]', authRes.error.message);
+        if (authRes?.data?.user) userObj = authRes.data.user;
+      } catch (e: any) {
+        console.warn('[Auth JWT Exception or Timeout]', e?.message || e);
       }
       
       let jwtUserId = userObj?.id;
@@ -237,24 +264,27 @@ async function getAuthUser(supabase: any, authHeader?: string) {
         try {
           const parts = token.split('.');
           const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+          if (payload?.exp && payload.exp * 1000 < Date.now()) {
+            console.log(`[getAuthUser] JWT token expired for user ${payload.sub || 'unknown'}`);
+            return null;
+          }
           if (payload?.sub) {
             jwtUserId = payload.sub;
             jwtEmail = payload.email || '';
             jwtMetadata = payload.user_metadata || {};
-            console.log(`[getAuthUser] Recovered user id ${jwtUserId} from JWT claims`);
           }
         } catch (e) {}
       }
 
       if (jwtUserId) {
         if (jwtEmail === 'super@app.com') {
-           return { id: jwtUserId, institutionId: 'GLOBAL', role: 'super_admin' };
+           return cacheUser({ id: jwtUserId, institutionId: 'GLOBAL', role: 'super_admin' });
         }
 
-        // Fast DB lookup with 2.5s timeout + direct pg fallback
+        // Fast DB lookup with 2.0s timeout + direct pg fallback
         let profile: any = null;
         try {
-          const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500));
+          const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000));
           const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`).maybeSingle();
           const res: any = await Promise.race([q, timeoutP]);
           profile = res?.data;
@@ -270,20 +300,20 @@ async function getAuthUser(supabase: any, authHeader?: string) {
           } catch (_) {}
         }
         
-        if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
+        if (profile) return cacheUser({ id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id });
 
-        return { 
+        return cacheUser({ 
           id: jwtUserId, 
           institutionId: (jwtMetadata as any)?.institutionId || 'GUEST', 
           role: (jwtMetadata as any)?.role || 'guest' 
-        };
+        });
       }
     }
 
     // 3. Try User ID fallback (non-JWT token) with direct pg fallback
     let profile: any = null;
     try {
-      const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500));
+      const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000));
       const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${token},id.eq.u_${token}`).maybeSingle();
       const res: any = await Promise.race([q, timeoutP]);
       profile = res?.data;
@@ -299,7 +329,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
       } catch (_) {}
     }
     
-    if (profile) return { id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id };
+    if (profile) return cacheUser({ id: profile.id, institutionId: profile.institution_id, role: profile.role, branchId: profile.branch_id });
     
     // 4. Try Alumnae discovery if token looks like an alumna ID
     if (token && token.startsWith('alumna_')) {
@@ -318,7 +348,7 @@ async function getAuthUser(supabase: any, authHeader?: string) {
 
       if (alumna) {
         const instId = alumna.institution_id || alumna.institutionId || 'GLOBAL';
-        return { id: alumna.id, institutionId: instId, role: 'alumna', email: alumna.email };
+        return cacheUser({ id: alumna.id, institutionId: instId, role: 'alumna', email: alumna.email });
       }
     }
 
@@ -794,6 +824,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
+        if (req.method !== 'GET' && CACHEABLE_MODULES.includes(moduleName)) {
+            _serverModuleMemoryCache.delete(moduleName);
+        }
+
         const isStudentsAlias = moduleName === 'students';
         const isTeachersAlias = moduleName === 'teachers';
         const isBankAccountsAlias = moduleName === 'bank_accounts';
@@ -806,6 +840,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
             const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (!user && isPublicModule && !targetInstParam);
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
+
+            // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)
+            if (CACHEABLE_MODULES.includes(moduleName) && !getStrParam(select)) {
+                const cached = _serverModuleMemoryCache.get(moduleName);
+                const ttl = moduleName === 'institutions' ? 30000 : 120000;
+                if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
+                    const reqId = getStrParam(id) || targetInstParam || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
+                    if (reqId && moduleName === 'institutions') {
+                        const matched = cached.data.filter((i: any) => i.id === reqId);
+                        if (matched.length > 0) {
+                            return res.status(200).json(matched);
+                        }
+                    } else if (!reqId && (!req.query.offset || req.query.offset === '0') && (!req.query.limit || parseInt(getStrParam(req.query.limit)) >= cached.data.length)) {
+                        return res.status(200).json(cached.data);
+                    }
+                }
+            }
 
             const buildBaseQuery = () => {
                 let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
@@ -914,7 +965,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('created_at', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
+                } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
                 }
 
@@ -954,12 +1005,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? 300
                     : (['visitors', 'security_alerts', 'activity_log', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
                         ? 200
-                        : (['institutions', 'school_registry'].includes(moduleName) ? 100 : 1000)));
+                        : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 100 : 1000))));
             let data: any[] = [];
             let error: any = null;
 
-            // Resilient 6s timeout for PostgREST so queries have time to complete before direct SQL fallback
-            const queryTimeout = 6000;
+            // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 6s for others
+            const queryTimeout = moduleName === 'institutions' ? 3500 : 6000;
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -1007,7 +1058,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('id', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName)) {
+                } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id))) {
                     q = q.order('id', { ascending: true });
                 } else if (['visitors', 'security_alerts', 'activity_log', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
@@ -1438,72 +1489,78 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (moduleName === 'institutions') {
                 const records = Array.isArray(data) ? data : (data ? [data] : []);
-                await Promise.all(records.map(async (inst: any) => {
-                    if (!inst || !inst.id) return;
-                    try {
-                        let vState: any = null;
-                        const { data: q1 } = await supabase
-                            .from('institution_module_states')
-                            .select('data')
-                            .eq('institution_id', inst.id)
-                            .eq('module_id', 'visitor_settings')
-                            .maybeSingle();
-                        if (q1) {
-                            vState = q1;
-                        } else {
-                            const { data: q2 } = await supabase
-                                .from('institution_module_states')
-                                .select('data')
-                                .or(`id.eq.${inst.id}_visitor_settings,id.eq.ims_visitor_settings_${inst.id}`)
-                                .maybeSingle();
-                            vState = q2;
-                        }
 
-                        if (vState && vState.data) {
-                            const vd = typeof vState.data === 'string' ? JSON.parse(vState.data) : vState.data;
-                            if (vd) {
-                                const vEnabled = vd.visitor_auto_finalize_enabled ?? vd.visitorAutoFinalizeEnabled;
-                                if (vEnabled !== undefined && vEnabled !== null) {
-                                    inst.visitor_auto_finalize_enabled = Boolean(vEnabled);
-                                }
-                                const savedTime = vd.visitor_auto_finalize_time || vd.visitorAutoFinalizeTime;
-                                if (savedTime) {
-                                    inst.visitor_auto_finalize_time = savedTime;
-                                }
-                                const nHost = vd.notify_host_on_visitor_arrival ?? vd.notifyHostOnVisitorArrival;
-                                if (nHost !== undefined && nHost !== null) {
-                                    inst.notify_host_on_visitor_arrival = Boolean(nHost);
-                                }
-                                if (vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate) {
-                                    inst.visitor_arrival_sms_template = vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate;
-                                }
-                            }
-                        }
-                    } catch (_) {}
-
+                // 1. Instant synchronous hydration from metadata & physical columns (0ms)
+                records.forEach((inst: any) => {
+                    if (!inst || typeof inst !== 'object') return;
                     if (inst.metadata) {
-                        const meta = typeof inst.metadata === 'string' ? JSON.parse(inst.metadata) : inst.metadata;
-                        if (inst.visitor_auto_finalize_enabled === undefined && (meta.visitor_auto_finalize_enabled !== undefined || meta.visitorAutoFinalizeEnabled !== undefined)) {
-                            inst.visitor_auto_finalize_enabled = meta.visitor_auto_finalize_enabled ?? meta.visitorAutoFinalizeEnabled;
-                        }
-                        if (!inst.visitor_auto_finalize_time && (meta.visitor_auto_finalize_time || meta.visitorAutoFinalizeTime)) {
-                            inst.visitor_auto_finalize_time = meta.visitor_auto_finalize_time || meta.visitorAutoFinalizeTime;
-                        }
-                        if (inst.notify_host_on_visitor_arrival === undefined && (meta.notify_host_on_visitor_arrival !== undefined || meta.notifyHostOnVisitorArrival !== undefined)) {
-                            inst.notify_host_on_visitor_arrival = meta.notify_host_on_visitor_arrival ?? meta.notifyHostOnVisitorArrival;
-                        }
-                        if (!inst.visitor_arrival_sms_template && (meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate)) {
-                            inst.visitor_arrival_sms_template = meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate;
-                        }
+                        try {
+                            const meta = typeof inst.metadata === 'string' ? JSON.parse(inst.metadata) : inst.metadata;
+                            if (inst.visitor_auto_finalize_enabled === undefined && (meta.visitor_auto_finalize_enabled !== undefined || meta.visitorAutoFinalizeEnabled !== undefined)) {
+                                inst.visitor_auto_finalize_enabled = meta.visitor_auto_finalize_enabled ?? meta.visitorAutoFinalizeEnabled;
+                            }
+                            if (!inst.visitor_auto_finalize_time && (meta.visitor_auto_finalize_time || meta.visitorAutoFinalizeTime)) {
+                                inst.visitor_auto_finalize_time = meta.visitor_auto_finalize_time || meta.visitorAutoFinalizeTime;
+                            }
+                            if (inst.notify_host_on_visitor_arrival === undefined && (meta.notify_host_on_visitor_arrival !== undefined || meta.notifyHostOnVisitorArrival !== undefined)) {
+                                inst.notify_host_on_visitor_arrival = meta.notify_host_on_visitor_arrival ?? meta.notifyHostOnVisitorArrival;
+                            }
+                            if (!inst.visitor_arrival_sms_template && (meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate)) {
+                                inst.visitor_arrival_sms_template = meta.visitor_arrival_sms_template || meta.visitorArrivalSmsTemplate;
+                            }
+                        } catch (_) {}
                     }
+                });
 
+                // 2. Only query institution_module_states if any institution is missing visitor settings
+                const needsFallback = records.filter(inst => inst && inst.id && inst.visitor_auto_finalize_enabled === undefined);
+                if (needsFallback.length > 0) {
+                    try {
+                        const targetIds = needsFallback.map(i => i.id).slice(0, 50);
+                        const vStatesPromise = targetIds.length === 1 
+                            ? supabase.from('institution_module_states').select('institution_id, data').eq('institution_id', targetIds[0]).eq('module_id', 'visitor_settings').maybeSingle()
+                            : supabase.from('institution_module_states').select('institution_id, data').in('institution_id', targetIds).eq('module_id', 'visitor_settings');
+                        
+                        const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500));
+                        const { data: vStatesData } = await Promise.race([vStatesPromise, timeoutP]);
+                        
+                        const stateList = Array.isArray(vStatesData) ? vStatesData : (vStatesData ? [vStatesData] : []);
+                        const stateMap = new Map<string, any>();
+                        stateList.forEach((s: any) => {
+                            if (s?.institution_id) stateMap.set(s.institution_id, s.data);
+                        });
+
+                        needsFallback.forEach(inst => {
+                            const rawData = stateMap.get(inst.id);
+                            if (rawData) {
+                                try {
+                                    const vd = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+                                    if (vd) {
+                                        const vEnabled = vd.visitor_auto_finalize_enabled ?? vd.visitorAutoFinalizeEnabled;
+                                        if (vEnabled !== undefined && vEnabled !== null) inst.visitor_auto_finalize_enabled = Boolean(vEnabled);
+                                        const savedTime = vd.visitor_auto_finalize_time || vd.visitorAutoFinalizeTime;
+                                        if (savedTime) inst.visitor_auto_finalize_time = savedTime;
+                                        const nHost = vd.notify_host_on_visitor_arrival ?? vd.notifyHostOnVisitorArrival;
+                                        if (nHost !== undefined && nHost !== null) inst.notify_host_on_visitor_arrival = Boolean(nHost);
+                                        if (vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate) {
+                                            inst.visitor_arrival_sms_template = vd.visitor_arrival_sms_template || vd.visitorArrivalSmsTemplate;
+                                        }
+                                    }
+                                } catch (_) {}
+                            }
+                        });
+                    } catch (_) {}
+                }
+
+                // 3. Final normalization
+                records.forEach((inst: any) => {
+                    if (!inst || typeof inst !== 'object') return;
                     if (inst.visitor_auto_finalize_time && typeof inst.visitor_auto_finalize_time === 'string') {
                         inst.visitor_auto_finalize_time = inst.visitor_auto_finalize_time.trim().slice(0, 5);
                     }
                     if (inst.visitorAutoFinalizeTime && typeof inst.visitorAutoFinalizeTime === 'string') {
                         inst.visitorAutoFinalizeTime = inst.visitorAutoFinalizeTime.trim().slice(0, 5);
                     }
-
                     if (inst.visitor_auto_finalize_enabled !== undefined && inst.visitorAutoFinalizeEnabled === undefined) {
                         inst.visitorAutoFinalizeEnabled = inst.visitor_auto_finalize_enabled;
                     }
@@ -1516,7 +1573,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
                         inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
                     }
-                }));
+                });
+
+                // Populate in-memory cache for general queries
+                if (!getStrParam(id) && !targetInstParam && records.length > 0) {
+                    _serverModuleMemoryCache.set('institutions', {
+                        data: [...records],
+                        timestamp: Date.now()
+                    });
+                }
             }
 
             return res.status(200).json(data || []);
