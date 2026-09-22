@@ -800,7 +800,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (req.method === 'GET') {
             const targetInstParam = getStrParam(queryInstitutionId);
             const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
-            const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (isPublicModule && !targetInstParam);
+            const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (!user && isPublicModule && !targetInstParam);
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
 
             const buildBaseQuery = () => {
@@ -900,7 +900,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order(orderParam, { ascending: true });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
-                } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                } else if (['student_enrollments'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
                 }
 
@@ -950,10 +950,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
                     }
                 }
+                const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
+                const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
+                    if (moduleName === 'branches') {
+                        q = q.eq('id', user.branchId);
+                    } else {
+                        q = q.eq('branch_id', user.branchId);
+                    }
+                }
                 if (getStrParam(id)) q = q.eq('id', getStrParam(id));
                 if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
                     q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
                 }
+                Object.entries(req.query).forEach(([key, value]) => {
+                    if (!reservedParams.includes(key) && value) {
+                        const strVal = getStrParam(value);
+                        if (strVal) q = q.eq(key, strVal);
+                    }
+                });
                 return q;
             };
 
@@ -1043,16 +1058,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = orderParamStr;
             } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
-            } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+            } else if (['student_enrollments'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
                 defaultOrderBy = 'id.asc';
             }
 
             try {
                 if (finalLimit <= CHUNK_SIZE) {
-                    let res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1));
+                    let res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1))
+                        .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                         console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
-                        res = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 500) - 1), 7000);
+                        res = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 500) - 1), 7000)
+                            .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     }
                     data = res?.data || [];
                     error = res?.error;
@@ -1066,13 +1083,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             break;
                         }
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1));
+                        let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1))
+                            .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         
                         // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
                         if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                             console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                             const fastBatch = Math.max(100, Math.floor(batchSize / 2));
-                            res = await executeWithTimeout(buildFastBaseQuery().range(currentOffset, currentOffset + fastBatch - 1), 7000);
+                            res = await executeWithTimeout(buildFastBaseQuery().range(currentOffset, currentOffset + fastBatch - 1), 7000)
+                                .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
 
                         if (res?.error) {
