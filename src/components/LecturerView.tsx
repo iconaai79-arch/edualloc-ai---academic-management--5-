@@ -155,6 +155,7 @@ interface LecturerViewProps {
     assessments?: any[];
     assessmentMarks?: any[];
     onAddAssessment?: (data: any) => void;
+    onUpdateAssessment?: (id: string, data: any) => void;
     onDeleteAssessment?: (id: string) => void;
     onSaveAssessmentMarks?: (id: string, marks: any) => Promise<void>;
     inventoryItems?: CountyInventoryItem[];
@@ -873,6 +874,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         users={props.users || []}
                                         courses={courses}
                                         onAddAssessment={props.onAddAssessment || (() => { })}
+                                        onUpdateAssessment={props.onUpdateAssessment}
                                         onDeleteAssessment={props.onDeleteAssessment || (() => { })}
                                         onSaveAssessmentMarks={props.onSaveAssessmentMarks || (async () => { })}
                                     />

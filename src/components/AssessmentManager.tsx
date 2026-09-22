@@ -999,8 +999,12 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedAssessment, handleSaveMarks]);
 
-    // Fast Save Edited Assessment
+    // Fast Save Edited Assessment (DOS / Admin Only)
     const handleSaveEditedAssessment = async (updated: Assessment) => {
+        if (!isAdminOrDos) {
+            alert("Permission denied: Editing exam papers can only be done by the Director of Studies (DOS) or Administrator.");
+            return;
+        }
         setLocalAssessments(prev => prev.map(a => a.id === updated.id ? updated : a));
         try {
             await apiService.saveModuleRecord('assessments', updated);
@@ -1379,8 +1383,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 />
             )}
 
-            {/* Edit Assessment Modal */}
-            {editingAssessment && (
+            {/* Edit Assessment Modal (DOS / Admin Only) */}
+            {editingAssessment && isAdminOrDos && (
                 <EditAssessmentModal
                     assessment={editingAssessment}
                     allocatedSubjects={allocatedSubjects}
@@ -1504,16 +1508,18 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                                                             <div className="w-[32%] min-w-[190px] flex items-center gap-2.5">
                                                                 <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
                                                                 <div>
-                                                                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                                                    <p className="font-bold text-xs text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
                                                                         <span>{paper.title}</span>
-                                                                        <button
-                                                                            type="button"
-                                                                            title="Edit exam paper settings"
-                                                                            onClick={(e) => { e.stopPropagation(); setEditingAssessment(paper); }}
-                                                                            className="text-slate-400 hover:text-blue-600 transition-colors"
-                                                                        >
-                                                                            <Edit3 className="w-3 h-3" />
-                                                                        </button>
+                                                                        {isAdminOrDos && (
+                                                                            <button
+                                                                                type="button"
+                                                                                title="Edit exam paper settings (DOS / Admin)"
+                                                                                onClick={(e) => { e.stopPropagation(); setEditingAssessment(paper); }}
+                                                                                className="text-slate-400 hover:text-blue-600 transition-colors flex-shrink-0"
+                                                                            >
+                                                                                <Edit3 className="w-3 h-3" />
+                                                                            </button>
+                                                                        )}
                                                                     </p>
                                                                     <p className="text-[10px] text-slate-400 font-medium">
                                                                         {subject?.name || 'Subject'} • {paper.maxMarks} Marks
