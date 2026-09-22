@@ -21,6 +21,7 @@ interface AssessmentManagerProps {
     currentInstitution?: any;
     users: User[];
     courses: Course[];
+    enrollments?: any[];
     onAddAssessment: (data: Omit<Assessment, 'id' | 'institutionId' | 'createdAt'>) => void;
     onDeleteAssessment: (assessmentId: string) => void;
     onSaveAssessmentMarks: (assessmentId: string, marksData: { studentId: string; marks: number | null; comments?: string }[]) => void;
@@ -67,13 +68,25 @@ export const isStudentUser = (u: any): boolean => {
     const r = (u.role || '').toLowerCase();
     if (r === 'student' || r === 'learner' || r === 'pupil') return true;
     if (Array.isArray(u.roles) && u.roles.some((role: any) => ['student', 'learner', 'pupil'].includes(String(role).toLowerCase()))) return true;
-    if (u.admissionNumber || u.studentId || u.regNo || u.admNo) return true;
+    if (u.admissionNumber || u.admission_number || u.admNo || u.studentId || u.regNo || u.metadata?.admissionNumber) return true;
+    if (u.enrollmentType === 'academic' || u.enrollmentType === 'driving_school') return true;
     return false;
 };
 
 export const getStudentGrade = (u: User, courses: Course[]): string => {
     // Check direct property first
-    const directGrade = (u as any).gradeLevel || (u as any).grade || (u as any).academicLevel || (u as any).currentClass || (u as any).class;
+    const directGrade = (u as any).gradeLevel || 
+                        (u as any).grade || 
+                        (u as any).academicLevel || 
+                        (u as any).currentClass || 
+                        (u as any).class || 
+                        (u as any).className || 
+                        (u as any).studentClass || 
+                        (u as any).metadata?.gradeLevel || 
+                        (u as any).metadata?.grade || 
+                        (u as any).metadata?.currentClass || 
+                        (u as any).metadata?.studentClass || 
+                        (u as any).metadata?.className;
     if (directGrade && !isPureStreamName(directGrade)) {
         const parsed = extractClassAndStream(directGrade);
         if (parsed.className && !isPureStreamName(parsed.className)) return parsed.className;
@@ -107,7 +120,13 @@ export const getStudentGrade = (u: User, courses: Course[]): string => {
 };
 
 export const getStudentStream = (u: User, courses: Course[]): string => {
-    const directStream = (u as any).stream || (u as any).studentStream || (u as any).classStream || (u as any).metadata?.stream;
+    const directStream = (u as any).stream || 
+                         (u as any).studentStream || 
+                         (u as any).classStream || 
+                         (u as any).streamName || 
+                         (u as any).metadata?.stream || 
+                         (u as any).metadata?.streamName || 
+                         (u as any).metadata?.classStream;
     if (directStream) {
         return normalizeStreamName(directStream);
     }
@@ -138,11 +157,18 @@ export const doesStudentMatchGrade = (u: User, targetGradeName: string, courses:
     if (cleanTarget.includes(stGrade) || stGrade.includes(cleanTarget)) return true;
     if (canonicalTarget && (canonicalSt.includes(canonicalTarget) || canonicalTarget.includes(canonicalSt))) return true;
 
-    // 2. Direct user properties
+    // 2. Direct user and enrollment properties
     const userProps = [
         (u as any).gradeLevel, (u as any).grade, (u as any).academicLevel,
         (u as any).currentClass, (u as any).class, (u as any).className,
-        (u as any).form, (u as any).targetClass, (u as any).classLevel
+        (u as any).form, (u as any).targetClass, (u as any).classLevel,
+        (u as any).studentClass,
+        (u as any).metadata?.gradeLevel,
+        (u as any).metadata?.grade,
+        (u as any).metadata?.currentClass,
+        (u as any).metadata?.class,
+        (u as any).metadata?.className,
+        (u as any).metadata?.studentClass
     ].filter(Boolean).map(s => String(s).toLowerCase().trim());
 
     for (const prop of userProps) {
@@ -166,7 +192,7 @@ export const doesStudentMatchGrade = (u: User, targetGradeName: string, courses:
         }
     }
 
-    // 4. Digit check if grade has digits (e.g. "9")
+    // 4. Digit check if grade has digits (e.g. "7", "8", "9")
     if (targetDigits) {
         const stDigits = (stGrade.match(/\d+/) || [])[0];
         if (stDigits && stDigits === targetDigits) return true;
@@ -461,6 +487,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     currentInstitution,
     users = [],
     courses = [],
+    enrollments: propEnrollments,
     onAddAssessment,
     onDeleteAssessment,
     onSaveAssessmentMarks,
@@ -514,10 +541,222 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
     const allowedSubjectNames = useMemo(() => new Set(allocatedSubjects.map(s => s.name.trim().toLowerCase())), [allocatedSubjects]);
 
     // ──────────────────────────────────────────────────────────────────────────
+    // RESOLVE ALL REAL LEARNERS (FROM ENROLLMENTS REGISTRY + USERS + LOCALSTORAGE)
+    // ──────────────────────────────────────────────────────────────────────────
+    const instId = currentInstitution?.id || user?.institutionId || (user as any)?.schoolId || (user as any)?.school_id;
+    const [enrollmentsRegistry, setEnrollmentsRegistry] = useState<any[]>(() => {
+        if (propEnrollments && Array.isArray(propEnrollments) && propEnrollments.length > 0) {
+            return propEnrollments;
+        }
+        try {
+            const keysToTry = [
+                instId ? `eduai_student_enrollments_${instId}` : null,
+                instId ? `eduai_students_${instId}` : null,
+                'eduai_student_enrollments',
+                'eduai_student_enrollments_default',
+                'student_enrollments',
+                'eduai_students',
+                'eduai_students_default'
+            ].filter(Boolean) as string[];
+
+            for (const k of keysToTry) {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            }
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.startsWith('eduai_student_enrollments_') || key.startsWith('eduai_students_'))) {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    }
+                }
+            }
+        } catch (_) {}
+        return [];
+    });
+
+    useEffect(() => {
+        if (propEnrollments && Array.isArray(propEnrollments) && propEnrollments.length > 0) {
+            setEnrollmentsRegistry(propEnrollments);
+            return;
+        }
+        let active = true;
+        (async () => {
+            let effective: any[] = [];
+            if (instId) {
+                const [enrList, stList] = await Promise.all([
+                    apiService.fetchModuleRecords<any>('student_enrollments', instId).catch(() => []),
+                    apiService.fetchModuleRecords<any>('students', instId).catch(() => [])
+                ]);
+                effective = (enrList && enrList.length > 0) ? enrList : ((stList && stList.length > 0) ? stList : []);
+            }
+            if (effective.length === 0) {
+                const fallbackEnr = await apiService.fetchModuleRecords<any>('student_enrollments').catch(() => []);
+                if (fallbackEnr && fallbackEnr.length > 0) effective = fallbackEnr;
+            }
+            if (!active) return;
+            if (effective.length > 0) {
+                setEnrollmentsRegistry(effective);
+                if (instId) {
+                    try {
+                        localStorage.setItem(`eduai_student_enrollments_${instId}`, JSON.stringify(effective));
+                    } catch (_) {}
+                }
+            }
+        })();
+        return () => { active = false; };
+    }, [propEnrollments, instId]);
+
+    // Synthesize real students by joining enrollments registry with users prop
+    const allStudents = useMemo<User[]>(() => {
+        const map = new Map<string, any>();
+
+        // Build quick lookup from users prop for student details
+        const userLookup = new Map<string, any>();
+        (users || []).forEach((u: any) => {
+            if (u?.id) userLookup.set(String(u.id).toLowerCase(), u);
+            if (u?.userId) userLookup.set(String(u.userId).toLowerCase(), u);
+            const adm = String(u.admissionNumber || u.admission_number || u.admNo || u.metadata?.admissionNumber || u.staffId || '').trim().toLowerCase();
+            if (adm) userLookup.set(`adm_${adm}`, u);
+        });
+
+        // 1. Ingest enrollments registry
+        (enrollmentsRegistry || []).forEach((enr: any, idx: number) => {
+            if (!enr) return;
+            const adm = String(
+                enr.admissionNumber ||
+                enr.admission_number ||
+                enr.admNo ||
+                enr.metadata?.admissionNumber ||
+                enr.metadata?.admission_number ||
+                enr.metadata?.admNo ||
+                enr.id ||
+                ''
+            ).trim();
+
+            const linkedUser = (enr.userId && userLookup.get(String(enr.userId).toLowerCase())) ||
+                               (enr.id && userLookup.get(String(enr.id).toLowerCase())) ||
+                               (adm && userLookup.get(`adm_${adm.toLowerCase()}`));
+
+            const name = String(
+                linkedUser?.name ||
+                enr.studentName ||
+                enr.student_name ||
+                enr.name ||
+                enr.fullName ||
+                enr.metadata?.studentName ||
+                enr.metadata?.name ||
+                enr.metadata?.fullName ||
+                linkedUser?.fullName ||
+                (adm ? `Student ${adm}` : `Student ${idx + 1}`)
+            ).trim();
+
+            const rawClass = String(
+                enr.studentClass ||
+                enr.gradeLevel ||
+                enr.className ||
+                enr.class ||
+                enr.grade ||
+                enr.metadata?.gradeLevel ||
+                enr.metadata?.studentClass ||
+                enr.metadata?.className ||
+                enr.metadata?.class ||
+                linkedUser?.gradeLevel ||
+                linkedUser?.grade ||
+                linkedUser?.currentClass ||
+                linkedUser?.class ||
+                ''
+            ).trim();
+
+            const rawStream = String(
+                enr.stream ||
+                enr.streamName ||
+                enr.classStream ||
+                enr.metadata?.stream ||
+                enr.metadata?.streamName ||
+                linkedUser?.stream ||
+                linkedUser?.metadata?.stream ||
+                ''
+            ).trim();
+
+            const normStream = normalizeStreamName(rawStream);
+            const fullClass = normStream && rawClass && !rawClass.toLowerCase().includes(normStream.toLowerCase())
+                ? `${rawClass} ${normStream}`
+                : (rawClass || normStream);
+
+            const canonicalGrade = extractClassAndStream(rawClass || fullClass).className || rawClass;
+            const studentId = enr.userId || linkedUser?.id || enr.studentId || enr.id || (adm ? `adm_${adm}` : `st_${idx}`);
+
+            const stObj: any = {
+                ...linkedUser,
+                ...enr,
+                id: studentId,
+                userId: studentId,
+                studentId: studentId,
+                name: name,
+                studentName: name,
+                role: 'student',
+                admissionNumber: adm,
+                admNo: adm,
+                gradeLevel: canonicalGrade || rawClass,
+                grade: canonicalGrade || rawClass,
+                className: fullClass,
+                studentClass: fullClass,
+                currentClass: fullClass,
+                stream: normStream,
+                streamName: normStream,
+                status: enr.status || linkedUser?.status || 'active',
+                metadata: {
+                    ...(linkedUser?.metadata || {}),
+                    ...(enr.metadata || {}),
+                    gradeLevel: canonicalGrade || rawClass,
+                    stream: normStream,
+                    admissionNumber: adm,
+                    studentName: name
+                }
+            };
+
+            const dedupKey = adm ? `adm_${adm.toLowerCase()}` : (studentId ? `id_${String(studentId).toLowerCase()}` : `idx_${idx}`);
+            map.set(dedupKey, stObj);
+        });
+
+        // 2. Merge from users prop
+        (users || []).filter(isStudentUser).forEach((u: any, idx: number) => {
+            const adm = String(u.admissionNumber || u.admission_number || u.admNo || u.metadata?.admissionNumber || u.staffId || '').trim();
+            const dedupKey = adm ? `adm_${adm.toLowerCase()}` : (u.id ? `id_${String(u.id).toLowerCase()}` : `usr_${idx}`);
+
+            if (!map.has(dedupKey)) {
+                map.set(dedupKey, u);
+            } else {
+                const existing = map.get(dedupKey);
+                map.set(dedupKey, {
+                    ...existing,
+                    ...u,
+                    gradeLevel: existing.gradeLevel || u.gradeLevel || u.grade,
+                    grade: existing.grade || u.grade || u.gradeLevel,
+                    className: existing.className || u.className || u.currentClass,
+                    stream: existing.stream || u.stream,
+                    metadata: {
+                        ...(existing.metadata || {}),
+                        ...(u.metadata || {})
+                    }
+                });
+            }
+        });
+
+        return Array.from(map.values());
+    }, [enrollmentsRegistry, users]);
+
+    // ──────────────────────────────────────────────────────────────────────────
     // LOAD CLASS EXAM CONFIGS (FROM CURRENT INSTITUTION OR LOCALSTORAGE)
     // ──────────────────────────────────────────────────────────────────────────
     const classExamConfigs = useMemo<any[]>(() => {
-        const instId = currentInstitution?.id || user?.institutionId;
         let configs: any[] = (currentInstitution as any)?.classExamConfigs || (currentInstitution as any)?.class_exam_configs;
         if (!configs || !Array.isArray(configs) || configs.length === 0) {
             try {
@@ -530,7 +769,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             } catch (_) {}
         }
         return Array.isArray(configs) ? configs : [];
-    }, [currentInstitution, user?.institutionId]);
+    }, [currentInstitution, instId]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // CLEAN ACADEMIC GRADES LIST
@@ -563,8 +802,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
             }
         });
 
-        // 3. From student records
-        (users || []).filter(isStudentUser).forEach(st => {
+        // 3. From real student records
+        (allStudents || []).filter(isStudentUser).forEach(st => {
             const gr = getStudentGrade(st, courses);
             if (gr && gr !== 'Unassigned Grade' && !isPureStreamName(gr)) {
                 gradesSet.add(gr);
@@ -601,13 +840,12 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         }
 
         return naturalClassSort(Array.from(gradesSet));
-    }, [allocatedGrades, subjectAllocations, users, courses, localAssessments, isAdminOrDos, user?.id, user?.name]);
+    }, [allocatedGrades, subjectAllocations, allStudents, courses, localAssessments, isAdminOrDos, user?.id, user?.name]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // ACCURATE STUDENT ENROLLMENT GETTER (PER GRADE & PER STREAM)
-    // ──────────────────────────────────────────────────────────────────────────
     const getStudentsInGradeAndStream = useCallback((targetGradeName: string, targetStreamName: string = 'all'): User[] => {
-        return (users || []).filter(u => {
+        return (allStudents || []).filter(u => {
             if (!isStudentUser(u)) return false;
             const status = ((u as any).status || '').toLowerCase();
             if (status === 'inactive' || status === 'archived' || status === 'alumni' || status === 'graduated') return false;
@@ -630,7 +868,7 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
 
             return true;
         }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    }, [users, courses]);
+    }, [allStudents, courses]);
 
     const getEnrollmentCount = useCallback((gradeName: string, streamName: string = 'all'): number => {
         return getStudentsInGradeAndStream(gradeName, streamName).length;
@@ -802,7 +1040,12 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
 
                 const gradedCount = (assessmentMarks || []).filter(m => {
                     if (m.assessmentId !== paper.id || m.marks === null || m.marks === undefined) return false;
-                    return studentsInGrade.some(st => st.id === m.studentId);
+                    return studentsInGrade.some(st => 
+                        st.id === m.studentId || 
+                        (st as any).userId === m.studentId || 
+                        ((st as any).studentId && (st as any).studentId === m.studentId) ||
+                        (st.admissionNumber && (m as any).admissionNumber === st.admissionNumber)
+                    );
                 }).length;
 
                 totalGradedEntries += Math.min(gradedCount, paperMax);
