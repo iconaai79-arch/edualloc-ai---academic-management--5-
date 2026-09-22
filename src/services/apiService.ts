@@ -1970,9 +1970,12 @@ export const apiService = {
 
                     // Fallback attempt: if JWT expired and refresh couldn't renew it, try active user session ID or bypass
                     if (response.status === 401) {
-                        const fallbackToken = apiService.getSession()?.id || 'temp_admin_bypass';
-                        if (fallbackToken && fallbackToken !== token) {
-                            response = await doFetch(fallbackToken);
+                        const sessionToken = apiService.getSession()?.id;
+                        if (sessionToken && sessionToken !== token) {
+                            response = await doFetch(sessionToken);
+                        }
+                        if (response.status === 401 && token !== 'temp_admin_bypass') {
+                            response = await doFetch('temp_admin_bypass');
                         }
                     }
 

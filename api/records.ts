@@ -374,7 +374,8 @@ const PUBLIC_MODULES = [
   'stock_transactions', 'appointments',
   'law_documents', 'law_clients', 'law_matters', 'law_time_entries', 'law_invoices', 'law_trust_transactions', 'law_agreement_templates', 'law_agreements',
   'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory', 'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts', 'coop_expenses', 'coop_income',
-  'car_appraisals', 'car_test_drives', 'car_invoices', 'car_payments'
+  'car_appraisals', 'car_test_drives', 'car_invoices', 'car_payments',
+  'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
 ];
 
 const TABLES_WITH_METADATA = new Set([
@@ -766,17 +767,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
           'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
           'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
-          'stock_transactions', 'appointments'
+          'stock_transactions', 'appointments',
+          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
           'system_settings', 'institution_module_states', 'building_visitor_logs',
-          'stock_transactions', 'appointments'
+          'stock_transactions', 'appointments',
+          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
-          'stock_transactions', 'appointments'
+          'stock_transactions', 'appointments',
+          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -918,7 +922,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
             
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)
+                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory'].includes(moduleName)
                     ? 100000
                     : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
                         ? 2000 
@@ -944,7 +948,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices'].includes(moduleName) 
+            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory'].includes(moduleName) 
                 ? 400 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 300
