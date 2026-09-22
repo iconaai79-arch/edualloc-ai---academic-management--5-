@@ -6580,10 +6580,14 @@ export interface RemedialSubject {
     priority?: 'High' | 'Medium' | 'Low';
     weeklyOccurrences?: number;
     preferredDayType?: 'any' | 'weekdays' | 'weekends';
+    preferred_day_type?: 'any' | 'weekdays' | 'weekends';
     /** Hard restriction: subject may ONLY be scheduled on these days. Empty/undefined = no restriction. */
     allowedDays?: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];
+    allowed_days?: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday')[];
     /** Hard restriction: subject may ONLY be scheduled in these period numbers (1-based). Empty/undefined = no restriction. */
     allowedPeriods?: number[];
+    allowed_periods?: number[];
+    weekly_occurrences?: number;
     metadata?: any;
     createdAt?: string;
     updatedAt?: string;

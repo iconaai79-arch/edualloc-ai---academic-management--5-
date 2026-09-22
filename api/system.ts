@@ -84,12 +84,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (action === 'getSettings') {
-                const { data, error } = await supabase.from('system_settings').select('data').eq('id', 1).single();
-                if (error && error.code !== 'PGRST116') {
-                    return res.status(500).json({ error: error.message });
+                try {
+                    const { data, error } = await supabase.from('system_settings').select('data').eq('id', 1).single();
+                    if (error && error.code !== 'PGRST116') {
+                        console.warn(`[System API] getSettings query error: ${error.message}. Returning fallback empty settings.`);
+                        return res.status(200).json({});
+                    }
+                    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+                    return res.status(200).json(data?.data || {});
+                } catch (e: any) {
+                    console.warn(`[System API] getSettings exception: ${e?.message || e}. Returning fallback empty settings.`);
+                    return res.status(200).json({});
                 }
-                res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-                return res.status(200).json(data?.data || {});
             }
 
             if (action === 'health') {

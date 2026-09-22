@@ -843,6 +843,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('institution_id', user.institutionId);
                         }
                     }
+                    if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
+                        const rawUserId = user.id.replace(/^u_/, '');
+                        q = q.or(`user_id.eq.${user.id},user_id.eq.u_${rawUserId}${user.institutionId ? `,institution_id.eq.${user.institutionId}` : ''}`);
+                    }
                 }
 
                 const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
@@ -900,7 +904,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order(orderParam, { ascending: true });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
-                } else if (['student_enrollments'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
+                } else if (['receipts'].includes(moduleName)) {
+                    q = q.order('payment_date', { ascending: false });
+                } else if (['invoices'].includes(moduleName)) {
+                    q = q.order('created_at', { ascending: false });
+                } else if (['app_notifications', 'financial_goals', 'financial_periods'].includes(moduleName)) {
+                    q = q.order('id', { ascending: false });
+                } else if (['student_enrollments', 'institutions', 'school_registry'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
                 }
 
@@ -910,7 +920,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)
                     ? 100000
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) ? 2000 : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) ? 500 : (moduleName === 'app_notifications' ? 100 : (['assessment_marks', 'ta_assignments'].includes(moduleName) ? 5000 : 10000))))
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log'].includes(moduleName) 
+                        ? 2000 
+                        : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) 
+                            ? 500 
+                            : (moduleName === 'app_notifications' 
+                                ? 100 
+                                : (['assessment_marks', 'ta_assignments'].includes(moduleName) 
+                                    ? 5000 
+                                    : (moduleName === 'institutions' 
+                                        ? (targetInstParam || getStrParam(id) ? 1 : 200) 
+                                        : (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods'].includes(moduleName)
+                                            ? 500
+                                            : 10000))))))
             );
             if (isNaN(finalLimit)) finalLimit = 100000;
             if (finalLimit > 100000) {
@@ -920,12 +942,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = ['users', 'students', 'student_enrollments'].includes(moduleName) ? 500 : 1000;
+            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices'].includes(moduleName) 
+                ? 400 
+                : (['institutions', 'school_registry'].includes(moduleName) ? 100 : 1000);
             let data: any[] = [];
             let error: any = null;
 
-            // Resilient 9s timeout for PostgREST so queries have time to complete before direct SQL fallback
-            const queryTimeout = 9000;
+            // Resilient 6s timeout for PostgREST so queries have time to complete before direct SQL fallback
+            const queryTimeout = 6000;
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -969,6 +993,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (strVal) q = q.eq(key, strVal);
                     }
                 });
+                if (['receipts', 'invoices'].includes(moduleName)) {
+                    q = q.order('id', { ascending: false });
+                } else if (['app_notifications', 'financial_goals', 'financial_periods'].includes(moduleName)) {
+                    q = q.order('id', { ascending: false });
+                } else if (['student_enrollments', 'institutions', 'school_registry'].includes(moduleName)) {
+                    q = q.order('id', { ascending: true });
+                }
                 return q;
             };
 
@@ -1007,6 +1038,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (user.institutionId) {
                         if (moduleName === 'institutions') sqlConditions.push({ sql: `id = $VAL`, val: user.institutionId });
                         else if (!isTableWithoutInstitutionId(moduleName)) sqlConditions.push({ sql: `institution_id = $VAL`, val: user.institutionId });
+                    }
+                }
+                if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
+                    const rawUserId = user.id.replace(/^u_/, '');
+                    if (user.institutionId) {
+                        sqlConditions.push({
+                            sql: `(user_id = $VAL OR user_id = $VAL OR institution_id = $VAL)`,
+                            vals: [user.id, `u_${rawUserId}`, user.institutionId]
+                        });
+                    } else {
+                        sqlConditions.push({
+                            sql: `(user_id = $VAL OR user_id = $VAL)`,
+                            vals: [user.id, `u_${rawUserId}`]
+                        });
                     }
                 }
             }
@@ -1058,7 +1103,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = orderParamStr;
             } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
-            } else if (['student_enrollments'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
+            } else if (['receipts'].includes(moduleName)) {
+                defaultOrderBy = 'payment_date.desc';
+            } else if (['invoices'].includes(moduleName)) {
+                defaultOrderBy = 'created_at.desc';
+            } else if (['app_notifications', 'financial_goals', 'financial_periods'].includes(moduleName)) {
+                defaultOrderBy = 'id.desc';
+            } else if (['student_enrollments', 'institutions', 'school_registry'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
                 defaultOrderBy = 'id.asc';
             }
 
@@ -1068,7 +1119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                         console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
-                        res = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 500) - 1), 7000)
+                        res = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 500) - 1), 4000)
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     }
                     data = res?.data || [];
@@ -1090,7 +1141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                             console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                             const fastBatch = Math.max(100, Math.floor(batchSize / 2));
-                            res = await executeWithTimeout(buildFastBaseQuery().range(currentOffset, currentOffset + fastBatch - 1), 7000)
+                            res = await executeWithTimeout(buildFastBaseQuery().range(currentOffset, currentOffset + fastBatch - 1), 4000)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
 
