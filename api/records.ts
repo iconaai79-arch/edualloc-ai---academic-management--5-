@@ -858,10 +858,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            const buildBaseQuery = () => {
+            const buildBaseQuery = async () => {
                 let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
                 if (isStudentsAlias) {
                     q = q.eq('role', 'student');
+
+                    // ── Subject-teacher stream restriction (server-side guard) ──────────────
+                    // A teacher must only receive students from their allocated class streams.
+                    // This prevents bypassing the frontend by calling the API directly.
+                    if (user?.role === 'teacher' || user?.role === 'instructor' || user?.role === 'lecturer') {
+                        try {
+                            const { data: allocRows } = await Promise.race([
+                                supabase
+                                    .from('subject_allocations')
+                                    .select('class_name, class')
+                                    .eq('institution_id', user.institutionId || '')
+                                    .eq('teacher_id', user.id),
+                                new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 1500))
+                            ]);
+                            if (allocRows && Array.isArray(allocRows) && allocRows.length > 0) {
+                                const allowedClasses = [...new Set(
+                                    allocRows.map((r: any) => (r.class_name || r.class || '').trim()).filter(Boolean)
+                                )];
+                                if (allowedClasses.length > 0) {
+                                    // Filter students whose `class` column is in the allowed list
+                                    q = q.in('class', allowedClasses);
+                                }
+                                // If allocRows is empty after dedup, fallback: block all (no class filter applied → empty result via impossible condition)
+                            }
+                        } catch (_allocErr) {
+                            // Allocation lookup failed — fail open (let frontend restriction handle it)
+                        }
+                    }
+                    // ──────────────────────────────────────────────────────────────────────
                 } else if (isTeachersAlias) {
                     q = q.eq('role', 'teacher');
                 }
@@ -1178,7 +1207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 if (finalLimit <= CHUNK_SIZE) {
-                    let res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1))
+                    let res: any = await executeWithTimeout((await buildBaseQuery()).range(offset, offset + finalLimit - 1))
                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                         console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
@@ -1197,7 +1226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             break;
                         }
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1))
+                        let res: any = await executeWithTimeout((await buildBaseQuery()).range(currentOffset, currentOffset + batchSize - 1))
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         
                         // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window

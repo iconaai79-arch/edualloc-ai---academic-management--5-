@@ -65,9 +65,96 @@ interface ExamUnitsManagerProps {
     courses?: Course[];
     academicLevels?: AcademicLevel[];
     allocations?: any[];
+    /** The currently logged-in user. Required for subject-teacher stream restriction. */
+    currentUser?: User | null;
     onAddAssessment?: (assessment: any) => void;
     onUpdateAssessment?: (id: string, data: any) => void;
 }
+
+/**
+ * MarkInputCell — isolated, lag-free mark entry cell.
+ * Keeps its own local display value so typing never triggers a global
+ * broadsheetStudentRows re-render. The expensive `onCommit` callback is
+ * only called onBlur or on keyboard navigation away from the cell.
+ */
+const MarkInputCell: React.FC<{
+    inputId: string;
+    initialValue: number | string;
+    maxScore: number;
+    disabled: boolean;
+    stIndex: number;
+    pIdx: number;
+    onCommit: (val: number) => void;
+}> = React.memo(({ inputId, initialValue, maxScore, disabled, stIndex, pIdx, onCommit }) => {
+    const [localVal, setLocalVal] = React.useState<string>(
+        initialValue === 0 || initialValue === '' || initialValue === undefined ? '' : String(initialValue)
+    );
+    // Sync when the external value changes (e.g. after CSV import or load)
+    const prevInitial = React.useRef(initialValue);
+    React.useEffect(() => {
+        if (prevInitial.current !== initialValue) {
+            prevInitial.current = initialValue;
+            setLocalVal(initialValue === 0 || initialValue === '' ? '' : String(initialValue));
+        }
+    }, [initialValue]);
+
+    const commit = () => {
+        const val = localVal === '' ? 0 : Math.max(0, Math.min(maxScore, parseFloat(localVal) || 0));
+        onCommit(val);
+    };
+
+    const navigate = (id: string) => {
+        const el = document.getElementById(id) as HTMLInputElement | null;
+        if (el) { el.focus(); el.select?.(); }
+    };
+
+    return (
+        <div className="flex items-center justify-center gap-1.5">
+            <input
+                id={inputId}
+                type="number"
+                min={0}
+                max={maxScore}
+                value={localVal}
+                placeholder="0"
+                disabled={disabled}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                    if (disabled) return;
+                    setLocalVal(e.target.value);
+                }}
+                onBlur={() => { if (!disabled) commit(); }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        commit();
+                        navigate(`mark-input-${stIndex + 1}-${pIdx}`);
+                    } else if (e.key === 'ArrowUp' || (e.shiftKey && e.key === 'Enter')) {
+                        e.preventDefault();
+                        commit();
+                        navigate(`mark-input-${stIndex - 1}-${pIdx}`);
+                    } else if (e.key === 'ArrowRight') {
+                        const nextCol = document.getElementById(`mark-input-${stIndex}-${pIdx + 1}`);
+                        if (nextCol) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex}-${pIdx + 1}`); }
+                        else {
+                            const nextRowFirst = document.getElementById(`mark-input-${stIndex + 1}-0`);
+                            if (nextRowFirst) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex + 1}-0`); }
+                        }
+                    } else if (e.key === 'ArrowLeft') {
+                        const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
+                        if (prevCol) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex}-${pIdx - 1}`); }
+                    }
+                }}
+                className={`w-20 px-2 py-1.5 text-center font-mono font-black border-2 rounded-lg shadow-sm text-xs transition-all ${
+                    disabled
+                        ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed'
+                        : 'text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-indigo-300 dark:border-indigo-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400'
+                }`}
+            />
+            <span className="text-[10px] font-bold text-slate-400">/ {maxScore}</span>
+        </div>
+    );
+});
 
 export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     currentInstitution,
@@ -78,7 +165,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     marks = [],
     courses = [],
     academicLevels = [],
-    allocations = []
+    allocations = [],
+    currentUser = null
 }) => {
     // Storage Key Helper
     const instId = currentInstitution?.id || 'default_inst';
@@ -469,6 +557,36 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             setSubjectAllocations(allocations);
         }
     }, [allocations]);
+
+    /**
+     * Subject-teacher stream restriction map.
+     * For each subject name the teacher is assigned to, stores the list of
+     * allowed class streams (lowercase). null = unrestricted (non-teacher role).
+     *
+     * Example: { 'mathematics': ['grade 4 east'], 'english': ['grade 5 north'] }
+     */
+    const teacherSubjectClassMap = useMemo<Record<string, string[]> | null>(() => {
+        if (!currentUser || (currentUser.role !== 'teacher' && (currentUser as any).role !== 'instructor' && (currentUser as any).role !== 'lecturer')) {
+            return null; // unrestricted for admins / principals / other roles
+        }
+        const myId = currentUser.id;
+        const myNameNorm = (currentUser.name || '').trim().toLowerCase();
+        const allAllocs = [...(subjectAllocations || []), ...(allocations || [])];
+        const map: Record<string, string[]> = {};
+        allAllocs.forEach(a => {
+            if (!a) return;
+            const aTeacherId = a.teacherId || a.teacher_id || '';
+            const aTeacherName = (a.teacherName || a.teacher?.name || a.instructorName || '').trim().toLowerCase();
+            const isMyAlloc = (myId && aTeacherId === myId) || (myNameNorm && aTeacherName === myNameNorm);
+            if (!isMyAlloc) return;
+            const subKey = (a.subjectName || a.subject || '').trim().toLowerCase();
+            const cls = (a.className || a.class || '').trim().toLowerCase();
+            if (!subKey || !cls) return;
+            if (!map[subKey]) map[subKey] = [];
+            if (!map[subKey].includes(cls)) map[subKey].push(cls);
+        });
+        return map;
+    }, [currentUser, subjectAllocations, allocations]);
 
     // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
     useEffect(() => {
@@ -987,13 +1105,19 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Resolved Active Exam Classes
     const activeExamClasses = useMemo(() => {
-        if (activeExam?.classes && activeExam.classes.length > 0) {
-            return activeExam.classes;
-        }
-        if (selectedClasses && selectedClasses.length > 0) {
-            return selectedClasses;
-        }
-        return registeredClasses.length > 0 ? registeredClasses : ['Grade 1', 'Grade 2', 'Grade 3', 'Form 1', 'Form 2', 'Form 3'];
+        const raw = (() => {
+            if (activeExam?.classes && activeExam.classes.length > 0) return activeExam.classes;
+            if (selectedClasses && selectedClasses.length > 0) return selectedClasses;
+            return registeredClasses.length > 0 ? registeredClasses : ['Grade 1', 'Grade 2', 'Grade 3', 'Form 1', 'Form 2', 'Form 3'];
+        })();
+        // Deduplicate (case-insensitive) to prevent duplicate rows in the exam dashboard
+        const seen = new Set<string>();
+        return raw.filter(c => {
+            const key = (c || '').trim().toLowerCase();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     }, [activeExam, selectedClasses, registeredClasses]);
 
     // Per-exam broadsheet store
@@ -2133,7 +2257,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // Enable student data sorting by Admission Number or Student Name
-        const sorted = [...rows].sort((a, b) => {
+        let sorted = [...rows].sort((a, b) => {
             const valA = (sortField === 'admNo' ? (a.admNo || '') : (a.name || '')).toString().trim();
             const valB = (sortField === 'admNo' ? (b.admNo || '') : (b.name || '')).toString().trim();
 
@@ -2149,9 +2273,48 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return sortOrder === 'asc' ? cmp : -cmp;
         });
 
+        // ── Subject-teacher stream restriction ─────────────────────────────────
+        // If the logged-in user is a teacher and a subject filter is active,
+        // only show students from the class streams they are allocated to for
+        // that specific subject. When 'all' subjects are shown, show streams
+        // across all their allocations (union).
+        if (teacherSubjectClassMap !== null) {
+            const norm = (s: string) => (s || '').trim().toLowerCase();
+            let allowedClasses: string[] | null = null;
+            if (selectedSubjectFilter && selectedSubjectFilter !== 'all') {
+                // Subject-specific restriction
+                const subKey = norm(selectedSubjectFilter);
+                // Try exact match first, then prefix/partial match
+                const exactClasses = teacherSubjectClassMap[subKey];
+                if (exactClasses) {
+                    allowedClasses = exactClasses;
+                } else {
+                    // Fuzzy: find any allocated subject that contains/matches this subject
+                    const fuzzyKey = Object.keys(teacherSubjectClassMap).find(k => k.includes(subKey) || subKey.includes(k));
+                    allowedClasses = fuzzyKey ? teacherSubjectClassMap[fuzzyKey] : [];
+                }
+            } else {
+                // 'all' mode — union of all subject streams
+                const unionSet = new Set<string>();
+                Object.values(teacherSubjectClassMap).flat().forEach(c => unionSet.add(norm(c)));
+                allowedClasses = unionSet.size > 0 ? Array.from(unionSet) : [];
+            }
+
+            if (allowedClasses !== null && allowedClasses.length > 0) {
+                sorted = sorted.filter((row: any) => {
+                    const rowClass = norm(row.class || row.className || '');
+                    return allowedClasses!.some(allowed => rowClass === allowed || rowClass.startsWith(allowed) || allowed.startsWith(rowClass));
+                });
+            } else if (allowedClasses !== null && allowedClasses.length === 0) {
+                // Teacher has no allocations for this subject/any subject → show nothing
+                sorted = [] as typeof sorted;
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         lastFilteredStudentRowsRef.current = sorted;
         return sorted;
-    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder, isAddExamModalOpen]);
+    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder, isAddExamModalOpen, teacherSubjectClassMap, selectedSubjectFilter]);
 
     const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
         if (activeExam?.status === 'published') {
@@ -3081,16 +3244,27 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark, getSubjectTeacherForClass, isAddExamModalOpen]);
 
     const displayClassPaperRows = useMemo(() => {
-        if (!dashboardGradeFilter || dashboardGradeFilter === 'all') return classPaperRows;
-        const normG = extractGradeLabel(dashboardGradeFilter).toLowerCase();
-        return classPaperRows.filter(r => extractGradeLabel(r.rawClassName).toLowerCase() === normG);
+        // Filter by grade, then hide streams that have zero enrolled learners
+        // (avoids cluttering the list with ghost streams from exam setup)
+        const gradeFiltered = (!dashboardGradeFilter || dashboardGradeFilter === 'all')
+            ? classPaperRows
+            : (() => {
+                const normG = extractGradeLabel(dashboardGradeFilter).toLowerCase();
+                return classPaperRows.filter(r => extractGradeLabel(r.rawClassName).toLowerCase() === normG);
+            })();
+        // Only hide zero-enrollment rows when there IS at least one row with learners,
+        // so we never show a completely blank table on first load.
+        const hasAnyEnrolled = gradeFiltered.some(r => r.enrollment > 0);
+        return hasAnyEnrolled
+            ? gradeFiltered.filter(r => r.enrollment > 0)
+            : gradeFiltered;
     }, [classPaperRows, dashboardGradeFilter, extractGradeLabel]);
 
     // Dynamic Teacher Progress
     const teacherProgressList = useMemo(() => {
         const teachersMap = new Map<string, number[]>();
         classPaperRows.forEach(cRow => {
-            cRow.papers.forEach(p => {
+            cRow.papers.forEach((p: any) => {
                 const tName = p.teacher || 'Subject Teacher';
                 if (!teachersMap.has(tName)) teachersMap.set(tName, []);
                 teachersMap.get(tName)!.push(p.progress);
@@ -3120,12 +3294,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Dynamic Subject Progress
     const subjectProgressList = useMemo(() => {
         const allSubjects = new Set<string>();
-        classPaperRows.forEach(c => c.papers.forEach(p => allSubjects.add(p.subject)));
+        classPaperRows.forEach(c => c.papers.forEach((p: any) => allSubjects.add(p.subject)));
         return Array.from(allSubjects).map(subName => {
             let totalProg = 0;
             let count = 0;
             classPaperRows.forEach(c => {
-                const p = c.papers.find(x => x.subject === subName);
+                const p = c.papers.find((x: any) => x.subject === subName);
                 if (p) {
                     totalProg += p.progress;
                     count++;
@@ -3154,7 +3328,58 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             return;
         }
         setIsSavingMarks(true);
-        const updatedStore = { ...examMarksStore, [selectedExamId]: broadsheetStudentRows };
+
+        // ── LAYER 3: Teacher stream save guard ────────────────────────────────
+        // If the logged-in user is a teacher, only persist rows within their
+        // allocated stream(s) for this subject. Rows outside their scope are
+        // preserved untouched from the existing store so other teachers' data
+        // is never silently overwritten.
+        let rowsToSave = broadsheetStudentRows;
+        if (teacherSubjectClassMap !== null) {
+            const norm = (s: string) => (s || '').trim().toLowerCase();
+            // Determine allowed classes for this specific subject
+            const subKey = norm(subjectName);
+            const exactClasses = teacherSubjectClassMap[subKey];
+            let allowedClasses: string[];
+            if (exactClasses) {
+                allowedClasses = exactClasses;
+            } else {
+                const fuzzyKey = Object.keys(teacherSubjectClassMap).find(
+                    k => k.includes(subKey) || subKey.includes(k)
+                );
+                allowedClasses = fuzzyKey ? teacherSubjectClassMap[fuzzyKey] : [];
+            }
+
+            if (allowedClasses.length === 0) {
+                // Teacher has no allocation for this subject → block save entirely
+                setIsSavingMarks(false);
+                alert(`⚠️ You are not allocated to teach "${subjectName}" for any class stream.\n\nMarks cannot be saved. Please contact your administrator.`);
+                return;
+            }
+
+            // Rows the teacher IS allowed to touch
+            const allowedRows = broadsheetStudentRows.filter((row: any) => {
+                const rowClass = norm(row.class || row.className || '');
+                return allowedClasses.some(
+                    allowed => rowClass === allowed || rowClass.startsWith(allowed) || allowed.startsWith(rowClass)
+                );
+            });
+
+            // Rows outside their scope, taken from the EXISTING store (untouched)
+            const existingExamRows: any[] = examMarksStore[selectedExamId] || [];
+            const outOfScopeRows = existingExamRows.filter((row: any) => {
+                const rowClass = norm(row.class || row.className || '');
+                return !allowedClasses.some(
+                    allowed => rowClass === allowed || rowClass.startsWith(allowed) || allowed.startsWith(rowClass)
+                );
+            });
+
+            // Merge: teacher-owned rows (updated) + everyone else's rows (preserved)
+            rowsToSave = [...allowedRows, ...outOfScopeRows];
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        const updatedStore = { ...examMarksStore, [selectedExamId]: rowsToSave };
         setExamMarksStore(updatedStore);
         try {
             localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
@@ -3163,9 +3388,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         } catch (e) { }
 
         // ── AUTO-SNAPSHOT: Save a timestamped class-keyed backup of these marks ──
-        if (activeExam && broadsheetStudentRows.length > 0) {
+        if (activeExam && rowsToSave.length > 0) {
             const classesForSnap = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
-            snapshotMarks(selectedExamId, classesForSnap, broadsheetStudentRows);
+            snapshotMarks(selectedExamId, classesForSnap, rowsToSave);
         }
 
         // ── UPDATE EXAM SUBMITTED PERCENT IN EXAMS LIST ──
@@ -3672,7 +3897,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         let enteredCount = 0;
         classPaperRows.forEach(c => {
-            (c.papers || []).forEach(p => {
+            (c.papers || []).forEach((p: any) => {
                 const progPct = p.progress || 0;
                 enteredCount += Math.round((progPct / 100) * (c.enrollment || 0));
             });
@@ -4258,7 +4483,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                 </tr>
 
                                                                 {/* Class Inner Paper Rows */}
-                                                                {isExpanded && cRow.papers.map(p => (
+                                                                {isExpanded && cRow.papers.map((p: any) => (
                                                                     <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 text-xs">
                                                                         <td className="px-4 py-3 pl-10 font-bold text-slate-800 dark:text-slate-200">{p.subject}</td>
                                                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-medium">{p.teacher}</td>
@@ -4748,6 +4973,36 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 </div>
                             )}
 
+                            {/* Subject-teacher stream restriction banner */}
+                            {teacherSubjectClassMap !== null && (() => {
+                                const subKey = selectedSubjectFilter && selectedSubjectFilter !== 'all'
+                                    ? Object.keys(teacherSubjectClassMap).find(k => k === selectedSubjectFilter.toLowerCase() || k.includes(selectedSubjectFilter.toLowerCase()) || selectedSubjectFilter.toLowerCase().includes(k))
+                                    : null;
+                                const visibleClasses = subKey
+                                    ? (teacherSubjectClassMap[subKey] || [])
+                                    : Object.values(teacherSubjectClassMap).flat();
+                                const uniqueClasses = [...new Set(visibleClasses)];
+                                if (uniqueClasses.length === 0) {
+                                    return (
+                                        <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800/60 rounded-xl flex items-center gap-2 text-xs font-bold text-rose-800 dark:text-rose-300">
+                                            <span>⚠️</span>
+                                            <span>You have not been assigned to any class stream yet. Contact your administrator to set up your subject allocations.</span>
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-xl flex flex-wrap items-center gap-2 text-[11px] font-bold text-blue-800 dark:text-blue-300">
+                                        <span className="text-blue-500">📌 Your access is restricted to:</span>
+                                        {uniqueClasses.map((cls, i) => (
+                                            <span key={i} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-200 rounded-md capitalize">{cls}</span>
+                                        ))}
+                                        {selectedSubjectFilter && selectedSubjectFilter !== 'all' && (
+                                            <span className="ml-1 text-blue-400 font-normal">(for {selectedSubjectFilter})</span>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
                             {/* SINGLE SUBJECT EDITABLE MODE */}
                             {selectedSubjectFilter !== 'all' ? (
                                 <div className="space-y-4">
@@ -4820,68 +5075,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                                 const inputId = `mark-input-${stIndex}-${pIdx}`;
                                                                 return (
                                                                     <td key={pIdx} className="px-3 py-2 text-center bg-indigo-50/20 dark:bg-indigo-950/20 border-x border-slate-100 dark:border-slate-800">
-                                                                        <div className="flex items-center justify-center gap-1.5">
-                                                                            <input
-                                                                                id={inputId}
-                                                                                type="number"
-                                                                                min={0}
-                                                                                max={paper.maxScore}
-                                                                                value={displayVal}
-                                                                                placeholder="0"
-                                                                                disabled={activeExam?.status === 'published'}
-                                                                                onFocus={(e) => e.target.select()}
-                                                                                onKeyDown={(e) => {
-                                                                                    if (e.key === 'Enter' || e.key === 'ArrowDown') {
-                                                                                        e.preventDefault();
-                                                                                        const nextTarget = document.getElementById(`mark-input-${stIndex + 1}-${pIdx}`);
-                                                                                        if (nextTarget) {
-                                                                                            (nextTarget as HTMLInputElement).focus();
-                                                                                            (nextTarget as HTMLInputElement).select?.();
-                                                                                        }
-                                                                                    } else if (e.key === 'ArrowUp' || (e.shiftKey && e.key === 'Enter')) {
-                                                                                        e.preventDefault();
-                                                                                        const prevTarget = document.getElementById(`mark-input-${stIndex - 1}-${pIdx}`);
-                                                                                        if (prevTarget) {
-                                                                                            (prevTarget as HTMLInputElement).focus();
-                                                                                            (prevTarget as HTMLInputElement).select?.();
-                                                                                        }
-                                                                                    } else if (e.key === 'ArrowRight') {
-                                                                                        const nextCol = document.getElementById(`mark-input-${stIndex}-${pIdx + 1}`);
-                                                                                        if (nextCol) {
-                                                                                            e.preventDefault();
-                                                                                            (nextCol as HTMLInputElement).focus();
-                                                                                            (nextCol as HTMLInputElement).select?.();
-                                                                                        } else {
-                                                                                            const nextRowFirstCol = document.getElementById(`mark-input-${stIndex + 1}-0`);
-                                                                                            if (nextRowFirstCol) {
-                                                                                                e.preventDefault();
-                                                                                                (nextRowFirstCol as HTMLInputElement).focus();
-                                                                                                (nextRowFirstCol as HTMLInputElement).select?.();
-                                                                                            }
-                                                                                        }
-                                                                                    } else if (e.key === 'ArrowLeft') {
-                                                                                        const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
-                                                                                        if (prevCol) {
-                                                                                            e.preventDefault();
-                                                                                            (prevCol as HTMLInputElement).focus();
-                                                                                            (prevCol as HTMLInputElement).select?.();
-                                                                                        }
-                                                                                    }
-                                                                                }}
-                                                                                onChange={(e) => {
-                                                                                    if (activeExam?.status === 'published') return;
-                                                                                    const raw = e.target.value;
-                                                                                    const val = raw === '' ? 0 : Math.max(0, Math.min(paper.maxScore, parseFloat(raw) || 0));
-                                                                                    handleUpdateStudentMark(st.admNo, paper.key, val, st.name, st.class);
-                                                                                }}
-                                                                                className={`w-20 px-2 py-1.5 text-center font-mono font-black border-2 rounded-lg shadow-sm text-xs transition-all ${
-                                                                                    activeExam?.status === 'published'
-                                                                                        ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed'
-                                                                                        : 'text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-indigo-300 dark:border-indigo-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400'
-                                                                                }`}
-                                                                            />
-                                                                            <span className="text-[10px] font-bold text-slate-400">/ {paper.maxScore}</span>
-                                                                        </div>
+                                                                        <MarkInputCell
+                                                                            inputId={inputId}
+                                                                            initialValue={displayVal}
+                                                                            maxScore={paper.maxScore}
+                                                                            disabled={activeExam?.status === 'published'}
+                                                                            stIndex={stIndex}
+                                                                            pIdx={pIdx}
+                                                                            onCommit={(val) => handleUpdateStudentMark(st.admNo, paper.key, val, st.name, st.class)}
+                                                                        />
                                                                     </td>
                                                                 );
                                                             })}

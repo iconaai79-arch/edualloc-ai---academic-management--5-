@@ -688,6 +688,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             courses={courses}
                             academicLevels={academicLevels}
                             allocations={props.allocations}
+                            currentUser={currentUser}
                         />
                     ) : examViewSubTab === 'cbe_strands' ? (
                         <CbeStrandRubricManager
