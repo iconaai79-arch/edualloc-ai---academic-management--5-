@@ -482,16 +482,28 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             setSessions(sessList);
             setPayouts(payList);
-            setAllocations(allocList);
+            // Only overwrite in-memory allocations if the API returned data.
+            // If the fetch failed or returned empty, fall back to the cached value
+            // so we never wipe manually added allocations due to a transient fetch error.
+            if (allocList.length > 0) {
+                setAllocations(allocList);
+                safeLocalStorage.setItem(`remedial_allocations_${institutionId}`, JSON.stringify(allocList));
+            } else if (institutionId) {
+                // Attempt to restore from cache if backend returned nothing
+                try {
+                    const cachedAlloc = safeLocalStorage.getItem(`remedial_allocations_${institutionId}`);
+                    if (cachedAlloc) {
+                        const parsed = JSON.parse(cachedAlloc);
+                        if (Array.isArray(parsed) && parsed.length > 0) setAllocations(parsed);
+                    }
+                } catch (_) { /* ignore */ }
+            }
             setRemedialSubjects(remSubList);
             setWeekendDutyRoster(dutyList);
 
             if (rates && rates.length > 0) {
                 applyRateSettings(rates[0]);
                 safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify(rates));
-            }
-            if (allocList.length > 0) {
-                safeLocalStorage.setItem(`remedial_allocations_${institutionId}`, JSON.stringify(allocList));
             }
             if (sessList.length > 0) {
                 safeLocalStorage.setItem(`remedial_sessions_${institutionId}`, JSON.stringify(sessList));
@@ -4203,7 +4215,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 `• Weekday 1-Period Rule & Limits: Fully Enforced\n\n` +
                 `STATUS: DRAFT (Pending Review)\nNext Step: Review the timetable below, then click "Forward to Headteacher for Approval".`
             );
-            loadData();
+            // State is already synchronised above (setAllocations + safeLocalStorage);
+            // calling loadData() here would race against that and could overwrite the
+            // freshly generated list with a stale / empty API response.
         } catch (err: any) {
             console.error('Failed to auto-generate timetable', err);
             alert('Failed to auto-generate timetable: ' + err.message);
