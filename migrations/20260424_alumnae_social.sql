@@ -161,5 +161,70 @@ BEGIN
     END IF;
 END $$;
 
--- 3. Cache Management
+-- 3. Enable RLS on all alumni tables
+ALTER TABLE public.alumni_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alumni_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alumni_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alumni_follows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alumni_school_inbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.school_projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_updates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alumni_notifications ENABLE ROW LEVEL SECURITY;
+
+-- Permissive policies (allow authenticated users full access; anon read-only on social content)
+DROP POLICY IF EXISTS "alumni_posts_policy" ON public.alumni_posts;
+CREATE POLICY "alumni_posts_policy" ON public.alumni_posts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "alumni_comments_policy" ON public.alumni_comments;
+CREATE POLICY "alumni_comments_policy" ON public.alumni_comments FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "alumni_messages_policy" ON public.alumni_messages;
+CREATE POLICY "alumni_messages_policy" ON public.alumni_messages FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "alumni_follows_policy" ON public.alumni_follows;
+CREATE POLICY "alumni_follows_policy" ON public.alumni_follows FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "alumni_school_inbox_policy" ON public.alumni_school_inbox;
+CREATE POLICY "alumni_school_inbox_policy" ON public.alumni_school_inbox FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "school_projects_policy" ON public.school_projects;
+CREATE POLICY "school_projects_policy" ON public.school_projects FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "school_projects_anon_read" ON public.school_projects FOR SELECT TO anon USING (status = 'active');
+
+DROP POLICY IF EXISTS "project_updates_policy" ON public.project_updates;
+CREATE POLICY "project_updates_policy" ON public.project_updates FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "alumni_notifications_policy" ON public.alumni_notifications;
+CREATE POLICY "alumni_notifications_policy" ON public.alumni_notifications FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Data API grants (required from Supabase Oct 30 2025: new tables need explicit grants)
+GRANT SELECT ON public.alumni_posts TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.alumni_posts TO authenticated;
+GRANT ALL ON public.alumni_posts TO service_role;
+
+GRANT SELECT ON public.alumni_comments TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.alumni_comments TO authenticated;
+GRANT ALL ON public.alumni_comments TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.alumni_messages TO authenticated;
+GRANT ALL ON public.alumni_messages TO service_role;
+
+GRANT SELECT, INSERT, DELETE ON public.alumni_follows TO authenticated;
+GRANT ALL ON public.alumni_follows TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.alumni_school_inbox TO authenticated;
+GRANT ALL ON public.alumni_school_inbox TO service_role;
+
+GRANT SELECT ON public.school_projects TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.school_projects TO authenticated;
+GRANT ALL ON public.school_projects TO service_role;
+
+GRANT SELECT ON public.project_updates TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.project_updates TO authenticated;
+GRANT ALL ON public.project_updates TO service_role;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.alumni_notifications TO authenticated;
+GRANT ALL ON public.alumni_notifications TO service_role;
+
+-- 4. Cache Management
 NOTIFY pgrst, 'reload schema';

@@ -1048,7 +1048,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory'].includes(moduleName) 
+            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory',
+                'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters'].includes(moduleName) 
                 ? 1000 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
@@ -1220,7 +1221,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'created_at.desc';
             } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
-            } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
+            } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
+                        'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
+                        'academic_years', 'semesters', 'allocation_requests'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
                 defaultOrderBy = 'id.asc';
             }
 
@@ -1235,7 +1238,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             try {
                 // ── Direct PostgreSQL Fast-Path for Bulk Requests ──
                 // Executes in a single parameterized query (< 400ms), completely bypassing PostgREST HTTP round-trips and chunking loops.
-                const isBulkModule = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory', 'ds_students', 'mpesa_transactions'].includes(moduleName);
+                const isBulkModule = [
+                    'users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory',
+                    'ds_students', 'mpesa_transactions',
+                    // Academic lookup tables — frequently large, benefit most from direct PG
+                    'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
+                    'academic_years', 'semesters', 'allocation_requests',
+                ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
 

@@ -33,3 +33,8 @@ ON public.student_subscriptions
 FOR ALL
 USING (true)
 WITH CHECK (true);
+
+-- Data API grants (required from Supabase Oct 30 2025: new tables need explicit grants)
+GRANT SELECT ON public.student_subscriptions TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.student_subscriptions TO authenticated;
+GRANT ALL ON public.student_subscriptions TO service_role;

@@ -36,9 +36,12 @@ class LocalDb {
     private dbName = 'eduai_offline_db';
     private dbVersion = 4;
     private db: IDBDatabase | null = null;
+    /** Singleton open promise — prevents concurrent open/recovery races */
+    private openPromise: Promise<IDBDatabase | null> | null = null;
+    /** Set to false permanently if IndexedDB is unavailable (private mode, quota, policy) */
+    private isAvailable = true;
 
-    private getDB(): Promise<IDBDatabase> {
-        if (this.db) return Promise.resolve(this.db);
+    private openInternal(): Promise<IDBDatabase> {
         return new Promise((resolve, reject) => {
             try {
                 const request = indexedDB.open(this.dbName, this.dbVersion);
@@ -52,22 +55,90 @@ class LocalDb {
                 };
                 request.onsuccess = () => {
                     this.db = request.result;
+                    // Listen for unexpected version-change closes (another tab deleted/upgraded the DB)
+                    this.db.onversionchange = () => {
+                        this.db?.close();
+                        this.db = null;
+                        this.openPromise = null;
+                    };
                     resolve(this.db);
                 };
-                request.onerror = () => {
-                    reject(request.error);
-                };
+                request.onerror = () => reject(request.error);
+                request.onblocked = () => reject(new Error('IndexedDB open blocked'));
             } catch (err) {
                 reject(err);
             }
         });
     }
 
+    /** Attempt to delete the corrupted database and recreate it from scratch */
+    private recoverDB(): Promise<IDBDatabase | null> {
+        return new Promise((resolve) => {
+            console.warn('[LocalDb] Attempting recovery: deleting corrupted IndexedDB backing store...');
+            try {
+                const deleteReq = indexedDB.deleteDatabase(this.dbName);
+                deleteReq.onsuccess = async () => {
+                    console.info('[LocalDb] Corrupted DB deleted. Recreating...');
+                    try {
+                        const freshDb = await this.openInternal();
+                        console.info('[LocalDb] Recovery successful — offline cache rebuilt.');
+                        resolve(freshDb);
+                    } catch (reopenErr) {
+                        console.error('[LocalDb] Recovery failed on reopen:', reopenErr);
+                        this.isAvailable = false;
+                        resolve(null);
+                    }
+                };
+                deleteReq.onerror = (e) => {
+                    console.error('[LocalDb] Recovery: deleteDatabase failed:', e);
+                    this.isAvailable = false;
+                    resolve(null);
+                };
+                deleteReq.onblocked = () => {
+                    console.warn('[LocalDb] Recovery: deleteDatabase blocked (another tab open). Disabling offline cache.');
+                    this.isAvailable = false;
+                    resolve(null);
+                };
+            } catch (err) {
+                console.error('[LocalDb] Recovery: unexpected error:', err);
+                this.isAvailable = false;
+                resolve(null);
+            }
+        });
+    }
+
+    private getDB(): Promise<IDBDatabase | null> {
+        if (!this.isAvailable) return Promise.resolve(null);
+        if (this.db) return Promise.resolve(this.db);
+        if (this.openPromise) return this.openPromise;
+
+        this.openPromise = this.openInternal()
+            .then((db) => {
+                this.openPromise = null;
+                return db;
+            })
+            .catch(async (err) => {
+                this.openPromise = null;
+                this.db = null;
+                console.warn('[LocalDb] Initial open failed, attempting recovery:', err?.message ?? err);
+                // Only attempt recovery for backing-store / unknown errors, not version errors
+                const msg = (err?.message ?? '').toLowerCase();
+                if (msg.includes('internal') || msg.includes('unknown') || msg.includes('backing')) {
+                    return this.recoverDB();
+                }
+                // For other errors (blocked, quota, private mode) disable gracefully
+                this.isAvailable = false;
+                return null;
+            });
+
+        return this.openPromise;
+    }
+
     async put(storeName: string, item: any): Promise<void> {
         if (!item || typeof item !== 'object') return;
         try {
             const db = await this.getDB();
-            if (!db.objectStoreNames.contains(storeName)) {
+            if (!db || !db.objectStoreNames.contains(storeName)) {
                 return; // Gracefully skip if store does not exist in older schema
             }
             // Ensure valid unique id for keyPath: 'id'
@@ -104,7 +175,7 @@ class LocalDb {
         if (!Array.isArray(items) || items.length === 0) return;
         try {
             const db = await this.getDB();
-            if (!db.objectStoreNames.contains(storeName)) return;
+            if (!db || !db.objectStoreNames.contains(storeName)) return;
 
             return new Promise((resolve) => {
                 try {
@@ -136,7 +207,7 @@ class LocalDb {
     async get<T = any>(storeName: string, id: string): Promise<T | null> {
         try {
             const db = await this.getDB();
-            if (!db.objectStoreNames.contains(storeName)) return null;
+            if (!db || !db.objectStoreNames.contains(storeName)) return null;
             return new Promise((resolve) => {
                 try {
                     const tx = db.transaction(storeName, 'readonly');
@@ -156,7 +227,7 @@ class LocalDb {
     async getAll<T = any>(storeName: string): Promise<T[]> {
         try {
             const db = await this.getDB();
-            if (!db.objectStoreNames.contains(storeName)) return [];
+            if (!db || !db.objectStoreNames.contains(storeName)) return [];
             return new Promise((resolve) => {
                 try {
                     const tx = db.transaction(storeName, 'readonly');
@@ -176,7 +247,7 @@ class LocalDb {
     async delete(storeName: string, id: string): Promise<void> {
         try {
             const db = await this.getDB();
-            if (!db.objectStoreNames.contains(storeName)) return;
+            if (!db || !db.objectStoreNames.contains(storeName)) return;
             return new Promise((resolve) => {
                 try {
                     const tx = db.transaction(storeName, 'readwrite');
@@ -194,7 +265,7 @@ class LocalDb {
     async clear(storeName: string): Promise<void> {
         try {
             const db = await this.getDB();
-            if (!db.objectStoreNames.contains(storeName)) return;
+            if (!db || !db.objectStoreNames.contains(storeName)) return;
             return new Promise((resolve) => {
                 try {
                     const tx = db.transaction(storeName, 'readwrite');

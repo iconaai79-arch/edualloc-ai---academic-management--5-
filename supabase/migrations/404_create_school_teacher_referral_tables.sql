@@ -196,4 +196,17 @@ BEGIN
         WITH CHECK (true);
 END $$;
 
+-- Data API grants (required from Supabase Oct 30 2025: new tables need explicit grants)
+GRANT SELECT ON public.teacher_referral_profiles TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.teacher_referral_profiles TO authenticated;
+GRANT ALL ON public.teacher_referral_profiles TO service_role;
+
+GRANT SELECT, INSERT ON public.school_referral_leads TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.school_referral_leads TO authenticated;
+GRANT ALL ON public.school_referral_leads TO service_role;
+
+GRANT SELECT ON public.referral_program_settings TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.referral_program_settings TO authenticated;
+GRANT ALL ON public.referral_program_settings TO service_role;
+
 NOTIFY pgrst, 'reload schema';

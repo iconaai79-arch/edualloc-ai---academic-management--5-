@@ -44,3 +44,12 @@ BEGIN
         CREATE POLICY "Allow all access on hr_deduction_categories" ON hr_deduction_categories FOR ALL USING (true) WITH CHECK (true);
     END IF;
 END $$;
+
+-- Data API grants (required from Supabase Oct 30 2025: new tables need explicit grants)
+GRANT SELECT ON public.hr_allowance_categories TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hr_allowance_categories TO authenticated;
+GRANT ALL ON public.hr_allowance_categories TO service_role;
+
+GRANT SELECT ON public.hr_deduction_categories TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hr_deduction_categories TO authenticated;
+GRANT ALL ON public.hr_deduction_categories TO service_role;

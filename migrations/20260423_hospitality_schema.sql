@@ -97,3 +97,28 @@ CREATE POLICY "hospitality_orders_policy" ON public.hospitality_orders FOR ALL U
 CREATE POLICY "hospitality_vehicles_policy" ON public.hospitality_vehicles FOR ALL USING (true);
 CREATE POLICY "hospitality_drivers_policy" ON public.hospitality_drivers FOR ALL USING (true);
 CREATE POLICY "hospitality_drive_bookings_policy" ON public.hospitality_drive_bookings FOR ALL USING (true);
+
+-- Data API grants (required from Supabase Oct 30 2025: new tables need explicit grants)
+GRANT SELECT ON public.hospitality_items TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hospitality_items TO authenticated;
+GRANT ALL ON public.hospitality_items TO service_role;
+
+GRANT SELECT ON public.hospitality_menu_items TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hospitality_menu_items TO authenticated;
+GRANT ALL ON public.hospitality_menu_items TO service_role;
+
+GRANT SELECT, INSERT, UPDATE ON public.hospitality_orders TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hospitality_orders TO authenticated;
+GRANT ALL ON public.hospitality_orders TO service_role;
+
+GRANT SELECT ON public.hospitality_vehicles TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hospitality_vehicles TO authenticated;
+GRANT ALL ON public.hospitality_vehicles TO service_role;
+
+GRANT SELECT ON public.hospitality_drivers TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hospitality_drivers TO authenticated;
+GRANT ALL ON public.hospitality_drivers TO service_role;
+
+GRANT SELECT, INSERT, UPDATE ON public.hospitality_drive_bookings TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.hospitality_drive_bookings TO authenticated;
+GRANT ALL ON public.hospitality_drive_bookings TO service_role;

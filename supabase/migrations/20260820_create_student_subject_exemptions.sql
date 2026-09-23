@@ -25,3 +25,8 @@ ON public.student_subject_exemptions
 FOR ALL
 USING (true)
 WITH CHECK (true);
+
+-- Data API grants (required from Supabase Oct 30 2025: new tables need explicit grants)
+GRANT SELECT ON public.student_subject_exemptions TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.student_subject_exemptions TO authenticated;
+GRANT ALL ON public.student_subject_exemptions TO service_role;
