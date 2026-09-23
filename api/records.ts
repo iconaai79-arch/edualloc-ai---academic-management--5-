@@ -1207,7 +1207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             try {
                 if (finalLimit <= CHUNK_SIZE) {
-                    let res: any = await executeWithTimeout((await buildBaseQuery()).range(offset, offset + finalLimit - 1))
+                    let res: any = await executeWithTimeout(((await buildBaseQuery()) as any).range(offset, offset + finalLimit - 1))
                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                         console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
@@ -1226,7 +1226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             break;
                         }
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        let res: any = await executeWithTimeout((await buildBaseQuery()).range(currentOffset, currentOffset + batchSize - 1))
+                        let res: any = await executeWithTimeout(((await buildBaseQuery()) as any).range(currentOffset, currentOffset + batchSize - 1))
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         
                         // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
