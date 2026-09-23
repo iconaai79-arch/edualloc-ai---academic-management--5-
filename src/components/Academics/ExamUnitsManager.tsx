@@ -77,6 +77,17 @@ interface ExamUnitsManagerProps {
  * broadsheetStudentRows re-render. The expensive `onCommit` callback is
  * only called onBlur or on keyboard navigation away from the cell.
  */
+const areCellPropsEqual = (prev: any, next: any) => {
+    return (
+        prev.inputId === next.inputId &&
+        prev.initialValue === next.initialValue &&
+        prev.maxScore === next.maxScore &&
+        prev.disabled === next.disabled &&
+        prev.stIndex === next.stIndex &&
+        prev.pIdx === next.pIdx
+    );
+};
+
 const MarkInputCell: React.FC<{
     inputId: string;
     initialValue: number | string;
@@ -89,6 +100,10 @@ const MarkInputCell: React.FC<{
     const [localVal, setLocalVal] = React.useState<string>(
         initialValue === 0 || initialValue === '' || initialValue === undefined ? '' : String(initialValue)
     );
+    // Keep a stable ref to onCommit so inline arrow functions never cause re-renders
+    const onCommitRef = React.useRef(onCommit);
+    onCommitRef.current = onCommit;
+
     // Sync when the external value changes (e.g. after CSV import or load)
     const prevInitial = React.useRef(initialValue);
     React.useEffect(() => {
@@ -98,14 +113,20 @@ const MarkInputCell: React.FC<{
         }
     }, [initialValue]);
 
-    const commit = () => {
+    const commit = React.useCallback(() => {
         const val = localVal === '' ? 0 : Math.max(0, Math.min(maxScore, parseFloat(localVal) || 0));
-        onCommit(val);
-    };
+        const initNum = initialValue === '' || initialValue === undefined ? 0 : Number(initialValue);
+        // Only trigger onCommit if the value actually changed
+        if (val !== initNum) {
+            onCommitRef.current(val);
+        }
+    }, [localVal, maxScore, initialValue]);
 
     const navigate = (id: string) => {
-        const el = document.getElementById(id) as HTMLInputElement | null;
-        if (el) { el.focus(); el.select?.(); }
+        requestAnimationFrame(() => {
+            const el = document.getElementById(id) as HTMLInputElement | null;
+            if (el) { el.focus(); el.select?.(); }
+        });
     };
 
     return (
@@ -143,6 +164,18 @@ const MarkInputCell: React.FC<{
                     } else if (e.key === 'ArrowLeft') {
                         const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
                         if (prevCol) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex}-${pIdx - 1}`); }
+                    } else if (e.key === 'Tab') {
+                        e.preventDefault();
+                        commit();
+                        if (e.shiftKey) {
+                            const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
+                            if (prevCol) { navigate(`mark-input-${stIndex}-${pIdx - 1}`); }
+                            else { navigate(`mark-input-${stIndex - 1}-0`); }
+                        } else {
+                            const nextCol = document.getElementById(`mark-input-${stIndex}-${pIdx + 1}`);
+                            if (nextCol) { navigate(`mark-input-${stIndex}-${pIdx + 1}`); }
+                            else { navigate(`mark-input-${stIndex + 1}-0`); }
+                        }
                     }
                 }}
                 className={`w-20 px-2 py-1.5 text-center font-mono font-black border-2 rounded-lg shadow-sm text-xs transition-all ${
@@ -153,6 +186,94 @@ const MarkInputCell: React.FC<{
             />
             <span className="text-[10px] font-bold text-slate-400">/ {maxScore}</span>
         </div>
+    );
+}, areCellPropsEqual);
+
+interface StudentSubjectRowProps {
+    st: any;
+    stIndex: number;
+    singleSubjectPapers: any[];
+    singleSubjectMaxTotal: number;
+    selectedSubjectFilter: string;
+    selectedClassFilter: string;
+    activeExamClasses: string[];
+    isPublished: boolean;
+    getStudentPaperMark: (st: any, paperKey: string, subName?: string, paperName?: string) => { val: number; hasMark: boolean };
+    calculateGradeFromScore: (pctNum: number, clsName?: string, subName?: string) => string;
+    onUpdateMark: (admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => void;
+}
+
+const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
+    st,
+    stIndex,
+    singleSubjectPapers,
+    singleSubjectMaxTotal,
+    selectedSubjectFilter,
+    selectedClassFilter,
+    activeExamClasses,
+    isPublished,
+    getStudentPaperMark,
+    calculateGradeFromScore,
+    onUpdateMark
+}) => {
+    const rawTotal = React.useMemo(() => {
+        return singleSubjectPapers.reduce((sum: number, p: any) => {
+            const markInfo = getStudentPaperMark(st, p.key, selectedSubjectFilter, p.label);
+            const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : 0);
+            return sum + (Number(val) || 0);
+        }, 0);
+    }, [st, singleSubjectPapers, selectedSubjectFilter, getStudentPaperMark]);
+
+    const convertedPct = singleSubjectMaxTotal > 0 ? ((rawTotal / singleSubjectMaxTotal) * 100).toFixed(1) : '0.0';
+    const pctNum = parseFloat(convertedPct);
+    const studentClass = st.class || (st as any).studentClass || (st as any).className || (selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || ''));
+    const grade = calculateGradeFromScore(pctNum, studentClass, selectedSubjectFilter);
+
+    return (
+        <tr className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
+            <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
+            <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
+
+            {/* Paper Editable Score Inputs */}
+            {singleSubjectPapers.map((paper: any, pIdx: number) => {
+                const markInfo = getStudentPaperMark(st, paper.key, selectedSubjectFilter, paper.label);
+                const currentVal = (st as any)[paper.key] !== undefined ? (st as any)[paper.key] : (markInfo.hasMark ? markInfo.val : '');
+                const displayVal = (currentVal === undefined || currentVal === null || currentVal === 0) ? '' : currentVal;
+                const inputId = `mark-input-${stIndex}-${pIdx}`;
+                return (
+                    <td key={pIdx} className="px-3 py-2 text-center bg-indigo-50/20 dark:bg-indigo-950/20 border-x border-slate-100 dark:border-slate-800">
+                        <MarkInputCell
+                            inputId={inputId}
+                            initialValue={displayVal}
+                            maxScore={paper.maxScore}
+                            disabled={isPublished}
+                            stIndex={stIndex}
+                            pIdx={pIdx}
+                            onCommit={(val) => onUpdateMark(st.admNo, paper.key, val, st.name, st.class)}
+                        />
+                    </td>
+                );
+            })}
+
+            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {singleSubjectMaxTotal}</td>
+            <td className="px-4 py-3 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{convertedPct}%</td>
+            <td className="px-4 py-3 text-center font-black text-emerald-600">{grade}</td>
+            <td className="px-4 py-3 text-center">
+                <span className="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black rounded-md uppercase">
+                    ✓ Live
+                </span>
+            </td>
+        </tr>
+    );
+}, (prev, next) => {
+    return (
+        prev.st === next.st &&
+        prev.stIndex === next.stIndex &&
+        prev.isPublished === next.isPublished &&
+        prev.singleSubjectPapers === next.singleSubjectPapers &&
+        prev.singleSubjectMaxTotal === next.singleSubjectMaxTotal &&
+        prev.selectedSubjectFilter === next.selectedSubjectFilter &&
+        prev.selectedClassFilter === next.selectedClassFilter
     );
 });
 
@@ -280,6 +401,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Sorting state for broadsheet mark entry (sort by Admission No or Student Name)
     const [sortField, setSortField] = useState<'admNo' | 'name'>('name');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+    // Ref for the broadsheet modal scrollable body — used to scroll back to top when switching subjects
+    const broadsheetModalBodyRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (broadsheetModalBodyRef.current) {
+            broadsheetModalBodyRef.current.scrollTop = 0;
+        }
+    }, [selectedSubjectFilter]);
 
     const toggleSort = useCallback((field: 'admNo' | 'name') => {
         if (sortField === field) {
@@ -2219,7 +2348,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         (cleanName && bByName.get(cleanName.toLowerCase().trim()));
                     if (existingRow) {
                         const nameToUse = (cleanName && !cleanName.toLowerCase().startsWith('student ')) ? cleanName : (existingRow.name || cleanName);
-                        return { ...existingRow, admNo: adm, name: nameToUse, class: getStudentClass(st) || targetClasses[0] };
+                        const targetClass = getStudentClass(st) || targetClasses[0];
+                        if (existingRow.admNo === adm && existingRow.name === nameToUse && existingRow.class === targetClass) {
+                            return existingRow;
+                        }
+                        return { ...existingRow, admNo: adm, name: nameToUse, class: targetClass };
                     }
                     return {
                         admNo: adm,
@@ -2327,6 +2460,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 (normName && r.name && r.name.toLowerCase().trim() === normName)
             );
 
+            // Fast exit: if mark is already identical, skip all updates completely
+            if (existingIndex >= 0) {
+                const existingRow = prevRows[existingIndex];
+                if (existingRow && existingRow[fieldKey] === newValue) {
+                    return prevRows;
+                }
+            }
+
             // Also synchronize companion shorthand keys so all views stay in sync
             const extraKeys: Record<string, number> = {};
             const fkLower = fieldKey.toLowerCase();
@@ -2368,10 +2509,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 updatedRows = [...prevRows, newRow];
             }
 
-            setExamMarksStore(prevStore => ({ ...prevStore, [selectedExamId]: updatedRows }));
+            // Keep store ref updated synchronously for save operations without triggering redundant state render
+            if (selectedExamId) {
+                examMarksStoreRef.current[selectedExamId] = updatedRows;
+            }
             return updatedRows;
         });
-    }, [selectedExamId, activeExamClasses, allRealStudents, resolveCleanAdmNo, resolveCleanStudentName, getStudentClass]);
+    }, [activeExam?.status, selectedExamId, activeExamClasses, allRealStudents, resolveCleanAdmNo, resolveCleanStudentName, getStudentClass]);
 
     const publishedExams = useMemo(() => exams.filter(e => e.status === 'published'), [exams]);
 
@@ -4952,7 +5096,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         </div>
 
                         {/* Modal Body */}
-                        <div className="p-6 space-y-4">
+                        <div ref={broadsheetModalBodyRef} className="p-6 space-y-4 overflow-y-auto max-h-[calc(100vh-180px)]">
                             {/* Read-Only Published Banner */}
                             {activeExam?.status === 'published' && (
                                 <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold text-amber-900 dark:text-amber-200 shadow-sm">
@@ -5051,54 +5195,22 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
-                                                {filteredStudentRows.map((st, stIndex) => {
-                                                    const rawTotal = singleSubjectPapers.reduce((sum: number, p: any) => {
-                                                        const markInfo = getStudentPaperMark(st, p.key, selectedSubjectFilter, p.label);
-                                                        const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : 0);
-                                                        return sum + (Number(val) || 0);
-                                                    }, 0);
-                                                    const convertedPct = singleSubjectMaxTotal > 0 ? ((rawTotal / singleSubjectMaxTotal) * 100).toFixed(1) : '0.0';
-                                                    const pctNum = parseFloat(convertedPct);
-                                                    const studentClass = st.class || (st as any).studentClass || (st as any).className || (selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || ''));
-                                                    const grade = calculateGradeFromScore(pctNum, studentClass, selectedSubjectFilter);
-
-                                                    return (
-                                                        <tr key={st.admNo} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
-                                                            <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
-                                                            <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
-
-                                                            {/* Paper Editable Score Inputs */}
-                                                            {singleSubjectPapers.map((paper: any, pIdx: number) => {
-                                                                const markInfo = getStudentPaperMark(st, paper.key, selectedSubjectFilter, paper.label);
-                                                                const currentVal = (st as any)[paper.key] !== undefined ? (st as any)[paper.key] : (markInfo.hasMark ? markInfo.val : '');
-                                                                const displayVal = (currentVal === undefined || currentVal === null || currentVal === 0) ? '' : currentVal;
-                                                                const inputId = `mark-input-${stIndex}-${pIdx}`;
-                                                                return (
-                                                                    <td key={pIdx} className="px-3 py-2 text-center bg-indigo-50/20 dark:bg-indigo-950/20 border-x border-slate-100 dark:border-slate-800">
-                                                                        <MarkInputCell
-                                                                            inputId={inputId}
-                                                                            initialValue={displayVal}
-                                                                            maxScore={paper.maxScore}
-                                                                            disabled={activeExam?.status === 'published'}
-                                                                            stIndex={stIndex}
-                                                                            pIdx={pIdx}
-                                                                            onCommit={(val) => handleUpdateStudentMark(st.admNo, paper.key, val, st.name, st.class)}
-                                                                        />
-                                                                    </td>
-                                                                );
-                                                            })}
-
-                                                            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {singleSubjectMaxTotal}</td>
-                                                            <td className="px-4 py-3 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{convertedPct}%</td>
-                                                            <td className="px-4 py-3 text-center font-black text-emerald-600">{grade}</td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <span className="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black rounded-md uppercase">
-                                                                    ✓ Live
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })}
+                                                {filteredStudentRows.map((st, stIndex) => (
+                                                    <StudentSubjectRow
+                                                        key={st.admNo || `st-${stIndex}`}
+                                                        st={st}
+                                                        stIndex={stIndex}
+                                                        singleSubjectPapers={singleSubjectPapers}
+                                                        singleSubjectMaxTotal={singleSubjectMaxTotal}
+                                                        selectedSubjectFilter={selectedSubjectFilter}
+                                                        selectedClassFilter={selectedClassFilter}
+                                                        activeExamClasses={activeExamClasses}
+                                                        isPublished={activeExam?.status === 'published'}
+                                                        getStudentPaperMark={getStudentPaperMark}
+                                                        calculateGradeFromScore={calculateGradeFromScore}
+                                                        onUpdateMark={handleUpdateStudentMark}
+                                                    />
+                                                ))}
                                                 {filteredStudentRows.length === 0 && (
                                                     <tr>
                                                         <td colSpan={8} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">

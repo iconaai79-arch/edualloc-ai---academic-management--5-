@@ -185,11 +185,15 @@ const fetchViaDirectPg = async (
       err?.code === 'ENOTFOUND';
 
     if (isConnTimeout) {
-      _directPgConsecutiveFailures = Math.max(_directPgConsecutiveFailures + 1, 2);
-      const cooldownMs = 300000;
+      _directPgConsecutiveFailures += 1;
+      // Exponential back-off: 30s, 60s, 120s … capped at 300s.
+      // This prevents a single transient TCP blip from locking out Direct PG for 5 minutes.
+      const cooldownMs = Math.min(30000 * Math.pow(2, _directPgConsecutiveFailures - 1), 300000);
       _directPgDisabledUntil = Date.now() + cooldownMs;
       console.warn(`[fetchViaDirectPg] Connection failed or timed out (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
 
+      // Only drain the pool when DATABASE_URL is actually configured — if it was
+      // never set the pool is null already; destroying a null pool reference is a no-op.
       if (_pgPool) {
         try { _pgPool.end().catch(() => {}); } catch (_) {}
         _pgPool = null;
@@ -1244,6 +1248,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Academic lookup tables — frequently large, benefit most from direct PG
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
                     'academic_years', 'semesters', 'allocation_requests',
+                    // Finance reference tables — small but queried on every finance page load
+                    'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions',
+                    'finance_numbering_configs', 'bursary_disbursements',
                 ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
