@@ -1485,6 +1485,8 @@ export interface ActivityLog {
     institutionName?: string;
     action: string;
     timestamp: string;
+    createdAt?: string;
+    created_at?: string;
     ipAddress?: string;
     macAddress?: string;
     imei?: string;

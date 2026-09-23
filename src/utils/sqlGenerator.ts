@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS activity_log (
     institution_name TEXT,
     action TEXT NOT NULL,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     ip_address TEXT,
     mac_address TEXT,
     imei TEXT

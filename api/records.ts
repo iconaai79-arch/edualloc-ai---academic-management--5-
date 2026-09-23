@@ -143,7 +143,8 @@ const fetchViaDirectPg = async (
 
   let orderPart = '';
   if (orderBy) {
-    const [col, dir] = orderBy.split('.');
+    const [rawCol, dir] = orderBy.split('.');
+    const col = (table === 'activity_log' && rawCol === 'created_at') ? 'timestamp' : rawCol;
     if (/^[a-zA-Z0-9_]+$/.test(col)) {
       const isDesc = dir?.toLowerCase() === 'desc';
       orderPart = `ORDER BY "${col}" ${isDesc ? 'DESC' : 'ASC'}`;
@@ -979,13 +980,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 const orderParam = getStrParam(order);
                 if (orderParam && orderParam.includes('.')) {
-                    const [col, dir] = orderParam.split('.');
+                    let [col, dir] = orderParam.split('.');
+                    if (moduleName === 'activity_log' && col === 'created_at') col = 'timestamp';
                     if (col) {
                         q = q.order(col, { ascending: dir === 'asc' });
                     }
                 } else if (orderParam) {
-                    q = q.order(orderParam, { ascending: true });
-                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
+                    const col = (moduleName === 'activity_log' && orderParam === 'created_at') ? 'timestamp' : orderParam;
+                    q = q.order(col, { ascending: true });
+                } else if (moduleName === 'activity_log') {
+                    q = q.order('timestamp', { ascending: false });
+                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
                 } else if (['receipts'].includes(moduleName)) {
                     q = q.order('payment_date', { ascending: false });
@@ -1088,7 +1093,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('id', { ascending: false });
                 } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id))) {
                     q = q.order('id', { ascending: true });
-                } else if (['visitors', 'security_alerts', 'activity_log', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
+                } else if (moduleName === 'activity_log') {
+                    q = q.order('timestamp', { ascending: false });
+                } else if (['visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
                 }
                 return q;
@@ -1191,8 +1198,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let defaultOrderBy: string | undefined = undefined;
             const orderParamStr = getStrParam(order);
             if (orderParamStr) {
-                defaultOrderBy = orderParamStr;
-            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'activity_log', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
+                if (moduleName === 'activity_log' && orderParamStr.startsWith('created_at')) {
+                    defaultOrderBy = orderParamStr.replace('created_at', 'timestamp');
+                } else {
+                    defaultOrderBy = orderParamStr;
+                }
+            } else if (moduleName === 'activity_log') {
+                defaultOrderBy = 'timestamp.desc';
+            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
             } else if (['receipts'].includes(moduleName)) {
                 defaultOrderBy = 'payment_date.desc';
