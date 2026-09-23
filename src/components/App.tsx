@@ -3544,7 +3544,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     useEffect(() => {
         // Trigger a hard reload when identity, scope, or perspective changes, or limits change
         loadData(true);
-    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole, activityLogLimit, transactionLimit, receiptLimit, notificationLimit]);
+        const role = currentUser?.role;
+        const instId = currentUser?.institutionId || activeInstitution?.id;
+        if (instId && (role === 'finance_officer' || role === 'finance' || role === 'admin' || role === 'super_admin' || role === 'head_teacher' || role === 'procurement_officer')) {
+            apiService.prefetchFinanceRecords(instId).catch(() => {});
+        }
+    }, [currentUser?.id, currentUser?.institutionId, currentUser?.countyId, impersonatedRole, activityLogLimit, transactionLimit, receiptLimit, notificationLimit, activeInstitution?.id]);
 
     // Reset bank feeds seen ref when institution changes
     useEffect(() => {

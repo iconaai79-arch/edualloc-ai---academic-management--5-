@@ -3,6 +3,7 @@ import React from 'react';
 import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails } from '../../types';
 import { FinanceManager } from './FinanceManager';
 import { Header } from '../Header';
+import { apiService } from '../../services/apiService';
 
 interface FinanceOfficerViewProps {
     currentUser: User;
@@ -81,6 +82,12 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     const totalBilled = (invoices || []).reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total_amount || 0), 0);
     const totalCollected = (receipts || []).reduce((sum, rec) => sum + (rec.amountPaid || (rec as any).amount_paid || 0), 0);
     const efficiencyRate = totalBilled > 0 ? Math.min(100, Math.round((totalCollected / totalBilled) * 1000) / 10) : 100;
+
+    React.useEffect(() => {
+        if (currentInstitution?.id) {
+            apiService.prefetchFinanceRecords(currentInstitution.id).catch(() => {});
+        }
+    }, [currentInstitution?.id]);
 
     return (
         <div className="space-y-10 w-full">

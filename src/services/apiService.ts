@@ -185,18 +185,44 @@ function toCamelCase(obj: any): any {
     return newObj;
 }
 
+// Tables critical for offline finance operations that must never be purged or capped small
+const FINANCE_TABLES = new Set([
+    'invoices',
+    'receipts',
+    'expenses',
+    'fee_structures',
+    'vote_heads',
+    'financial_periods',
+    'financial_goals',
+    'school_bank_accounts',
+    'bank_accounts',
+    'bank_transactions',
+    'mpesa_transactions',
+    'transactions',
+    'student_enrollments',
+    'finance_numbering_configs',
+    'inter_bank_transfers',
+    'inter_vote_transfers',
+    'vote_head_transfers',
+    'ng_cdf_school_grants',
+    'requisitions',
+    'payroll_records'
+]);
+
 // Safe Local Storage Helper with automatic quota eviction and LRU cache capping
 export const safeLocalStorage = {
     freeSpace: () => {
         try {
+            const financeArr = Array.from(FINANCE_TABLES);
             const evictableKeys = Object.keys(localStorage).filter(k => 
                 !k.includes('active_session') && 
                 !k.includes('super_admin') &&
                 !k.includes('current_user') && 
                 !k.includes('credentials') &&
-                !k.includes('token') &&
-                !k.includes('auth') &&
+                !k.includes('token') && 
+                !k.includes('auth') && 
                 !k.includes('user') &&
+                !financeArr.some(ft => k.includes(ft)) &&
                 (
                     k.includes('_cache') || 
                     k.includes('_backup') || 
@@ -225,14 +251,16 @@ export const safeLocalStorage = {
                 localStorage.removeItem(key);
                 localStorage.setItem(key, value);
             } catch (_) {
-                // Secondary aggressive eviction: remove largest non-session keys except target key
+                // Secondary aggressive eviction: remove largest non-session, non-finance keys except target key
                 try {
+                    const financeArr = Array.from(FINANCE_TABLES);
                     const allKeys = Object.keys(localStorage).filter(k => 
                         k !== key && 
                         !k.includes('session') && 
                         !k.includes('token') && 
                         !k.includes('user') && 
-                        !k.includes('auth')
+                        !k.includes('auth') &&
+                        !financeArr.some(ft => k.includes(ft))
                     );
                     const sizes = allKeys.map(k => ({ k, len: (localStorage.getItem(k) || '').length }));
                     sizes.sort((a, b) => b.len - a.len);
@@ -277,11 +305,21 @@ const ls = {
     set: (table: string, data: any) => {
         try {
             if (Array.isArray(data)) {
-                // Cap oversized local caches to the most recent 150 items to prevent local storage quota saturation
-                const trimmedData = data.length > 150 ? data.slice(-150) : data;
+                // Protect finance and student records: allow up to 15,000 items so offline finance works with full ledger
+                const isFinance = FINANCE_TABLES.has(table) || table === 'users' || table === 'students';
+                const maxCap = isFinance ? 15000 : 150;
+                const trimmedData = data.length > maxCap ? data.slice(-maxCap) : data;
                 safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
+
+                // Always mirror full dataset to IndexedDB (localDb) for persistent, unbounded offline access
+                try {
+                    localDb.bulkPut(table, data).catch(() => {});
+                } catch (_) {}
             } else if (data && typeof data === 'object') {
                 safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(data));
+                try {
+                    localDb.put(table, data).catch(() => {});
+                } catch (_) {}
             } else {
                 safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify([]));
             }
@@ -290,7 +328,6 @@ const ls = {
         }
     },
     upsert: (table: string, record: any) => {
-
         try {
             const records = ls.get(table);
             const index = records.findIndex((r: any) => r && r.id === record.id);
@@ -300,6 +337,9 @@ const ls = {
                 records.push(record);
             }
             ls.set(table, records);
+            try {
+                localDb.put(table, record).catch(() => {});
+            } catch (_) {}
             return [record];
         } catch (_) {
             return [record];
@@ -1279,11 +1319,22 @@ export const apiService = {
 
                 if (institutionId && institutionId !== 'ALL') {
                     const filterKey = getFilterCol(effectiveModule, 'institution');
-                    records = records.filter((r: any) => r[filterKey] === institutionId);
+                    records = records.filter((r: any) => 
+                        r[filterKey] === institutionId ||
+                        r.institutionId === institutionId ||
+                        r.institution_id === institutionId ||
+                        r.id === institutionId ||
+                        (!r[filterKey] && !r.institutionId && !r.institution_id)
+                    );
                 }
                 if (countyId) {
                     const filterKey = getFilterCol(effectiveModule, 'county');
-                    records = records.filter((r: any) => r[filterKey] === countyId);
+                    records = records.filter((r: any) => 
+                        r[filterKey] === countyId ||
+                        r.countyId === countyId ||
+                        r.county_id === countyId ||
+                        r.id === countyId
+                    );
                 }
                 
                 // Local simple filter
@@ -3929,6 +3980,17 @@ export const apiService = {
 
                 if (response.status === 500 || response.status === 504 || response.status === 502 || response.status === 503) {
                     console.log(`[apiService] Module '${module}' fallback saved locally (status ${response.status}).`);
+                    ls.upsert(module, currentPayload);
+                    try {
+                        localDb.put(module, currentPayload).catch(() => {});
+                        localDb.put('sync_queue', {
+                            id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                            module,
+                            data: currentPayload,
+                            action: 'save',
+                            timestamp: new Date().toISOString()
+                        }).catch(() => {});
+                    } catch (_) {}
                     return toCamelCase(currentPayload);
                 }
 
@@ -3984,6 +4046,17 @@ export const apiService = {
                     }
                     
                     console.warn(`[apiService] Save API returned status ${response.status} for [${module}] — falling back to local storage:`, errData);
+                    ls.upsert(module, currentPayload);
+                    try {
+                        localDb.put(module, currentPayload).catch(() => {});
+                        localDb.put('sync_queue', {
+                            id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                            module,
+                            data: currentPayload,
+                            action: 'save',
+                            timestamp: new Date().toISOString()
+                        }).catch(() => {});
+                    } catch (_) {}
                     return toCamelCase(currentPayload);
                 }
 
@@ -4017,6 +4090,17 @@ export const apiService = {
             if (errStr.includes('Registry Conflict') || errStr.includes('23505') || errStr.toLowerCase().includes('unique constraint') || errStr.toLowerCase().includes('already registered')) {
                 throw e;
             }
+            ls.upsert(module, payload);
+            try {
+                localDb.put(module, payload).catch(() => {});
+                localDb.put('sync_queue', {
+                    id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    module,
+                    data: payload,
+                    action: 'save',
+                    timestamp: new Date().toISOString()
+                }).catch(() => {});
+            } catch (_) {}
             return toCamelCase(payload);
         }
     },
@@ -7339,6 +7423,99 @@ export const apiService = {
 
     async deleteSchoolRouterProfile(id: string): Promise<void> {
         await apiService.deleteModuleRecord('school_router_profiles', id);
+    },
+
+    async flushOfflineSyncQueue(): Promise<void> {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        try {
+            const queue = await localDb.getAll<any>('sync_queue');
+            if (!queue || queue.length === 0) return;
+            console.info(`[apiService] 🔄 Processing ${queue.length} pending offline record(s)...`);
+            for (const item of queue) {
+                try {
+                    if (item.action === 'save' && item.module && item.data) {
+                        const token = await apiService.getAuthToken();
+                        const res = await fetch(`/api/records?module=${item.module}`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ data: item.data })
+                        });
+                        if (res.ok) {
+                            await localDb.delete('sync_queue', item.id);
+                        }
+                    }
+                } catch (_) {
+                    break;
+                }
+            }
+        } catch (e) {
+            console.warn('[apiService] Sync queue processing notice:', e);
+        }
+    },
+
+    async prefetchFinanceRecords(institutionId?: string): Promise<void> {
+        if (!institutionId || institutionId === 'ALL') {
+            const session = apiService.getSession();
+            institutionId = session?.institutionId;
+        }
+        if (!institutionId) return;
+
+        // Skip prefetch if client is offline or fetched within last 2 minutes
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        const lastPrefetchKey = `eduai_last_finance_prefetch_${institutionId}`;
+        const lastTime = parseInt(safeLocalStorage.getItem(lastPrefetchKey) || '0', 10);
+        if (Date.now() - lastTime < 120000) return;
+
+        console.info(`[apiService] 🚀 Prefetching all finance records for offline availability (Inst: ${institutionId})...`);
+
+        try {
+            // First flush any pending offline writes
+            await apiService.flushOfflineSyncQueue().catch(() => {});
+
+            // Batch 1: Primary ledger records
+            await Promise.allSettled([
+                apiService.fetchInvoices(institutionId).catch(() => []),
+                apiService.fetchModuleRecords('receipts', institutionId, undefined, { limit: 100000, order: 'payment_date.desc' }).catch(() => []),
+                apiService.fetchFeeStructures(institutionId).catch(() => []),
+                apiService.fetchVoteHeads(institutionId).catch(() => []),
+                apiService.fetchModuleRecords('expenses', institutionId).catch(() => []),
+                apiService.fetchFinancialPeriods(institutionId).catch(() => [])
+            ]);
+
+            // Batch 2: Banking, configurations, and accounts
+            await Promise.allSettled([
+                apiService.fetchModuleRecords('financial_goals', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('school_bank_accounts', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('finance_numbering_configs', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('inter_bank_transfers', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('inter_vote_transfers', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('ng_cdf_school_grants', institutionId).catch(() => [])
+            ]);
+
+            // Batch 3: Students, enrollments, and transactions
+            await Promise.allSettled([
+                apiService.fetchModuleRecords('student_enrollments', institutionId).catch(() => []),
+                apiService.fetchTransactions(institutionId, { limit: 100000, order: 'created_at.desc' }).catch(() => []),
+                apiService.fetchModuleRecords('bank_transactions', institutionId, undefined, { limit: 100000, order: 'created_at.desc' }).catch(() => []),
+                apiService.fetchModuleRecords('requisitions', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('payroll_records', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('users', institutionId, undefined, { filter: { role: 'student' } }).catch(() => [])
+            ]);
+
+            safeLocalStorage.setItem(lastPrefetchKey, Date.now().toString());
+            console.info(`[apiService] ✅ All finance records cached locally for uninterrupted offline operations.`);
+        } catch (e) {
+            console.warn('[apiService] Finance prefetch notice:', e);
+        }
     }
 };
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+        apiService.flushOfflineSyncQueue().catch(() => {});
+    });
+}
 
