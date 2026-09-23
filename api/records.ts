@@ -1217,13 +1217,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'id.asc';
             }
 
+            const applyRange = (queryOrPromise: any, from: number, to: number) => {
+                if (!queryOrPromise) return queryOrPromise;
+                if (typeof queryOrPromise.then === 'function') {
+                    return queryOrPromise.then((q: any) => (q && typeof q.range === 'function' ? q.range(from, to) : q));
+                }
+                return typeof queryOrPromise.range === 'function' ? queryOrPromise.range(from, to) : queryOrPromise;
+            };
+
             try {
                 if (finalLimit <= CHUNK_SIZE) {
-                    let res: any = await executeWithTimeout(buildBaseQuery().range(offset, offset + finalLimit - 1))
+                    let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1))
                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                         console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
-                        res = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 500) - 1), 4000)
+                        res = await executeWithTimeout(applyRange(buildFastBaseQuery(), offset, offset + Math.min(finalLimit, 500) - 1), 4000)
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                     }
                     data = res?.data || [];
@@ -1238,14 +1246,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             break;
                         }
                         const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        let res: any = await executeWithTimeout(buildBaseQuery().range(currentOffset, currentOffset + batchSize - 1))
+                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), currentOffset, currentOffset + batchSize - 1))
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         
                         // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
                         if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                             console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                             const fastBatch = Math.max(100, Math.floor(batchSize / 2));
-                            res = await executeWithTimeout(buildFastBaseQuery().range(currentOffset, currentOffset + fastBatch - 1), 4000)
+                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 4000)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
 
@@ -1272,7 +1280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } else {
                     // Try fast recovery query
                     try {
-                        const fastRecoveryRes: any = await executeWithTimeout(buildFastBaseQuery().range(offset, offset + Math.min(finalLimit, 200) - 1), 5000);
+                        const fastRecoveryRes: any = await executeWithTimeout(applyRange(buildFastBaseQuery(), offset, offset + Math.min(finalLimit, 200) - 1), 5000);
                         if (fastRecoveryRes?.data && Array.isArray(fastRecoveryRes.data)) {
                             data = fastRecoveryRes.data;
                             error = null;
