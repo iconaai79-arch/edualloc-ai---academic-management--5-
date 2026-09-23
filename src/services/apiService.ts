@@ -209,20 +209,20 @@ const FINANCE_TABLES = new Set([
     'payroll_records'
 ]);
 
-// Safe Local Storage Helper with automatic quota eviction and LRU cache capping
+const _storageMemoryFallback = new Map<string, string>();
+const _tableMemoryCache = new Map<string, any[]>();
+
+// Safe Local Storage Helper with automatic quota eviction, in-memory fallback, and LRU eviction
 export const safeLocalStorage = {
     freeSpace: () => {
         try {
-            const financeArr = Array.from(FINANCE_TABLES);
             const evictableKeys = Object.keys(localStorage).filter(k => 
                 !k.includes('active_session') && 
                 !k.includes('super_admin') &&
                 !k.includes('current_user') && 
                 !k.includes('credentials') &&
                 !k.includes('token') && 
-                !k.includes('auth') && 
-                !k.includes('user') &&
-                !financeArr.some(ft => k.includes(ft)) &&
+                !k.includes('auth') &&
                 (
                     k.includes('_cache') || 
                     k.includes('_backup') || 
@@ -234,15 +234,24 @@ export const safeLocalStorage = {
                     k.startsWith('temp_')
                 )
             );
-            // Evict the largest 15 bloated keys to free up plenty of headroom
+            // Evict the largest 25 bloated keys to free up plenty of headroom
             const keySizes = evictableKeys.map(k => ({ key: k, size: (localStorage.getItem(k) || '').length }));
             keySizes.sort((a, b) => b.size - a.size);
-            for (const item of keySizes.slice(0, 15)) {
+            for (const item of keySizes.slice(0, 25)) {
                 localStorage.removeItem(item.key);
             }
         } catch (e) {}
     },
     setItem: (key: string, value: string) => {
+        // Unconditionally preserve in memory fallback for instant synchronous retrieval
+        _storageMemoryFallback.set(key, value);
+
+        // If the payload is unusually large (>250KB), avoid exhausting the browser's 5MB synchronous localStorage.
+        // The value is preserved in memory and persisted via IndexedDB.
+        if (value.length > 250000) {
+            return;
+        }
+
         try {
             localStorage.setItem(key, value);
         } catch (e) {
@@ -251,53 +260,62 @@ export const safeLocalStorage = {
                 localStorage.removeItem(key);
                 localStorage.setItem(key, value);
             } catch (_) {
-                // Secondary aggressive eviction: remove largest non-session, non-finance keys except target key
+                // Secondary aggressive eviction: remove largest non-session keys except target key
                 try {
-                    const financeArr = Array.from(FINANCE_TABLES);
                     const allKeys = Object.keys(localStorage).filter(k => 
                         k !== key && 
                         !k.includes('session') && 
                         !k.includes('token') && 
-                        !k.includes('user') && 
                         !k.includes('auth') &&
-                        !financeArr.some(ft => k.includes(ft))
+                        !k.includes('credentials')
                     );
                     const sizes = allKeys.map(k => ({ k, len: (localStorage.getItem(k) || '').length }));
                     sizes.sort((a, b) => b.len - a.len);
-                    for (const s of sizes.slice(0, 10)) {
+                    for (const s of sizes.slice(0, 15)) {
                         localStorage.removeItem(s.k);
                     }
                     localStorage.setItem(key, value);
                 } catch (finalErr) {
-                    // CRITICAL: NEVER re-throw QuotaExceededError - keep app running smoothly in memory
-                    console.warn(`[safeLocalStorage] Storage quota full for '${key}' - state retained in memory.`);
+                    // Retained in _storageMemoryFallback safely without throwing or console spam
                 }
             }
         }
     },
     getItem: (key: string): string | null => {
         try {
-            return localStorage.getItem(key);
-        } catch (e) {
-            return null;
-        }
+            const item = localStorage.getItem(key);
+            if (item !== null) return item;
+        } catch (e) {}
+        return _storageMemoryFallback.get(key) ?? null;
     },
     removeItem: (key: string) => {
         try {
             localStorage.removeItem(key);
         } catch (e) {}
+        _storageMemoryFallback.delete(key);
     }
 };
 
-// Local Storage Helper with automatic QuotaExceeded recovery and LRU cache capping
+// Local Storage Helper with memory caching, safe localStorage slicing, and IndexedDB persistence
 const ls = {
     get: (table: string): any[] => {
+        // 1. Primary fast-path: in-memory cache
+        const mem = _tableMemoryCache.get(table);
+        if (Array.isArray(mem) && mem.length > 0) {
+            return mem;
+        }
+
+        // 2. Secondary path: safeLocalStorage
         try {
-            const data = localStorage.getItem(`eduai_${table}`);
+            const data = safeLocalStorage.getItem(`eduai_${table}`);
             if (!data) return [];
             const parsed = JSON.parse(data);
             if (!Array.isArray(parsed)) return [];
-            return parsed.filter(r => r && typeof r === 'object');
+            const clean = parsed.filter(r => r && typeof r === 'object');
+            if (clean.length > 0) {
+                _tableMemoryCache.set(table, clean);
+            }
+            return clean;
         } catch (e) {
             return [];
         }
@@ -305,22 +323,26 @@ const ls = {
     set: (table: string, data: any) => {
         try {
             if (Array.isArray(data)) {
-                // Protect finance and student records: allow up to 15,000 items so offline finance works with full ledger
-                const isFinance = FINANCE_TABLES.has(table) || table === 'users' || table === 'students';
-                const maxCap = isFinance ? 15000 : 150;
-                const trimmedData = data.length > maxCap ? data.slice(-maxCap) : data;
-                safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
+                // 1. Retain the FULL, complete dataset in-memory for instant synchronous access
+                _tableMemoryCache.set(table, data);
 
-                // Always mirror full dataset to IndexedDB (localDb) for persistent, unbounded offline access
+                // 2. Persist the FULL dataset to IndexedDB (localDb) for persistent, unbounded offline access
                 try {
                     localDb.bulkPut(table, data).catch(() => {});
                 } catch (_) {}
+
+                // 3. For localStorage: store a lightweight recent slice (max 100 items) so 5MB browser quota is never exceeded
+                const maxLsCap = 100;
+                const trimmedData = data.length > maxLsCap ? data.slice(-maxLsCap) : data;
+                safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
             } else if (data && typeof data === 'object') {
+                _tableMemoryCache.set(table, [data]);
                 safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(data));
                 try {
                     localDb.put(table, data).catch(() => {});
                 } catch (_) {}
             } else {
+                _tableMemoryCache.delete(table);
                 safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify([]));
             }
         } catch (e: any) {
@@ -1524,6 +1546,21 @@ export const apiService = {
                 return finalResult;
             };
 
+            const resolveLocalRecords = async () => {
+                let localData = queryLocal();
+                if (localData.length === 0) {
+                    try {
+                        const effectiveMod = (module === 'v_house_statistics' || module === 'v_bed_occupancy') ? 'boarding_houses' : module;
+                        const idbRecords = await localDb.getAll(effectiveMod).catch(() => []);
+                        if (idbRecords && idbRecords.length > 0) {
+                            _tableMemoryCache.set(effectiveMod, idbRecords);
+                            localData = queryLocal();
+                        }
+                    } catch (_) {}
+                }
+                return localData;
+            };
+
             if (module === 'exam_units') {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
                 let remoteExams: any[] = [];
@@ -1960,7 +1997,7 @@ export const apiService = {
 
             // Fast offline short-circuit: serve cached local data immediately when offline
             if (typeof navigator !== 'undefined' && !navigator.onLine) {
-                return queryLocal();
+                return resolveLocalRecords();
             }
 
             try {
@@ -2043,7 +2080,7 @@ export const apiService = {
                             apiService._notifySessionExpired();
                         }
                         console.warn(`[apiService] Session expired / 401 — falling back to local storage for [${module}]`);
-                        return queryLocal();
+                        return resolveLocalRecords();
                     }
                 }
                 // --- end 401 handler ---
@@ -2057,7 +2094,7 @@ export const apiService = {
                     }
                     
                     console.warn(`[apiService] Falling back to local storage for module [${module}]`);
-                    return queryLocal();
+                    return resolveLocalRecords();
                 }
 
                 const contentType = response.headers.get('content-type');
@@ -2065,13 +2102,13 @@ export const apiService = {
                     const text = await response.text();
                     console.error(`[apiService] Non-JSON response for [${module}]:`, text.substring(0, 200));
                     console.warn(`[apiService] Falling back to local storage for module [${module}]`);
-                    return queryLocal();
+                    return resolveLocalRecords();
                 }
 
                 const data = await response.json();
                 if (data && typeof data === 'object' && !Array.isArray(data) && (data.success === false || data.error)) {
                     console.warn(`[apiService] Server returned error object for [${module}]:`, data.error || data.message);
-                    return queryLocal();
+                    return resolveLocalRecords();
                 }
                 const result = toCamelCase(data);
                 if (module === 'institutions' && Array.isArray(result)) {
@@ -2231,7 +2268,7 @@ export const apiService = {
                 }
 
                 if (Array.isArray(result)) {
-                    const localData = queryLocal();
+                    const localData = await resolveLocalRecords();
                     if (result.length === 0 && localData.length > 0) {
                         return localData;
                     }
@@ -2250,7 +2287,7 @@ export const apiService = {
                     }
                     return finalRecords;
                 }
-                return queryLocal();
+                return resolveLocalRecords();
             } catch (e: any) {
                 const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || 
                     String(e?.message || '').toLowerCase().includes('failed to fetch') ||
@@ -2260,14 +2297,14 @@ export const apiService = {
                 const isAbort = e?.name === 'AbortError' || String(e?.message || '').includes('aborted');
                 if (isOffline) {
                     // Silently serve local records when offline / disconnected without spamming logs
-                    return queryLocal();
+                    return resolveLocalRecords();
                 } else if (isAbort) {
                     console.info(`[apiService] Fetch request for [${module}] timed out gracefully — serving local records.`);
                 } else {
                     console.warn(`Fetch Notice [${module}]:`, e?.message || e);
                     console.info(`[apiService] Serving local storage records for module [${module}]`);
                 }
-                return queryLocal();
+                return resolveLocalRecords();
             }
         };
 

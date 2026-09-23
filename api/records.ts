@@ -990,6 +990,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order(col, { ascending: true });
                 } else if (moduleName === 'activity_log') {
                     q = q.order('timestamp', { ascending: false });
+                } else if (['teacher_check_ins'].includes(moduleName)) {
+                    q = q.order('check_in_date', { ascending: false });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
                 } else if (['receipts'].includes(moduleName)) {
@@ -1008,7 +1010,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'integration_logs', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory'].includes(moduleName)
                     ? 100000
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
                         ? 2000 
                         : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) 
                             ? 500 
@@ -1036,7 +1038,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? 400 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 300
-                    : (['visitors', 'security_alerts', 'activity_log', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
+                    : (['visitors', 'security_alerts', 'activity_log', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
                         ? 200
                         : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 100 : 1000))));
             let data: any[] = [];
@@ -1095,6 +1097,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('id', { ascending: true });
                 } else if (moduleName === 'activity_log') {
                     q = q.order('timestamp', { ascending: false });
+                } else if (['teacher_check_ins'].includes(moduleName)) {
+                    q = q.order('check_in_date', { ascending: false });
                 } else if (['visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
                 }
@@ -1205,6 +1209,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } else if (moduleName === 'activity_log') {
                 defaultOrderBy = 'timestamp.desc';
+            } else if (['teacher_check_ins'].includes(moduleName)) {
+                defaultOrderBy = 'check_in_date.desc';
             } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
             } else if (['receipts'].includes(moduleName)) {
