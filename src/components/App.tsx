@@ -1417,7 +1417,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 countyId: usr.countyId || usr.county_id,
                 institutionId: usr.institutionId || usr.institution_id
             }));
-            setUsers(normalizedUsers);
+            const isTenantPhase1 = currentUser && currentUser.role !== 'super_admin' && !currentUser.role?.startsWith('county_');
+            const tenantInstPhase1 = currentUser?.institutionId;
+            const scopedPhase1Users = (isTenantPhase1 && tenantInstPhase1)
+                ? normalizedUsers.filter((usr: any) => usr && (usr.institutionId === tenantInstPhase1 || usr.institution_id === tenantInstPhase1))
+                : normalizedUsers;
+            setUsers(scopedPhase1Users);
             setInstitutions(insts || []);
             setEvents(evts || []);
             if (cnts) setCounties(cnts);
@@ -1533,7 +1538,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             if (systemSuperAdmin && !finalUsers.some((existing: User) => existing.email === systemSuperAdmin.email)) {
                 finalUsers = [...finalUsers, systemSuperAdmin];
             }
-            setUsers(finalUsers);
+            const isTenantPhase2 = currentUser && currentUser.role !== 'super_admin' && !currentUser.role?.startsWith('county_');
+            const targetInstPhase2 = currentUser?.institutionId;
+            const scopedFinalUsers = (isTenantPhase2 && targetInstPhase2)
+                ? finalUsers.filter((usr: any) => usr && (usr.institutionId === targetInstPhase2 || usr.institution_id === targetInstPhase2 || usr.id === currentUser.id))
+                : finalUsers;
+            setUsers(scopedFinalUsers);
 
             if (currentUser) {
                 const refreshedSelf = finalUsers.find((u: User) => u.id === currentUser.id);

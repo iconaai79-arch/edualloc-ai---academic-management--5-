@@ -100,7 +100,17 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
                 const raw = localStorage.getItem(k);
                 if (raw) {
                     const parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed)) localCombined.push(...parsed);
+                    if (Array.isArray(parsed)) {
+                        for (const item of parsed) {
+                            if (!item || typeof item !== 'object') continue;
+                            const itemInst = String(item.institutionId || item.institution_id || '').trim();
+                            const cleanItemInst = itemInst.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
+                            if (itemInst && itemInst !== instId && cleanItemInst !== cleanInstId) {
+                                continue;
+                            }
+                            localCombined.push(item);
+                        }
+                    }
                 }
             } catch (e) {}
         });
@@ -146,8 +156,8 @@ export const MontessoriAssessmentManager: React.FC<MontessoriAssessmentManagerPr
             const cInstId = String(c.institutionId || c.institution_id || '').trim();
             const cleanCInstId = cInstId.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
 
-            if (instId && cInstId && !instId.startsWith('demo_') && !cInstId.startsWith('demo_')) {
-                if (cInstId !== instId && cleanCInstId !== cleanInstId) {
+            if (instId && !instId.startsWith('demo_')) {
+                if (!cInstId || (cInstId !== instId && cleanCInstId !== cleanInstId)) {
                     return;
                 }
             }

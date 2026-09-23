@@ -387,10 +387,23 @@ export const apiService = {
         return { url: _activeUrl, key: _activeKey };
     },
     storeSession(user: User) {
-        localStorage.setItem('eduai_active_session', JSON.stringify(user));
+        try {
+            localStorage.setItem('eduai_active_session', JSON.stringify(user));
+            // If logging in as a tenant user (not super_admin), clear stale super admin and impersonation keys
+            // to ensure backend queries are never elevated to global/bypass mode!
+            if (user && user.role !== 'super_admin') {
+                localStorage.removeItem('eduai_super_admin_session');
+                localStorage.removeItem('eduai_impersonated_user');
+            }
+        } catch (e) {}
     },
     clearSession() {
-        localStorage.removeItem('eduai_active_session');
+        try {
+            localStorage.removeItem('eduai_active_session');
+            localStorage.removeItem('eduai_super_admin_session');
+            localStorage.removeItem('eduai_impersonated_user');
+            localStorage.removeItem('eduai_user_session');
+        } catch (e) {}
     },
     getSession(): User | null {
         try {
@@ -726,25 +739,31 @@ export const apiService = {
             }
         }
 
-        // 2. Try Super Admin session fallback
-        const superAdminSession = localStorage.getItem('eduai_super_admin_session');
-        if (superAdminSession) {
-            try {
-                const parsed = JSON.parse(superAdminSession);
-                if (parsed?.id) return parsed.id;
-            } catch (e) {}
-            return 'temp_admin_bypass';
-        }
-
-        // 3. Fallback to active session user ID or temp_admin_bypass
+        // 2. Active session user ID takes precedence for authenticated tenant users
         let session = apiService.getSession();
         
-        // 3.1 Try Alumnae Session fallback
+        // 2.1 Try Alumnae Session fallback
         if (!session) {
             try {
                 const alumStored = localStorage.getItem('eduai_alumna_session');
                 if (alumStored) session = JSON.parse(alumStored);
             } catch (e) {}
+        }
+
+        // If an active tenant session is present, always use their token first so tenant queries are properly scoped
+        if (session && session.role !== 'super_admin') {
+            const token = session.id || (session as any)?.userId || (session as any)?.user_id || '';
+            if (token && typeof token === 'string' && token.length > 3) return token;
+        }
+
+        // 3. Try Super Admin session fallback when user is super admin or when no active tenant session exists
+        const superAdminSession = localStorage.getItem('eduai_super_admin_session');
+        if (superAdminSession && (!session || session.role === 'super_admin')) {
+            try {
+                const parsed = JSON.parse(superAdminSession);
+                if (parsed?.id) return parsed.id;
+            } catch (e) {}
+            return 'temp_admin_bypass';
         }
 
         const token = session?.id || (session as any)?.userId || (session as any)?.user_id || '';
@@ -4780,7 +4799,11 @@ export const apiService = {
             visitorArrivalSmsTemplate: visitorArrivalSmsTemplate
         }); 
     },
-    async fetchUsers(institutionId?: string): Promise<User[]> { return apiService.fetchModuleRecords('users', institutionId); },
+    async fetchUsers(institutionId?: string): Promise<User[]> { 
+        const session = apiService.getSession();
+        const effectiveInstId = institutionId || (session && session.role !== 'super_admin' && !session.role?.startsWith('county_') ? session.institutionId : undefined);
+        return apiService.fetchModuleRecords('users', effectiveInstId); 
+    },
     async saveUser(user: Partial<User>): Promise<void> { 
         const { countyId, ...rest } = user;
         await apiService.saveModuleRecord('users', { ...rest, county_id: countyId }); 

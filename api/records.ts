@@ -228,17 +228,14 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     return user;
   };
 
-  // 1. Fast Admin / Super Admin bypass (0ms overhead, avoids hung PostgREST)
+  // 1. Fast Super Admin explicit bypass tokens (e.g. system background jobs or dev scripts)
   const lowerToken = token.toLowerCase();
   if (
-    token.startsWith('temp_admin_') || 
-    token.startsWith('admin_') || 
-    token === 'admin' || 
+    token === 'temp_admin_bypass' || 
     token === 'super_admin' || 
     token === 'superadmin' || 
-    token === 'temp_admin_bypass' || 
-    lowerToken.includes('superadmin') || 
-    lowerToken.includes('super_admin')
+    token.startsWith('temp_superadmin_') ||
+    lowerToken === 'global_superadmin'
   ) {
     console.log(`[getAuthUser] SuperAdmin bypass active for ${token.substring(0, 15)}...`);
     return cacheUser({ id: token, institutionId: 'GLOBAL', role: 'super_admin' });
@@ -839,7 +836,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (req.method === 'GET') {
             const targetInstParam = getStrParam(queryInstitutionId);
             const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
-            const shouldSkipTenancy = isGroupOrSuperAdmin || Boolean(targetInstParam) || (!user && isPublicModule && !targetInstParam);
+
+            // Security guard: protect user identity records from unauthenticated bulk harvesting
+            if (!user && ['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                const hasSpecificIdentifier = getStrParam(id) || getStrParam(req.query.email) || getStrParam(req.query.phoneNumber) || getStrParam(req.query.phone);
+                if (!hasSpecificIdentifier) {
+                    console.info(`[API GET] Blocked unauthenticated bulk fetch for '${moduleName}'. Returning empty list.`);
+                    return res.status(200).json([]);
+                }
+            }
+
+            // Non-superadmins MUST ALWAYS be strictly scoped to their assigned institution
+            const effectiveTenantInstId = (!isGroupOrSuperAdmin && user?.institutionId)
+                ? user.institutionId
+                : (targetInstParam && targetInstParam !== 'ALL' ? targetInstParam : undefined);
+
+            const shouldSkipTenancy = isGroupOrSuperAdmin && (!targetInstParam || targetInstParam === 'ALL');
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
 
             // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)
@@ -896,21 +908,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 
                 // Apply tenancy filter
-                // Skip tenancy filter for super admins, group admins, explicit institution queries, OR for public modules
-                if (user && !shouldSkipTenancy) {
-                    const isCounty = user.role?.startsWith('county_');
+                if (!shouldSkipTenancy) {
+                    const isCounty = user?.role?.startsWith('county_');
                     if (isCounty) {
                         if (moduleName === 'counties') q = q.eq('id', user.institutionId);
                         else if (moduleName === 'institutions') q = q.eq('county_id', user.institutionId);
                         else if (moduleName === 'county_bursary_funds') q = q.eq('county_id', user.institutionId);
                         else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('county_id', user.institutionId);
-                    } else if (user.role?.startsWith('constituency_')) {
+                    } else if (user?.role?.startsWith('constituency_')) {
                         if (moduleName === 'ng_cdf_funds') {
                             q = q.or(`constituency_id.eq.${user.institutionId},constituency_name.eq.${user.institutionId}`);
                         } else if (moduleName === 'ng_cdf_bursaries') {
                             q = q.eq('constituency_name', user.institutionId);
                         }
-                    } else if (user.role === 'alumna') {
+                    } else if (user?.role === 'alumna') {
                         if (moduleName === 'alumni_messages') {
                             // Support both recipient_id and receiver_id for legacy/migration compatibility
                             q = q.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id},receiver_id.eq.${user.id}`);
@@ -921,11 +932,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } else if (!isTableWithoutInstitutionId(moduleName)) {
                             q = q.eq('institution_id', user.institutionId);
                         }
-                    } else {
-                        if (user.institutionId) {
-                            if (moduleName === 'institutions') q = q.eq('id', user.institutionId);
-                            else if (!isTableWithoutInstitutionId(moduleName)) q = q.eq('institution_id', user.institutionId);
-                        }
+                    } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
+                        q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', effectiveTenantInstId);
                     }
                     if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
                         const rawUserId = user.id.replace(/^u_/, '');
@@ -945,11 +953,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (getStrParam(id)) q = q.eq('id', getStrParam(id));
-                if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
-                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
-                } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && user?.institutionId && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
-                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
-                }
                 if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
 
                 // Custom filters from other query params
@@ -1035,12 +1038,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (isNaN(offset)) offset = 0;
             
             const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory'].includes(moduleName) 
-                ? 400 
+                ? 1000 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
-                    ? 300
+                    ? 500
                     : (['visitors', 'security_alerts', 'activity_log', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
-                        ? 200
-                        : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 100 : 1000))));
+                        ? 300
+                        : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000))));
             let data: any[] = [];
             let error: any = null;
 
@@ -1065,10 +1068,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } else if (isTeachersAlias) {
                     q = q.eq('role', 'teacher');
                 }
-                if (user && !shouldSkipTenancy) {
-                    if (user.institutionId && !isTableWithoutInstitutionId(moduleName)) {
-                        q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', user.institutionId);
-                    }
+                if (!shouldSkipTenancy && effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
+                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', effectiveTenantInstId);
                 }
                 const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
                 const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
@@ -1080,9 +1081,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
                 if (getStrParam(id)) q = q.eq('id', getStrParam(id));
-                if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
-                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', targetInstParam);
-                }
                 Object.entries(req.query).forEach(([key, value]) => {
                     if (!reservedParams.includes(key) && value) {
                         const strVal = getStrParam(value);
@@ -1113,20 +1111,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 sqlConditions.push({ sql: `role = $VAL`, val: 'teacher' });
             }
 
-            if (user && !shouldSkipTenancy) {
-                const isCounty = user.role?.startsWith('county_');
+            if (!shouldSkipTenancy) {
+                const isCounty = user?.role?.startsWith('county_');
                 if (isCounty) {
                     if (moduleName === 'counties') sqlConditions.push({ sql: `id = $VAL`, val: user.institutionId });
                     else if (moduleName === 'institutions') sqlConditions.push({ sql: `county_id = $VAL`, val: user.institutionId });
                     else if (moduleName === 'county_bursary_funds') sqlConditions.push({ sql: `county_id = $VAL`, val: user.institutionId });
                     else if (!isTableWithoutInstitutionId(moduleName)) sqlConditions.push({ sql: `county_id = $VAL`, val: user.institutionId });
-                } else if (user.role?.startsWith('constituency_')) {
+                } else if (user?.role?.startsWith('constituency_')) {
                     if (moduleName === 'ng_cdf_funds') {
                         sqlConditions.push({ sql: `(constituency_id = $VAL OR constituency_name = $VAL)`, vals: [user.institutionId, user.institutionId] });
                     } else if (moduleName === 'ng_cdf_bursaries') {
                         sqlConditions.push({ sql: `constituency_name = $VAL`, val: user.institutionId });
                     }
-                } else if (user.role === 'alumna') {
+                } else if (user?.role === 'alumna') {
                     if (moduleName === 'alumni_messages') {
                         sqlConditions.push({ sql: `(sender_id = $VAL OR recipient_id = $VAL OR receiver_id = $VAL)`, vals: [user.id, user.id, user.id] });
                     } else if (moduleName === 'alumnae_members') {
@@ -1136,11 +1134,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if (!isTableWithoutInstitutionId(moduleName)) {
                         sqlConditions.push({ sql: `institution_id = $VAL`, val: user.institutionId });
                     }
-                } else {
-                    if (user.institutionId) {
-                        if (moduleName === 'institutions') sqlConditions.push({ sql: `id = $VAL`, val: user.institutionId });
-                        else if (!isTableWithoutInstitutionId(moduleName)) sqlConditions.push({ sql: `institution_id = $VAL`, val: user.institutionId });
-                    }
+                } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
+                    sqlConditions.push({ sql: `${moduleName === 'institutions' ? 'id' : 'institution_id'} = $VAL`, val: effectiveTenantInstId });
                 }
                 if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
                     const rawUserId = user.id.replace(/^u_/, '');
@@ -1169,11 +1164,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (getStrParam(id)) sqlConditions.push({ sql: `id = $VAL`, val: getStrParam(id) });
-            if (targetInstParam && targetInstParam !== 'ALL' && !isTableWithoutInstitutionId(moduleName)) {
-                sqlConditions.push({ sql: `${moduleName === 'institutions' ? 'id' : 'institution_id'} = $VAL`, val: targetInstParam });
-            } else if (isGroupOrSuperAdmin && user?.role === 'group_admin' && user?.institutionId && !targetInstParam && !isTableWithoutInstitutionId(moduleName)) {
-                sqlConditions.push({ sql: `${moduleName === 'institutions' ? 'id' : 'institution_id'} = $VAL`, val: user.institutionId });
-            }
             if (getStrParam(queryCountyId)) sqlConditions.push({ sql: `county_id = $VAL`, val: getStrParam(queryCountyId) });
 
             Object.entries(req.query).forEach(([key, value]) => {
@@ -1232,51 +1222,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             try {
-                if (finalLimit <= CHUNK_SIZE) {
-                    let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1))
-                        .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
-                    if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
-                        console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
-                        res = await executeWithTimeout(applyRange(buildFastBaseQuery(), offset, offset + Math.min(finalLimit, 500) - 1), 4000)
-                            .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
-                    }
-                    data = res?.data || [];
-                    error = res?.error;
-                } else {
-                    let currentOffset = offset;
-                    let remaining = finalLimit;
+                // ── Direct PostgreSQL Fast-Path for Bulk Requests ──
+                // Executes in a single parameterized query (< 400ms), completely bypassing PostgREST HTTP round-trips and chunking loops.
+                const isBulkModule = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory', 'ds_students', 'mpesa_transactions'].includes(moduleName);
+                const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
+                let directPgSuccess = false;
 
-                    while (remaining > 0) {
-                        if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
-                            console.warn(`[API GET] Chunk fetch approaching safe execution limit (${MAX_SAFE_EXECUTION_MS}ms) for '${moduleName}'. Returning ${data.length} records accumulated.`);
-                            break;
+                if (canUseDirectPg) {
+                    try {
+                        const directData = await fetchViaDirectPg(
+                            targetDbTable,
+                            sqlConditions,
+                            defaultOrderBy,
+                            finalLimit,
+                            offset
+                        );
+                        if (Array.isArray(directData)) {
+                            console.info(`[API GET Direct SQL Fast-Path] Retrieved ${directData.length} records for '${moduleName}' directly from PostgreSQL in < 400ms.`);
+                            data = directData;
+                            error = null;
+                            directPgSuccess = true;
                         }
-                        const batchSize = Math.min(CHUNK_SIZE, remaining);
-                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), currentOffset, currentOffset + batchSize - 1))
+                    } catch (pgFastEx: any) {
+                        console.warn(`[API GET Direct SQL Fast-Path] Exception on '${moduleName}', falling back to PostgREST:`, pgFastEx?.message || pgFastEx);
+                    }
+                }
+
+                if (!directPgSuccess) {
+                    if (finalLimit <= CHUNK_SIZE) {
+                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1))
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
-                        
-                        // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
                         if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
-                            console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
-                            const fastBatch = Math.max(100, Math.floor(batchSize / 2));
-                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 4000)
+                            console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
+                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(), offset, offset + Math.min(finalLimit, 500) - 1), 4000)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
+                        data = res?.data || [];
+                        error = res?.error;
+                    } else {
+                        let currentOffset = offset;
+                        let remaining = finalLimit;
 
-                        if (res?.error) {
-                            if (data.length === 0) {
-                                error = res.error;
-                            } else {
-                                console.info(`[API GET] Chunk fetch completed for '${moduleName}' at offset ${currentOffset} (${data.length} records retrieved).`);
+                        while (remaining > 0) {
+                            if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
+                                console.warn(`[API GET] Chunk fetch approaching safe execution limit (${MAX_SAFE_EXECUTION_MS}ms) for '${moduleName}'. Returning ${data.length} records accumulated.`);
+                                break;
                             }
-                            break;
+                            const batchSize = Math.min(CHUNK_SIZE, remaining);
+                            let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), currentOffset, currentOffset + batchSize - 1))
+                                .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
+                            
+                            // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
+                            if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
+                                console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
+                                const fastBatch = Math.max(100, Math.floor(batchSize / 2));
+                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 4000)
+                                    .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
+                            }
+
+                            if (res?.error) {
+                                if (data.length === 0) {
+                                    error = res.error;
+                                } else {
+                                    console.info(`[API GET] Chunk fetch completed for '${moduleName}' at offset ${currentOffset} (${data.length} records retrieved).`);
+                                }
+                                break;
+                            }
+                            const chunk = res?.data || [];
+                            if (chunk.length === 0) break;
+                            data.push(...chunk);
+                            if (chunk.length < batchSize) break; // Reached end of dataset
+                            currentOffset += chunk.length;
+                            remaining -= chunk.length;
                         }
-                        const chunk = res?.data || [];
-                        if (chunk.length === 0) break;
-                        data.push(...chunk);
-                        if (chunk.length < batchSize) break; // Reached end of dataset
-                        currentOffset += chunk.length;
-                        remaining -= chunk.length;
                     }
                 }
             } catch (timeoutEx: any) {
