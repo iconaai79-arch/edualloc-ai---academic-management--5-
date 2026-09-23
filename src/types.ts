@@ -735,6 +735,9 @@ export interface Institution {
         incompleteGrade?: string;
         includeNonRankingInAnalysis?: boolean;
     };
+    // Legacy / pdfService fields
+    phone?: string;    // alias for phoneNumber used in some PDF templates
+    website?: string;  // institution website URL
 }
 
 export interface SchoolGallery {
@@ -1214,15 +1217,15 @@ export interface WhatsAppConfig {
     id?: string;
     institution_id?: string;
     provider_type?: 'gateway' | 'meta_cloud';
-    gateway_url?: string | null;
-    api_key?: string | null;
-    instance_name?: string | null;
-    phone_number?: string | null;
+    gateway_url?: string | undefined;
+    api_key?: string | undefined;
+    instance_name?: string | undefined;
+    phone_number?: string | undefined;
     is_connected?: boolean;
-    qr_code_data?: string | null;
-    meta_phone_number_id?: string | null;
-    meta_access_token?: string | null;
-    meta_waba_id?: string | null;
+    qr_code_data?: string | undefined;
+    meta_phone_number_id?: string | undefined;
+    meta_access_token?: string | undefined;
+    meta_waba_id?: string | undefined;
     auto_send_receipts?: boolean;
     auto_send_fee_reminders?: boolean;
     auto_send_academic_results?: boolean;
@@ -1256,6 +1259,7 @@ export interface InstitutionModuleState {
     subscriptionEndsAt?: string;
     createdAt?: string;
     updatedAt?: string;
+    data?: any;  // arbitrary JSON payload stored alongside the module state
 }
 
 export interface SubscriptionConfig {
@@ -1287,6 +1291,7 @@ export interface MpesaConfig {
     consumerSecret: string;
     passkey: string;
     environment?: 'sandbox' | 'production';
+    shortcode?: string;  // alias / override for paybillNumber in some UI contexts
 }
 
 export interface NcbaConfig {
@@ -1456,6 +1461,9 @@ export interface CompanyDetails {
         publicRegistrationEnabled: boolean;
         alumnaeRegistrationFeeEnabled?: boolean;
     };
+    // Aliases used by some components
+    companyName?: string;  // alias for name in some UI contexts
+    taxPin?: string;       // KRA PIN / VAT number
 }
 
 export interface UserTask {
@@ -1579,6 +1587,7 @@ export interface TransportVehicle {
     vehicleType: 'school' | 'private';
     capacity: number;
     driverId?: string;
+    driverName?: string;  // display name of the assigned driver
     assistantId?: string;
     status: 'active' | 'maintenance' | 'out_of_service';
 }

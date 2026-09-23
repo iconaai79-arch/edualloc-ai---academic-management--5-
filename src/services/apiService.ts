@@ -4258,18 +4258,60 @@ export const apiService = {
             ...options
         });
     },
-    async createNotification(userId: string, message: string, type: string = 'info', metadata?: any): Promise<void> {
+    async createNotification(
+        userIdOrObj: string | {
+            userId: string;
+            institutionId?: string;
+            title?: string;
+            message: string;
+            type?: string;
+            link?: string;
+            metadata?: any;
+            [key: string]: any;
+        },
+        message?: string,
+        type: string = 'info',
+        metadata?: any
+    ): Promise<void> {
+        // Normalise both calling conventions:
+        //   Legacy:  createNotification(userId, message, type?, metadata?)
+        //   Rich obj: createNotification({ userId, institutionId, title, message, type, link, ... })
+        let resolvedUserId: string;
+        let resolvedMessage: string;
+        let resolvedType: string;
+        let resolvedMetadata: any;
+        let resolvedInstitutionId: string | undefined;
+        let resolvedTitle: string | undefined;
+        let resolvedLink: string | undefined;
+
+        if (typeof userIdOrObj === 'object' && userIdOrObj !== null) {
+            resolvedUserId = userIdOrObj.userId;
+            resolvedMessage = userIdOrObj.message;
+            resolvedType = userIdOrObj.type || 'info';
+            resolvedMetadata = userIdOrObj.metadata;
+            resolvedInstitutionId = userIdOrObj.institutionId;
+            resolvedTitle = userIdOrObj.title;
+            resolvedLink = userIdOrObj.link;
+        } else {
+            resolvedUserId = userIdOrObj as string;
+            resolvedMessage = message || '';
+            resolvedType = type;
+            resolvedMetadata = metadata;
+        }
+
         const currentUser = apiService.getSession();
         const notification: any = {
             id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            userId,
-            user_id: userId,
-            institution_id: currentUser?.institutionId || '',
-            message,
-            type,
-            visitorName: metadata?.visitorName || undefined,
-            purpose: metadata?.purpose || undefined,
-            metadata: metadata || {},
+            userId: resolvedUserId,
+            user_id: resolvedUserId,
+            institution_id: resolvedInstitutionId || currentUser?.institutionId || '',
+            title: resolvedTitle,
+            message: resolvedMessage,
+            type: resolvedType,
+            link: resolvedLink,
+            visitorName: resolvedMetadata?.visitorName || undefined,
+            purpose: resolvedMetadata?.purpose || undefined,
+            metadata: resolvedMetadata || {},
             isRead: false,
             is_read: false,
             timestamp: new Date().toISOString()
