@@ -3384,7 +3384,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInventory) : normInventory(currentPayload);
             }
 
+            // Normalize allocation_requests: map camelCase → snake_case before upsert.
+            // DB FK columns (NOT NULL): subject_id, lecturer_id, institution_id.
+            // The generic FK nullify list was incorrectly nulling these on 23503 errors,
+            // making the record impossible to save. Pre-mapping prevents the FK error entirely.
+            if (moduleName === 'allocation_requests' || targetDbTable === 'allocation_requests') {
+                const normAllocationRequest = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId         && !c.institution_id)          { c.institution_id          = c.institutionId;         delete c.institutionId; }
+                    if (c.lecturerId            && !c.lecturer_id)             { c.lecturer_id             = c.lecturerId;            delete c.lecturerId; }
+                    if (c.subjectId             && !c.subject_id)              { c.subject_id              = c.subjectId;             delete c.subjectId; }
+                    if (c.academicYearId        && !c.academic_year_id)        { c.academic_year_id        = c.academicYearId;        delete c.academicYearId; }
+                    if (c.semesterId            && !c.semester_id)             { c.semester_id             = c.semesterId;            delete c.semesterId; }
+                    if (c.signatureUrl          && !c.signature_url)           { c.signature_url           = c.signatureUrl;          delete c.signatureUrl; }
+                    if (c.courseLevelIds        && !c.course_level_ids)        { c.course_level_ids        = c.courseLevelIds;        delete c.courseLevelIds; }
+                    if (c.courseLevelSelections && !c.course_level_selections) { c.course_level_selections = c.courseLevelSelections; delete c.courseLevelSelections; }
+                    if (c.subjectIds            && !c.subject_ids)             { c.subject_ids             = c.subjectIds;            delete c.subjectIds; }
+                    if (c.proposedChanges       && !c.proposed_changes)        { c.proposed_changes        = c.proposedChanges;       delete c.proposedChanges; }
+                    if (c.createdAt             && !c.created_at)              { c.created_at              = c.createdAt;             delete c.createdAt; }
+                    delete c.updatedAt;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normAllocationRequest) : normAllocationRequest(currentPayload);
+            }
+
             let data: any = null;
+
             let error: any = null;
             let maxRetries = 3;
             let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
