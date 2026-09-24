@@ -3528,7 +3528,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id'].forEach(k => {
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id', 'ward_id', 'bed_id', 'admission_id', 'department_id'].forEach(k => {
                             if (k in copy) copy[k] = null;
                         });
                         return copy;
@@ -4540,7 +4540,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if ((error.code === '23503' || String(error.message || '').includes('foreign key constraint')) && patchRetries > 0) {
                         console.warn(`[api/records PATCH] Foreign key constraint note on [${moduleName}]: nulling relational IDs and retrying...`);
                         const copy = { ...currentUpdateData };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id'].forEach(k => {
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id', 'ward_id', 'bed_id', 'admission_id', 'department_id'].forEach(k => {
                             if (k in copy) copy[k] = null;
                         });
                         currentUpdateData = copy;
