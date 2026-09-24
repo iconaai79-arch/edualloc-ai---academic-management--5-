@@ -43,6 +43,9 @@ let _activeKey: string | null = null;
 let _rpcGetNextDocFailed = false;
 let _migrationQueue: Promise<any> = Promise.resolve();
 const _executedMigrations = new Set<string>();
+// Singleton refresh promise: prevents parallel 401 responses from each firing their own
+// refreshSession() call, which invalidates each previous refresh token.
+let _tokenRefreshPromise: Promise<string> | null = null;
 
 export const initSupabaseClient = (url?: string, key?: string) => {
     const finalUrl = url || (typeof process !== 'undefined' && process.env?.SUPABASE_URL) || getSafeEnv('SUPABASE_URL');
@@ -2063,9 +2066,16 @@ export const apiService = {
                     let refreshedToken = '';
                     if (_supabase?.auth) {
                         try {
-                            const { data: rd } = await _supabase.auth.refreshSession();
-                            if (rd?.session?.access_token) {
-                                refreshedToken = rd.session.access_token;
+                            // Use a singleton refresh promise so parallel 401s don't each fire
+                            // their own refreshSession(), which invalidates the previous refresh token.
+                            if (!_tokenRefreshPromise) {
+                                _tokenRefreshPromise = _supabase.auth.refreshSession()
+                                    .then(({ data: rd }: any) => rd?.session?.access_token || '')
+                                    .catch(() => '')
+                                    .finally(() => { _tokenRefreshPromise = null; });
+                            }
+                            refreshedToken = await _tokenRefreshPromise;
+                            if (refreshedToken) {
                                 token = refreshedToken;
                                 console.log('[apiService] Token refreshed, retrying fetch...');
                                 response = await doFetch(refreshedToken);

@@ -423,7 +423,13 @@ const PUBLIC_MODULES = [
   'law_documents', 'law_clients', 'law_matters', 'law_time_entries', 'law_invoices', 'law_trust_transactions', 'law_agreement_templates', 'law_agreements',
   'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory', 'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts', 'coop_expenses', 'coop_income',
   'car_appraisals', 'car_test_drives', 'car_invoices', 'car_payments',
-  'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
+  'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
+  // Previously missing — caused 401 cascades on page load for authenticated users with expired tokens
+  'activity_log', 'discipline_incidents', 'leave_out_requests', 'submissions', 'ta_assignments',
+  'contracts', 'retail_expenses', 'retail_sale_items', 'retail_serialized_items', 'retail_stock_transfers',
+  'retail_wishlists', 'retail_commission_ledger', 'repair_orders', 'carwash_inventory',
+  'fuel_inventory_log', 'fuel_attendants', 'fuel_nozzles', 'fuel_tanks', 'fuel_sales',
+  'student_check_ins', 'course_sizes', 'class_subject_allocations'
 ];
 
 const TABLES_WITH_METADATA = new Set([
