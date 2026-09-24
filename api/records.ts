@@ -36,7 +36,11 @@ const CACHEABLE_MODULES = ['institutions', 'counties', 'constituencies', 'wards'
 
 
 const getPgPool = async () => {
-  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+  // Direct PG is an optional raw SQL accelerator. In serverless/cloud environments,
+  // raw TCP TLS handshakes often time out or exhaust connection limits.
+  // Unless explicitly opted-in via ENABLE_DIRECT_PG=true, bypass Direct PG and use
+  // the official, connectionless Supabase REST/PostgREST Data API.
+  if (process.env.ENABLE_DIRECT_PG !== 'true' || process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
     return null;
   }
   if (Date.now() < _directPgDisabledUntil) {
@@ -51,8 +55,8 @@ const getPgPool = async () => {
   if (!connectionString) return null;
 
   try {
-    const pgModule = await import('pg');
-    const Pool = pgModule.Pool || (pgModule.default ? (pgModule.default as any).Pool : null);
+    const pgModule: any = await import('pg');
+    const Pool = pgModule.Pool || pgModule.default?.Pool || null;
     if (!Pool) return null;
 
     let cleanConnString = connectionString.trim();
@@ -113,7 +117,7 @@ const fetchViaDirectPg = async (
   limit: number = 1000,
   offset: number = 0
 ): Promise<any[] | null> => {
-  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+  if (process.env.ENABLE_DIRECT_PG !== 'true' || process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
     return null;
   }
   if (Date.now() < _directPgDisabledUntil) {
@@ -165,13 +169,13 @@ const fetchViaDirectPg = async (
   try {
     const connectPromise = pool.connect();
     const timeoutPromise = new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error('Direct PG connection timeout (1500ms limit)')), 1500)
+      setTimeout(() => rej(new Error('Direct PG connection timeout (5000ms limit)')), 5000)
     );
     client = await Promise.race([connectPromise, timeoutPromise]);
 
     const queryPromise = client.query(sql, values);
     const queryTimeoutPromise = new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error('Direct PG query timeout (2000ms limit)')), 2000)
+      setTimeout(() => rej(new Error('Direct PG query timeout (5000ms limit)')), 5000)
     );
     const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
@@ -187,10 +191,11 @@ const fetchViaDirectPg = async (
     if (isConnTimeout) {
       _directPgConsecutiveFailures += 1;
       // Exponential back-off: 30s, 60s, 120s … capped at 300s.
-      // This prevents a single transient TCP blip from locking out Direct PG for 5 minutes.
       const cooldownMs = Math.min(30000 * Math.pow(2, _directPgConsecutiveFailures - 1), 300000);
       _directPgDisabledUntil = Date.now() + cooldownMs;
-      console.warn(`[fetchViaDirectPg] Connection failed or timed out (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
+      if (process.env.DEBUG_DIRECT_PG === 'true') {
+        console.warn(`[fetchViaDirectPg] Connection failed or timed out (${err?.message || err}). Tripping circuit breaker for ${cooldownMs / 1000}s on "${table}". Direct PG bypassed.`);
+      }
 
       // Only drain the pool when DATABASE_URL is actually configured — if it was
       // never set the pool is null already; destroying a null pool reference is a no-op.
@@ -198,7 +203,7 @@ const fetchViaDirectPg = async (
         try { _pgPool.end().catch(() => {}); } catch (_) {}
         _pgPool = null;
       }
-    } else {
+    } else if (process.env.DEBUG_DIRECT_PG === 'true') {
       console.warn(`[fetchViaDirectPg] Query failed on "${table}":`, err?.message || err);
     }
 
