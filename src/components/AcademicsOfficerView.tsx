@@ -1,11 +1,12 @@
 
 
 
-import React, { useState, useMemo, useCallback, useTransition, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useTransition, Suspense } from 'react';
 import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
 import { isSuperAdminUser } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
+import { apiService } from '../services/apiService';
 import { StudentPromotionWizard } from './Academics/StudentPromotionWizard';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { SettingsManager } from './SettingsManager';
@@ -132,7 +133,7 @@ interface AcademicsOfficerViewProps {
     allocations?: any[];
     companyDetails?: any;
     examTimetableSettings?: any;
-    onLogAction?: (message: string) => void;
+    onLogAction?: (message: string) => Promise<void> | void;
     themeColor?: string;
     timeOffRequests?: any[];
 }
@@ -181,6 +182,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         allocations = []
     } = props;
 
+    const handleLogAction = useCallback(async (msg: string) => {
+        if (onLogAction) {
+            await onLogAction(msg);
+        }
+    }, [onLogAction]);
+
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans' | 'tools'>('home');
     const [isTabPending, startTabTransition] = useTransition();
     const [hasLoadedExamUnits, setHasLoadedExamUnits] = useState(false);
@@ -211,7 +218,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     useEffect(() => {
         if (!currentInstitution?.id) return;
         const instId = currentInstitution.id;
-        apiService.fetchModuleRecords<any>('exam_units', instId).then(records => {
+        apiService.fetchModuleRecords<any>('exam_units', instId).then((records: any) => {
             if (records && Array.isArray(records) && records.length > 0) {
                 const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
                 const clean = records.filter(r => r && r.id && !dummyIds.has(r.id));
@@ -221,7 +228,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
             }
         }).catch(() => {});
 
-        apiService.fetchModuleRecords<any>('institution_module_states', instId).then(records => {
+        apiService.fetchModuleRecords<any>('institution_module_states', instId).then((records: any) => {
             const match = (records || []).find((r: any) =>
                 r.id === `ims_exam_broadsheets_${instId}` ||
                 r.id === `broadsheets_${instId}` ||
@@ -451,7 +458,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             <button
                                 key={sub.id}
                                 onClick={() => handleTabChange(sub.id as any)}
-                                onMouseEnter={() => { if (sub.id === 'exam_units') setHasLoadedExamUnits(true); }}
+                                onMouseEnter={() => { if ((sub.id as string) === 'exam_units') setHasLoadedExamUnits(true); }}
                                 className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap cursor-pointer ${
                                     activeTab === sub.id
                                     ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105 font-black'
@@ -830,7 +837,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         activeTab={activeTab}
                         companyDetails={companyDetails}
                         currentUser={currentUser!}
-                        onLogAction={onLogAction}
+                        onLogAction={handleLogAction}
                         initialUsers={users}
                         initialSubjects={subjects}
                         initialCourses={courses}
@@ -1090,7 +1097,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     courseSizes={courseSizes}
                     timeOffRequests={props.timeOffRequests || []}
                     onTimetableGenerated={props.onTimetableGenerated ? ((entries: any, ay?: any, sem?: any) => (props.onTimetableGenerated as any)(entries, ay, sem)) : (async () => { })}
-                    onLogAction={onLogAction}
+                    onLogAction={handleLogAction}
                 />
             )}
 
