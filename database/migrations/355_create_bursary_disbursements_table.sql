@@ -38,10 +38,28 @@ CREATE INDEX IF NOT EXISTS idx_bursary_disbursements_created_at ON public.bursar
 -- Enable RLS
 ALTER TABLE public.bursary_disbursements ENABLE ROW LEVEL SECURITY;
 
--- Permissive policy
-DO $$
-BEGIN
-    DROP POLICY IF EXISTS "bursary_disbursements_all" ON public.bursary_disbursements;
-    CREATE POLICY "bursary_disbursements_all" ON public.bursary_disbursements FOR ALL USING (true) WITH CHECK (true);
-    GRANT ALL ON public.bursary_disbursements TO anon, authenticated, service_role;
-END $$;
+-- Scoped multi-tenant RLS policies
+DROP POLICY IF EXISTS "bursary_disbursements_all" ON public.bursary_disbursements;
+DROP POLICY IF EXISTS "bursary_disbursements_select" ON public.bursary_disbursements;
+DROP POLICY IF EXISTS "bursary_disbursements_insert" ON public.bursary_disbursements;
+DROP POLICY IF EXISTS "bursary_disbursements_update" ON public.bursary_disbursements;
+DROP POLICY IF EXISTS "bursary_disbursements_delete" ON public.bursary_disbursements;
+
+CREATE POLICY "bursary_disbursements_select" ON public.bursary_disbursements
+    FOR SELECT TO authenticated, anon
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL);
+
+CREATE POLICY "bursary_disbursements_insert" ON public.bursary_disbursements
+    FOR INSERT TO authenticated, anon
+    WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL);
+
+CREATE POLICY "bursary_disbursements_update" ON public.bursary_disbursements
+    FOR UPDATE TO authenticated, anon
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL)
+    WITH CHECK (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin' OR public.get_curr_user_inst_id() IS NULL);
+
+CREATE POLICY "bursary_disbursements_delete" ON public.bursary_disbursements
+    FOR DELETE TO authenticated
+    USING (institution_id::text = public.get_curr_user_inst_id()::text OR public.get_curr_user_role()::text = 'super_admin');
+
+GRANT ALL ON public.bursary_disbursements TO anon, authenticated, service_role;
