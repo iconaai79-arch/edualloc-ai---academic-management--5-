@@ -1214,12 +1214,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'id.asc';
             }
 
-            const applyRange = (queryOrPromise: any, from: number, to: number) => {
-                if (!queryOrPromise) return queryOrPromise;
-                if (typeof queryOrPromise.then === 'function') {
-                    return queryOrPromise.then((q: any) => (q && typeof q.range === 'function' ? q.range(from, to) : q));
+            const applyRange = (query: any, from: number, to: number) => {
+                if (!query) return query;
+                if (typeof query.range === 'function') {
+                    return query.range(from, to);
                 }
-                return typeof queryOrPromise.range === 'function' ? queryOrPromise.range(from, to) : queryOrPromise;
+                return query;
             };
 
             try {
@@ -1272,6 +1272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else {
                         let currentOffset = offset;
                         let remaining = finalLimit;
+                        const seenChunkIds = new Set<string>();
 
                         while (remaining > 0) {
                             if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
@@ -1279,6 +1280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 break;
                             }
                             const batchSize = Math.min(CHUNK_SIZE, remaining);
+                            let effectiveBatchSize = batchSize;
                             let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), currentOffset, currentOffset + batchSize - 1))
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                             
@@ -1286,6 +1288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                                 console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                                 const fastBatch = Math.max(100, Math.floor(batchSize / 2));
+                                effectiveBatchSize = fastBatch;
                                 res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 4000)
                                     .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                             }
@@ -1300,8 +1303,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             const chunk = res?.data || [];
                             if (chunk.length === 0) break;
+
+                            // Guard against pagination loops / duplicate chunks
+                            if (chunk[0]?.id && seenChunkIds.has(chunk[0].id)) {
+                                console.warn(`[API GET] Duplicate chunk detected at offset ${currentOffset} for '${moduleName}'. Terminating pagination loop.`);
+                                break;
+                            }
+                            for (const row of chunk) {
+                                if (row?.id) seenChunkIds.add(row.id);
+                            }
+
                             data.push(...chunk);
-                            if (chunk.length < batchSize) break; // Reached end of dataset
+                            if (chunk.length < effectiveBatchSize) break; // Reached end of dataset
                             currentOffset += chunk.length;
                             remaining -= chunk.length;
                         }
