@@ -8,12 +8,15 @@ COMMENT ON COLUMN public.users.updated_at IS 'Timestamp of the last profile or r
 
 -- Trigger to automatically maintain updated_at timestamp on updates
 CREATE OR REPLACE FUNCTION public.set_users_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trigger_users_updated_at ON public.users;
 CREATE TRIGGER trigger_users_updated_at
