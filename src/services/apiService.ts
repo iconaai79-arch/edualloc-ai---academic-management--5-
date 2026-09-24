@@ -479,7 +479,7 @@ export const apiService = {
 
             if (!supabaseClient) {
                 const prefix = defaultPrefixes[docType] || `${docType.slice(0, 3).toUpperCase()}-`;
-                const num = minNumber && minNumber > defaultNextNumber ? minNumber : defaultNextNumber;
+                const num = minNumber && minNumber < 1000000 && minNumber > defaultNextNumber ? minNumber : defaultNextNumber;
                 return `${prefix}${num}`;
             }
 
@@ -490,6 +490,7 @@ export const apiService = {
                     .select('*')
                     .or(`institution_id.eq.${instId},institution_id.eq.${cleanInstId},institution_id.eq.inst_${cleanInstId}`)
                     .eq('document_type', docType)
+                    .order('updated_at', { ascending: false })
                     .limit(1);
 
                 if (!queryErr && Array.isArray(dbConfigs) && dbConfigs.length > 0) {
@@ -499,16 +500,50 @@ export const apiService = {
                 // Ignore query error and fallback
             }
 
+            // Also check alternate alias if docType is admission/student
+            if (!config && (docType === 'admission' || docType === 'student')) {
+                const altType = docType === 'admission' ? 'student' : 'admission';
+                try {
+                    const { data: altConfigs } = await supabaseClient
+                        .from('finance_numbering_configs')
+                        .select('*')
+                        .or(`institution_id.eq.${instId},institution_id.eq.${cleanInstId},institution_id.eq.inst_${cleanInstId}`)
+                        .eq('document_type', altType)
+                        .order('updated_at', { ascending: false })
+                        .limit(1);
+                    if (altConfigs && altConfigs.length > 0) {
+                        config = altConfigs[0];
+                    }
+                } catch (_) {}
+            }
+
             if (!config) {
                 const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId).catch(() => []);
-                config = (numberingConfigs || []).find((c: any) => 
-                    String(c.documentType || c.document_type || '').toLowerCase() === docType.toLowerCase()
-                );
+                config = (numberingConfigs || []).find((c: any) => {
+                    const cType = String(c.documentType || c.document_type || '').toLowerCase();
+                    return cType === docType.toLowerCase() ||
+                           ((docType === 'admission' || docType === 'student') && (cType === 'admission' || cType === 'student'));
+                });
             }
 
             const prefix = config?.prefix || defaultPrefixes[docType] || 'DOC-';
             let currentNum = Number(config?.nextNumber || config?.next_number || defaultNextNumber);
-            if (minNumber && minNumber > currentNum) {
+            // Sanity check: Phone numbers or timestamps (>= 1,000,000) are never valid sequential document numbers
+            if (currentNum >= 1000000) {
+                currentNum = defaultNextNumber;
+                // Self-heal corrupted database record in background
+                if (config?.id && supabaseClient) {
+                    supabaseClient
+                        .from('finance_numbering_configs')
+                        .update({ next_number: defaultNextNumber, updated_at: new Date().toISOString() })
+                        .eq('id', config.id)
+                        .then(() => {})
+                        .catch(() => {});
+                }
+            }
+
+            // Only apply minNumber if it's reasonable (< 1,000,000) and greater than currentNum
+            if (minNumber && minNumber < 1000000 && minNumber > currentNum) {
                 currentNum = minNumber;
             }
 
@@ -516,7 +551,8 @@ export const apiService = {
         } catch (err) {
             console.error(`[apiService] Failed to peek next document number for ${docType}:`, err);
             const fallbackPrefix = (docType === 'admission' || docType === 'student') ? 'ADM-' : docType === 'invoice' ? 'INV-' : docType === 'receipt' ? 'REC-' : 'DOC-';
-            return `${fallbackPrefix}${minNumber || 1001}`;
+            const safeNum = minNumber && minNumber < 1000000 ? minNumber : 1001;
+            return `${fallbackPrefix}${safeNum}`;
         }
     },
     async getNextDocumentNumber(instId: string, docType: string, minNumber?: number): Promise<string> {
@@ -524,7 +560,7 @@ export const apiService = {
             const supabaseClient = _supabase;
             if (!supabaseClient) {
                 // Mock local storage mode
-                const defaultNum = minNumber || 1001;
+                const defaultNum = minNumber && minNumber < 1000000 ? minNumber : 1001;
                 return `${docType.slice(0, 3).toUpperCase()}-${defaultNum}`;
             }
 
@@ -579,7 +615,11 @@ export const apiService = {
                         p_document_type: docType
                     });
                     if (!error && data) {
-                        return data;
+                        const digitMatch = String(data).match(/\d+/);
+                        // Ensure returned sequence is sane (< 1,000,000) and not corrupted by a phone number
+                        if (!digitMatch || parseInt(digitMatch[0], 10) < 1000000) {
+                            return data;
+                        }
                     }
                     if (error && (error.code === 'PGRST202' || error.message?.includes('404') || String(error.message || '').includes('Could not find the function'))) {
                         _rpcGetNextDocFailed = true;
@@ -597,6 +637,7 @@ export const apiService = {
                     .select('*')
                     .or(`institution_id.eq.${instId},institution_id.eq.${cleanInstId},institution_id.eq.inst_${cleanInstId}`)
                     .eq('document_type', docType)
+                    .order('updated_at', { ascending: false })
                     .limit(1);
 
                 if (!queryErr && Array.isArray(dbConfigs) && dbConfigs.length > 0) {
@@ -606,18 +647,37 @@ export const apiService = {
                 // Ignore query error and fallback to fetchModuleRecords
             }
 
+            // Also check alternate alias if docType is admission/student
+            if (!config && (docType === 'admission' || docType === 'student')) {
+                const altType = docType === 'admission' ? 'student' : 'admission';
+                try {
+                    const { data: altConfigs } = await supabaseClient
+                        .from('finance_numbering_configs')
+                        .select('*')
+                        .or(`institution_id.eq.${instId},institution_id.eq.${cleanInstId},institution_id.eq.inst_${cleanInstId}`)
+                        .eq('document_type', altType)
+                        .order('updated_at', { ascending: false })
+                        .limit(1);
+                    if (altConfigs && altConfigs.length > 0) {
+                        config = altConfigs[0];
+                    }
+                } catch (_) {}
+            }
+
             if (!config) {
                 const numberingConfigs = await apiService.fetchModuleRecords<any>('finance_numbering_configs', instId).catch(() => []);
-                config = (numberingConfigs || []).find((c: any) => 
-                    String(c.documentType || c.document_type || '').toLowerCase() === docType.toLowerCase()
-                );
+                config = (numberingConfigs || []).find((c: any) => {
+                    const cType = String(c.documentType || c.document_type || '').toLowerCase();
+                    return cType === docType.toLowerCase() ||
+                           ((docType === 'admission' || docType === 'student') && (cType === 'admission' || cType === 'student'));
+                });
             }
 
             const prefix = config?.prefix || defaultPrefixes[docType] || 'DOC-';
             const stableId = config?.id || `num_cfg_${docType}_${cleanInstId || instId}`;
 
             let initialNext = defaultNextNumber;
-            if (minNumber && minNumber > initialNext) {
+            if (minNumber && minNumber < 1000000 && minNumber > initialNext) {
                 initialNext = minNumber;
             }
 
@@ -658,7 +718,11 @@ export const apiService = {
             }
 
             let nextNum = Number(config.nextNumber || config.next_number || defaultNextNumber);
-            if (minNumber && minNumber > nextNum) {
+            // Sanity check: Phone numbers or timestamps (>= 1,000,000) are never valid sequential document numbers
+            if (nextNum >= 1000000) {
+                nextNum = defaultNextNumber;
+            }
+            if (minNumber && minNumber < 1000000 && minNumber > nextNum) {
                 nextNum = minNumber;
             }
             const formattedNum = `${prefix}${nextNum}`;
@@ -688,7 +752,8 @@ export const apiService = {
         } catch (err) {
             console.error(`[apiService] Failed to get next document number for ${docType}:`, err);
             const fallbackPrefix = (docType === 'admission' || docType === 'student') ? 'ADM-' : docType === 'invoice' ? 'INV-' : docType === 'receipt' ? 'REC-' : 'DOC-';
-            return `${fallbackPrefix}${minNumber || Date.now().toString().slice(-6)}`;
+            const safeNum = minNumber && minNumber < 1000000 ? minNumber : 1001;
+            return `${fallbackPrefix}${safeNum}`;
         }
     },
     async getAuthToken(): Promise<string> {

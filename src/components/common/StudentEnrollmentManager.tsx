@@ -735,15 +735,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const webcamRef = useRef<Webcam>(null);
     const previewAdmissionNumberRef = useRef<string>('');
 
-    const getHighestExistingAdmissionNumber = useCallback(() => {
+    const getHighestExistingAdmissionNumber = useCallback((expectedPrefix?: string) => {
         let maxNum = 0;
+        const targetPrefix = (expectedPrefix || '').trim().toUpperCase();
         (enrollments || []).forEach(e => {
             const adm = String(e.admissionNumber || '').trim();
-            const match = adm.match(/\d+$/);
-            if (match) {
-                const num = parseInt(match[0], 10);
-                if (!isNaN(num) && num > maxNum) {
-                    maxNum = num;
+            if (!adm) return;
+            if (targetPrefix) {
+                if (!adm.toUpperCase().startsWith(targetPrefix)) return;
+                const remainder = adm.slice(targetPrefix.length).trim();
+                const match = remainder.match(/^\d+/);
+                if (match) {
+                    const num = parseInt(match[0], 10);
+                    if (!isNaN(num) && num < 1000000 && num > maxNum) {
+                        maxNum = num;
+                    }
+                }
+            } else {
+                const match = adm.match(/^[A-Za-z]+[-/]?(\d+)$/);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (!isNaN(num) && num < 1000000 && num > maxNum) {
+                        maxNum = num;
+                    }
                 }
             }
         });
@@ -1392,10 +1406,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 // officially commit and increment the sequence number now!
                 if (!finalAdmNo || finalAdmNo === previewAdmissionNumberRef.current) {
                     try {
-                        const minNum = getHighestExistingAdmissionNumber() + 1;
-                        finalAdmNo = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission', minNum);
+                        finalAdmNo = await apiService.getNextDocumentNumber(currentInstitution.id, 'admission');
                     } catch (e) {
-                        finalAdmNo = finalAdmNo || `ADM-${Date.now().toString().slice(-5)}`;
+                        finalAdmNo = finalAdmNo || `ADM-${Math.floor(1000 + Math.random() * 9000)}`;
                     }
                 }
                 previewAdmissionNumberRef.current = '';
@@ -1479,10 +1492,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         setEditingEnrollment(null);
         let nextAdm = '';
         try {
-            const minNum = getHighestExistingAdmissionNumber() + 1;
-            nextAdm = await apiService.peekNextDocumentNumber(currentInstitution.id, 'admission', minNum);
+            nextAdm = await apiService.peekNextDocumentNumber(currentInstitution.id, 'admission');
         } catch (e) {
-            nextAdm = `ADM-${Date.now().toString().slice(-5)}`;
+            nextAdm = 'ADM-1001';
         }
         previewAdmissionNumberRef.current = nextAdm;
         setFormData({
@@ -1527,8 +1539,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             let active = true;
             (async () => {
                 try {
-                    const minNum = getHighestExistingAdmissionNumber() + 1;
-                    const nextAdm = await apiService.peekNextDocumentNumber(currentInstitution.id, 'admission', minNum);
+                    const nextAdm = await apiService.peekNextDocumentNumber(currentInstitution.id, 'admission');
                     if (active && nextAdm) {
                         previewAdmissionNumberRef.current = nextAdm;
                         setFormData(prev => ({
@@ -1538,7 +1549,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
                 } catch (e) {
                     if (active) {
-                        const fallbackAdm = `ADM-${Date.now().toString().slice(-5)}`;
+                        const fallbackAdm = 'ADM-1001';
                         previewAdmissionNumberRef.current = fallbackAdm;
                         setFormData(prev => ({
                             ...prev,
@@ -1549,7 +1560,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             })();
             return () => { active = false; };
         }
-    }, [isFormOpen, editingEnrollment, currentInstitution?.id, getHighestExistingAdmissionNumber]);
+    }, [isFormOpen, editingEnrollment, currentInstitution?.id]);
 
     // Open form for editing
     const handleEdit = (enr: StudentEnrollment) => {
@@ -1940,7 +1951,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             });
                         }
 
-                        const admissionNumberValue = inputAdmNo || (existingEnrollment?.admissionNumber || `ADM-${Date.now().toString().slice(-5)}${Math.floor(100 + Math.random() * 900)}`);
+                        const admissionNumberValue = inputAdmNo || (existingEnrollment?.admissionNumber || `ADM-${Math.floor(1000 + Math.random() * 9000)}`);
  
                         const parentNameVal = item.parentName || existingEnrollment?.metadata?.parentName || '';
                         const parentPhoneVal = item.parentPhone || existingEnrollment?.metadata?.parentPhone || '';

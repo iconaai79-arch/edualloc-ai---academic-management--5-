@@ -1945,7 +1945,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         DOCUMENT_TYPES.forEach(item => {
             const cfg = numberingConfigs.find(c => c.documentType === item.type || c.document_type === item.type);
             prefixes[item.type] = cfg?.prefix ?? item.defaultPrefix;
-            numbers[item.type] = cfg?.nextNumber ?? cfg?.next_number ?? item.defaultNextNumber;
+            let n = Number(cfg?.nextNumber ?? cfg?.next_number ?? item.defaultNextNumber);
+            if (n >= 1000000) {
+                n = item.defaultNextNumber;
+            }
+            numbers[item.type] = n;
         });
         setEditingPrefixes(prefixes);
         setEditingNumbers(numbers);
