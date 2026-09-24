@@ -366,18 +366,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     }, [currentInstitution?.id]);
 
-    const [selectedExamId, setSelectedExamId] = useState<string>('');
+    const [selectedExamId, setSelectedExamId] = useState<string>(() => {
+        try {
+            const savedLastExam = localStorage.getItem(`eduai_last_selected_exam_${instId}`);
+            if (savedLastExam && exams.some(e => e.id === savedLastExam)) {
+                return savedLastExam;
+            }
+        } catch (e) {}
+        return exams[0]?.id || '';
+    });
 
     // Keep selectedExamId in sync with available exams
     useEffect(() => {
         if (exams.length > 0) {
             if (!selectedExamId || !exams.some(e => e.id === selectedExamId)) {
-                setSelectedExamId(exams[0].id);
+                const fallback = (() => {
+                    try {
+                        const savedLast = localStorage.getItem(`eduai_last_selected_exam_${instId}`);
+                        if (savedLast && exams.some(e => e.id === savedLast)) return savedLast;
+                    } catch (e) {}
+                    return exams[0].id;
+                })();
+                setSelectedExamId(fallback);
             }
         } else if (selectedExamId !== '') {
             setSelectedExamId('');
         }
-    }, [exams, selectedExamId]);
+    }, [exams, selectedExamId, instId]);
 
     const activeExam = useMemo(() => {
         if (exams.length === 0) return null;
@@ -1249,16 +1264,34 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
     }, [activeExam, selectedClasses, registeredClasses]);
 
-    // Per-exam broadsheet store
+    // Per-exam broadsheet store - eagerly hydrated from all local storage caches
     const [examMarksStore, setExamMarksStore] = useState<Record<string, any[]>>(() => {
+        const store: Record<string, any[]> = {};
         try {
             const saved = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                if (parsed && typeof parsed === 'object') return parsed;
+                if (parsed && typeof parsed === 'object') {
+                    Object.assign(store, parsed);
+                }
+            }
+            // Scan for any individual per-exam broadsheets in localStorage to guarantee instant 0ms access
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('eduai_exam_broadsheet_') && !key.startsWith('eduai_exam_broadsheets_')) {
+                    const eId = key.replace('eduai_exam_broadsheet_', '');
+                    if (eId && !store[eId]) {
+                        try {
+                            const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                store[eId] = parsed;
+                            }
+                        } catch (e) {}
+                    }
+                }
             }
         } catch (e) { }
-        return {};
+        return store;
     });
 
     const examMarksStoreRef = useRef(examMarksStore);
@@ -1846,7 +1879,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Broadsheet Spreadsheet State
     const [marksDisplayMode, setMarksDisplayMode] = useState<'raw' | 'converted' | 'dual'>('raw');
-    const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(defaultSampleRows);
+    const [broadsheetStudentRows, setBroadsheetStudentRows] = useState(() => {
+        const initExamId = selectedExamId || (exams && exams[0]?.id);
+        if (initExamId && examMarksStore[initExamId] && Array.isArray(examMarksStore[initExamId]) && examMarksStore[initExamId].length > 0) {
+            return examMarksStore[initExamId];
+        }
+        return defaultSampleRows;
+    });
     const [searchStudentQuery, setSearchStudentQuery] = useState('');
 
     /** Restore rows from a snapshot key */
@@ -1864,25 +1903,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         } catch (e) { alert('Failed to restore backup.'); }
     }, []);
 
-    // Fetch saved exams and broadsheets from DB on mount
+    // Fetch saved broadsheets and module state from DB on mount (exam_units is already fetched at top)
     useEffect(() => {
         if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<ExamUnitRecord>('exam_units', currentInstitution.id)
-                .then(records => {
-                    if (records && records.length > 0) {
-                        setExams(prev => {
-                            const existingIds = new Set(prev.map(e => e.id));
-                            const newOnes = records.filter(r => !existingIds.has(r.id));
-                            const merged = [...newOnes, ...prev];
-                            try {
-                                localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
-                            } catch (e) { }
-                            return merged;
-                        });
-                    }
-                })
-                .catch(err => console.log('Using default exam units:', err));
-
             apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
                 .then(records => {
                     const match = (records || []).find(r => r.id === `ims_exam_broadsheets_${currentInstitution.id}` || r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
@@ -1892,6 +1915,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             const merged = { ...prev, ...storeData };
                             try {
                                 localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
+                                Object.entries(storeData).forEach(([eId, rows]) => {
+                                    if (Array.isArray(rows) && rows.length > 0) {
+                                        localStorage.setItem(`eduai_exam_broadsheet_${eId}`, JSON.stringify(rows));
+                                    }
+                                });
                             } catch (e) { }
                             return merged;
                         });
@@ -2217,6 +2245,38 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         setBroadsheetStudentRows(cleanRows);
         setExamMarksStore(prev => ({ ...prev, [selectedExamId]: cleanRows }));
     }, [selectedExamId, currentInstitution, users, activeExamClasses, allRealStudents, isStudentInTargetClasses, getStudentClass, sanitizeBroadsheetRows, resolveCleanAdmNo, resolveCleanStudentName]);
+
+    // Fast synchronous exam selector for 0ms transition
+    const handleSelectExam = useCallback((examId: string) => {
+        if (!examId) return;
+        setSelectedExamId(examId);
+        try {
+            localStorage.setItem(`eduai_last_selected_exam_${instId}`, examId);
+        } catch (e) {}
+
+        // 1. Instant synchronous load from in-memory store
+        const fromStore = examMarksStoreRef.current[examId];
+        if (fromStore && Array.isArray(fromStore) && fromStore.length > 0) {
+            loadedExamIdRef.current = examId;
+            setBroadsheetStudentRows(sanitizeBroadsheetRows(fromStore));
+            return;
+        }
+
+        // 2. Instant synchronous load from per-exam localStorage cache
+        try {
+            const rawSaved = localStorage.getItem(`eduai_exam_broadsheet_${examId}`);
+            if (rawSaved) {
+                const parsed = JSON.parse(rawSaved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    loadedExamIdRef.current = examId;
+                    const sanitized = sanitizeBroadsheetRows(parsed);
+                    setExamMarksStore(prev => ({ ...prev, [examId]: sanitized }));
+                    setBroadsheetStudentRows(sanitized);
+                    return;
+                }
+            }
+        } catch (e) {}
+    }, [instId, sanitizeBroadsheetRows]);
 
     // Distinct unique grades available across the ENTIRE institution (used in Add Exam Modal)
     const institutionAvailableGrades = useMemo(() => {
@@ -4161,7 +4221,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                     return (
                                         <div
                                             key={exam.id}
-                                            onClick={() => setSelectedExamId(exam.id)}
+                                            onClick={() => handleSelectExam(exam.id)}
                                             className={`p-4 cursor-pointer transition-all ${isSelected
                                                     ? 'bg-blue-600 text-white font-bold'
                                                     : 'hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-900 dark:text-white'
@@ -4212,7 +4272,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                             return (
                                                                 <div
                                                                     key={exam.id}
-                                                                    onClick={() => setSelectedExamId(exam.id)}
+                                                                    onClick={() => handleSelectExam(exam.id)}
                                                                     className={`p-3 cursor-pointer transition-all ${isSelected
                                                                             ? 'bg-blue-600 text-white font-bold'
                                                                             : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
