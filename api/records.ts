@@ -3326,6 +3326,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanLessonPlan) : cleanLessonPlan(currentPayload);
             }
 
+            // Normalize coop_collections: map camelCase frontend keys to snake_case DB columns
+            // to prevent "Could not find 'date' column" schema cache stale retry loops.
+            if (moduleName === 'coop_collections' || targetDbTable === 'coop_collections') {
+                const normCoopCollection = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId  && !c.institution_id)  { c.institution_id  = c.institutionId;  delete c.institutionId; }
+                    if (c.farmerId       && !c.farmer_id)       { c.farmer_id       = c.farmerId;       delete c.farmerId; }
+                    if (c.riderId        && !c.rider_id)        { c.rider_id        = c.riderId;        delete c.riderId; }
+                    if (c.collectionDate && !c.collection_date) { c.collection_date = c.collectionDate; delete c.collectionDate; }
+                    if (c.productType    && !c.product_type)    { c.product_type    = c.productType;    delete c.productType; }
+                    if (c.qualityGrade   && !c.quality_grade)   { c.quality_grade   = c.qualityGrade;   delete c.qualityGrade; }
+                    if (c.qualityScore   !== undefined && !c.quality_score) { c.quality_score = c.qualityScore; delete c.qualityScore; }
+                    if (c.recordedBy     && !c.recorded_by)     { c.recorded_by     = c.recordedBy;     delete c.recordedBy; }
+                    if (c.factoryConfirmed !== undefined && c.factory_confirmed === undefined) { c.factory_confirmed = c.factoryConfirmed; delete c.factoryConfirmed; }
+                    if (c.confirmedBy    && !c.confirmed_by)    { c.confirmed_by    = c.confirmedBy;    delete c.confirmedBy; }
+                    if (c.confirmedAt    && !c.confirmed_at)    { c.confirmed_at    = c.confirmedAt;    delete c.confirmedAt; }
+                    if (c.finalQuantity  !== undefined && c.final_quantity === undefined) { c.final_quantity = c.finalQuantity; delete c.finalQuantity; }
+                    if (c.requiresApproval !== undefined && c.requires_approval === undefined) { c.requires_approval = c.requiresApproval; delete c.requiresApproval; }
+                    if (c.approvalStatus && !c.approval_status) { c.approval_status = c.approvalStatus; delete c.approvalStatus; }
+                    if (c.approvedBy     && !c.approved_by)     { c.approved_by     = c.approvedBy;     delete c.approvedBy; }
+                    if (c.approvedAt     && !c.approved_at)     { c.approved_at     = c.approvedAt;     delete c.approvedAt; }
+                    if (c.smsStatus      && !c.sms_status)      { c.sms_status      = c.smsStatus;      delete c.smsStatus; }
+                    if (c.estimatedPayout !== undefined && c._estimated_payout === undefined) { c._estimated_payout = c.estimatedPayout; delete c.estimatedPayout; }
+                    // Remove stray 'date' field — DB column is 'collection_date'
+                    if (c.date !== undefined && !c.collection_date) { c.collection_date = c.date; }
+                    delete c.date;
+                    delete c.createdAt;
+                    delete c.updatedAt;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normCoopCollection) : normCoopCollection(currentPayload);
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 3;
