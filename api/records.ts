@@ -3672,11 +3672,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                 }
 
+                // institution_id FK violation: the institution does not exist in DB.
+                // This must NOT be silently swallowed as an offline fallback — surface it clearly.
+                if (error.code === '23503' && message.includes('institution_id')) {
+                    console.error(`[api/records POST] institution_id FK violation on [${moduleName}]: institution not found in DB. institution_id sent: ${JSON.stringify((recordData as any)?.institution_id || (Array.isArray(recordData) ? recordData[0]?.institution_id : null))}`, error.message);
+                    return res.status(400).json({
+                        success: false,
+                        error: `The institution could not be found. Please ensure you are connected and your institution is registered before saving ${moduleName} records.`,
+                        code: error.code,
+                        detail: error.message
+                    });
+                }
+
                 const isTableMissing = error.code === '42P01' || 
                                        error.code === 'PGRST205' || 
                                        error.code === 'PGRST204' ||
                                        error.code === 'PGRST200' ||
-                                       error.code === '23503' ||
+                                       // 23503 on non-institution FKs (relational: ward_id, bed_id etc.) — already retried above, treat as offline
+                                       (error.code === '23503' && !message.includes('institution_id')) ||
                                        error.code === '23502' ||
                                        error.code === '22P02' ||
                                        (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) ||

@@ -831,7 +831,7 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
     const handleAddWard = async (wardData: any) => {
         if (!institutionId) return;
         try {
-            await apiService.saveModuleRecord('his_wards', { ...wardData, institutionId, id: `ward_${Date.now()}` });
+            await apiService.saveModuleRecord('his_wards', { ...wardData, institution_id: institutionId, id: `ward_${Date.now()}` });
             alert("Ward Added Successfully");
             // Automatically refresh if we are in inpatient view
             if (activeModule === 'inpatient') {
