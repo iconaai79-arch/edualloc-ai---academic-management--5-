@@ -3360,6 +3360,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normCoopCollection) : normCoopCollection(currentPayload);
             }
 
+            // Normalize inventory table: map camelCase→snake_case and strip columns that don't exist in DB.
+            // DB columns: id, name, category, quantity, unit, reorder_level, location, item_type,
+            //             expiry_date, last_updated, institution_id
+            // Frontend extras (NO DB column): status, price, minThreshold — strip them to avoid retry loops.
+            if (moduleName === 'inventory' || targetDbTable === 'inventory') {
+                const normInventory = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.lastUpdated   && !c.last_updated)   { c.last_updated   = c.lastUpdated;   delete c.lastUpdated; }
+                    if (c.reorderLevel  !== undefined && c.reorder_level === undefined) { c.reorder_level = c.reorderLevel; delete c.reorderLevel; }
+                    if (c.itemType      && !c.item_type)      { c.item_type      = c.itemType;      delete c.itemType; }
+                    if (c.expiryDate    && !c.expiry_date)    { c.expiry_date    = c.expiryDate;    delete c.expiryDate; }
+                    // Strip fields that have no column in the inventory table
+                    delete c.createdAt;
+                    delete c.updatedAt;
+                    // minThreshold → min_threshold (column added in migration 352)
+                    if (c.minThreshold !== undefined && c.min_threshold === undefined) { c.min_threshold = c.minThreshold; delete c.minThreshold; }
+
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInventory) : normInventory(currentPayload);
+            }
+
             let data: any = null;
             let error: any = null;
             let maxRetries = 3;
