@@ -825,11 +825,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const targetInstParam = getStrParam(queryInstitutionId);
             const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
 
-            // Security guard: protect user identity records from unauthenticated bulk harvesting
-            if (!user && ['users', 'students', 'student_enrollments'].includes(moduleName)) {
-                const hasSpecificIdentifier = getStrParam(id) || getStrParam(req.query.email) || getStrParam(req.query.phoneNumber) || getStrParam(req.query.phone);
-                if (!hasSpecificIdentifier) {
-                    console.info(`[API GET] Blocked unauthenticated bulk fetch for '${moduleName}'. Returning empty list.`);
+            // Security guard: protect user identity records from unauthenticated global platform-wide harvesting
+            if (!user && ['users', 'students', 'teachers', 'student_enrollments'].includes(moduleName)) {
+                const hasSpecificIdentifier = getStrParam(id) || 
+                    getStrParam(req.query.email) || 
+                    getStrParam(req.query.phoneNumber) || 
+                    getStrParam(req.query.phone) ||
+                    getStrParam(req.query.admissionNumber) ||
+                    getStrParam(req.query.admission_number) ||
+                    getStrParam(req.query.staffId) ||
+                    getStrParam(req.query.staff_id) ||
+                    getStrParam(req.query.studentId) ||
+                    getStrParam(req.query.student_id);
+                const isScopedToTenant = Boolean(targetInstParam && targetInstParam !== 'ALL');
+                if (!hasSpecificIdentifier && !isScopedToTenant) {
+                    console.info(`[API GET] Blocked unauthenticated global bulk fetch for '${moduleName}'. Returning empty list.`);
                     return res.status(200).json([]);
                 }
             }
@@ -1660,6 +1670,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         timestamp: Date.now()
                     });
                 }
+            }
+
+            if (['users', 'students', 'teachers'].includes(moduleName) && Array.isArray(data)) {
+                data.forEach((u: any) => {
+                    if (u && typeof u === 'object') {
+                        delete u.password;
+                        delete u.password_hash;
+                        delete u.passwordHash;
+                    }
+                });
             }
 
             return res.status(200).json(data || []);
