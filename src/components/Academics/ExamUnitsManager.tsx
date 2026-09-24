@@ -198,8 +198,8 @@ interface StudentSubjectRowProps {
     selectedClassFilter: string;
     activeExamClasses: string[];
     isPublished: boolean;
+    isUnsaved?: boolean;
     getStudentPaperMark: (st: any, paperKey: string, subName?: string, paperName?: string) => { val: number; hasMark: boolean };
-    calculateGradeFromScore: (pctNum: number, clsName?: string, subName?: string) => string;
     onUpdateMark: (admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => void;
 }
 
@@ -212,8 +212,8 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
     selectedClassFilter,
     activeExamClasses,
     isPublished,
+    isUnsaved = false,
     getStudentPaperMark,
-    calculateGradeFromScore,
     onUpdateMark
 }) => {
     const rawTotal = React.useMemo(() => {
@@ -224,13 +224,14 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
         }, 0);
     }, [st, singleSubjectPapers, selectedSubjectFilter, getStudentPaperMark]);
 
-    const convertedPct = singleSubjectMaxTotal > 0 ? ((rawTotal / singleSubjectMaxTotal) * 100).toFixed(1) : '0.0';
-    const pctNum = parseFloat(convertedPct);
-    const studentClass = st.class || (st as any).studentClass || (st as any).className || (selectedClassFilter !== 'all' ? selectedClassFilter : (activeExamClasses[0] || ''));
-    const grade = calculateGradeFromScore(pctNum, studentClass, selectedSubjectFilter);
+    const hasAnyEnteredValue = singleSubjectPapers.some((p: any) => {
+        const markInfo = getStudentPaperMark(st, p.key, selectedSubjectFilter, p.label);
+        const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : undefined);
+        return val !== undefined && val !== null && val !== '';
+    });
 
     return (
-        <tr className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors">
+        <tr className={`hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors ${isUnsaved ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''}`}>
             <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
             <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{st.name}</td>
 
@@ -255,13 +256,24 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
                 );
             })}
 
-            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">{rawTotal} / {singleSubjectMaxTotal}</td>
-            <td className="px-4 py-3 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{convertedPct}%</td>
-            <td className="px-4 py-3 text-center font-black text-emerald-600">{grade}</td>
+            <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">
+                <span className="text-sm font-extrabold text-indigo-700 dark:text-indigo-300">{rawTotal}</span>
+                <span className="text-[11px] text-slate-400 font-semibold ml-1">/ {singleSubjectMaxTotal}</span>
+            </td>
             <td className="px-4 py-3 text-center">
-                <span className="inline-block px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black rounded-md uppercase">
-                    ✓ Live
-                </span>
+                {isUnsaved ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 text-[10px] font-black rounded-lg uppercase tracking-wider shadow-sm animate-pulse border border-amber-300 dark:border-amber-700">
+                        ● Unsaved
+                    </span>
+                ) : hasAnyEnteredValue ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 text-[10px] font-black rounded-lg uppercase tracking-wider border border-emerald-300 dark:border-emerald-800">
+                        ✓ Saved
+                    </span>
+                ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800/80 text-slate-400 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                        Empty
+                    </span>
+                )}
             </td>
         </tr>
     );
@@ -270,6 +282,7 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
         prev.st === next.st &&
         prev.stIndex === next.stIndex &&
         prev.isPublished === next.isPublished &&
+        prev.isUnsaved === next.isUnsaved &&
         prev.singleSubjectPapers === next.singleSubjectPapers &&
         prev.singleSubjectMaxTotal === next.singleSubjectMaxTotal &&
         prev.selectedSubjectFilter === next.selectedSubjectFilter &&
@@ -412,6 +425,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [addExamGradeFilter, setAddExamGradeFilter] = useState<string>('all');
     const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
     const [isSavingMarks, setIsSavingMarks] = useState(false);
+    const [unsavedStudentAdms, setUnsavedStudentAdms] = useState<Set<string>>(new Set());
+
+    // Reset unsaved tracker when changing subject or exam view
+    useEffect(() => {
+        setUnsavedStudentAdms(new Set());
+    }, [selectedSubjectFilter, selectedExamId]);
 
     // Sorting state for broadsheet mark entry (sort by Admission No or Student Name)
     const [sortField, setSortField] = useState<'admNo' | 'name'>('name');
@@ -2537,6 +2556,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 }
             }
 
+            // Flag this student admission number as having unsaved draft changes
+            setUnsavedStudentAdms(prev => {
+                if (prev.has(admNo)) return prev;
+                const next = new Set(prev);
+                next.add(admNo);
+                return next;
+            });
+
             // Also synchronize companion shorthand keys so all views stay in sync
             const extraKeys: Record<string, number> = {};
             const fkLower = fieldKey.toLowerCase();
@@ -3623,6 +3650,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         const updatedStore = { ...examMarksStore, [selectedExamId]: rowsToSave };
         setExamMarksStore(updatedStore);
+        setUnsavedStudentAdms(new Set());
         try {
             localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
             window.dispatchEvent(new CustomEvent('eduai_broadsheets_updated', { detail: { examId: selectedExamId } }));
@@ -4003,12 +4031,79 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const newStatus = isCurrentlyPublished ? ('in_progress' as const) : ('published' as const);
 
         // Commit active broadsheet student rows into examMarksStore, local storage, and database
-        const rowsToSave = (broadsheetStudentRows && broadsheetStudentRows.length > 0)
+        const rawRowsToSave = (broadsheetStudentRows && broadsheetStudentRows.length > 0)
             ? broadsheetStudentRows
             : (examMarksStore[activeExam.id] || []);
 
+        // ── BATCH CONVERSION ON PUBLISH: Compute grades, percentages, mean scores, and rank positions ──
+        let rowsToSave = rawRowsToSave;
+        if (newStatus === 'published' && rawRowsToSave.length > 0) {
+            const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : (activeExam.classes || []);
+            const allSubs = modalAvailableSubjects.length > 0
+                ? modalAvailableSubjects
+                : subjects.map(s => s.name || (s as any).title).filter(Boolean);
+
+            rowsToSave = rawRowsToSave.map(st => {
+                const stClass = st.class || (st as any).studentClass || targetClasses[0] || '';
+                let totalRawAllSubs = 0;
+                let totalMaxAllSubs = 0;
+                const subjectMetrics: Record<string, any> = {};
+
+                allSubs.forEach(subName => {
+                    const papers = getSubjectPapers(subName);
+                    const subMax = papers.reduce((m, p) => m + (p.maxScore || 100), 0) || 100;
+                    const subRaw = papers.reduce((sum, p) => {
+                        const markInfo = getStudentPaperMark(st, p.key, subName, p.label);
+                        const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : 0);
+                        return sum + (Number(val) || 0);
+                    }, 0);
+
+                    const subPct = subMax > 0 ? parseFloat(((subRaw / subMax) * 100).toFixed(1)) : 0;
+                    const subGrade = calculateGradeFromScore(subPct, stClass, subName);
+
+                    const cleanSubKey = subName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    subjectMetrics[`${cleanSubKey}_total`] = subRaw;
+                    subjectMetrics[`${cleanSubKey}_pct`] = subPct;
+                    subjectMetrics[`${cleanSubKey}_grade`] = subGrade;
+
+                    totalRawAllSubs += subRaw;
+                    totalMaxAllSubs += subMax;
+                });
+
+                const overallPct = totalMaxAllSubs > 0 ? parseFloat(((totalRawAllSubs / totalMaxAllSubs) * 100).toFixed(1)) : 0;
+                const overallGrade = calculateGradeFromScore(overallPct, stClass);
+
+                return {
+                    ...st,
+                    ...subjectMetrics,
+                    totalMarks: totalRawAllSubs,
+                    overallPercentage: overallPct,
+                    meanScore: overallPct,
+                    meanGrade: overallGrade,
+                    isPublished: true
+                };
+            });
+
+            // Assign positions/ranks based on totalMarks
+            const sortedByScore = [...rowsToSave].sort((a, b) => (b.totalMarks || 0) - (a.totalMarks || 0));
+            const rankMap = new Map<string, number>();
+            sortedByScore.forEach((r, idx) => {
+                rankMap.set(r.admNo, idx + 1);
+            });
+
+            rowsToSave = rowsToSave.map(r => ({
+                ...r,
+                position: rankMap.get(r.admNo) || 1,
+                rank: rankMap.get(r.admNo) || 1
+            }));
+
+            // Sync enriched rows into state
+            setBroadsheetStudentRows(rowsToSave);
+        }
+
         const updatedStore = { ...examMarksStore, [activeExam.id]: rowsToSave };
         setExamMarksStore(updatedStore);
+        setUnsavedStudentAdms(new Set());
 
         try {
             localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(updatedStore));
@@ -5178,9 +5273,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         type="button"
                                         disabled={isSavingMarks || activeExam?.status === 'published'}
                                         onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
-                                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                            unsavedStudentAdms.size > 0
+                                                ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400 animate-pulse'
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                        }`}
                                     >
-                                        {isSavingMarks ? '⏳ Saving...' : `💾 Save ${selectedSubjectFilter} Marks`}
+                                        {isSavingMarks ? '⏳ Saving...' : unsavedStudentAdms.size > 0 ? `💾 Save ${unsavedStudentAdms.size} Changes` : `✓ ${selectedSubjectFilter} Saved`}
                                     </button>
                                 )}
 
@@ -5248,24 +5347,27 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             {/* SINGLE SUBJECT EDITABLE MODE */}
                             {selectedSubjectFilter !== 'all' ? (
                                 <div className="space-y-4">
-                                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-xl p-4 flex justify-between items-center">
+                                    <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/40 rounded-xl p-4 flex justify-between items-center">
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg">
+                                            <div className="p-2 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
                                                 <PencilIcon className="w-5 h-5" />
                                             </div>
                                             <div>
-                                                <h4 className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-wider">
-                                                    Editable Mode Active: {selectedSubjectFilter}
+                                                <h4 className="text-xs font-black text-indigo-900 dark:text-indigo-200 uppercase tracking-wider flex items-center gap-2">
+                                                    <span>⚡ Fast Marks Entry: {selectedSubjectFilter}</span>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300 font-bold">
+                                                        Excel Capture Mode
+                                                    </span>
                                                 </h4>
-                                                <p className="text-[11px] text-amber-700 dark:text-amber-300">
-                                                    Click inside any student's score box to type or edit raw marks. Changes update totals, percentages & grades in real-time.
+                                                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                                                    Rapid raw score capture. Enter marks below and click <b>Save Marks</b>. Converted grades, percentages, and rankings are computed when published.
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             type="button"
                                             onClick={() => setSelectedSubjectFilter('all')}
-                                            className="px-3 py-1.5 bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-lg text-xs font-bold hover:bg-amber-100 transition-all cursor-pointer"
+                                            className="px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer"
                                         >
                                             View Full Broadsheet
                                         </button>
@@ -5286,10 +5388,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         </th>
                                                     ))}
 
-                                                    <th className="px-4 py-3 text-center bg-slate-800">Subject Total</th>
-                                                    <th className="px-4 py-3 text-center bg-slate-800">Converted %</th>
-                                                    <th className="px-4 py-3 text-center bg-slate-800">Grade</th>
-                                                    <th className="px-4 py-3 text-center w-24">Status</th>
+                                                    <th className="px-4 py-3 text-center bg-slate-800">Raw Score Total</th>
+                                                    <th className="px-4 py-3 text-center w-28 bg-slate-800">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
@@ -5304,14 +5404,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                         selectedClassFilter={selectedClassFilter}
                                                         activeExamClasses={activeExamClasses}
                                                         isPublished={activeExam?.status === 'published'}
+                                                        isUnsaved={unsavedStudentAdms.has(st.admNo)}
                                                         getStudentPaperMark={getStudentPaperMark}
-                                                        calculateGradeFromScore={calculateGradeFromScore}
                                                         onUpdateMark={handleUpdateStudentMark}
                                                     />
                                                 ))}
                                                 {filteredStudentRows.length === 0 && (
                                                     <tr>
-                                                        <td colSpan={8} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                        <td colSpan={singleSubjectPapers.length + 4} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
                                                             🔍 No students match "{searchStudentQuery}"
                                                         </td>
                                                     </tr>
@@ -5426,11 +5526,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 {selectedSubjectFilter !== 'all' && (
                                     <button
                                         type="button"
-                                        disabled={isSavingMarks}
+                                        disabled={isSavingMarks || activeExam?.status === 'published'}
                                         onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
-                                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                                        className={`px-5 py-2 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 ${
+                                            unsavedStudentAdms.size > 0
+                                                ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400 animate-pulse'
+                                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                        }`}
                                     >
-                                        {isSavingMarks ? 'Saving...' : `💾 Save ${selectedSubjectFilter} Marks`}
+                                        {isSavingMarks ? 'Saving...' : unsavedStudentAdms.size > 0 ? `💾 Save ${unsavedStudentAdms.size} Changes` : `✓ ${selectedSubjectFilter} Saved`}
                                     </button>
                                 )}
                                 <button
