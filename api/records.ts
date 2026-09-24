@@ -377,60 +377,22 @@ async function getAuthUser(supabase: any, authHeader?: string) {
   return null;
 }
 
-const PUBLIC_MODULES = [
-  'users', 'institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings',
-  'pm_listings', 'retail_inventory_items', 'school_registry', 'car_sales_listings', 'car_listings', 'campaign_profiles',
-  'alumnae_members', 'alumni_posts', 'alumni_comments', 'alumni_messages', 'hospitality_items', 'hospitality_menu_items',
-  'hospitality_vehicles', 'events', 'event_categories', 'event_participants', 'event_splits', 'event_pledges',
-  'ds_students', 'ds_lessons', 'ds_settings', 'ds_invoices', 'ds_payments', 'ds_instructors', 'ds_vehicles',
-  'ds_skill_mastery', 'ds_votes', 'ds_license_categories', 'ds_leads', 'store_categories', 'integration_logs',
-  'event_pins', 'institution_events', 'student_enrollments', 'county_bursary_funds', 'bursary_applications',
-  'ng_cdf_funds', 'ng_cdf_bursaries', 'broadcaster_messages', 'biometric_devices', 'biometric_enrollments',
-  'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements',
-  'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts',
-  'school_remedial_allocations', 'his_patients', 'his_queue_calls', 'his_staff', 'his_appointments',
-  'his_vital_statistics', 'his_financial_records', 'his_admissions', 'his_beds', 'his_wards', 'his_dental_charts',
-  'his_eye_prescriptions', 'his_medication_logs', 'his_broadcasts', 'his_prescriptions', 'his_prescription_items', 'his_pharmacy_inventory',
-  'his_pharmacy_batches', 'his_pharmacy_sales', 'his_pharmacy_sale_items', 'his_pharmacy_ledger', 'his_pharmacy_staff',
-  'his_pharmacy_settings', 'his_pharmacy_adherence_alerts', 'his_pharmacy_interactions', 'his_pharmacy_narcotics_ledger', 'his_lab_orders', 'his_billing_settings', 'his_invoices',
-  'his_payments', 'his_billing_items', 'his_insurance_remittances', 'his_insurance_providers', 'his_tariffs',
-  'his_hospital_rooms', 'his_partner_labs', 'his_branding', 'his_patient_id_config', 'his_medical_notes', 'his_clinical_events',
-  'bulletin_items', 'document_collections', 'watchlist', 'watchlist_records', 'maintenance_requests',
-  'student_absence_requests', 'time_off_requests', 'teacher_check_ins', 'leave_requests', 'financial_goals',
-  'payroll_records', 'building_floors', 'building_offices', 'building_visitor_logs', 'building_visitor_assets',
-  'visitors', 'security_alerts', 'security_logs', 'gate_passes', 'student_gate_passes',
-  'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'bank_transactions',
-  'feedback_submissions', 'guest_feedback', 'guest_feedbacks', 'lesson_ratings',
-  'suppliers', 'requisitions', 'lpos', 'procurement_items', 'procurement_suppliers', 'procurement_lpos', 'procurement_invoices',
-  'weighbridge_intake_tickets', 'grain_suppliers', 'milling_silos', 'milling_batch_runs', 'flour_packaging_shifts', 'animal_feed_batches', 'grain_sale_orders',
-  'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions', 'institution_module_states',
-  'bursary_disbursements', 'invoices', 'receipts', 'expenses', 'bank_feed_transactions', 'finance_numbering_configs', 'fee_structures', 'vote_heads',
-  'courses', 'subjects', 'departments', 'rooms', 'buildings', 'academic_years', 'academic_levels', 'semesters', 'timetable_entries', 'exam_timetable_entries', 'allocation_requests', 'assignments', 'tasks', 'assessments', 'assessment_marks', 'exam_units', 'exam_broadsheets',
-  'transport_bills', 'fee_promises', 'sms_outbox', 'sms_logs', 'institution_extension_requests', 'absence_requests',
-  'v_today_teacher_checkins', 'v_house_statistics', 'v_bed_occupancy',
-  'bc_students', 'bc_courses', 'bc_trainers', 'bc_invoices', 'bc_payments', 'bc_practicals', 'bc_settings', 'bc_fee_structures',
-  'carwash_jobs', 'cafe_menu_items', 'cafe_orders', 'retail_sales', 'retail_inventory', 'retail_stores',
-  'books', 'library_transactions', 'library_fines', 'library_settings', 'book_reservations', 'book_stock_receipts',
-  'branches', 'branch_integration_configs', 'inter_bank_transfers', 'vote_head_transfers', 'transactions', 'school_bank_accounts', 'financial_periods',
-  'his_claims', 'his_inpatient_records', 'his_nurse_tasks', 'his_anc_records', 'his_delivery_records', 'his_cwc_immunizations', 'his_nbu_admissions', 'his_audit_logs', 'his_lab_requests',
-  'school_projects', 'project_updates', 'alumni_school_inbox', 'alumni_notifications', 'alumni_jobs', 'alumni_businesses', 'alumni_groups', 'alumni_success_stories', 'alumni_document_requests', 'alumni_event_rsvps', 'alumni_school_staff', 'alumni_follows',
-  'election_events', 'election_candidates', 'election_voters_ledger', 'election_checkins',
-  'app_notifications', 'whatsapp_configs', 'whatsapp_logs',
-  'invoice_clients', 'company_invoice_settings',
-  'school_authorized_devices', 'school_router_profiles',
-  'vehicles', 'transport_onboarding', 'vehicle_logs',
-  'stock_transactions', 'appointments',
-  'law_documents', 'law_clients', 'law_matters', 'law_time_entries', 'law_invoices', 'law_trust_transactions', 'law_agreement_templates', 'law_agreements',
-  'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory', 'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts', 'coop_expenses', 'coop_income',
-  'car_appraisals', 'car_test_drives', 'car_invoices', 'car_payments',
-  'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-  // Previously missing — caused 401 cascades on page load for authenticated users with expired tokens
-  'activity_log', 'discipline_incidents', 'leave_out_requests', 'submissions', 'ta_assignments',
-  'contracts', 'retail_expenses', 'retail_sale_items', 'retail_serialized_items', 'retail_stock_transfers',
-  'retail_wishlists', 'retail_commission_ledger', 'repair_orders', 'carwash_inventory',
-  'fuel_inventory_log', 'fuel_attendants', 'fuel_nozzles', 'fuel_tanks', 'fuel_sales',
-  'student_check_ins', 'course_sizes', 'class_subject_allocations'
-];
+// RESTRICTED_MODULES: the ONLY tables that require a valid auth token.
+// Everything else is accessible to any authenticated session (institution-scoped by RLS).
+// This opt-OUT model prevents 401 cascades caused by forgetting to add new modules
+// to an ever-growing opt-in allowlist.
+const RESTRICTED_MODULES = new Set([
+  // Raw Supabase auth — never expose directly
+  'auth_users', 'auth_sessions', 'auth_refresh_tokens',
+  // System-level secrets
+  'api_keys', 'webhook_secrets', 'encryption_keys',
+]);
+
+// Backward-compatible helper — everything NOT in RESTRICTED_MODULES is "public"
+const PUBLIC_MODULES = {
+  includes: (moduleName: string) => !RESTRICTED_MODULES.has(moduleName),
+};
+
 
 const TABLES_WITH_METADATA = new Set([
   'users',
