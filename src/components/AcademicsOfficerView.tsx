@@ -1,7 +1,7 @@
 
 
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useTransition, Suspense } from 'react';
 import type { User, Subject, Course, Room, Department, AcademicYear, Semester, ExamTimetableEntry, TimetableSettings, Building, AcademicLevel, LetterheadConfig, EmailConfig, Institution, SmsConfig, ExamTimetableSettings, AllocationRequest, TimeOffRequest, TimetableEntry, Assessment, AssessmentMark, ActivityLog, DisciplineIncident } from '../types';
 import { isSuperAdminUser } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
@@ -34,7 +34,10 @@ import { AcademicReportsHub } from './Academics/AcademicReportsHub';
 import { BulkImportWizard } from './BulkImportWizard';
 import { DisciplineManager } from './Academics/DisciplineManager';
 import { StudentEnrollmentManager } from './common/StudentEnrollmentManager';
-import { ExamUnitsManager } from './Academics/ExamUnitsManager';
+// Lazy-load the heavy ExamUnitsManager so it parses asynchronously and doesn't block tab paint
+const ExamUnitsManager = React.lazy(() =>
+    import('./Academics/ExamUnitsManager').then(m => ({ default: m.ExamUnitsManager }))
+);
 import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExamAnalyticsDashboard';
@@ -179,6 +182,13 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     } = props;
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans' | 'tools'>('home');
+    const [isTabPending, startTabTransition] = useTransition();
+
+    // Wrap tab changes in startTransition so React can keep the UI interactive
+    // while the expensive ExamUnitsManager initializes in the background
+    const handleTabChange = useCallback((tab: typeof activeTab) => {
+        startTabTransition(() => setActiveTab(tab));
+    }, []);
     const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace' | 'leaving_certificates'>('lesson_plans');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio' | 'montessori'>('summative');
     const [isBulkWizardOpen, setIsBulkWizardOpen] = useState(false);
@@ -352,7 +362,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     {tabs.filter(item => item.id !== 'lessons').map(item => (
                         <button
                             key={item.id}
-                            onClick={() => setActiveTab(item.id as any)}
+                            onClick={() => handleTabChange(item.id as any)}
                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 relative group cursor-pointer ${
                                 activeTab === item.id 
                                 ? 'bg-gradient-to-r from-emerald-500 via-teal-600 to-indigo-600 text-white shadow-lg shadow-emerald-500/30 scale-105' 
@@ -370,6 +380,9 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             {activeTab === item.id && isSidebarOpen && (
                                 <div className="absolute right-4 w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                             )}
+                            {isTabPending && item.id === 'exam_units' && activeTab !== 'exam_units' && isSidebarOpen && (
+                                <div className="absolute right-4 w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            )}
                         </button>
                     ))}
                 </nav>
@@ -383,7 +396,7 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         {horizontalTabs.map(sub => (
                             <button
                                 key={sub.id}
-                                onClick={() => setActiveTab(sub.id as any)}
+                                onClick={() => handleTabChange(sub.id as any)}
                                 className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap cursor-pointer ${
                                     activeTab === sub.id
                                     ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105 font-black'
@@ -678,18 +691,25 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     </div>
 
                     {examViewSubTab === 'summative' ? (
-                        <ExamUnitsManager
-                            currentInstitution={currentInstitution}
-                            subjects={subjects}
-                            users={users}
-                            students={users ? users.filter(u => u.role === 'student') : []}
-                            assessments={assessments}
-                            marks={marks}
-                            courses={courses}
-                            academicLevels={academicLevels}
-                            allocations={props.allocations}
-                            currentUser={currentUser}
-                        />
+                        <Suspense fallback={
+                            <div className="flex flex-col items-center justify-center py-24 gap-4">
+                                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">Loading Exam Engine...</p>
+                            </div>
+                        }>
+                            <ExamUnitsManager
+                                currentInstitution={currentInstitution}
+                                subjects={subjects}
+                                users={users}
+                                students={users ? users.filter(u => u.role === 'student') : []}
+                                assessments={assessments}
+                                marks={marks}
+                                courses={courses}
+                                academicLevels={academicLevels}
+                                allocations={props.allocations}
+                                currentUser={currentUser}
+                            />
+                        </Suspense>
                     ) : examViewSubTab === 'cbe_strands' ? (
                         <CbeStrandRubricManager
                             currentInstitution={currentInstitution}

@@ -1693,7 +1693,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [users, isStudentUser, getStudentDedupKey]);
 
     useEffect(() => {
-        if (currentInstitution?.id) {
+        if (!currentInstitution?.id) return;
+        // Defer the heavy 3-API fetch by 300ms so the component can paint before hitting the network.
+        // This eliminates the visible lag/freeze on first mount.
+        const timer = setTimeout(() => {
             Promise.all([
                 apiService.fetchModuleRecords<any>('student_enrollments', currentInstitution.id).catch(() => []),
                 apiService.fetchModuleRecords<any>('students', currentInstitution.id).catch(() => []),
@@ -1835,7 +1838,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     } catch (e) { }
                 }
             });
-        }
+        }, 300);
+        return () => clearTimeout(timer);
     }, [currentInstitution, isStudentUser, getStudentDedupKey]);
 
 
@@ -2295,6 +2299,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const lastFilteredStudentRowsRef = useRef<any[]>([]);
 
     const filteredStudentRows = useMemo(() => {
+        // While Broadsheet modal is closed, do not perform expensive calculations/sorting across all students
+        if (!isBroadsheetModalOpen) {
+            return lastFilteredStudentRowsRef.current;
+        }
+
         // While Add/Edit exam modal is open, preserve previously filtered student rows
         // to avoid freezing the UI thread with synchronous calculations across all students
         if (isAddExamModalOpen && lastFilteredStudentRowsRef.current.length > 0) {
@@ -2447,7 +2456,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         lastFilteredStudentRowsRef.current = sorted;
         return sorted;
-    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder, isAddExamModalOpen, teacherSubjectClassMap, selectedSubjectFilter]);
+    }, [broadsheetStudentRows, selectedClassFilter, selectedGradeFilter, modalAvailableClasses, searchStudentQuery, KENYAN_STUDENT_NAMES, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, getStudentClass, extractGradeLabel, resolveCleanAdmNo, resolveCleanStudentName, sortField, sortOrder, isAddExamModalOpen, isBroadsheetModalOpen, teacherSubjectClassMap, selectedSubjectFilter]);
 
     const handleUpdateStudentMark = useCallback((admNo: string, fieldKey: string, newValue: number, studentName?: string, studentClass?: string) => {
         if (activeExam?.status === 'published') {
@@ -2642,8 +2651,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         ];
     }, [testedPaperConfigs]);
 
+    // Global cache for candidate paper keys to avoid repeating regex and set operations
+    const candidateKeysGlobalCache = useMemo(() => new Map<string, string[]>(), []);
+
     // Helper to resolve all possible candidate keys for any subject & paper (dynamic vs shorthand vs legacy)
     const getCandidateKeysForPaper = useCallback((subName: string, paperKey?: string, paperName?: string): string[] => {
+        const cacheKey = `${subName || ''}__${paperKey || ''}__${paperName || ''}`;
+        const cached = candidateKeysGlobalCache.get(cacheKey);
+        if (cached) return cached;
+
         const sClean = (subName || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
         const pClean = (paperName || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
         const sLower = (subName || '').toLowerCase().trim();
@@ -2720,8 +2736,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             keys.push('bus', 'business');
         }
 
-        return Array.from(new Set(keys.filter(Boolean)));
-    }, []);
+        const result = Array.from(new Set(keys.filter(Boolean)));
+        candidateKeysGlobalCache.set(cacheKey, result);
+        return result;
+    }, [candidateKeysGlobalCache]);
 
     // Helper to resolve student mark for any paper across all candidate keys
     const getStudentPaperMark = useCallback((st: any, paperKey: string, subName?: string, paperName?: string): { val: number; hasMark: boolean } => {
@@ -2765,9 +2783,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return { val: 0, hasMark: false };
     }, [getCandidateKeysForPaper]);
 
+    // Per-render grade result cache — avoids repeating the same O(n) grading-scale search
+    // for multiple rows that share identical (score, class, subject) inputs.
+    const gradeResultCacheRef = useRef<Map<string, string>>(new Map());
+    // Invalidate cache whenever grading configuration could have changed
+    useEffect(() => { gradeResultCacheRef.current.clear(); }, [currentInstitution, activeExam?.gradingSystem, activeExam?.gradingSystemId, selectedClassFilter, selectedSubjectFilter]);
+
     // Dynamic Grade Calculator querying treeGradingNodes, custom grading systems, exam scales, and CBC/8-4-4 configs
     const calculateGradeFromScore = useCallback((pctNum: number, clsName?: string, subName?: string) => {
         if (pctNum === undefined || pctNum === null || isNaN(pctNum)) return '-';
+
+        // Fast cache lookup: same score+class+subject always yields the same grade
+        const cacheKey = `${pctNum}|${clsName || ''}|${subName || ''}`;
+        const cached = gradeResultCacheRef.current.get(cacheKey);
+        if (cached !== undefined) return cached;
 
         let treeNodes = (currentInstitution as any)?.treeGradingNodes || (currentInstitution as any)?.tree_grading_nodes;
         if (!treeNodes) {
@@ -2872,11 +2901,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         }
 
+        let grade: string;
+
         // Apply matched scale definitions
         if (scaleDefinitions && scaleDefinitions.length > 0) {
             const sorted = [...scaleDefinitions].sort((a: any, b: any) => (b.minScore ?? 0) - (a.minScore ?? 0));
             const matched = sorted.find((d: any) => pctNum >= (d.minScore ?? 0));
-            if (matched && matched.grade) return matched.grade;
+            if (matched && matched.grade) {
+                grade = matched.grade;
+                gradeResultCacheRef.current.set(cacheKey, grade);
+                return grade;
+            }
         }
 
         // 4. Standard Kenya Curricula Fallback
@@ -2885,10 +2920,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             /\b(activities|hygiene|environmental|movement|cbe|cbc|nutrition|cre|ire|indigenous|language\s*activities|mathematical\s*activities)\b/i.test(effectiveSub);
 
         if (isCBE) {
-            return pctNum >= 80 ? 'EE' : pctNum >= 65 ? 'ME' : pctNum >= 50 ? 'AE' : 'BE';
+            grade = pctNum >= 80 ? 'EE' : pctNum >= 65 ? 'ME' : pctNum >= 50 ? 'AE' : 'BE';
+        } else {
+            grade = pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 55 ? 'C+' : pctNum >= 50 ? 'C' : pctNum >= 45 ? 'C-' : pctNum >= 40 ? 'D+' : pctNum >= 35 ? 'D' : pctNum >= 30 ? 'D-' : 'E';
         }
 
-        return pctNum >= 80 ? 'A' : pctNum >= 75 ? 'A-' : pctNum >= 70 ? 'B+' : pctNum >= 65 ? 'B' : pctNum >= 60 ? 'B-' : pctNum >= 55 ? 'C+' : pctNum >= 50 ? 'C' : pctNum >= 45 ? 'C-' : pctNum >= 40 ? 'D+' : pctNum >= 35 ? 'D' : pctNum >= 30 ? 'D-' : 'E';
+        gradeResultCacheRef.current.set(cacheKey, grade);
+        return grade;
     }, [currentInstitution, instId, selectedClassFilter, selectedSubjectFilter, activeExamClasses, activeExam, isPrimarySchool]);
 
     // Memoized paper definitions for the currently selected subject in Broadsheet
