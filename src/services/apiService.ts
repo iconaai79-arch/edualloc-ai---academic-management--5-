@@ -621,8 +621,11 @@ export const apiService = {
                             return data;
                         }
                     }
-                    if (error && (error.code === 'PGRST202' || error.message?.includes('404') || String(error.message || '').includes('Could not find the function'))) {
-                        _rpcGetNextDocFailed = true;
+                    if (error) {
+                        console.warn(`[apiService] get_next_document_number RPC returned error for ${docType}:`, error.message || error);
+                        if (error.code === 'PGRST202' || error.message?.includes('404') || String(error.message || '').includes('Could not find the function')) {
+                            _rpcGetNextDocFailed = true;
+                        }
                     }
                 } catch (rpcErr) {
                     _rpcGetNextDocFailed = true;
@@ -697,7 +700,7 @@ export const apiService = {
 
                 // Upsert via supabase if available to prevent 23505 conflict
                 try {
-                    const { data: upserted } = await supabaseClient
+                    const { data: upserted, error: upErr } = await supabaseClient
                         .from('finance_numbering_configs')
                         .upsert({
                             id: stableId,
@@ -709,8 +712,10 @@ export const apiService = {
                         }, { onConflict: 'institution_id,document_type' })
                         .select()
                         .single();
-                    if (upserted) {
+                    if (!upErr && upserted) {
                         config = upserted;
+                    } else {
+                        await apiService.saveModuleRecord('finance_numbering_configs', config).catch(() => {});
                     }
                 } catch (upErr) {
                     await apiService.saveModuleRecord('finance_numbering_configs', config).catch(() => {});
@@ -730,13 +735,22 @@ export const apiService = {
             // Increment next number
             if (config.id) {
                 try {
-                    await supabaseClient
+                    const { error: updateErr } = await supabaseClient
                         .from('finance_numbering_configs')
                         .update({
                             next_number: nextNum + 1,
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', config.id);
+                    if (updateErr) {
+                        await apiService.updateModuleRecord('finance_numbering_configs', config.id, {
+                            ...config,
+                            nextNumber: nextNum + 1,
+                            next_number: nextNum + 1,
+                            updatedAt: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }).catch(() => {});
+                    }
                 } catch (uErr) {
                     await apiService.updateModuleRecord('finance_numbering_configs', config.id, {
                         ...config,
