@@ -100,85 +100,133 @@ const MarkInputCell: React.FC<{
     const [localVal, setLocalVal] = React.useState<string>(
         initialValue === 0 || initialValue === '' || initialValue === undefined ? '' : String(initialValue)
     );
-    // Keep a stable ref to onCommit so inline arrow functions never cause re-renders
+    // Track the committed numeric value so blur & navigation never trigger duplicate commits
+    const lastCommittedValRef = React.useRef<number>(
+        initialValue === 0 || initialValue === '' || initialValue === undefined ? 0 : Number(initialValue)
+    );
     const onCommitRef = React.useRef(onCommit);
     onCommitRef.current = onCommit;
 
-    // Sync when the external value changes (e.g. after CSV import or load)
+    // Sync when external value changes (e.g. initial load, publish, CSV import)
     const prevInitial = React.useRef(initialValue);
     React.useEffect(() => {
+        const numVal = initialValue === 0 || initialValue === '' || initialValue === undefined ? 0 : Number(initialValue);
+        lastCommittedValRef.current = numVal;
         if (prevInitial.current !== initialValue) {
             prevInitial.current = initialValue;
-            setLocalVal(initialValue === 0 || initialValue === '' ? '' : String(initialValue));
+            // Never overwrite the input if user is actively focused on it
+            if (document.activeElement?.id !== inputId) {
+                setLocalVal(initialValue === 0 || initialValue === '' || initialValue === undefined ? '' : String(initialValue));
+            }
         }
-    }, [initialValue]);
+    }, [initialValue, inputId]);
 
     const commit = React.useCallback(() => {
-        const val = localVal === '' ? 0 : Math.max(0, Math.min(maxScore, parseFloat(localVal) || 0));
-        const initNum = initialValue === '' || initialValue === undefined ? 0 : Number(initialValue);
+        const parsed = parseFloat(localVal);
+        const num = localVal === '' || isNaN(parsed) ? 0 : Math.max(0, Math.min(maxScore, parsed));
         // Only trigger onCommit if the value actually changed
-        if (val !== initNum) {
-            onCommitRef.current(val);
+        if (num !== lastCommittedValRef.current) {
+            lastCommittedValRef.current = num;
+            if (parsed > maxScore) {
+                setLocalVal(String(num));
+            }
+            onCommitRef.current(num);
         }
-    }, [localVal, maxScore, initialValue]);
+    }, [localVal, maxScore]);
 
-    const navigate = (id: string) => {
-        requestAnimationFrame(() => {
-            const el = document.getElementById(id) as HTMLInputElement | null;
-            if (el) { el.focus(); el.select?.(); }
-        });
+    // Instant, 0ms synchronous focus & text selection (Excel-style spreadsheet navigation)
+    const navigateSync = (targetId: string) => {
+        const el = document.getElementById(targetId) as HTMLInputElement | null;
+        if (el) {
+            el.focus({ preventScroll: false });
+            try {
+                el.select();
+            } catch (_) {}
+            el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+            return true;
+        }
+        return false;
     };
 
     return (
         <div className="flex items-center justify-center gap-1.5">
             <input
                 id={inputId}
-                type="number"
-                min={0}
-                max={maxScore}
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*"
                 value={localVal}
                 placeholder="0"
                 disabled={disabled}
-                onFocus={(e) => e.target.select()}
+                onFocus={(e) => {
+                    try {
+                        e.target.select();
+                    } catch (_) {}
+                }}
                 onChange={(e) => {
                     if (disabled) return;
-                    setLocalVal(e.target.value);
+                    const val = e.target.value;
+                    // Allow empty or numeric digits with optional single decimal point
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                        setLocalVal(val);
+                    }
                 }}
-                onBlur={() => { if (!disabled) commit(); }}
+                onBlur={() => {
+                    if (!disabled) commit();
+                }}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === 'ArrowDown') {
                         e.preventDefault();
+                        const nextId = `mark-input-${stIndex + 1}-${pIdx}`;
+                        navigateSync(nextId);
                         commit();
-                        navigate(`mark-input-${stIndex + 1}-${pIdx}`);
                     } else if (e.key === 'ArrowUp' || (e.shiftKey && e.key === 'Enter')) {
                         e.preventDefault();
+                        const prevId = `mark-input-${stIndex - 1}-${pIdx}`;
+                        navigateSync(prevId);
                         commit();
-                        navigate(`mark-input-${stIndex - 1}-${pIdx}`);
                     } else if (e.key === 'ArrowRight') {
-                        const nextCol = document.getElementById(`mark-input-${stIndex}-${pIdx + 1}`);
-                        if (nextCol) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex}-${pIdx + 1}`); }
-                        else {
-                            const nextRowFirst = document.getElementById(`mark-input-${stIndex + 1}-0`);
-                            if (nextRowFirst) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex + 1}-0`); }
+                        const nextColId = `mark-input-${stIndex}-${pIdx + 1}`;
+                        if (document.getElementById(nextColId)) {
+                            e.preventDefault();
+                            navigateSync(nextColId);
+                            commit();
+                        } else {
+                            const nextRowFirstId = `mark-input-${stIndex + 1}-0`;
+                            if (document.getElementById(nextRowFirstId)) {
+                                e.preventDefault();
+                                navigateSync(nextRowFirstId);
+                                commit();
+                            }
                         }
                     } else if (e.key === 'ArrowLeft') {
-                        const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
-                        if (prevCol) { e.preventDefault(); commit(); navigate(`mark-input-${stIndex}-${pIdx - 1}`); }
+                        const prevColId = `mark-input-${stIndex}-${pIdx - 1}`;
+                        if (document.getElementById(prevColId)) {
+                            e.preventDefault();
+                            navigateSync(prevColId);
+                            commit();
+                        }
                     } else if (e.key === 'Tab') {
                         e.preventDefault();
-                        commit();
                         if (e.shiftKey) {
-                            const prevCol = document.getElementById(`mark-input-${stIndex}-${pIdx - 1}`);
-                            if (prevCol) { navigate(`mark-input-${stIndex}-${pIdx - 1}`); }
-                            else { navigate(`mark-input-${stIndex - 1}-0`); }
+                            const prevColId = `mark-input-${stIndex}-${pIdx - 1}`;
+                            if (document.getElementById(prevColId)) {
+                                navigateSync(prevColId);
+                            } else {
+                                navigateSync(`mark-input-${stIndex - 1}-0`);
+                            }
                         } else {
-                            const nextCol = document.getElementById(`mark-input-${stIndex}-${pIdx + 1}`);
-                            if (nextCol) { navigate(`mark-input-${stIndex}-${pIdx + 1}`); }
-                            else { navigate(`mark-input-${stIndex + 1}-0`); }
+                            const nextColId = `mark-input-${stIndex}-${pIdx + 1}`;
+                            if (document.getElementById(nextColId)) {
+                                navigateSync(nextColId);
+                            } else {
+                                navigateSync(`mark-input-${stIndex + 1}-0`);
+                            }
                         }
+                        commit();
                     }
                 }}
-                className={`w-20 px-2 py-1.5 text-center font-mono font-black border-2 rounded-lg shadow-sm text-xs transition-all ${
+                className={`w-20 px-2 py-1.5 text-center font-mono font-black border-2 rounded-lg shadow-sm text-xs transition-colors ${
                     disabled
                         ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-400 cursor-not-allowed'
                         : 'text-slate-900 dark:text-white bg-white dark:bg-slate-800 border-indigo-300 dark:border-indigo-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400'
@@ -2541,75 +2589,79 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (activeExam?.status === 'published') {
             return;
         }
-        setBroadsheetStudentRows(prevRows => {
-            const normName = studentName ? studentName.toLowerCase().trim() : '';
-            const existingIndex = prevRows.findIndex(r =>
-                r.admNo === admNo ||
-                (normName && r.name && r.name.toLowerCase().trim() === normName)
-            );
+        // Wrap state updates in React.startTransition so keyboard navigation,
+        // typing, and focus switching have top priority with 0ms latency.
+        React.startTransition(() => {
+            setBroadsheetStudentRows(prevRows => {
+                const normName = studentName ? studentName.toLowerCase().trim() : '';
+                const existingIndex = prevRows.findIndex(r =>
+                    r.admNo === admNo ||
+                    (normName && r.name && r.name.toLowerCase().trim() === normName)
+                );
 
-            // Fast exit: if mark is already identical, skip all updates completely
-            if (existingIndex >= 0) {
-                const existingRow = prevRows[existingIndex];
-                if (existingRow && existingRow[fieldKey] === newValue) {
-                    return prevRows;
+                // Fast exit: if mark is already identical, skip all updates completely
+                if (existingIndex >= 0) {
+                    const existingRow = prevRows[existingIndex];
+                    if (existingRow && existingRow[fieldKey] === newValue) {
+                        return prevRows;
+                    }
                 }
-            }
 
-            // Flag this student admission number as having unsaved draft changes
-            setUnsavedStudentAdms(prev => {
-                if (prev.has(admNo)) return prev;
-                const next = new Set(prev);
-                next.add(admNo);
-                return next;
+                // Flag this student admission number as having unsaved draft changes
+                setUnsavedStudentAdms(prev => {
+                    if (prev.has(admNo)) return prev;
+                    const next = new Set(prev);
+                    next.add(admNo);
+                    return next;
+                });
+
+                // Also synchronize companion shorthand keys so all views stay in sync
+                const extraKeys: Record<string, number> = {};
+                const fkLower = fieldKey.toLowerCase();
+                if (fkLower.includes('math') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                    extraKeys.mathP1 = newValue;
+                } else if (fkLower.includes('math') && (fkLower.includes('p2') || fkLower.includes('paper_2') || fkLower.includes('paper 2'))) {
+                    extraKeys.mathP2 = newValue;
+                } else if (fkLower.includes('eng') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                    extraKeys.engP1 = newValue;
+                } else if (fkLower.includes('eng') && (fkLower.includes('p2') || fkLower.includes('paper_2') || fkLower.includes('paper 2'))) {
+                    extraKeys.engP2 = newValue;
+                } else if (fkLower.includes('kisw') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                    extraKeys.kiswP1 = newValue;
+                } else if (fkLower.includes('bio') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
+                    extraKeys.bioP1 = newValue;
+                }
+
+                let updatedRows: any[];
+                if (existingIndex >= 0) {
+                    updatedRows = [...prevRows];
+                    updatedRows[existingIndex] = {
+                        ...updatedRows[existingIndex],
+                        admNo,
+                        ...(studentName && !studentName.toLowerCase().startsWith('student ') ? { name: studentName } : {}),
+                        ...(studentClass ? { class: studentClass } : {}),
+                        ...extraKeys,
+                        [fieldKey]: newValue
+                    };
+                } else {
+                    const targetSt = allRealStudents.find(s => resolveCleanAdmNo(s, 0) === admNo);
+                    const newRow = {
+                        admNo,
+                        name: studentName || (targetSt ? resolveCleanStudentName(targetSt, 0) : `Student ${admNo}`),
+                        class: studentClass || (targetSt ? getStudentClass(targetSt) : (activeExamClasses[0] || 'Form 3 Central')),
+                        mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0,
+                        ...extraKeys,
+                        [fieldKey]: newValue
+                    };
+                    updatedRows = [...prevRows, newRow];
+                }
+
+                // Keep store ref updated synchronously for save operations without triggering redundant state render
+                if (selectedExamId) {
+                    examMarksStoreRef.current[selectedExamId] = updatedRows;
+                }
+                return updatedRows;
             });
-
-            // Also synchronize companion shorthand keys so all views stay in sync
-            const extraKeys: Record<string, number> = {};
-            const fkLower = fieldKey.toLowerCase();
-            if (fkLower.includes('math') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
-                extraKeys.mathP1 = newValue;
-            } else if (fkLower.includes('math') && (fkLower.includes('p2') || fkLower.includes('paper_2') || fkLower.includes('paper 2'))) {
-                extraKeys.mathP2 = newValue;
-            } else if (fkLower.includes('eng') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
-                extraKeys.engP1 = newValue;
-            } else if (fkLower.includes('eng') && (fkLower.includes('p2') || fkLower.includes('paper_2') || fkLower.includes('paper 2'))) {
-                extraKeys.engP2 = newValue;
-            } else if (fkLower.includes('kisw') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
-                extraKeys.kiswP1 = newValue;
-            } else if (fkLower.includes('bio') && (fkLower.includes('p1') || fkLower.includes('paper_1') || fkLower.includes('paper 1'))) {
-                extraKeys.bioP1 = newValue;
-            }
-
-            let updatedRows: any[];
-            if (existingIndex >= 0) {
-                updatedRows = [...prevRows];
-                updatedRows[existingIndex] = {
-                    ...updatedRows[existingIndex],
-                    admNo,
-                    ...(studentName && !studentName.toLowerCase().startsWith('student ') ? { name: studentName } : {}),
-                    ...(studentClass ? { class: studentClass } : {}),
-                    ...extraKeys,
-                    [fieldKey]: newValue
-                };
-            } else {
-                const targetSt = allRealStudents.find(s => resolveCleanAdmNo(s, 0) === admNo);
-                const newRow = {
-                    admNo,
-                    name: studentName || (targetSt ? resolveCleanStudentName(targetSt, 0) : `Student ${admNo}`),
-                    class: studentClass || (targetSt ? getStudentClass(targetSt) : (activeExamClasses[0] || 'Form 3 Central')),
-                    mathP1: 0, mathP2: 0, engP1: 0, engP2: 0, kiswP1: 0, bioP1: 0,
-                    ...extraKeys,
-                    [fieldKey]: newValue
-                };
-                updatedRows = [...prevRows, newRow];
-            }
-
-            // Keep store ref updated synchronously for save operations without triggering redundant state render
-            if (selectedExamId) {
-                examMarksStoreRef.current[selectedExamId] = updatedRows;
-            }
-            return updatedRows;
         });
     }, [activeExam?.status, selectedExamId, activeExamClasses, allRealStudents, resolveCleanAdmNo, resolveCleanStudentName, getStudentClass]);
 
