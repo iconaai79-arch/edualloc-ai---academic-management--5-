@@ -26,6 +26,8 @@ import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { WrenchIcon } from './icons/WrenchIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
+import { RectangleStackIcon } from './icons/RectangleStackIcon';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { generateStandardExamTimetable } from '../utils/examUtils';
 
 // Branded loading fallback for asynchronously loaded academic sub-modules
