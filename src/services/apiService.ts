@@ -397,6 +397,8 @@ export const apiService = {
             if (user && user.role !== 'super_admin') {
                 localStorage.removeItem('eduai_super_admin_session');
                 localStorage.removeItem('eduai_impersonated_user');
+            } else if (user && user.role === 'super_admin') {
+                localStorage.setItem('eduai_super_admin_session', JSON.stringify(user));
             }
         } catch (e) {}
     },
@@ -430,6 +432,32 @@ export const apiService = {
             }
             return null;
         } catch (e) { return null; }
+    },
+    async login(identifier: string, password: string): Promise<{ success: boolean; user?: User; error?: string; message?: string }> {
+        try {
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), 9000) : null;
+            const res = await fetch(`${window.location.origin}/api/records?module=users&action=login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier, password }),
+                signal: controller ? controller.signal : undefined
+            }).finally(() => {
+                if (timeoutId) clearTimeout(timeoutId);
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.success && data.user) {
+                    return data;
+                }
+            } else if (res.status === 401) {
+                const data = await res.json().catch(() => ({}));
+                return { success: false, error: data.error || 'invalid_credentials', message: data.message || 'Invalid credentials' };
+            }
+        } catch (e: any) {
+            console.warn('[apiService.login] Server login attempt exception:', e?.message || e);
+        }
+        return { success: false, error: 'network_error' };
     },
     async peekNextDocumentNumber(instId: string, docType: string, minNumber?: number): Promise<string> {
         try {
@@ -533,12 +561,12 @@ export const apiService = {
                 currentNum = defaultNextNumber;
                 // Self-heal corrupted database record in background
                 if (config?.id && supabaseClient) {
-                    supabaseClient
-                        .from('finance_numbering_configs')
-                        .update({ next_number: defaultNextNumber, updated_at: new Date().toISOString() })
-                        .eq('id', config.id)
-                        .then(() => {})
-                        .catch(() => {});
+                    Promise.resolve(
+                        supabaseClient
+                            .from('finance_numbering_configs')
+                            .update({ next_number: defaultNextNumber, updated_at: new Date().toISOString() })
+                            .eq('id', config.id)
+                    ).catch(() => {});
                 }
             }
 
@@ -2110,8 +2138,9 @@ export const apiService = {
                 
                 // Tenancy resolution guard: if institutionId is missing for a tenant-scoped module, resolve from active context
                 const isGlobalModule = ['institutions', 'counties', 'demo_requests', 'system_settings'].includes(module);
+                const isGlobalUserSearch = module === 'users' && (!institutionId || institutionId === 'ALL') && options?.filter && (options.filter.email || options.filter.phoneNumber || options.filter.phone || options.filter.id);
                 let effectiveInstId = institutionId;
-                if (!effectiveInstId && !isGlobalModule) {
+                if (!effectiveInstId && !isGlobalModule && !isGlobalUserSearch) {
                     const savedInst = ls.get('current_institution') as any;
                     const savedUser = ls.get('current_user') as any;
                     effectiveInstId = savedInst?.id || savedUser?.institutionId || savedUser?.institution_id;

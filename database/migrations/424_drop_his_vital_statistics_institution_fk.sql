@@ -20,5 +20,8 @@ END $$;
 -- Ensure index exists for performant queries
 CREATE INDEX IF NOT EXISTS idx_his_vital_stats_inst ON public.his_vital_statistics (institution_id);
 
+-- Ensure trend column exists if supplied or queried by client components
+ALTER TABLE public.his_vital_statistics ADD COLUMN IF NOT EXISTS trend TEXT;
+
 -- Notify schema reload
 NOTIFY pgrst, 'reload schema';

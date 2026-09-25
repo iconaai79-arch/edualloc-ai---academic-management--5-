@@ -787,9 +787,10 @@ export function HealthCoreView({ activeRole, userName, institutionId, users = []
         if (!institutionId || !activePatientId) return;
         try {
             for (const v of vitalsData) {
-                const vitalId = `v_${activePatientId}_${v.label.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+                const { trend, ...restVital } = v;
+                const vitalId = `v_${activePatientId}_${(v.label || 'vital').toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
                 await apiService.saveModuleRecord('his_vital_statistics', {
-                    ...v,
+                    ...restVital,
                     id: vitalId,
                     institutionId,
                     patientId: activePatientId,
