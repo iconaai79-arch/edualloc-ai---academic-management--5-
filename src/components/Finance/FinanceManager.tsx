@@ -589,7 +589,23 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Pre-indexed admission number map from historical transactions (O(1) lookups)
     const txnsAdmMap = useMemo(() => {
         const map = new Map<string, string>();
-        const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])];
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        (branches || []).forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+
+        const filterTxn = (t: any) => {
+            if (!t) return false;
+            const tInst = t.institutionId || t.institution_id || '';
+            if (!tInst) return !activeInstId;
+            return !activeInstId || relevantInstIds.has(tInst) || relevantInstIds.has(cleanId(tInst));
+        };
+
+        const allInvs = [...(props.invoices || []), ...(allBranchInvoices || [])].filter(filterTxn);
         for (const inv of allInvs) {
             if (!inv) continue;
             let adm = inv.admissionNumber || (inv as any).studentAdmissionNumber || (inv as any).admission_number || (inv as any).admNo || (inv as any).adm_no;
@@ -612,7 +628,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (invName && !map.has(invName)) map.set(invName, sAdm);
             }
         }
-        const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])];
+        const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])].filter(filterTxn);
         for (const rec of allRecs) {
             if (!rec) continue;
             let adm = (rec as any).admissionNumber || (rec as any).studentAdmissionNumber || (rec as any).admission_number || (rec as any).admNo || (rec as any).adm_no;
@@ -636,7 +652,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
         }
         return map;
-    }, [props.invoices, allBranchInvoices, props.receipts, allBranchReceipts, cleanId, isSyntheticAdm]);
+    }, [props.invoices, allBranchInvoices, props.receipts, allBranchReceipts, props.institution?.id, branches, cleanId, isSyntheticAdm]);
 
     const getStudentAdmNumber = useCallback((s: any): string => {
         if (!s) return '';
@@ -1030,7 +1046,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         const scopedPropsInvoices = (props.invoices || []).filter((inv: any) => {
             const iInstId = inv.institutionId || inv.institution_id || '';
-            if (!iInstId) return true;
+            if (!iInstId) {
+                const sId = inv.studentId || inv.student_id;
+                if (sId && mergedStudentsMap.has(sId)) return true;
+                return !activeInstId;
+            }
             return relevantInstIds.has(iInstId) || relevantInstIds.has(cleanId(iInstId));
         });
         const map = new Map<string, any>();
@@ -1120,7 +1140,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
         const scopedPropsReceipts = (props.receipts || []).filter((rec: any) => {
             const rInstId = rec.institutionId || rec.institution_id || '';
-            if (!rInstId) return true;
+            if (!rInstId) {
+                const sId = rec.studentId || rec.student_id;
+                if (sId && mergedStudentsMap.has(sId)) return true;
+                return !activeInstId;
+            }
             return relevantInstIds.has(rInstId) || relevantInstIds.has(cleanId(rInstId));
         });
 
@@ -1670,20 +1694,80 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [mappedInvoices, mappedReceipts, mergedStudents, props.students, cleanId, getStudentAdmNumber, studentAdmissionNumber]);
 
     const mappedExpenses = useMemo(() => {
-        return (props.expenses || []).filter((exp: any) => matchesSelectedBranch(exp));
-    }, [props.expenses, matchesSelectedBranch]);
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        (branches || []).forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+
+        return (props.expenses || []).filter((exp: any) => {
+            const eInstId = exp.institutionId || exp.institution_id || exp.metadata?.institutionId || '';
+            if (activeInstId && eInstId) {
+                if (!relevantInstIds.has(eInstId) && !relevantInstIds.has(cleanId(eInstId))) return false;
+            }
+            return matchesSelectedBranch(exp);
+        });
+    }, [props.expenses, props.institution?.id, branches, cleanId, matchesSelectedBranch]);
 
     const mappedFeeStructures = useMemo(() => {
-        return (props.feeStructures || []).filter((fs: any) => matchesSelectedBranch(fs));
-    }, [props.feeStructures, matchesSelectedBranch]);
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        (branches || []).forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+
+        return (props.feeStructures || []).filter((fs: any) => {
+            const fsInstId = fs.institutionId || fs.institution_id || fs.metadata?.institutionId || '';
+            if (activeInstId && fsInstId) {
+                if (!relevantInstIds.has(fsInstId) && !relevantInstIds.has(cleanId(fsInstId))) return false;
+            }
+            return matchesSelectedBranch(fs);
+        });
+    }, [props.feeStructures, props.institution?.id, branches, cleanId, matchesSelectedBranch]);
 
     const mappedRequisitions = useMemo(() => {
-        return (props.requisitions || []).filter((req: any) => matchesSelectedBranch(req));
-    }, [props.requisitions, matchesSelectedBranch]);
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        (branches || []).forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+
+        return (props.requisitions || []).filter((req: any) => {
+            const reqInstId = req.institutionId || req.institution_id || req.metadata?.institutionId || '';
+            if (activeInstId && reqInstId) {
+                if (!relevantInstIds.has(reqInstId) && !relevantInstIds.has(cleanId(reqInstId))) return false;
+            }
+            return matchesSelectedBranch(req);
+        });
+    }, [props.requisitions, props.institution?.id, branches, cleanId, matchesSelectedBranch]);
 
     const mappedVoteheads = useMemo(() => {
-        return (props.voteHeads || []).filter((vh: any) => matchesSelectedBranch(vh));
-    }, [props.voteHeads, matchesSelectedBranch]);
+        const activeInstId = props.institution?.id || '';
+        const activeInstClean = cleanId(activeInstId);
+        const relevantInstIds = new Set<string>([activeInstId, activeInstClean]);
+        (branches || []).forEach((b: any) => {
+            [b.id, b.linked_institution_id, b.linkedInstitutionId, b.institution_id,
+             b.metadata?.institutionId, b.metadata?.linkedInstitutionId]
+                .forEach((id: string) => { if (id) { relevantInstIds.add(id); relevantInstIds.add(cleanId(id)); } });
+        });
+
+        return (props.voteHeads || []).filter((vh: any) => {
+            const vhInstId = vh.institutionId || vh.institution_id || vh.metadata?.institutionId || '';
+            if (activeInstId && vhInstId) {
+                if (!relevantInstIds.has(vhInstId) && !relevantInstIds.has(cleanId(vhInstId))) return false;
+            }
+            return matchesSelectedBranch(vh);
+        });
+    }, [props.voteHeads, props.institution?.id, branches, cleanId, matchesSelectedBranch]);
 
     // Reports sub-tab states
     const [stmtStudentId, setStmtStudentId] = useState('');
@@ -6726,18 +6810,26 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [props.academicYears, uninvoicedAcademicYearId]);
 
     const allAvailableFeeStructures = useMemo(() => {
-        if (props.feeStructures && props.feeStructures.length > 0) {
-            return props.feeStructures;
-        }
-        const instKey = props.institution?.id ? `eduai_fee_structures_${props.institution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_fee_structures');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            } catch (_) {}
-        }
-        return [];
+        const instId = props.institution?.id;
+        const list = (props.feeStructures && props.feeStructures.length > 0)
+            ? props.feeStructures
+            : (() => {
+                const instKey = instId ? `eduai_fee_structures_${instId}` : null;
+                const saved = instKey ? localStorage.getItem(instKey) : null;
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                    } catch (_) {}
+                }
+                return [];
+            })();
+
+        return (list || []).filter((fs: any) => {
+            const fsInstId = fs.institutionId || fs.institution_id;
+            if (!fsInstId) return !instId;
+            return !instId || fsInstId === instId;
+        });
     }, [props.feeStructures, props.institution?.id]);
 
     const studentEnrollmentMap = useMemo(() => {
@@ -6764,7 +6856,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const studentCommutePrefs = useMemo(() => {
         const instKey = props.institution?.id ? `eduai_student_commute_prefs_${props.institution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_student_commute_prefs');
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -6776,7 +6868,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const routeFeeSettings = useMemo(() => {
         const instKey = props.institution?.id ? `eduai_transport_route_fee_settings_${props.institution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_route_fee_settings');
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -6788,7 +6880,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const transportOneWayPct = useMemo(() => {
         const instKey = props.institution?.id ? `eduai_transport_oneway_pct_${props.institution.id}` : null;
-        const saved = (instKey ? localStorage.getItem(instKey) : null) ?? localStorage.getItem('eduai_transport_oneway_pct');
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved) {
             const val = Number(saved);
             if (!isNaN(val) && val >= 1 && val <= 100) return val;
@@ -10535,7 +10627,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 {activeTab === 'home' && (() => {
                     const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
                     const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
-                    const totalExpenses = (props.expenses || []).reduce((s, e) => s + (e.amount || 0), 0);
+                    const totalExpenses = mappedExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
                     const outstanding = totalBilled - totalCollected;
                     const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
                     const netCashFlow = totalCollected - totalExpenses;
@@ -10707,7 +10799,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                     // Expense Category Breakdown
                     const expenseMap: Record<string, number> = {};
-                    (props.expenses || []).forEach((e: any) => {
+                    mappedExpenses.forEach((e: any) => {
                         const cat = String(e.category || e.expense_category || 'Operating Expenses').trim();
                         expenseMap[cat] = (expenseMap[cat] || 0) + (e.amount || 0);
                     });
@@ -12034,7 +12126,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         institution={props.institution}
                         students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                         receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                        expenses={props.expenses || []}
+                        expenses={mappedExpenses}
                         onReceiptCreated={(newRec) => {
                             setAllBranchReceipts((prev: any[]) => [newRec, ...prev]);
                             if ((props as any).onReceiptCreated) (props as any).onReceiptCreated(newRec);
@@ -15042,7 +15134,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             <div className="flex justify-between items-center mb-6">
                                 <div>
                                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Expenditure Log</h3>
-                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{(props.expenses || []).length} expense records</p>
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">{mappedExpenses.length} expense records</p>
                                 </div>
                                 <button
                                     type="button"
@@ -15053,8 +15145,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </button>
                             </div>
                             <div className="space-y-4">
-                                {(props.expenses || []).map((exp, i) => {
-                                    const vh = (props.voteHeads || []).find(v => v.id === exp.voteHeadId || v.id === (exp as any).vote_head_id);
+                                {mappedExpenses.map((exp, i) => {
+                                    const vh = mappedVoteheads.find(v => v.id === exp.voteHeadId || v.id === (exp as any).vote_head_id);
                                     const vhName = vh ? vh.name : 'General Expense';
                                     const bank = (bankAccounts || []).find(b => b.id === exp.bankAccountId || b.id === (exp as any).bank_account_id);
                                     const bankDetails = bank ? `${bank.bankName || bank.bank_name} - A/C ${bank.accountNumber || bank.account_number}` : 'Unspecified Bank';
@@ -15111,7 +15203,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         </div>
                                     );
                                 })}
-                                {(props.expenses || []).length === 0 && (
+                                {mappedExpenses.length === 0 && (
                                     <div className="py-12 text-center text-slate-400 font-medium">
                                         No expenses recorded. Click "Post Expense" to add your first transaction.
                                     </div>
@@ -15885,7 +15977,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 institution={props.institution}
                                 invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
                                 receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                                expenses={props.expenses || []}
+                                expenses={mappedExpenses}
                                 payroll={props.payrollRecords || []}
                                 transfers={(props as any).bankTransfers || []}
                                 capitations={gokCapLogs || []}
@@ -15900,7 +15992,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                                 invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
                                 receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                                expenses={props.expenses || []}
+                                expenses={mappedExpenses}
                                 payroll={props.payrollRecords || []}
                                 onLogAction={props.onLogAction}
                             />
@@ -15911,7 +16003,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <FinancialAuditDashboard
                                     invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
                                     receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                                    expenses={props.expenses || []}
+                                    expenses={mappedExpenses}
                                     students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                                     institutionId={props.institution.id}
                                 />
@@ -15921,9 +16013,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         {auditSubTab === 'annual_report' && (
                             <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
                                 <AnnualReportWizard
-                                    invoices={props.invoices}
-                                    receipts={props.receipts}
-                                    expenses={props.expenses}
+                                    invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
+                                    receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
+                                    expenses={mappedExpenses}
                                     institution={props.institution}
                                     companyDetails={props.companyDetails}
                                 />

@@ -232,15 +232,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // Helper for fetch with timeout
-        const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
+        const fetchWithTimeout = async (url: string, options: any, timeout = 15000) => {
             const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
+            let timedOut = false;
+            const id = setTimeout(() => {
+                timedOut = true;
+                controller.abort();
+            }, timeout);
             try {
                 const response = await fetch(url, { ...options, signal: controller.signal });
                 clearTimeout(id);
                 return response;
-            } catch (e) {
+            } catch (e: any) {
                 clearTimeout(id);
+                if (timedOut || e?.name === 'AbortError' || (typeof e?.message === 'string' && e.message.toLowerCase().includes('aborted'))) {
+                    const cleanUrl = url.split('?')[0];
+                    throw new Error(`Gateway connection timed out after ${timeout}ms waiting for response from ${cleanUrl}.`);
+                }
                 throw e;
             }
         };
@@ -255,7 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const prov = (candidate.provider || 'Zettatel').trim();
             const batchSize = (prov === 'Sematime') ? 100 : 200;
             const totalBatches = Math.ceil(recipients.length / batchSize) || 1;
-            const gatewayTimeout = isSysMsg ? 4000 : 7000;
+            const gatewayTimeout = candidate.timeout || (isSysMsg ? 12000 : 15000);
             let successBatches = 0;
             let lastRaw: any = null;
             let lastErr: string = '';
@@ -270,17 +278,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (!accId || !authToken) {
                             throw new Error('Sematime requires accountId and authToken');
                         }
-                        const semaUrl = `https://apis.sematime.com/v1/${accId}/messages/single`;
+                        const semaUrl = candidate.baseUrl || candidate.api_url || `https://apis.sematime.com/v1/${accId}/messages/single`;
+
+                        const customHeaders: Record<string, string> = {};
+                        if (Array.isArray(candidate.headers)) {
+                            candidate.headers.forEach((h: { name: string; value: string }) => {
+                                if (h.name && h.value) customHeaders[h.name] = h.value;
+                            });
+                        }
+
+                        const semaPayload: any = {
+                            text: msgText,
+                            recipients: batch.join(',')
+                        };
+                        const customSender = candidate.fromNumber || candidate.senderId || candidate.senderid;
+                        if (customSender) {
+                            semaPayload.senderId = customSender;
+                        }
+
                         const sRes = await fetchWithTimeout(semaUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'AuthToken': authToken
+                                'Accept': 'application/json',
+                                'AuthToken': authToken,
+                                'Authorization': `Bearer ${authToken}`,
+                                ...customHeaders
                             },
-                            body: JSON.stringify({
-                                text: msgText,
-                                recipients: batch.join(',')
-                            })
+                            body: JSON.stringify(semaPayload)
                         }, gatewayTimeout);
 
                         const resRaw = await sRes.text();

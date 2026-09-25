@@ -288,18 +288,7 @@ export const TransportDisruptionAlert: React.FC<TransportDisruptionAlertProps> =
             }
         }
 
-        // 3. Check generic cached vehicles if still empty
-        if (rawVehicles.length === 0) {
-            try {
-                const savedGlobal = localStorage.getItem('eduai_vehicles');
-                if (savedGlobal) {
-                    const parsed = JSON.parse(savedGlobal);
-                    if (Array.isArray(parsed) && parsed.length > 0) rawVehicles = parsed;
-                }
-            } catch (_) {}
-        }
-
-        // 4. If real vehicles exist, map them with route and driver details
+        // 3. If real vehicles exist, map them with route and driver details
         if (rawVehicles.length > 0) {
             let resolvedRoutes: any[] = Array.isArray(routes) && routes.length > 0 ? routes : [];
             if (resolvedRoutes.length === 0 && institutionId) {

@@ -273,48 +273,38 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
     }, [activeFeeStructures]);
 
     const defaultOneWayPercentage = useMemo(() => {
-        const saved = localStorage.getItem('eduai_transport_oneway_pct');
+        const instKey = institution?.id ? `eduai_transport_oneway_pct_${institution.id}` : null;
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved !== null) {
             const val = Number(saved);
             if (!isNaN(val) && val >= 1 && val <= 100) return val;
         }
         return 60;
-    }, []);
+    }, [institution?.id]);
 
     const routeFeeSettings = useMemo(() => {
-        const saved = localStorage.getItem('eduai_transport_route_fee_settings');
+        const instKey = institution?.id ? `eduai_transport_route_fee_settings_${institution.id}` : null;
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed)) return parsed;
             } catch (e) {}
         }
-        return [
-            { routeId: 'route_1', routeName: 'Route A - Kilimani & Hurlingham', termFee: 8500, monthlyFee: 3000 },
-            { routeId: 'route_2', routeName: 'Route B - Langata & Karen', termFee: 12000, monthlyFee: 4200 },
-            { routeId: 'route_3', routeName: 'Route C - Westlands & Spring Valley', termFee: 6000, monthlyFee: 2200 },
-        ];
-    }, []);
+        return [];
+    }, [institution?.id]);
 
     const studentCommutePrefs = useMemo(() => {
-        const saved = localStorage.getItem('eduai_student_commute_prefs');
+        const instKey = institution?.id ? `eduai_student_commute_prefs_${institution.id}` : null;
+        const saved = instKey ? localStorage.getItem(instKey) : null;
         if (saved !== null) {
             try {
                 const parsed = JSON.parse(saved);
                 if (parsed && typeof parsed === 'object') return parsed;
             } catch (e) {}
         }
-        const initialPrefs: Record<string, { routeId: string; preference: 'round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none' }> = {};
-        students.forEach((student, index) => {
-            const routes = ['route_1', 'route_2', 'route_3'];
-            const prefs: ('round_trip' | 'one_way_pickup' | 'one_way_drop' | 'none')[] = ['round_trip', 'one_way_pickup', 'one_way_drop'];
-            initialPrefs[student.id] = {
-                routeId: routes[index % routes.length],
-                preference: prefs[index % prefs.length]
-            };
-        });
-        return initialPrefs;
-    }, [students]);
+        return {};
+    }, [institution?.id]);
 
     // Robust resolver to determine applicable fee structures for a student without duplicate voteheads
     const resolveStudentFeeStructures = useCallback((

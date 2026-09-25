@@ -1693,7 +1693,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             // ── PHASE 3: Context-Specific Extended Data ──────────────────────
             if (currentUser) {
                 const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
-                const effectiveInstIdFinal: string | undefined = instOverrideId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || undefined));
+                const explicitTargetInstId = instOverrideId || activeInstitution?.id || (currentUser?.institutionId && currentUser.institutionId !== 'GLOBAL' && currentUser.institutionId !== 'ALL' ? currentUser.institutionId : undefined);
+                const effectiveInstIdFinal: string | undefined = explicitTargetInstId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || undefined));
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstIdFinal || 'GLOBAL/ALL');
             
@@ -5735,7 +5736,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         demoRequests,
         onUpdateDemoStatus,
         onGenerateReceipt: handleGenerateReceipt,
-        receipts,
+        receipts: activeInstitution?.id
+            ? (receipts || []).filter(rec => {
+                const rInst = rec.institutionId || (rec as any).institution_id;
+                return !rInst || rInst === activeInstitution.id;
+            })
+            : receipts,
         activityLogLimit,
         setActivityLogLimit,
         transactionLimit,
@@ -5868,7 +5874,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         leaveOutRequests,
         finalTimetableUrl: null,
         themeColor: activeBranding.primaryColor,
-        invoices,
+        invoices: activeInstitution?.id
+            ? (invoices || []).filter(inv => {
+                const iInst = inv.institutionId || (inv as any).institution_id;
+                return !iInst || iInst === activeInstitution.id;
+            })
+            : invoices,
         onManualInvoice: async (institutionId: string, items: any[], totalAmount: number, dueDate: string, isQuote?: boolean, issueDate?: string) => {
             let invoiceNumber = '';
             const docType = isQuote ? 'quote' : 'invoice';
@@ -6046,8 +6057,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onSwitchPerspective: (role: Role | null) => setImpersonatedRole(role),
         getRoomById,
         onLogAction: handleLogAction,
-        vehicles,
-        transportOnboarding,
+        vehicles: activeInstitution?.id
+            ? (vehicles || []).filter(v => {
+                const vInst = v.institutionId || (v as any).institution_id;
+                return !vInst || vInst === activeInstitution.id;
+            })
+            : vehicles,
+        transportOnboarding: activeInstitution?.id
+            ? (transportOnboarding || []).filter(t => {
+                const tInst = t.institutionId || (t as any).institution_id;
+                return !tInst || tInst === activeInstitution.id;
+            })
+            : transportOnboarding,
         onAddVehicle: handleAddVehicle,
         onUpdateVehicle: handleUpdateVehicle,
         onDeleteVehicle: handleDeleteVehicle,
@@ -8093,9 +8114,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
                                             companyDetails={companyDetails}
-                                            invoices={invoices}
-                                            receipts={receipts}
-                                            expenses={expenses}
+                                            invoices={activeInstitution?.id ? (invoices || []).filter(i => {
+                                                const iInst = i.institutionId || (i as any).institution_id;
+                                                return !iInst || iInst === activeInstitution.id;
+                                            }) : invoices}
+                                            receipts={activeInstitution?.id ? (receipts || []).filter(r => {
+                                                const rInst = r.institutionId || (r as any).institution_id;
+                                                return !rInst || rInst === activeInstitution.id;
+                                            }) : receipts}
+                                            expenses={activeInstitution?.id ? (expenses || []).filter(e => {
+                                                const eInst = e.institutionId || (e as any).institution_id;
+                                                return !eInst || eInst === activeInstitution.id;
+                                            }) : expenses}
                                             onAddExpense={async (exp: any) => {
                                                 await apiService.saveModuleRecord('expenses', exp);
                                             }}

@@ -34,10 +34,12 @@ import { ExamInsights } from './Academics/ExamInsights';
 import { AcademicReportsHub } from './Academics/AcademicReportsHub';
 import { BulkImportWizard } from './BulkImportWizard';
 import { DisciplineManager } from './Academics/DisciplineManager';
-import { StudentEnrollmentManager } from './common/StudentEnrollmentManager';
-// Lazy-load the heavy ExamUnitsManager so it parses asynchronously and doesn't block tab paint
+// Lazy-load heavy components so they parse asynchronously and do not block tab switching
 const ExamUnitsManager = React.lazy(() =>
     import('./Academics/ExamUnitsManager').then(m => ({ default: m.ExamUnitsManager }))
+);
+const StudentEnrollmentManager = React.lazy(() =>
+    import('./common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager }))
 );
 import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
@@ -831,17 +833,24 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {(activeTab === 'students' || activeTab === 'teachers') && (
                 <div className="animate-fade-in space-y-6">
-                    <StudentEnrollmentManager
-                        context="academic"
-                        currentInstitution={currentInstitution!}
-                        activeTab={activeTab}
-                        companyDetails={companyDetails}
-                        currentUser={currentUser!}
-                        onLogAction={handleLogAction}
-                        initialUsers={users}
-                        initialSubjects={subjects}
-                        initialCourses={courses}
-                    />
+                    <Suspense fallback={
+                        <div className="flex flex-col items-center justify-center p-12 min-h-[400px] space-y-4">
+                            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-slate-500 font-semibold tracking-wide animate-pulse">Loading Students Registry...</p>
+                        </div>
+                    }>
+                        <StudentEnrollmentManager
+                            context="academic"
+                            currentInstitution={currentInstitution!}
+                            activeTab={activeTab}
+                            companyDetails={companyDetails}
+                            currentUser={currentUser!}
+                            onLogAction={handleLogAction}
+                            initialUsers={users}
+                            initialSubjects={subjects}
+                            initialCourses={courses}
+                        />
+                    </Suspense>
                 </div>
             )}
 

@@ -383,8 +383,10 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
     const [activePanel, setActivePanel] = useState<'dashboard' | 'synergy' | 'transport'>('dashboard');
 
     // ── Transport Invoice & Statement States ──────────────────────────────────
+    const transportInvKey = user?.institutionId ? `eduai_transport_fee_invoices_${user.institutionId}` : null;
     const [transportInvoices, setTransportInvoices] = useState<TransportFeeInvoice[]>(() => {
-        const saved = localStorage.getItem('eduai_transport_fee_invoices');
+        if (!transportInvKey) return [];
+        const saved = localStorage.getItem(transportInvKey);
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -577,7 +579,7 @@ export const ParentView: React.FC<ParentViewProps> = (props) => {
         }
         
         setTransportInvoices(updated);
-        localStorage.setItem('eduai_transport_fee_invoices', JSON.stringify(updated));
+        if (transportInvKey) localStorage.setItem(transportInvKey, JSON.stringify(updated));
         
         // Update selectedInvoice in active state if it's the one displayed
         if (selectedInvoice && selectedInvoice.id === invoiceId) {

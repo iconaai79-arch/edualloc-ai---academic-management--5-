@@ -2107,7 +2107,19 @@ export const apiService = {
 
                 const url = new URL(`${window.location.origin}/api/records`);
                 url.searchParams.append('module', module);
-                if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
+                
+                // Tenancy resolution guard: if institutionId is missing for a tenant-scoped module, resolve from active context
+                const isGlobalModule = ['institutions', 'counties', 'demo_requests', 'system_settings'].includes(module);
+                let effectiveInstId = institutionId;
+                if (!effectiveInstId && !isGlobalModule) {
+                    const savedInst = ls.get('current_institution') as any;
+                    const savedUser = ls.get('current_user') as any;
+                    effectiveInstId = savedInst?.id || savedUser?.institutionId || savedUser?.institution_id;
+                }
+
+                if (effectiveInstId && effectiveInstId !== 'ALL') {
+                    url.searchParams.append('institutionId', effectiveInstId);
+                }
                 if (countyId) url.searchParams.append('countyId', countyId);
                 
                 // Append advanced options
@@ -2130,7 +2142,8 @@ export const apiService = {
                         signal: controller ? controller.signal : undefined,
                         headers: {
                             'Authorization': tkn ? `Bearer ${tkn}` : '',
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            ...(effectiveInstId && effectiveInstId !== 'ALL' ? { 'x-institution-id': effectiveInstId } : {})
                         }
                     }).finally(() => {
                         if (timeoutId) clearTimeout(timeoutId);
@@ -2417,7 +2430,7 @@ export const apiService = {
         };
 
         const promise = executeFetch().then(res => {
-            const ttl = STATIC_CONFIG_MODULES.has(module) ? 15000 : 3000;
+            const ttl = STATIC_CONFIG_MODULES.has(module) ? 60000 : 10000;
             _moduleMemoryCache.set(cacheKey, { data: res, timestamp: Date.now(), ttl });
             return res;
         }).finally(() => {

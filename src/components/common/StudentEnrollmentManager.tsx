@@ -302,7 +302,6 @@ interface EnrollmentManagerCache {
 }
 
 const globalEnrollmentCache: Record<string, EnrollmentManagerCache> = {};
-let hasRunEnrollmentSchemaMigration = false;
 
 export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> = ({ 
     context, 
@@ -424,34 +423,91 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'null' || clean === 'undefined';
     };
 
-    const findStudentUser = (enr: Partial<StudentEnrollment> | undefined | null, userList?: User[]): User | undefined => {
+    // Fast O(1) indexed lookup maps for users by ID, normalized raw ID, and admission number
+    const userMaps = useMemo(() => {
+        const byId = new Map<string, User>();
+        const byAdm = new Map<string, User>();
+        const byEnrId = new Map<string, User>();
+
+        for (let i = 0; i < users.length; i++) {
+            const u = users[i];
+            if (!u) continue;
+            if (u.id) {
+                const cleanId = String(u.id).trim();
+                byId.set(cleanId, u);
+                const rawId = cleanId.replace(/^u_/, '');
+                byId.set(rawId, u);
+                byId.set(`u_${rawId}`, u);
+            }
+            const adm = (u.admissionNumber || (u as any)?.admission_number || (u as any)?.admNo || (u as any)?.adm_no || '').trim().toLowerCase();
+            if (adm) {
+                byAdm.set(adm, u);
+            }
+            const enrId = (u as any)?.enrollmentId;
+            if (enrId) {
+                byEnrId.set(String(enrId).trim(), u);
+            }
+        }
+        return { byId, byAdm, byEnrId };
+    }, [users]);
+
+    const findStudentUser = useCallback((enr: Partial<StudentEnrollment> | undefined | null, userList?: User[]): User | undefined => {
         if (!enr) return undefined;
-        const list = userList || users;
+        if (userList) {
+            const eUid = (enr.userId || (enr as any)?.user_id || '').trim();
+            const rawEUid = eUid.replace(/^u_/, '');
+            const eAdm = (enr.admissionNumber || (enr as any)?.admission_number || enr.metadata?.admissionNumber || '').trim().toLowerCase();
+            const eId = (enr.id || '').trim();
+            const rawEId = eId.replace(/^u_/, '');
+
+            return userList.find(u => {
+                if (!u) return false;
+                const uId = (u.id || '').trim();
+                const rawUId = uId.replace(/^u_/, '');
+                if (eUid && (uId === eUid || rawUId === rawEUid || uId === rawEUid || rawUId === eUid)) return true;
+                const uAdm = (u.admissionNumber || (u as any)?.admission_number || '').trim().toLowerCase();
+                if (uAdm && eAdm && uAdm === eAdm) return true;
+                if (eId && (uId === eId || rawUId === rawEId || (u as any).enrollmentId === eId)) return true;
+                return false;
+            });
+        }
+
         const eUid = (enr.userId || (enr as any)?.user_id || '').trim();
-        const rawEUid = eUid.replace(/^u_/, '');
+        if (eUid) {
+            const match = userMaps.byId.get(eUid);
+            if (match) return match;
+            const rawEUid = eUid.replace(/^u_/, '');
+            const matchRaw = userMaps.byId.get(rawEUid) || userMaps.byId.get(`u_${rawEUid}`);
+            if (matchRaw) return matchRaw;
+        }
+
         const eAdm = (enr.admissionNumber || (enr as any)?.admission_number || enr.metadata?.admissionNumber || '').trim().toLowerCase();
+        if (eAdm) {
+            const matchAdm = userMaps.byAdm.get(eAdm);
+            if (matchAdm) return matchAdm;
+        }
+
         const eId = (enr.id || '').trim();
-        const rawEId = eId.replace(/^u_/, '');
+        if (eId) {
+            const matchId = userMaps.byId.get(eId);
+            if (matchId) return matchId;
+            const rawEId = eId.replace(/^u_/, '');
+            const matchRawId = userMaps.byId.get(rawEId);
+            if (matchRawId) return matchRawId;
+            const matchEnr = userMaps.byEnrId.get(eId);
+            if (matchEnr) return matchEnr;
+        }
 
-        return list.find(u => {
-            if (!u) return false;
-            const uId = (u.id || '').trim();
-            const rawUId = uId.replace(/^u_/, '');
-            if (eUid && (uId === eUid || rawUId === rawEUid || uId === rawEUid || rawUId === eUid)) return true;
-            const uAdm = (u.admissionNumber || (u as any)?.admission_number || '').trim().toLowerCase();
-            if (uAdm && eAdm && uAdm === eAdm) return true;
-            if (eId && (uId === eId || rawUId === rawEId || (u as any).enrollmentId === eId)) return true;
-            return false;
-        });
-    };
+        return undefined;
+    }, [userMaps]);
 
-    const getStudentDisplayName = (enr: StudentEnrollment, user?: User): string => {
+    const getStudentDisplayName = useCallback((enr: StudentEnrollment, user?: User): string => {
         const effectiveUser = user || findStudentUser(enr);
         if (effectiveUser && effectiveUser.name && !isNameUnknown(effectiveUser.name)) {
             return effectiveUser.name.trim();
         }
-        if (enr.name && !isNameUnknown(enr.name)) {
-            return enr.name.trim();
+        if ((enr as any).name && !isNameUnknown((enr as any).name)) {
+            return String((enr as any).name).trim();
         }
         if ((enr as any).studentName && !isNameUnknown((enr as any).studentName)) {
             return String((enr as any).studentName).trim();
@@ -478,7 +534,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return `Student ${enr.assessmentNo || enr.metadata?.assessmentNo}`;
         }
         return 'Unknown Student';
-    };
+    }, [findStudentUser]);
 
     const isEventTargetMatch = (eventTarget: string | undefined | null, enr: StudentEnrollment) => {
         if (!eventTarget) return true;
@@ -931,7 +987,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             parentRelation: 'Father' as 'Father' | 'Mother' | 'Guardian' | 'Other',
             parents: [
                 { name: '', phone: '', email: '', relation: 'Father' }
-            ] as { name: string; phone: string; email: string; relation: 'Father' | 'Mother' | 'Guardian' | 'Other' }[]
+            ] as { name: string; phone: string; email: string; relation: 'Father' | 'Mother' | 'Guardian' | 'Other' }[],
+            secondaryPhone: '' as string | undefined
         }
     });
 
@@ -1012,34 +1069,41 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setIsLoading(true);
         }
         try {
+            const needsBroadcaster = activeTab === 'broadcaster';
+            const needsCalendar = activeTab === 'calendar';
+            const needsGuests = activeTab === 'guests';
+
+            const effectiveTargetInstId = currentInstitution?.id 
+                || (currentUser as any)?.institutionId 
+                || (currentUser as any)?.institution_id 
+                || (() => { try { return JSON.parse(localStorage.getItem('current_institution') || '{}')?.id; } catch { return undefined; } })() 
+                || instId;
+
             const [
                 enrollmentsData, 
                 usersData, 
-                studentsData,
                 coursesData, 
                 subjectsData,
+                academicLevelsData,
                 broadcastsData,
                 eventsData,
                 pinsData,
-                visitorsData,
-                academicLevelsData
+                visitorsData
             ] = await Promise.all([
-                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', currentInstitution.id, undefined, { limit: 100000 }),
-                apiService.fetchModuleRecords<User>('users', currentInstitution.id, undefined, { limit: 100000 }),
-                apiService.fetchModuleRecords<User>('students', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<Course>('courses', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<Subject>('subjects', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('institution_events', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<any>('event_pins', currentInstitution.id).catch(() => []),
-                apiService.fetchModuleRecords<Visitor>('visitors', currentInstitution.id).catch(() => []),
-                apiService.fetchAcademicLevels(currentInstitution.id).catch(() => [])
+                apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveTargetInstId, undefined, { limit: 10000 }),
+                apiService.fetchModuleRecords<User>('users', effectiveTargetInstId, undefined, { limit: 10000 }),
+                (initialCourses && initialCourses.length > 0) ? Promise.resolve(initialCourses) : apiService.fetchModuleRecords<Course>('courses', effectiveTargetInstId).catch(() => []),
+                (initialSubjects && initialSubjects.length > 0) ? Promise.resolve(initialSubjects) : apiService.fetchModuleRecords<Subject>('subjects', effectiveTargetInstId).catch(() => []),
+                apiService.fetchAcademicLevels(effectiveTargetInstId).catch(() => []),
+                needsBroadcaster ? apiService.fetchModuleRecords<any>('broadcaster_messages', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
+                needsCalendar ? apiService.fetchModuleRecords<any>('institution_events', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
+                needsCalendar ? apiService.fetchModuleRecords<any>('event_pins', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
+                needsGuests ? apiService.fetchModuleRecords<Visitor>('visitors', effectiveTargetInstId).catch(() => []) : Promise.resolve([])
             ]);
             
-            // Build comprehensive user map from both users and students modules
+            // Build comprehensive user map from users module
             const combinedUserMap = new Map<string, User>();
             (usersData || []).forEach(u => { if (u && u.id) combinedUserMap.set(u.id, u); });
-            (studentsData || []).forEach(u => { if (u && u.id) combinedUserMap.set(u.id, u); });
             const allUsers = Array.from(combinedUserMap.values());
 
             const userById = new Map<string, User>();
@@ -1077,7 +1141,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     || {};
 
                 const resolvedName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() :
-                    (e.name && !isNameUnknown(e.name)) ? e.name.trim() :
+                    ((e as any).name && !isNameUnknown((e as any).name)) ? (e as any).name.trim() :
                     ((e as any).studentName && !isNameUnknown((e as any).studentName)) ? String((e as any).studentName).trim() :
                     (e.metadata?.studentName && !isNameUnknown(e.metadata.studentName)) ? e.metadata.studentName.trim() :
                     (e.metadata?.name && !isNameUnknown(e.metadata.name)) ? e.metadata.name.trim() :
@@ -1090,7 +1154,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
                 return {
                     ...e,
-                    name: resolvedName || e.name || (e as any).name || '',
+                    name: resolvedName || (e as any).name || '',
                     studentName: resolvedName,
                     admissionNumber: adm,
                     admNo: adm,
@@ -1116,35 +1180,34 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
             });
             setEnrollments(filteredEnrs);
-            try {
-                if (currentInstitution?.id) {
-                    localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(hydrated));
-                    localStorage.setItem('eduai_student_enrollments', JSON.stringify(hydrated));
-                    localStorage.setItem(`eduai_students_${currentInstitution.id}`, JSON.stringify(hydrated));
-                    if (usersData && usersData.length > 0) {
-                        localStorage.setItem(`eduai_users_${currentInstitution.id}`, JSON.stringify(usersData));
+            const instKey = currentInstitution?.id;
+            setTimeout(() => {
+                try {
+                    if (instKey) {
+                        const json = JSON.stringify(hydrated.slice(0, 1500));
+                        localStorage.setItem(`eduai_student_enrollments_${instKey}`, json);
                     }
-                }
-            } catch (e) {}
+                } catch (e) {}
+            }, 100);
             const instructorsList = usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer');
             setInstructors(instructorsList);
             setCourses(coursesData);
             setSubjects(subjectsData);
-            setBroadcasterMessages(broadcastsData || []);
-            setEvents(eventsData || []);
+            if (needsBroadcaster || broadcastsData.length > 0) setBroadcasterMessages(broadcastsData || []);
+            if (needsCalendar || eventsData.length > 0) setEvents(eventsData || []);
             const finalPins = (() => {
                 const pinMap = new Map();
                 (pinsData || []).forEach((p: any) => pinMap.set(p.id, p));
                 return Array.from(pinMap.values());
             })();
-            setEventPins(finalPins);
-            setVisitors(visitorsData || []);
+            if (needsCalendar || finalPins.length > 0) setEventPins(finalPins);
+            if (needsGuests || visitorsData.length > 0) setVisitors(visitorsData || []);
             setAcademicLevels(academicLevelsData || []);
 
             // Save to global in-memory cache for instant zero-fetch rendering
             globalEnrollmentCache[cacheKey] = {
                 enrollments: filteredEnrs,
-                users: Array.from(userMap.values()),
+                users: Array.from(combinedUserMap.values()),
                 instructors: instructorsList,
                 courses: coursesData,
                 subjects: subjectsData,
@@ -1164,134 +1227,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     useEffect(() => {
         let isMounted = true;
-        const runSetup = async () => {
-            const hasMigrated = hasRunEnrollmentSchemaMigration || (typeof window !== 'undefined' && sessionStorage.getItem('eduai_student_enrollments_schema_migrated'));
-            if (!hasMigrated) {
-                // Auto-create necessary tables if not exist in database
-                const createTableSql = `
-                CREATE TABLE IF NOT EXISTS public.student_enrollments (
-                    id TEXT PRIMARY KEY,
-                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
-                    user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-                    enrollment_type TEXT NOT NULL,
-                    admission_number TEXT,
-                    assessment_no TEXT,
-                    date_of_birth DATE,
-                    status TEXT DEFAULT 'Enrolled',
-                    enrollment_date TEXT,
-                    metadata JSONB DEFAULT '{}'::jsonb,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-
-                ALTER TABLE public.student_enrollments ADD COLUMN IF NOT EXISTS date_of_birth DATE;
-                ALTER TABLE public.student_enrollments ADD COLUMN IF NOT EXISTS assessment_no TEXT;
-
-                CREATE TABLE IF NOT EXISTS public.broadcaster_messages (
-                    id TEXT PRIMARY KEY,
-                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
-                    target TEXT NOT NULL,
-                    channel TEXT NOT NULL,
-                    subject TEXT,
-                    body TEXT NOT NULL,
-                    recipients_count INTEGER DEFAULT 0,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-
-                CREATE TABLE IF NOT EXISTS public.institution_events (
-                    id TEXT PRIMARY KEY,
-                    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    event_date TEXT NOT NULL,
-                    event_time TEXT NOT NULL,
-                    venue TEXT NOT NULL,
-                    target TEXT NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                );
-
-                 CREATE TABLE IF NOT EXISTS public.event_pins (
-                     id TEXT PRIMARY KEY,
-                     institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
-                     event_id TEXT NOT NULL REFERENCES public.institution_events(id) ON DELETE CASCADE,
-                     user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-                     pin TEXT NOT NULL,
-                     status TEXT DEFAULT 'pending',
-                     guests TEXT,
-                     vehicle_registration TEXT,
-                     rating INTEGER,
-                     feedback TEXT,
-                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-                 );
-                 
-                 ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
-                 ALTER TABLE public.broadcaster_messages ENABLE ROW LEVEL SECURITY;
-                 ALTER TABLE public.institution_events ENABLE ROW LEVEL SECURITY;
-                 ALTER TABLE public.event_pins ENABLE ROW LEVEL SECURITY;
-                 
-                 DO $$
-                 DECLARE
-                     tables text[] := ARRAY['student_enrollments', 'broadcaster_messages', 'institution_events', 'event_pins'];
-                     t text;
-                 BEGIN
-                     FOREACH t IN ARRAY tables LOOP
-                         EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
-                         EXECUTE format('CREATE POLICY "Institutional tenancy select: %I" ON public.%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
-                         
-                         EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
-                         EXECUTE format('CREATE POLICY "Institutional tenancy manage: %I" ON public.%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
-                         
-                         EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
-                     END LOOP;
-                 END $$;
- 
-                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS guests TEXT;
-                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS vehicle_registration TEXT;
-                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS rating INTEGER;
-                 ALTER TABLE public.event_pins ADD COLUMN IF NOT EXISTS feedback TEXT;
-                
-                DROP POLICY IF EXISTS "Public select: event_pins" ON public.event_pins;
-                DROP POLICY IF EXISTS "Public update: event_pins" ON public.event_pins;
-                DROP POLICY IF EXISTS "event_pins_select" ON public.event_pins;
-                DROP POLICY IF EXISTS "event_pins_insert" ON public.event_pins;
-                DROP POLICY IF EXISTS "event_pins_update" ON public.event_pins;
-                DROP POLICY IF EXISTS "event_pins_delete" ON public.event_pins;
-
-                CREATE POLICY "event_pins_select" ON public.event_pins FOR SELECT TO authenticated, anon USING (true);
-                CREATE POLICY "event_pins_insert" ON public.event_pins FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL);
-                CREATE POLICY "event_pins_update" ON public.event_pins FOR UPDATE TO authenticated, anon USING (auth.role() IN ('authenticated', 'anon') OR public.get_curr_user_role()::text = 'super_admin') WITH CHECK (id IS NOT NULL);
-                CREATE POLICY "event_pins_delete" ON public.event_pins FOR DELETE TO authenticated USING (auth.role() = 'authenticated' OR public.get_curr_user_role()::text = 'super_admin');
-                
-                DROP POLICY IF EXISTS "Public select: institution_events" ON public.institution_events;
-                CREATE POLICY "Public select: institution_events" ON public.institution_events FOR SELECT USING (true);
-                
-                DROP POLICY IF EXISTS "Public select: users" ON public.users;
-                CREATE POLICY "Public select: users" ON public.users FOR SELECT USING (true);
-            `;
-                try {
-                    await apiService.runMigration(createTableSql);
-                    hasRunEnrollmentSchemaMigration = true;
-                    if (typeof window !== 'undefined') {
-                        sessionStorage.setItem('eduai_student_enrollments_schema_migrated', 'true');
-                    }
-                } catch (err) {
-                    console.warn("Auto-migration of schema tables failed:", err);
-                }
-            }
-            
-            if (currentInstitution?.id && isMounted) {
-                const hasExistingData = Boolean(
-                    (globalEnrollmentCache[cacheKey] && (globalEnrollmentCache[cacheKey].users.length > 0 || globalEnrollmentCache[cacheKey].enrollments.length > 0)) ||
-                    (initialUsers && initialUsers.length > 0) ||
-                    (initialCached.users.length > 0 || initialCached.enrollments.length > 0)
-                );
-                loadAllData(hasExistingData);
-            }
-        };
-        
-        runSetup();
+        if (currentInstitution?.id && isMounted) {
+            const hasExistingData = Boolean(
+                (globalEnrollmentCache[cacheKey] && (globalEnrollmentCache[cacheKey].users.length > 0 || globalEnrollmentCache[cacheKey].enrollments.length > 0)) ||
+                (initialUsers && initialUsers.length > 0) ||
+                (initialCached.users.length > 0 || initialCached.enrollments.length > 0)
+            );
+            loadAllData(hasExistingData);
+        }
         return () => { isMounted = false; };
-    }, [currentInstitution?.id, context]);
+    }, [currentInstitution?.id, context, activeTab]);
 
     // Handle Form Submit
     const handleSubmit = async (e: React.FormEvent) => {
@@ -1552,7 +1497,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     parentPhone: '',
                     parentEmail: '',
                     parentRelation: 'Father',
-                    parents: [{ name: '', phone: '', email: '', relation: 'Father' }]
+                    parents: [{ name: '', phone: '', email: '', relation: 'Father' }],
+                    secondaryPhone: ''
                 }
             });
         } catch (err: any) {
@@ -1603,7 +1549,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 parentPhone: '',
                 parentEmail: '',
                 parentRelation: 'Father',
-                parents: [{ name: '', phone: '', email: '', relation: 'Father' }]
+                parents: [{ name: '', phone: '', email: '', relation: 'Father' }],
+                secondaryPhone: ''
             }
         });
         setIsFormOpen(true);
@@ -4893,34 +4840,51 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     };
 
     const filteredEnrollments = useMemo(() => {
+        const search = searchTerm.trim().toLowerCase();
+        const normFilterGrade = gradeFilter ? getNormalizedGradeKey(gradeFilter) : '';
+        const lowerFilterGrade = gradeFilter ? gradeFilter.trim().toLowerCase() : '';
+        const lowerStreamFilter = streamFilter ? streamFilter.trim().toLowerCase() : '';
+
         return enrollments.filter(enr => {
+            if (statusFilter !== 'All' && enr.status !== statusFilter) {
+                return false;
+            }
+
             const associatedUser = findStudentUser(enr);
-            const assessmentNo = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
-            const sName = associatedUser?.name || enr.name || (enr as any).studentName || enr.metadata?.studentName || enr.metadata?.fullName || '';
-            const matchesSearch = 
-                sName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (enr.admissionNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (assessmentNo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (associatedUser?.phoneNumber || '').includes(searchTerm);
             
-            const matchesStatus = statusFilter === 'All' || enr.status === statusFilter;
+            if (search) {
+                const assessmentNo = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
+                const sName = associatedUser?.name || (enr as any).name || (enr as any).studentName || enr.metadata?.studentName || enr.metadata?.fullName || '';
+                const matchesSearch = 
+                    sName.toLowerCase().includes(search) ||
+                    (enr.admissionNumber || '').toLowerCase().includes(search) ||
+                    (assessmentNo || '').toLowerCase().includes(search) ||
+                    (associatedUser?.phoneNumber || '').includes(search);
+                if (!matchesSearch) return false;
+            }
             
-            const rawStGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any).gradeLevel || (enr as any).studentClass || '').trim();
-            const normStGrade = getNormalizedGradeKey(rawStGrade);
-            const normFilterGrade = getNormalizedGradeKey(gradeFilter);
-            const matchesGrade = !gradeFilter || 
-                (normFilterGrade && normStGrade === normFilterGrade) || 
-                rawStGrade.toLowerCase() === gradeFilter.trim().toLowerCase() ||
-                (normFilterGrade && rawStGrade.toLowerCase().startsWith(normFilterGrade));
+            if (gradeFilter) {
+                const rawStGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any).gradeLevel || (enr as any).studentClass || '').trim();
+                const normStGrade = getNormalizedGradeKey(rawStGrade);
+                const matchesGrade = 
+                    (normFilterGrade && normStGrade === normFilterGrade) || 
+                    rawStGrade.toLowerCase() === lowerFilterGrade ||
+                    (normFilterGrade && rawStGrade.toLowerCase().startsWith(normFilterGrade));
+                if (!matchesGrade) return false;
+            }
             
-            const rawStStream = (enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || (associatedUser as any)?.stream_name || (enr as any).stream || '').trim();
-            const matchesStream = !streamFilter || 
-                rawStStream.toLowerCase() === streamFilter.trim().toLowerCase() ||
-                rawStGrade.toLowerCase().endsWith(streamFilter.trim().toLowerCase());
+            if (streamFilter) {
+                const rawStStream = (enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || (associatedUser as any)?.stream_name || (enr as any).stream || '').trim();
+                const rawStGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any).gradeLevel || (enr as any).studentClass || '').trim();
+                const matchesStream = 
+                    rawStStream.toLowerCase() === lowerStreamFilter ||
+                    rawStGrade.toLowerCase().endsWith(lowerStreamFilter);
+                if (!matchesStream) return false;
+            }
             
-            return matchesSearch && matchesStatus && matchesGrade && matchesStream;
+            return true;
         });
-    }, [enrollments, users, searchTerm, statusFilter, gradeFilter, streamFilter, getNormalizedGradeKey]);
+    }, [enrollments, findStudentUser, searchTerm, statusFilter, gradeFilter, streamFilter]);
 
     const paginatedEnrollments = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -5032,19 +4996,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
     // Filtered Teachers
     const filteredTeachers = useMemo(() => {
+        if (activeTab !== 'teachers') return [];
         return users.filter(u => {
             const role = (u.role || '').trim().toLowerCase();
             const isTeacher = teacherRoles.includes(role as any);
             const matchesSearch = 
+                !searchTerm ||
                 (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.phoneNumber || '').includes(searchTerm);
             return isTeacher && matchesSearch;
         });
-    }, [users, searchTerm, teacherRoles]);
+    }, [activeTab, users, searchTerm]);
 
     // Filtered Support Staff
     const filteredSupportStaff = useMemo(() => {
+        if (activeTab !== 'support_staff') return [];
         return users.filter(u => {
             // Normalize role: trim whitespace and lowercase to avoid casing/spacing issues
             const role = (u.role || '').trim().toLowerCase();
@@ -5055,12 +5022,13 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             // Include: not a teacher, not in excluded roles, and either has a role OR belongs to this institution (no role = unclassified staff)
             const isSupport = isAlwaysSupport || (!isTeacher && !isNonSupport && (role !== '' || !!u.institutionId));
             const matchesSearch = 
+                !searchTerm ||
                 (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (u.phoneNumber || '').includes(searchTerm);
             return isSupport && matchesSearch;
         });
-    }, [users, searchTerm]);
+    }, [activeTab, users, searchTerm]);
 
     // Handle Staff Form Submit (Add/Edit)
     const handleSubmitStaff = async (e: React.FormEvent) => {
@@ -5266,105 +5234,107 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 'Class A (Motorcycle)',
                 'Class C (Heavy Commercial)'
             ];
-        } else {
-            const rawGrades: string[] = [];
+        }
 
-            // 1. From academicLevels
-            if (academicLevels && academicLevels.length > 0) {
-                academicLevels.forEach(al => {
-                    const name = typeof al === 'string' ? al : (al.name || (al as any).title || al.code);
-                    if (name && name.trim()) rawGrades.push(name.trim());
+        const rawGradesSet = new Set<string>();
+
+        // 1. From academicLevels
+        if (academicLevels && academicLevels.length > 0) {
+            academicLevels.forEach(al => {
+                const name = typeof al === 'string' ? al : (al.name || (al as any).title || al.code);
+                if (name && name.trim()) rawGradesSet.add(name.trim());
+            });
+        }
+
+        // 2. From courses
+        if (courses && courses.length > 0) {
+            courses.forEach(c => {
+                const name = c.name || (c as any).title || c.code;
+                if (name && name.trim()) rawGradesSet.add(name.trim());
+            });
+        }
+
+        // 3. From currentInstitution
+        if (currentInstitution) {
+            const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
+            if (Array.isArray(instClasses)) {
+                instClasses.forEach((c: any) => {
+                    const name = typeof c === 'string' ? c : (c.name || c.title);
+                    if (name && name.trim()) rawGradesSet.add(name.trim());
                 });
             }
+        }
 
-            // 2. From courses
-            if (courses && courses.length > 0) {
-                courses.forEach(c => {
-                    const name = c.name || (c as any).title || c.code;
-                    if (name && name.trim()) rawGrades.push(name.trim());
-                });
-            }
-
-            // 3. From currentInstitution
-            if (currentInstitution) {
-                const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
-                if (Array.isArray(instClasses)) {
-                    instClasses.forEach((c: any) => {
-                        const name = typeof c === 'string' ? c : (c.name || c.title);
-                        if (name && name.trim()) rawGrades.push(name.trim());
-                    });
+        // 4. From registered student users (Set prevents array explosion)
+        if (users && users.length > 0) {
+            for (let i = 0; i < users.length; i++) {
+                const u = users[i];
+                const cl = u.studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class || (u as any).metadata?.gradeLevel;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    rawGradesSet.add(cl.trim());
                 }
             }
-
-            // 4. From registered student users
-            if (users && users.length > 0) {
-                users.forEach(u => {
-                    const cl = u.studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class || (u as any).metadata?.gradeLevel;
-                    if (cl && typeof cl === 'string' && cl.trim()) {
-                        rawGrades.push(cl.trim());
-                    }
-                });
-            }
-
-            // 5. From enrollments
-            if (enrollments && enrollments.length > 0) {
-                enrollments.forEach(e => {
-                    const cl = e.metadata?.gradeLevel || (e as any).classLevel || (e as any).studentClass;
-                    if (cl && typeof cl === 'string' && cl.trim()) {
-                        rawGrades.push(cl.trim());
-                    }
-                });
-            }
-
-            // If we have registered grades, normalize & deduplicate case-insensitively
-            if (rawGrades.length > 0) {
-                // Determine default grade prefix from existing full-name grades in courses/academicLevels
-                const hasGradePrefix = rawGrades.some(g => /^grade\s*\d+/i.test(g));
-                const hasFormPrefix = rawGrades.some(g => /^form\s*\d+/i.test(g));
-                const defaultPrefix = hasFormPrefix && !hasGradePrefix ? 'Form' : 'Grade';
-
-                const seenMap = new Map<string, string>();
-                rawGrades.forEach(g => {
-                    const key = getNormalizedGradeKey(g);
-                    if (key && !seenMap.has(key)) {
-                        const display = normalizeGradeLabel(g, defaultPrefix);
-                        seenMap.set(key, display);
-                    }
-                });
-
-                // Educational grade sort
-                const rankGrade = (g: string) => {
-                    const lc = g.toLowerCase();
-                    if (lc.includes('play') || lc === 'pg') return 0;
-                    if (/pp1|pre-primary\s*1/.test(lc)) return 1;
-                    if (/pp2|pre-primary\s*2/.test(lc)) return 2;
-                    const grm = lc.match(/grade\s*(\d+)/);
-                    if (grm) return 10 + parseInt(grm[1]);
-                    const stm = lc.match(/(?:std|class|standard)\s*(\d+)/);
-                    if (stm) return 10 + parseInt(stm[1]);
-                    const frm = lc.match(/form\s*(\d+)/);
-                    if (frm) return 30 + parseInt(frm[1]);
-                    const yrm = lc.match(/year\s*(\d+)/);
-                    if (yrm) return 40 + parseInt(yrm[1]);
-                    return 100;
-                };
-
-                return Array.from(seenMap.values()).sort((a, b) => {
-                    const rA = rankGrade(a);
-                    const rB = rankGrade(b);
-                    if (rA !== rB) return rA - rB;
-                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-                });
-            }
-
-            // Fallback list ONLY when NO grades exist anywhere
-            return [
-                'PP1', 'PP2', 'Playgroup',
-                'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-                'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
-            ];
         }
-    }, [context, courses, academicLevels, enrollments, users, currentInstitution, normalizeGradeLabel, getNormalizedGradeKey]);
+
+        // 5. From enrollments
+        if (enrollments && enrollments.length > 0) {
+            for (let i = 0; i < enrollments.length; i++) {
+                const e = enrollments[i];
+                const cl = e.metadata?.gradeLevel || (e as any).classLevel || (e as any).studentClass;
+                if (cl && typeof cl === 'string' && cl.trim()) {
+                    rawGradesSet.add(cl.trim());
+                }
+            }
+        }
+
+        // If we have registered grades, normalize & deduplicate case-insensitively
+        if (rawGradesSet.size > 0) {
+            const rawGrades = Array.from(rawGradesSet);
+            const hasGradePrefix = rawGrades.some(g => /^grade\s*\d+/i.test(g));
+            const hasFormPrefix = rawGrades.some(g => /^form\s*\d+/i.test(g));
+            const defaultPrefix = hasFormPrefix && !hasGradePrefix ? 'Form' : 'Grade';
+
+            const seenMap = new Map<string, string>();
+            rawGrades.forEach(g => {
+                const key = getNormalizedGradeKey(g);
+                if (key && !seenMap.has(key)) {
+                    const display = normalizeGradeLabel(g, defaultPrefix);
+                    seenMap.set(key, display);
+                }
+            });
+
+            // Educational grade sort
+            const rankGrade = (g: string) => {
+                const lc = g.toLowerCase();
+                if (lc.includes('play') || lc === 'pg') return 0;
+                if (/pp1|pre-primary\s*1/.test(lc)) return 1;
+                if (/pp2|pre-primary\s*2/.test(lc)) return 2;
+                const grm = lc.match(/grade\s*(\d+)/);
+                if (grm) return 10 + parseInt(grm[1]);
+                const stm = lc.match(/(?:std|class|standard)\s*(\d+)/);
+                if (stm) return 10 + parseInt(stm[1]);
+                const frm = lc.match(/form\s*(\d+)/);
+                if (frm) return 30 + parseInt(frm[1]);
+                const yrm = lc.match(/year\s*(\d+)/);
+                if (yrm) return 40 + parseInt(yrm[1]);
+                return 100;
+            };
+
+            return Array.from(seenMap.values()).sort((a, b) => {
+                const rA = rankGrade(a);
+                const rB = rankGrade(b);
+                if (rA !== rB) return rA - rB;
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            });
+        }
+
+        // Fallback list ONLY when NO grades exist anywhere
+        return [
+            'PP1', 'PP2', 'Playgroup',
+            'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+            'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
+        ];
+    }, [context, courses, academicLevels, enrollments, users, currentInstitution]);
 
     // Available Streams fallback
     const streamsList = useMemo(() => {
@@ -5389,24 +5359,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
         // Force include current stream if not present to avoid select element fallback mismatch
         if (formData.metadata.stream && !list.includes(formData.metadata.stream)) {
-            const matched = list.find(name => 
-                name.toLowerCase() === formData.metadata.stream.toLowerCase() ||
-                formData.metadata.stream.toLowerCase().endsWith(name.toLowerCase()) ||
-                name.toLowerCase().endsWith(formData.metadata.stream.toLowerCase())
-            );
-            if (matched) {
-                setTimeout(() => {
-                    setFormData(prev => ({
-                        ...prev,
-                        metadata: { ...prev.metadata, stream: matched }
-                    }));
-                }, 0);
-            } else {
-                list = [...list, formData.metadata.stream];
-            }
+            list = [...list, formData.metadata.stream];
         }
         return list;
-    }, [formData.metadata.gradeLevel, formData.metadata.stream, courses, streamsList, getNormalizedGradeKey]);
+    }, [formData.metadata.gradeLevel, formData.metadata.stream, courses, streamsList]);
 
     // Available Streams for the registry filter
     const filterStreamsList = useMemo(() => {
@@ -5420,10 +5376,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             });
             const courseStreams = matchedCourses.flatMap(c => (c.levels || []).map(lvl => lvl.name)).filter(Boolean);
 
-            // 2. Streams from enrolled students in this grade
+            // 2. Streams from enrolled students in this grade (using fast O(1) userMaps)
             const studentStreams: string[] = [];
-            enrollments.forEach(enr => {
-                const u = users.find(usr => usr.id === enr.userId);
+            for (let i = 0; i < enrollments.length; i++) {
+                const enr = enrollments[i];
+                const u = userMaps.byId.get(enr.userId);
                 const stGrade = enr.metadata?.gradeLevel || u?.studentClass || (u as any)?.classLevel || (u as any)?.class || '';
                 if (getNormalizedGradeKey(stGrade) === normGrade) {
                     const stStream = enr.metadata?.stream || (u as any)?.stream || (u as any)?.streamName || '';
@@ -5431,7 +5388,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         studentStreams.push(stStream.trim());
                     }
                 }
-            });
+            }
 
             const combined = Array.from(new Set([...courseStreams, ...studentStreams]));
             return combined;
@@ -5445,7 +5402,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             return all;
         }
         return streamsList;
-    }, [gradeFilter, courses, enrollments, users, streamsList, getNormalizedGradeKey]);
+    }, [gradeFilter, courses, enrollments, userMaps, streamsList]);
 
     // Available Streams for the Import default settings
     const importStreamsList = useMemo(() => {
@@ -5457,7 +5414,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
         }
         return streamsList;
-    }, [importGradeLevel, courses, streamsList, getNormalizedGradeKey]);
+    }, [importGradeLevel, courses, streamsList]);
 
     const activeImportFields = useMemo(() => {
         if (activeTab === 'teachers') return teacherFields;
@@ -5472,8 +5429,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         return handleBulkComplete;
     }, [activeTab, importMode, handleBulkCompleteStaff, handleBulkUpdateSecondaryPhone, handleBulkComplete]);
 
-    // Memoized students list for specific selection
+    // Memoized students list for specific selection (only needed in calendar tab)
     const students = useMemo(() => {
+        if (activeTab !== 'calendar') return [];
         return enrollments.map(enr => {
             const user = findStudentUser(enr);
             return {
@@ -5483,26 +5441,30 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 gradeLevel: enr.metadata?.gradeLevel || user?.studentClass || ''
             };
         }).filter(s => !!s.id);
-    }, [enrollments, users, getStudentDisplayName]);
+    }, [activeTab, enrollments, findStudentUser, getStudentDisplayName]);
 
     // Filtered students for matching search queries in selection panel
     const filteredStudentsForSelection = useMemo(() => {
+        if (activeTab !== 'calendar') return [];
         const query = studentSearchQuery.trim().toLowerCase();
         if (!query) return students.slice(0, 5); // default show 5
         return students.filter(s => 
             s.name.toLowerCase().includes(query) ||
             s.admissionNumber.toLowerCase().includes(query)
         ).slice(0, 10);
-    }, [students, studentSearchQuery]);
+    }, [activeTab, students, studentSearchQuery]);
 
     const hasUnknownStudents = useMemo(() => {
+        if (activeTab !== 'students') return false;
         return enrollments.some(enr => {
+            if ((enr as any).name && !isNameUnknown((enr as any).name)) return false;
+            if (enr.metadata?.studentName && !isNameUnknown(enr.metadata.studentName)) return false;
             const user = findStudentUser(enr);
-            const isUnknown = isNameUnknown(user?.name) && isNameUnknown(enr.name) && isNameUnknown(enr.metadata?.studentName);
+            const isUnknown = isNameUnknown(user?.name) && isNameUnknown((enr as any).name) && isNameUnknown(enr.metadata?.studentName);
             const canFix = !!(enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || enr.admissionNumber || enr.assessmentNo);
             return isUnknown && canFix;
         });
-    }, [enrollments, users]);
+    }, [activeTab, enrollments, findStudentUser]);
 
 
 

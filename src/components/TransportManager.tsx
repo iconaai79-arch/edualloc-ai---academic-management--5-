@@ -128,6 +128,19 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         });
     }, [users, currentInstitution?.id]);
 
+    // Strictly scope vehicles to current institution to prevent cross-institution data bleed
+    const institutionVehicles = useMemo(() => {
+        if (!currentInstitution?.id) return vehicles || [];
+        const curId = String(currentInstitution.id).trim().toLowerCase();
+        const cleanCurId = curId.replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '');
+        return (vehicles || []).filter(v => {
+            const vInst = v.institutionId || (v as any).institution_id;
+            if (!vInst) return true;
+            const cleanVInst = String(vInst).trim().toLowerCase().replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '');
+            return cleanVInst === cleanCurId || String(vInst).trim().toLowerCase() === curId;
+        });
+    }, [vehicles, currentInstitution?.id]);
+
     // Comprehensive check for registered staff with the driver role
     const isDriverUser = (u: any): boolean => {
         if (!u) return false;
@@ -165,7 +178,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         if (metaRole.includes('driver')) return true;
 
         // Also check if assigned as driver on any vehicle in this institution
-        if (vehicles && vehicles.some(v => v.driverId === u.id || (v.driverName && v.driverName.toLowerCase() === String(u.name || '').toLowerCase()) || ((v as any).driver && String((v as any).driver).toLowerCase() === String(u.name || '').toLowerCase()))) {
+        if (institutionVehicles && institutionVehicles.some(v => v.driverId === u.id || (v.driverName && v.driverName.toLowerCase() === String(u.name || '').toLowerCase()) || ((v as any).driver && String((v as any).driver).toLowerCase() === String(u.name || '').toLowerCase()))) {
             return true;
         }
 
@@ -190,7 +203,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
             if (s.includes('transport_assistant') || s.includes('conductor') || s.includes('attendant')) return true;
         }
 
-        if (vehicles && vehicles.some(v => v.assistantId === u.id)) return true;
+        if (institutionVehicles && institutionVehicles.some(v => v.assistantId === u.id)) return true;
 
         return false;
     };
@@ -208,7 +221,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         });
 
         // 2. Also incorporate named drivers assigned to registered vehicles if not yet present
-        (vehicles || []).forEach(v => {
+        (institutionVehicles || []).forEach(v => {
             const dName = (v.driverName || (v as any).driver || '').trim();
             if (dName && dName.toUpperCase() !== 'TBD' && dName.toLowerCase() !== 'not assigned' && dName.toLowerCase() !== 'none assigned') {
                 const alreadyExists = list.some(d => (d.name || '').trim().toLowerCase() === dName.toLowerCase() || d.id === v.driverId);
@@ -240,11 +253,11 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         }
 
         return list;
-    }, [institutionUsers, vehicles, currentInstitution?.id]);
+    }, [institutionUsers, institutionVehicles, currentInstitution?.id]);
 
     const assistants = useMemo(() =>
         institutionUsers.filter(isAssistantUser),
-        [institutionUsers, vehicles]
+        [institutionUsers, institutionVehicles]
     );
 
     const students = useMemo(() =>
@@ -455,7 +468,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
         if (showQrId) {
             const QRCodeLib = (window as any).QRCode;
             if (QRCodeLib) {
-                const vehicle = vehicles.find(v => v.id === showQrId);
+                const vehicle = institutionVehicles.find(v => v.id === showQrId);
                 if (vehicle) {
                     const data = JSON.stringify({
                         type: 'vehicle_gate_pass',
@@ -769,7 +782,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
 
             {activeTab === 'vehicles' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {vehicles.map(vehicle => {
+                    {institutionVehicles.map(vehicle => {
                         const assignedStudentsCount = users.filter(u => {
                             const vId = studentVehicleMap[u.id] !== undefined 
                                 ? studentVehicleMap[u.id] 
@@ -854,7 +867,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                         );
                     })}
 
-                    {vehicles.length === 0 && !isAdding && (
+                    {institutionVehicles.length === 0 && !isAdding && (
                         <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-900/20 rounded-[3rem] border-4 border-dashed border-slate-100 dark:border-slate-800">
                             <TruckIcon className="w-20 h-20 text-slate-200 mx-auto mb-6" />
                             <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tight">No Vehicles Found</h3>
@@ -872,7 +885,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
             {activeTab === 'drivers' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {drivers.map(driver => {
-                        const assignedVehicle = vehicles.find(v => 
+                        const assignedVehicle = institutionVehicles.find(v => 
                             v.driverId === driver.id || 
                             (driver.id && v.driverId === driver.id) ||
                             (v.driverName && driver.name && v.driverName.trim().toLowerCase() === driver.name.trim().toLowerCase()) ||
@@ -1032,7 +1045,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                                         className="w-full p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs outline-none focus:border-indigo-500"
                                                     >
                                                         <option value="">No Vehicle Assigned</option>
-                                                        {vehicles.map(v => (
+                                                        {institutionVehicles.map(v => (
                                                             <option key={v.id} value={v.id}>{v.plateNumber} ({v.model})</option>
                                                         ))}
                                                     </select>
@@ -1088,7 +1101,7 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
                                 )}
                                 <div className="mt-8">
                                     <p className="text-3xl font-black font-mono text-slate-900 dark:text-white tracking-[0.2em] uppercase">
-                                        {vehicles.find(v => v.id === showQrId)?.plateNumber}
+                                        {institutionVehicles.find(v => v.id === showQrId)?.plateNumber}
                                     </p>
                                     <p className="text-[10px] text-slate-400 mt-2 uppercase tracking-[0.3em] font-black">Official Transport QR</p>
                                 </div>

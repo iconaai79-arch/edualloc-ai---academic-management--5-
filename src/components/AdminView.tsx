@@ -3323,8 +3323,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     !isEdu ? (
                         <TransportManager
                             currentInstitution={props.currentInstitution!}
-                            vehicles={props.vehicles || []}
-                            users={props.users || []}
+                            vehicles={(props.vehicles || []).filter(v => !props.currentInstitution?.id || !v.institutionId || (v as any).institution_id === props.currentInstitution.id || v.institutionId === props.currentInstitution.id)}
+                            users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
                             courses={props.courses || []}
                             onAddVehicle={props.onAddVehicle!}
                             onUpdateVehicle={props.onUpdateVehicle!}
@@ -3342,8 +3342,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         >
                             <TransportManager
                                 currentInstitution={props.currentInstitution!}
-                                vehicles={props.vehicles || []}
-                                users={props.users || []}
+                                vehicles={(props.vehicles || []).filter(v => !props.currentInstitution?.id || !v.institutionId || (v as any).institution_id === props.currentInstitution.id || v.institutionId === props.currentInstitution.id)}
+                                users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
                                 courses={props.courses || []}
                                 onAddVehicle={props.onAddVehicle!}
                                 onUpdateVehicle={props.onUpdateVehicle!}
@@ -3828,7 +3828,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 {activeTab === 'logistics' && (
                     <LogisticsManager 
                         currentInstitution={props.currentInstitution!}
-                        users={props.users || []}
+                        users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
                         courses={props.courses || []}
                     />
                 )}

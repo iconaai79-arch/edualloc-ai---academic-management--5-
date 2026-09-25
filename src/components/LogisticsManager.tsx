@@ -188,7 +188,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             }
 
             const apiRecords = await apiService.fetchModuleRecords('vehicles', currentInstitution.id).catch(() => []);
-            const remoteVehicles: any[] = Array.isArray(apiRecords) ? [...apiRecords] : [];
+            const remoteVehicles: any[] = (Array.isArray(apiRecords) ? apiRecords : []).filter((v: any) => {
+                const vInst = v.institutionId || v.institution_id;
+                return !vInst || vInst === currentInstitution.id;
+            });
 
             // If remoteVehicles table is empty, check if hub has vehicles saved from another device
             if (remoteVehicles.length === 0) {
@@ -196,15 +199,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     const hubData = await apiService.fetchTransportLogisticsHub(currentInstitution.id);
                     const hubVehicles = Array.isArray(hubData?.vehicles) ? hubData.vehicles : [];
                     if (hubVehicles.length > 0) {
-                        remoteVehicles.push(...hubVehicles);
+                        remoteVehicles.push(...hubVehicles.filter((v: any) => !v.institutionId || v.institutionId === currentInstitution.id));
                     }
                 } catch (_) {}
             }
 
             // Bi-directional vehicle synchronization:
-            // If local storage has vehicles not yet in Supabase (e.g. Browser 1's 9 buses), upload them!
-            if (localVehicles.length > 0) {
-                for (const lv of localVehicles) {
+            // If local storage has vehicles not yet in Supabase, upload them!
+            const scopedLocalVehicles = localVehicles.filter((lv: any) => !lv.institutionId || lv.institutionId === currentInstitution.id);
+            if (scopedLocalVehicles.length > 0) {
+                for (const lv of scopedLocalVehicles) {
                     const normPlate = (lv.plateNumber || lv.registrationNumber || lv.plate || '').trim().toUpperCase();
                     const exists = remoteVehicles.some(rv => {
                         const rvPlate = (rv.plateNumber || rv.registrationNumber || rv.plate || '').trim().toUpperCase();
@@ -225,12 +229,11 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 }
             }
 
-            const merged = remoteVehicles.length > 0 ? remoteVehicles : localVehicles;
+            const merged = remoteVehicles.length > 0 ? remoteVehicles : scopedLocalVehicles;
 
             if (merged.length > 0) {
                 setDbVehicles(merged);
-                safeSetLocalItem(key, merged);
-                safeSetLocalItem('eduai_vehicles', merged);
+                if (key) safeSetLocalItem(key, merged);
             } else if (currentInstitution?.id?.startsWith('demo_')) {
                 const demo = [
                     { id: 'vh_demo_1', plateNumber: 'KDC 992P', model: 'Bus 04', vehicleType: 'bus', capacity: 51, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
@@ -238,7 +241,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     { id: 'vh_demo_3', plateNumber: 'KDM 441X', model: 'Bus 07', vehicleType: 'bus', capacity: 25, status: 'active', institutionId: currentInstitution?.id, driverName: 'Douglas Omwamba' },
                 ];
                 setDbVehicles(demo);
-                safeSetLocalItem(key, demo);
+                if (key) safeSetLocalItem(key, demo);
             } else {
                 setDbVehicles([]);
             }
@@ -277,7 +280,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setDbVehicles(next);
             const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
             if (key) safeSetLocalItem(key, next);
-            safeSetLocalItem('eduai_vehicles', next);
 
             saveVehiclesToHub(next);
             await apiService.saveModuleRecord('vehicles', newVehicle).catch(() => {});
@@ -290,9 +292,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         try {
             const next = dbVehicles.map(v => v.id === id ? { ...v, ...updates } : v);
             setDbVehicles(next);
-            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
-            safeSetLocalItem(key, next);
-            safeSetLocalItem('eduai_vehicles', next);
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
+            if (key) safeSetLocalItem(key, next);
 
             saveVehiclesToHub(next);
             const updatedVehicle = next.find(v => v.id === id);
@@ -308,9 +309,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         try {
             const next = dbVehicles.filter(v => v.id !== id);
             setDbVehicles(next);
-            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : 'eduai_vehicles';
-            safeSetLocalItem(key, next);
-            safeSetLocalItem('eduai_vehicles', next);
+            const key = currentInstitution?.id ? `eduai_vehicles_${currentInstitution.id}` : null;
+            if (key) safeSetLocalItem(key, next);
 
             saveVehiclesToHub(next);
             await apiService.deleteModuleRecord('vehicles', id).catch(() => {});
@@ -485,16 +485,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 console.error('Error parsing bus routes from localStorage:', e);
             }
         }
-        try {
-            const globalSaved = localStorage.getItem('eduai_transport_bus_routes');
-            if (globalSaved) {
-                const parsed = JSON.parse(globalSaved);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                    if (instKey) safeSetLocalItem(instKey, parsed);
-                    return parsed;
-                }
-            }
-        } catch (e) {}
 
         const defaultRoutes = [
             { id: 'route_1', name: 'Route A - Main Corridor & Kilimani', startPoint: 'Main Center / Junction', endPoint: `${currentInstitution?.name || 'School'} Gate`, bus: 'Bus 01 (KDC 992P)', driver: 'Douglas Omwamba', attendant: 'Sarah Wanjiku' },
@@ -523,13 +513,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         passengers: string;
         status: 'approved' | 'pending' | 'completed' | 'cancelled';
     }>>(() => {
-        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-        const saved = localStorage.getItem(key) ?? localStorage.getItem('eduai_school_trips');
-        if (saved !== null) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                console.error('Failed to parse saved school trips', e);
+        const key = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : null;
+        if (key) {
+            const saved = localStorage.getItem(key);
+            if (saved !== null) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to parse saved school trips', e);
+                }
             }
         }
         if (currentInstitution?.id?.startsWith('demo_')) {
@@ -538,8 +530,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 { id: 'trip_2', name: 'Inter-School Athletics Competition', destination: 'Kasarani Stadium', date: '2026-07-02', time: '07:00 AM', leadTeacher: 'Mrs. Janet Otieno', vehicle: 'KBB 120Z (Bus 02)', passengers: '38 Athletes', status: 'approved' as const },
                 { id: 'trip_3', name: 'Primary School Science Field Trip', destination: 'Karura Forest Reserve', date: '2026-07-10', time: '09:00 AM', leadTeacher: 'Miss Emily Muthoni', vehicle: 'KDM 441X (Bus 07)', passengers: '50 Students', status: 'pending' as const },
             ];
-            safeSetLocalItem(key, initialDemoTrips);
-            safeSetLocalItem('eduai_school_trips', initialDemoTrips);
+            if (key) safeSetLocalItem(key, initialDemoTrips);
             return initialDemoTrips;
         }
         return [];
@@ -577,7 +568,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         const vehiclesKey = `eduai_vehicles_${currentInstitution.id}`;
         let localVehicles: any[] = [];
         try {
-            const vh = localStorage.getItem(vehiclesKey) || localStorage.getItem('eduai_vehicles');
+            const vh = localStorage.getItem(vehiclesKey);
             if (vh) localVehicles = JSON.parse(vh);
         } catch (_) {}
 
@@ -652,7 +643,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             let localStudentVehicles: Record<string, string> = {};
             try { const sv = localStorage.getItem(studentVehiclesKey); if (sv) localStudentVehicles = JSON.parse(sv); } catch (_) {}
             let localVehicles: any[] = [];
-            try { const vh = localStorage.getItem(vehiclesKey) || localStorage.getItem('eduai_vehicles'); if (vh) localVehicles = JSON.parse(vh); } catch (_) {}
+            try { const vh = localStorage.getItem(vehiclesKey); if (vh) localVehicles = JSON.parse(vh); } catch (_) {}
 
             const currentVehicles = dbVehicles.length > 0 ? dbVehicles : localVehicles;
 
@@ -775,7 +766,6 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 if (cloudVehicles.length > 0) {
                     setDbVehicles(cloudVehicles);
                     safeSetLocalItem(vehiclesKey, cloudVehicles);
-                    safeSetLocalItem('eduai_vehicles', cloudVehicles);
                 }
                 if (cloudStudentVehicles && typeof cloudStudentVehicles === 'object' && Object.keys(cloudStudentVehicles).length > 0) {
                     try {
@@ -1714,12 +1704,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setBusRoutes(nextRoutes);
             setRouteFeeSetting(nextFees);
 
-            const routeKey = currentInstitution?.id ? `eduai_transport_bus_routes_${currentInstitution.id}` : 'eduai_transport_bus_routes';
-            const feeKey = currentInstitution?.id ? `eduai_transport_route_fee_settings_${currentInstitution.id}` : 'eduai_transport_route_fee_settings';
-            safeSetLocalItem(routeKey, nextRoutes);
-            safeSetLocalItem('eduai_transport_bus_routes', nextRoutes);
-            safeSetLocalItem(feeKey, nextFees);
-            safeSetLocalItem('eduai_transport_route_fee_settings', nextFees);
+            if (currentInstitution?.id) {
+                const routeKey = `eduai_transport_bus_routes_${currentInstitution.id}`;
+                const feeKey = `eduai_transport_route_fee_settings_${currentInstitution.id}`;
+                safeSetLocalItem(routeKey, nextRoutes);
+                safeSetLocalItem(feeKey, nextFees);
+            }
 
             persistHubToCloud({ busRoutes: nextRoutes, routeFeeSetting: nextFees });
 
@@ -2608,9 +2598,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             };
             const nextTrips = [...schoolTrips, newTrip];
             setSchoolTrips(nextTrips);
-            const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-            safeSetLocalItem(tripKey, nextTrips);
-            safeSetLocalItem('eduai_school_trips', nextTrips);
+            if (currentInstitution?.id) {
+                const tripKey = `eduai_school_trips_${currentInstitution.id}`;
+                safeSetLocalItem(tripKey, nextTrips);
+            }
             persistHubToCloud({ schoolTrips: nextTrips });
 
             setIsAddTripModalOpen(false);
@@ -2628,9 +2619,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             if (!window.confirm('Are you sure you want to delete this trip schedule?')) return;
             const nextTrips = schoolTrips.filter(t => t.id !== tripId);
             setSchoolTrips(nextTrips);
-            const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-            safeSetLocalItem(tripKey, nextTrips);
-            safeSetLocalItem('eduai_school_trips', nextTrips);
+            if (currentInstitution?.id) {
+                const tripKey = `eduai_school_trips_${currentInstitution.id}`;
+                safeSetLocalItem(tripKey, nextTrips);
+            }
             persistHubToCloud({ schoolTrips: nextTrips });
         };
 
@@ -2641,9 +2633,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 return { ...t, status: nextStatus };
             });
             setSchoolTrips(nextTrips);
-            const tripKey = currentInstitution?.id ? `eduai_school_trips_${currentInstitution.id}` : 'eduai_school_trips';
-            safeSetLocalItem(tripKey, nextTrips);
-            safeSetLocalItem('eduai_school_trips', nextTrips);
+            if (currentInstitution?.id) {
+                const tripKey = `eduai_school_trips_${currentInstitution.id}`;
+                safeSetLocalItem(tripKey, nextTrips);
+            }
             persistHubToCloud({ schoolTrips: nextTrips });
         };
 
