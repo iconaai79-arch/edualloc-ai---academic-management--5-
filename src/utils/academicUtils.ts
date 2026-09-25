@@ -12,13 +12,13 @@ export const calculateGrade = (
 
     const percentage = (marks / maxMarks) * 100;
     
-    // Find matching definition where percentage is between min and max (inclusive)
-    // We sort by maxScore descending to handle edge cases if any
-    return gradingSystem.definitions
-        .sort((a,b) => b.maxScore - a.maxScore)
-        .find(
-            def => percentage >= def.minScore && percentage <= (def.maxScore + 0.001) // Small epsilon for float precision
-        ) || null;
+    // Sort descending once and cache to eliminate expensive array allocations & sorts on every score
+    const defs: GradeDefinition[] = (gradingSystem as any)._sortedDefs || 
+        ((gradingSystem as any)._sortedDefs = [...(gradingSystem.definitions || [])].sort((a, b) => b.maxScore - a.maxScore));
+
+    return defs.find(
+        def => percentage >= def.minScore && percentage <= (def.maxScore + 0.001) // Small epsilon for float precision
+    ) || null;
 };
 
 /**

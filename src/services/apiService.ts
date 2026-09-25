@@ -88,6 +88,8 @@ interface CacheEntry {
 }
 const _moduleMemoryCache = new Map<string, CacheEntry>();
 const _inFlightRequests = new Map<string, Promise<any>>();
+const _imsSharedCache = new Map<string, { data: any[]; timestamp: number }>();
+const _imsSharedPromises = new Map<string, Promise<any[]>>();
 
 const STATIC_CONFIG_MODULES = new Set([
     'institutions',
@@ -108,13 +110,18 @@ const STATIC_CONFIG_MODULES = new Set([
     'system_configs',
     'branches',
     'counties',
-    'constituencies'
+    'constituencies',
+    'institution_module_states'
 ]);
 
 export const invalidateModuleCache = (module?: string) => {
     if (!module) {
         _moduleMemoryCache.clear();
+        _imsSharedCache.clear();
         return;
+    }
+    if (module === 'institution_module_states') {
+        _imsSharedCache.clear();
     }
     for (const key of _moduleMemoryCache.keys()) {
         if (key.startsWith(`${module}:`)) {
@@ -1420,6 +1427,72 @@ export const apiService = {
         }
     },
 
+    async getSharedInstitutionModuleStates(instId?: string): Promise<any[]> {
+        const key = instId || 'ALL';
+        const now = Date.now();
+        const cached = _imsSharedCache.get(key);
+        if (cached && (now - cached.timestamp < 45000) && Array.isArray(cached.data) && cached.data.length > 0) {
+            return cached.data;
+        }
+        if (_imsSharedPromises.has(key)) {
+            return _imsSharedPromises.get(key)!;
+        }
+        const promise = (async () => {
+            let remoteRecords: any[] = [];
+            if (_supabase) {
+                try {
+                    let query = _supabase.from('institution_module_states').select('*');
+                    if (instId && instId !== 'ALL') {
+                        query = query.eq('institution_id', instId);
+                    }
+                    const { data: imsData, error: imsErr } = await query;
+                    if (!imsErr && imsData && imsData.length > 0) {
+                        remoteRecords = toCamelCase(imsData);
+                    }
+                } catch (e) {
+                    console.warn('[apiService] Supabase fetch for institution_module_states failed:', e);
+                }
+            }
+
+            if (remoteRecords.length === 0) {
+                try {
+                    let token = await apiService.getAuthToken();
+                    const url = new URL(`${window.location.origin}/api/records`);
+                    url.searchParams.append('module', 'institution_module_states');
+                    if (instId && instId !== 'ALL') url.searchParams.append('institutionId', instId);
+                    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                    const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null;
+                    const response = await fetch(url.toString(), {
+                        signal: controller ? controller.signal : undefined,
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        }
+                    }).finally(() => { if (timeoutId) clearTimeout(timeoutId); });
+                    if (response.ok) {
+                        const resJson = await response.json();
+                        const fetched = resJson.data || resJson || [];
+                        if (Array.isArray(fetched) && fetched.length > 0) {
+                            remoteRecords = toCamelCase(fetched);
+                        }
+                    }
+                } catch (e: any) {}
+            }
+
+            if (remoteRecords.length > 0) {
+                _imsSharedCache.set(key, { data: remoteRecords, timestamp: Date.now() });
+            }
+            return remoteRecords;
+        })();
+
+        _imsSharedPromises.set(key, promise);
+        try {
+            return await promise;
+        } finally {
+            _imsSharedPromises.delete(key);
+        }
+    },
+
     async fetchModuleRecords<T = any>(
         module: string, 
         institutionId?: string, 
@@ -1694,81 +1767,26 @@ export const apiService = {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
                 let remoteExams: any[] = [];
 
-                if (_supabase) {
-                    try {
-                        let query = _supabase.from('institution_module_states').select('*');
-                        if (institutionId && institutionId !== 'ALL') {
-                            query = query.eq('institution_id', institutionId);
-                        }
-                        const { data: imsData, error: imsErr } = await query;
-                        if (!imsErr && imsData && imsData.length > 0) {
-                            const camelRows = toCamelCase(imsData);
-                            for (const row of camelRows) {
-                                const modId = row.moduleId || row.module_id;
-                                const rowId = row.id || '';
-                                if (modId === 'exam_units' || rowId.includes('exam_units')) {
-                                    const rawData = row.data || row.settings || row.stateData || row.state_data;
-                                    if (Array.isArray(rawData)) {
-                                        remoteExams.push(...rawData);
-                                    } else if (rawData && Array.isArray(rawData.exams)) {
-                                        remoteExams.push(...rawData.exams);
-                                    } else if (rawData && typeof rawData === 'object' && rawData.id) {
-                                        remoteExams.push(rawData);
-                                    }
-                                } else if (modId === 'exam_unit' || rowId.includes('_exam_unit_')) {
-                                    const rawData = row.data || row.settings || row.stateData || row;
-                                    if (rawData && rawData.id) {
-                                        remoteExams.push(rawData);
-                                    }
-                                }
+                const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
+                if (Array.isArray(imsRows) && imsRows.length > 0) {
+                    for (const row of imsRows) {
+                        const modId = row.moduleId || row.module_id;
+                        const rowId = row.id || '';
+                        if (modId === 'exam_units' || rowId.includes('exam_units')) {
+                            const rawData = row.data || row.settings || row.stateData || row.state_data;
+                            if (Array.isArray(rawData)) {
+                                remoteExams.push(...rawData);
+                            } else if (rawData && Array.isArray(rawData.exams)) {
+                                remoteExams.push(...rawData.exams);
+                            } else if (rawData && typeof rawData === 'object' && rawData.id) {
+                                remoteExams.push(rawData);
+                            }
+                        } else if (modId === 'exam_unit' || rowId.includes('_exam_unit_')) {
+                            const rawData = row.data || row.settings || row.stateData || row;
+                            if (rawData && rawData.id) {
+                                remoteExams.push(rawData);
                             }
                         }
-                    } catch (e) {
-                        console.warn('[apiService] Supabase fetch for exam_units failed:', e);
-                    }
-                }
-
-                // If remoteExams is empty, try API records endpoint
-                if (remoteExams.length === 0) {
-                    try {
-                        let token = await apiService.getAuthToken();
-                        const url = new URL(`${window.location.origin}/api/records`);
-                        url.searchParams.append('module', 'institution_module_states');
-                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
-                        const response = await fetch(url.toString(), {
-                            headers: {
-                                'Authorization': token ? `Bearer ${token}` : '',
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        if (response.ok) {
-                            const resJson = await response.json();
-                            const fetched = resJson.data || resJson || [];
-                            if (Array.isArray(fetched) && fetched.length > 0) {
-                                const camelRows = toCamelCase(fetched);
-                                for (const row of camelRows) {
-                                    const modId = row.moduleId || row.module_id;
-                                    const rowId = row.id || '';
-                                    if (modId === 'exam_units' || rowId.includes('exam_units')) {
-                                        const rawData = row.data || row.settings || row.stateData || row.state_data;
-                                        if (Array.isArray(rawData)) {
-                                            remoteExams.push(...rawData);
-                                        } else if (rawData && Array.isArray(rawData.exams)) {
-                                            remoteExams.push(...rawData.exams);
-                                        } else if (rawData && typeof rawData === 'object' && rawData.id) {
-                                            remoteExams.push(rawData);
-                                        }
-                                    } else if (modId === 'exam_unit' || rowId.includes('_exam_unit_')) {
-                                        const rawData = row.data || row.settings || row.stateData || row;
-                                        if (rawData && rawData.id) {
-                                            remoteExams.push(rawData);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] API records fetch for exam_units failed:', e);
                     }
                 }
 
@@ -1812,62 +1830,17 @@ export const apiService = {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
                 let remoteStore: Record<string, any> = {};
 
-                if (_supabase) {
-                    try {
-                        let query = _supabase.from('institution_module_states').select('*');
-                        if (institutionId && institutionId !== 'ALL') {
-                            query = query.eq('institution_id', institutionId);
-                        }
-                        const { data: imsData, error: imsErr } = await query;
-                        if (!imsErr && imsData && imsData.length > 0) {
-                            const camelRows = toCamelCase(imsData);
-                            const match = camelRows.find((r: any) => 
-                                r.id === `ims_exam_broadsheets_${targetInstId}` ||
-                                r.id === `broadsheets_${targetInstId}` ||
-                                r.moduleId === 'exam_broadsheets' ||
-                                r.module_id === 'exam_broadsheets'
-                            );
-                            const storeData = match?.settings || match?.stateData || match?.data;
-                            if (storeData && typeof storeData === 'object') {
-                                remoteStore = storeData;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] Supabase fetch for exam_broadsheets failed:', e);
-                    }
-                }
-
-                if (Object.keys(remoteStore).length === 0) {
-                    try {
-                        let token = await apiService.getAuthToken();
-                        const url = new URL(`${window.location.origin}/api/records`);
-                        url.searchParams.append('module', 'institution_module_states');
-                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
-                        const response = await fetch(url.toString(), {
-                            headers: {
-                                'Authorization': token ? `Bearer ${token}` : '',
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        if (response.ok) {
-                            const resJson = await response.json();
-                            const fetched = resJson.data || resJson || [];
-                            if (Array.isArray(fetched) && fetched.length > 0) {
-                                const camelRows = toCamelCase(fetched);
-                                const match = camelRows.find((r: any) => 
-                                    r.id === `ims_exam_broadsheets_${targetInstId}` ||
-                                    r.id === `broadsheets_${targetInstId}` ||
-                                    r.moduleId === 'exam_broadsheets' ||
-                                    r.module_id === 'exam_broadsheets'
-                                );
-                                const storeData = match?.settings || match?.stateData || match?.data;
-                                if (storeData && typeof storeData === 'object') {
-                                    remoteStore = storeData;
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] API fetch for exam_broadsheets failed:', e);
+                const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
+                if (Array.isArray(imsRows) && imsRows.length > 0) {
+                    const match = imsRows.find((r: any) => 
+                        r.id === `ims_exam_broadsheets_${targetInstId}` ||
+                        r.id === `broadsheets_${targetInstId}` ||
+                        r.moduleId === 'exam_broadsheets' ||
+                        r.module_id === 'exam_broadsheets'
+                    );
+                    const storeData = match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object') {
+                        remoteStore = storeData;
                     }
                 }
 
@@ -1890,64 +1863,18 @@ export const apiService = {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
                 let remoteStore: Record<string, string[]> = {};
 
-                if (_supabase) {
-                    try {
-                        let query = _supabase.from('institution_module_states').select('*');
-                        if (institutionId && institutionId !== 'ALL') {
-                            query = query.eq('institution_id', institutionId);
-                        }
-                        const { data: imsData, error: imsErr } = await query;
-                        if (!imsErr && imsData && imsData.length > 0) {
-                            const camelRows = toCamelCase(imsData);
-                            const match = camelRows.find((r: any) => 
-                                r.id === `ims_class_subject_allocations_${targetInstId}` ||
-                                r.id === `alloc_${targetInstId}` ||
-                                (r.id && r.id.includes('class_subject_allocations')) ||
-                                r.moduleId === 'class_subject_allocations' ||
-                                r.module_id === 'class_subject_allocations'
-                            );
-                            const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
-                            if (storeData && typeof storeData === 'object' && !Array.isArray(storeData)) {
-                                remoteStore = storeData;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] Supabase fetch for class_subject_allocations failed:', e);
-                    }
-                }
-
-                if (Object.keys(remoteStore).length === 0) {
-                    try {
-                        let token = await apiService.getAuthToken();
-                        const url = new URL(`${window.location.origin}/api/records`);
-                        url.searchParams.append('module', 'institution_module_states');
-                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
-                        const response = await fetch(url.toString(), {
-                            headers: {
-                                'Authorization': token ? `Bearer ${token}` : '',
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        if (response.ok) {
-                            const resJson = await response.json();
-                            const fetched = resJson.data || resJson || [];
-                            if (Array.isArray(fetched) && fetched.length > 0) {
-                                const camelRows = toCamelCase(fetched);
-                                const match = camelRows.find((r: any) => 
-                                    r.id === `ims_class_subject_allocations_${targetInstId}` ||
-                                    r.id === `alloc_${targetInstId}` ||
-                                    (r.id && r.id.includes('class_subject_allocations')) ||
-                                    r.moduleId === 'class_subject_allocations' ||
-                                    r.module_id === 'class_subject_allocations'
-                                );
-                                const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
-                                if (storeData && typeof storeData === 'object' && !Array.isArray(storeData)) {
-                                    remoteStore = storeData;
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] API fetch for class_subject_allocations failed:', e);
+                const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
+                if (Array.isArray(imsRows) && imsRows.length > 0) {
+                    const match = imsRows.find((r: any) => 
+                        r.id === `ims_class_subject_allocations_${targetInstId}` ||
+                        r.id === `alloc_${targetInstId}` ||
+                        (r.id && r.id.includes('class_subject_allocations')) ||
+                        r.moduleId === 'class_subject_allocations' ||
+                        r.module_id === 'class_subject_allocations'
+                    );
+                    const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
+                    if (storeData && typeof storeData === 'object' && !Array.isArray(storeData)) {
+                        remoteStore = storeData;
                     }
                 }
 
@@ -1970,62 +1897,17 @@ export const apiService = {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
                 let remoteAllocs: any[] = [];
 
-                if (_supabase) {
-                    try {
-                        let query = _supabase.from('institution_module_states').select('*');
-                        if (institutionId && institutionId !== 'ALL') {
-                            query = query.eq('institution_id', institutionId);
-                        }
-                        const { data: imsData, error: imsErr } = await query;
-                        if (!imsErr && imsData && imsData.length > 0) {
-                            const camelRows = toCamelCase(imsData);
-                            const match = camelRows.find((r: any) => 
-                                r.id === `ims_subject_allocations_${targetInstId}` ||
-                                (r.id && r.id.includes('subject_allocations')) ||
-                                r.moduleId === 'subject_allocations' ||
-                                r.module_id === 'subject_allocations'
-                            );
-                            const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
-                            if (Array.isArray(storeData)) {
-                                remoteAllocs = storeData;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] Supabase fetch for subject_allocations failed:', e);
-                    }
-                }
-
-                if (remoteAllocs.length === 0) {
-                    try {
-                        let token = await apiService.getAuthToken();
-                        const url = new URL(`${window.location.origin}/api/records`);
-                        url.searchParams.append('module', 'institution_module_states');
-                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
-                        const response = await fetch(url.toString(), {
-                            headers: {
-                                'Authorization': token ? `Bearer ${token}` : '',
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        if (response.ok) {
-                            const resJson = await response.json();
-                            const fetched = resJson.data || resJson || [];
-                            if (Array.isArray(fetched) && fetched.length > 0) {
-                                const camelRows = toCamelCase(fetched);
-                                const match = camelRows.find((r: any) => 
-                                    r.id === `ims_subject_allocations_${targetInstId}` ||
-                                    (r.id && r.id.includes('subject_allocations')) ||
-                                    r.moduleId === 'subject_allocations' ||
-                                    r.module_id === 'subject_allocations'
-                                );
-                                const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
-                                if (Array.isArray(storeData)) {
-                                    remoteAllocs = storeData;
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] API fetch for subject_allocations failed:', e);
+                const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
+                if (Array.isArray(imsRows) && imsRows.length > 0) {
+                    const match = imsRows.find((r: any) => 
+                        r.id === `ims_subject_allocations_${targetInstId}` ||
+                        (r.id && r.id.includes('subject_allocations')) ||
+                        r.moduleId === 'subject_allocations' ||
+                        r.module_id === 'subject_allocations'
+                    );
+                    const storeData = match?.data?.allocations || match?.settings?.allocations || match?.allocations || match?.settings || match?.stateData || match?.data;
+                    if (Array.isArray(storeData)) {
+                        remoteAllocs = storeData;
                     }
                 }
 
@@ -2063,54 +1945,7 @@ export const apiService = {
             }
 
             if (module === 'institution_module_states') {
-                let remoteRecords: any[] = [];
-                if (_supabase) {
-                    try {
-                        let query = _supabase.from('institution_module_states').select('*');
-                        if (institutionId && institutionId !== 'ALL') {
-                            query = query.eq('institution_id', institutionId);
-                        }
-                        const { data: imsData, error: imsErr } = await query;
-                        if (!imsErr && imsData && imsData.length > 0) {
-                            remoteRecords = toCamelCase(imsData);
-                        }
-                    } catch (e) {
-                        console.warn('[apiService] Supabase fetch for institution_module_states failed:', e);
-                    }
-                }
-
-                // If remoteRecords is empty, try API records endpoint
-                if (remoteRecords.length === 0) {
-                    try {
-                        let token = await apiService.getAuthToken();
-                        const url = new URL(`${window.location.origin}/api/records`);
-                        url.searchParams.append('module', 'institution_module_states');
-                        if (institutionId && institutionId !== 'ALL') url.searchParams.append('institutionId', institutionId);
-                        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-                        const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
-                        const response = await fetch(url.toString(), {
-                            signal: controller ? controller.signal : undefined,
-                            headers: {
-                                'Authorization': token ? `Bearer ${token}` : '',
-                                'Content-Type': 'application/json'
-                            }
-                        }).finally(() => { if (timeoutId) clearTimeout(timeoutId); });
-                        if (response.ok) {
-                            const resJson = await response.json();
-                            const fetched = resJson.data || resJson || [];
-                            if (Array.isArray(fetched) && fetched.length > 0) {
-                                remoteRecords = toCamelCase(fetched);
-                            }
-                        }
-                    } catch (e: any) {
-                        const isNetwork = String(e?.message || '').toLowerCase().includes('network') || 
-                                          String(e?.message || '').toLowerCase().includes('fetch') ||
-                                          e?.name === 'AbortError';
-                        if (!isNetwork) {
-                            console.warn('[apiService] API records fetch for institution_module_states:', e?.message || e);
-                        }
-                    }
-                }
+                const remoteRecords = await apiService.getSharedInstitutionModuleStates(institutionId);
 
                 // Always merge localDb records as fallback, with REMOTE records taking priority over local records!
                 const localRecords = (ls.get('institution_module_states') || []) as any[];
@@ -7726,6 +7561,62 @@ export const apiService = {
             console.info(`[apiService] ✅ All finance records cached locally for uninterrupted offline operations.`);
         } catch (e) {
             console.warn('[apiService] Finance prefetch notice:', e);
+        }
+    },
+
+    async prefetchAcademicRecords(institutionId?: string): Promise<void> {
+        if (!institutionId || institutionId === 'ALL') {
+            const session = apiService.getSession();
+            institutionId = session?.institutionId;
+        }
+        if (!institutionId) return;
+
+        // Skip prefetch if client is offline or fetched within last 2 minutes
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        const lastPrefetchKey = `eduai_last_academic_prefetch_${institutionId}`;
+        const lastTime = parseInt(safeLocalStorage.getItem(lastPrefetchKey) || '0', 10);
+        if (Date.now() - lastTime < 120000) return;
+
+        console.info(`[apiService] 🚀 Prefetching all academic records for high-speed instant switching (Inst: ${institutionId})...`);
+
+        try {
+            // First flush any pending offline writes
+            await apiService.flushOfflineSyncQueue().catch(() => {});
+
+            // Batch 1: Core academic structures & configuration
+            await Promise.allSettled([
+                apiService.fetchModuleRecords('academic_years', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('semesters', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('departments', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('academic_levels', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('courses', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('subjects', institutionId).catch(() => [])
+            ]);
+
+            // Batch 2: Timetable settings, rooms, buildings, and allocations
+            await Promise.allSettled([
+                apiService.fetchModuleRecords('rooms', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('buildings', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('timetable_settings', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('exam_timetable_settings', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('allocations', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('exam_timetable_entries', institutionId).catch(() => [])
+            ]);
+
+            // Batch 3: Shared IMS state & Exams (runs single-flight deduplicated)
+            await Promise.allSettled([
+                apiService.getSharedInstitutionModuleStates(institutionId).catch(() => []),
+                apiService.fetchModuleRecords('exam_units', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('exam_broadsheets', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('assessments', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('assessment_marks', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('student_attendances', institutionId).catch(() => [])
+            ]);
+
+            safeLocalStorage.setItem(lastPrefetchKey, Date.now().toString());
+            console.info(`[apiService] ✅ All academic records cached locally for maximum UI speed.`);
+        } catch (e) {
+            console.warn('[apiService] Academic prefetch notice:', e);
         }
     }
 };

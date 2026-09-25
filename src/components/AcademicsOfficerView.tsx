@@ -7,9 +7,7 @@ import { isSuperAdminUser } from '../types';
 import { generateExamTimetable } from '../services/geminiService';
 import { generateExamTimetablePdf } from '../services/pdfService';
 import { apiService } from '../services/apiService';
-import { StudentPromotionWizard } from './Academics/StudentPromotionWizard';
 import { ExamTimetableGrid } from './ExamTimetableGrid';
-import { SettingsManager } from './SettingsManager';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { Cog8ToothIcon } from './icons/Cog8ToothIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
@@ -27,35 +25,78 @@ import { UserPlusIcon } from './icons/UserPlusIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { HomeIcon } from './icons/HomeIcon';
 import { WrenchIcon } from './icons/WrenchIcon';
-
+import { AcademicCapIcon } from './icons/AcademicCapIcon';
 import { generateStandardExamTimetable } from '../utils/examUtils';
-import { TimetableWizard } from './TimetableWizard';
-import { ExamInsights } from './Academics/ExamInsights';
-import { AcademicReportsHub } from './Academics/AcademicReportsHub';
-import { BulkImportWizard } from './BulkImportWizard';
-import { DisciplineManager } from './Academics/DisciplineManager';
-// Lazy-load heavy components so they parse asynchronously and do not block tab switching
+
+// Branded loading fallback for asynchronously loaded academic sub-modules
+const AcademicTabLoader: React.FC<{ label?: string }> = ({ label = 'Loading Academic Module...' }) => (
+    <div className="flex flex-col items-center justify-center p-12 min-h-[360px] space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-500 dark:text-slate-400 font-semibold tracking-wide animate-pulse">{label}</p>
+    </div>
+);
+
+// Lazy-load heavy components so they parse asynchronously without blocking initial load or tab switching
 const ExamUnitsManager = React.lazy(() =>
     import('./Academics/ExamUnitsManager').then(m => ({ default: m.ExamUnitsManager }))
 );
 const StudentEnrollmentManager = React.lazy(() =>
     import('./common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager }))
 );
-import { RectangleStackIcon } from './icons/RectangleStackIcon';
-import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
-import { Futuristic3DExamAnalyticsDashboard } from './Academics/Futuristic3DExamAnalyticsDashboard';
-import { AdvancedAttendanceManager } from './Academics/AdvancedAttendanceManager';
-import { TimetableManagerModule } from './Academics/TimetableManagerModule';
-import { CbeStrandRubricManager } from './Academics/CbeStrandRubricManager';
-import { CbeCoreCompetenciesManager } from './Academics/CbeCoreCompetenciesManager';
-import { CbePortfolioVaultManager } from './Academics/CbePortfolioVaultManager';
-import { LessonsAllocationManager } from './Academics/LessonsAllocationManager';
-import { RevisionMarketplaceManager } from './Academics/RevisionMarketplaceManager';
-import { StudentSubscriptionPlanManager } from './common/StudentSubscriptionPlanManager';
-import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
-import { LeavingCertificateManager } from './Academics/LeavingCertificateManager';
-import { MontessoriAssessmentManager } from './Academics/MontessoriAssessmentManager';
-import { AcademicCapIcon } from './icons/AcademicCapIcon';
+const Futuristic3DExamAnalyticsDashboard = React.lazy(() =>
+    import('./Academics/Futuristic3DExamAnalyticsDashboard').then(m => ({ default: m.Futuristic3DExamAnalyticsDashboard }))
+);
+const AcademicReportsHub = React.lazy(() =>
+    import('./Academics/AcademicReportsHub').then(m => ({ default: m.AcademicReportsHub }))
+);
+const TimetableManagerModule = React.lazy(() =>
+    import('./Academics/TimetableManagerModule').then(m => ({ default: m.TimetableManagerModule }))
+);
+const CbeStrandRubricManager = React.lazy(() =>
+    import('./Academics/CbeStrandRubricManager').then(m => ({ default: m.CbeStrandRubricManager }))
+);
+const CbeCoreCompetenciesManager = React.lazy(() =>
+    import('./Academics/CbeCoreCompetenciesManager').then(m => ({ default: m.CbeCoreCompetenciesManager }))
+);
+const CbePortfolioVaultManager = React.lazy(() =>
+    import('./Academics/CbePortfolioVaultManager').then(m => ({ default: m.CbePortfolioVaultManager }))
+);
+const MontessoriAssessmentManager = React.lazy(() =>
+    import('./Academics/MontessoriAssessmentManager').then(m => ({ default: m.MontessoriAssessmentManager }))
+);
+const AdvancedAttendanceManager = React.lazy(() =>
+    import('./Academics/AdvancedAttendanceManager').then(m => ({ default: m.AdvancedAttendanceManager }))
+);
+const LessonsAllocationManager = React.lazy(() =>
+    import('./Academics/LessonsAllocationManager').then(m => ({ default: m.LessonsAllocationManager }))
+);
+const TeacherLessonPlanManager = React.lazy(() =>
+    import('./Academics/TeacherLessonPlanManager').then(m => ({ default: m.TeacherLessonPlanManager }))
+);
+const RevisionMarketplaceManager = React.lazy(() =>
+    import('./Academics/RevisionMarketplaceManager').then(m => ({ default: m.RevisionMarketplaceManager }))
+);
+const LeavingCertificateManager = React.lazy(() =>
+    import('./Academics/LeavingCertificateManager').then(m => ({ default: m.LeavingCertificateManager }))
+);
+const StudentSubscriptionPlanManager = React.lazy(() =>
+    import('./common/StudentSubscriptionPlanManager').then(m => ({ default: m.StudentSubscriptionPlanManager }))
+);
+const ExamInsights = React.lazy(() =>
+    import('./Academics/ExamInsights').then(m => ({ default: m.ExamInsights }))
+);
+const DisciplineManager = React.lazy(() =>
+    import('./Academics/DisciplineManager').then(m => ({ default: m.DisciplineManager }))
+);
+const SettingsManager = React.lazy(() =>
+    import('./SettingsManager').then(m => ({ default: m.SettingsManager }))
+);
+const TimetableWizard = React.lazy(() =>
+    import('./TimetableWizard').then(m => ({ default: m.TimetableWizard }))
+);
+const StudentPromotionWizard = React.lazy(() =>
+    import('./Academics/StudentPromotionWizard').then(m => ({ default: m.StudentPromotionWizard }))
+);
 
 interface AcademicsOfficerViewProps {
     currentUser?: User;
@@ -216,40 +257,10 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
         return () => clearTimeout(timer);
     }, [activeTab]);
 
-    // Pre-warm exam units & broadsheets into localStorage as soon as Academics view loads
+    // Pre-warm academic records using the debounced background prefetcher
     useEffect(() => {
         if (!currentInstitution?.id) return;
-        const instId = currentInstitution.id;
-        apiService.fetchModuleRecords<any>('exam_units', instId).then((records: any) => {
-            if (records && Array.isArray(records) && records.length > 0) {
-                const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
-                const clean = records.filter(r => r && r.id && !dummyIds.has(r.id));
-                try {
-                    localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(clean));
-                } catch (e) {}
-            }
-        }).catch(() => {});
-
-        apiService.fetchModuleRecords<any>('institution_module_states', instId).then((records: any) => {
-            const match = (records || []).find((r: any) =>
-                r.id === `ims_exam_broadsheets_${instId}` ||
-                r.id === `broadsheets_${instId}` ||
-                r.module_id === 'exam_broadsheets' ||
-                r.moduleId === 'exam_broadsheets' ||
-                r.moduleName === 'exam_broadsheets'
-            );
-            const storeData = match?.settings || match?.stateData || match?.data;
-            if (storeData && typeof storeData === 'object') {
-                try {
-                    localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(storeData));
-                    Object.entries(storeData).forEach(([eId, rows]) => {
-                        if (Array.isArray(rows) && rows.length > 0) {
-                            localStorage.setItem(`eduai_exam_broadsheet_${eId}`, JSON.stringify(rows));
-                        }
-                    });
-                } catch (e) {}
-            }
-        }).catch(() => {});
+        apiService.prefetchAcademicRecords(currentInstitution.id).catch(() => {});
     }, [currentInstitution?.id]);
     const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace' | 'leaving_certificates'>('lesson_plans');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio' | 'montessori'>('summative');
@@ -264,29 +275,51 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isPromotionWizardOpen, setIsPromotionWizardOpen] = useState(false);
 
+    // O(1) Indexed Maps to eliminate expensive array scans across renders
+    const subjectsMap = useMemo(() => {
+        const map = new Map<string, Subject>();
+        (subjects || []).forEach(s => { if (s && s.id) map.set(s.id, s); });
+        return map;
+    }, [subjects]);
+
+    const usersMap = useMemo(() => {
+        const map = new Map<string, User>();
+        (users || []).forEach(u => { if (u && u.id) map.set(u.id, u); });
+        return map;
+    }, [users]);
+
+    const roomsMap = useMemo(() => {
+        const map = new Map<string, Room>();
+        (rooms || []).forEach(r => { if (r && r.id) map.set(r.id, r); });
+        return map;
+    }, [rooms]);
+
+    const students = useMemo(() => (users || []).filter(u => u && u.role === 'student'), [users]);
+    const teachers = useMemo(() => (users || []).filter(u => u && (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u)), [users]);
+
     const safeGetSubjectById = useCallback((id: string) => {
         if (typeof getSubjectById === 'function') {
             const found = getSubjectById(id);
             if (found) return found;
         }
-        return (subjects || []).find(s => s && s.id === id);
-    }, [getSubjectById, subjects]);
+        return subjectsMap.get(id);
+    }, [getSubjectById, subjectsMap]);
 
     const safeGetLecturerById = useCallback((id: string) => {
         if (typeof getLecturerById === 'function') {
             const found = getLecturerById(id);
             if (found) return found;
         }
-        return (users || []).find(u => u && u.id === id);
-    }, [getLecturerById, users]);
+        return usersMap.get(id);
+    }, [getLecturerById, usersMap]);
 
     const safeGetRoomById = useCallback((id: string) => {
         if (typeof getRoomById === 'function') {
             const found = getRoomById(id);
             if (found) return found;
         }
-        return (rooms || []).find(r => r && r.id === id);
-    }, [getRoomById, rooms]);
+        return roomsMap.get(id);
+    }, [getRoomById, roomsMap]);
 
     const canGenerate = useMemo(() => {
         return activeAcademicYear && activeSemester && (activeSemester.sessions || []).some(s => (s.examPeriods || []).length > 0);
@@ -477,15 +510,17 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 {activeTab === 'home' && (
                 <div className="space-y-6">
                     {/* 3D Futuristic Graphical Analysis & Exam Performance Dashboard */}
-                    <Futuristic3DExamAnalyticsDashboard
-                        assessments={assessments}
-                        marks={marks}
-                        students={users ? users.filter(u => u.role === 'student') : []}
-                        subjects={subjects}
-                        courses={courses}
-                        currentInstitution={currentInstitution}
-                        onNavigateToReports={() => setActiveTab('reports')}
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Analytics Dashboard..." />}>
+                        <Futuristic3DExamAnalyticsDashboard
+                            assessments={assessments}
+                            marks={marks}
+                            students={students}
+                            subjects={subjects}
+                            courses={courses}
+                            currentInstitution={currentInstitution}
+                            onNavigateToReports={() => setActiveTab('reports')}
+                        />
+                    </Suspense>
 
                     {/* ACADEMICS PORTAL HUB - EASY SWITCHER */}
                     <section className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl border border-indigo-900/50 space-y-6">
@@ -673,26 +708,28 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {activeTab === 'timetable' && (
                 <div className="space-y-6 animate-fade-in w-full">
-                    <TimetableManagerModule
-                        entries={filteredExamTimetable}
-                        getSubjectById={safeGetSubjectById}
-                        getLecturerById={safeGetLecturerById}
-                        getRoomById={safeGetRoomById}
-                        buildings={props.buildings || []}
-                        courses={courses}
-                        departments={departments || []}
-                        currentInstitution={currentInstitution}
-                        activeAcademicYear={activeAcademicYear}
-                        activeSemester={activeSemester}
-                        generationMode={generationMode}
-                        setGenerationMode={setGenerationMode}
-                        isLoading={isLoading}
-                        isGeneratingPdf={isGeneratingPdf}
-                        error={error}
-                        onGenerate={handleGenerate}
-                        onDownloadPdf={handleDownloadPdf}
-                        onOpenWizard={() => setIsWizardOpen(true)}
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Timetable Manager..." />}>
+                        <TimetableManagerModule
+                            entries={filteredExamTimetable}
+                            getSubjectById={safeGetSubjectById}
+                            getLecturerById={safeGetLecturerById}
+                            getRoomById={safeGetRoomById}
+                            buildings={props.buildings || []}
+                            courses={courses}
+                            departments={departments || []}
+                            currentInstitution={currentInstitution}
+                            activeAcademicYear={activeAcademicYear}
+                            activeSemester={activeSemester}
+                            generationMode={generationMode}
+                            setGenerationMode={setGenerationMode}
+                            isLoading={isLoading}
+                            isGeneratingPdf={isGeneratingPdf}
+                            error={error}
+                            onGenerate={handleGenerate}
+                            onDownloadPdf={handleDownloadPdf}
+                            onOpenWizard={() => setIsWizardOpen(true)}
+                        />
+                    </Suspense>
                 </div>
             )}
 
@@ -755,17 +792,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     </div>
 
                     {examViewSubTab === 'summative' ? (
-                        <Suspense fallback={
-                            <div className="flex flex-col items-center justify-center py-24 gap-4">
-                                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">Loading Exam Engine...</p>
-                            </div>
-                        }>
+                        <Suspense fallback={<AcademicTabLoader label="Loading Summative Exam Engine..." />}>
                             <ExamUnitsManager
                                 currentInstitution={currentInstitution}
                                 subjects={subjects}
                                 users={users}
-                                students={users ? users.filter(u => u.role === 'student') : []}
+                                students={students}
                                 assessments={assessments}
                                 marks={marks}
                                 courses={courses}
@@ -775,70 +807,75 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             />
                         </Suspense>
                     ) : examViewSubTab === 'cbe_strands' ? (
-                        <CbeStrandRubricManager
-                            currentInstitution={currentInstitution}
-                            subjects={subjects}
-                            users={users}
-                            courses={courses}
-                            academicLevels={academicLevels}
-                            currentUser={currentUser}
-                            onLogAction={onLogAction}
-                        />
+                        <Suspense fallback={<AcademicTabLoader label="Loading CBE Strands & Rubrics..." />}>
+                            <CbeStrandRubricManager
+                                currentInstitution={currentInstitution}
+                                subjects={subjects}
+                                users={users}
+                                courses={courses}
+                                academicLevels={academicLevels}
+                                currentUser={currentUser}
+                                onLogAction={onLogAction}
+                            />
+                        </Suspense>
                     ) : examViewSubTab === 'cbe_competencies' ? (
-                        <CbeCoreCompetenciesManager
-                            currentInstitution={currentInstitution}
-                            users={users}
-                            courses={courses}
-                            academicLevels={academicLevels}
-                            currentUser={currentUser}
-                            onLogAction={onLogAction}
-                        />
+                        <Suspense fallback={<AcademicTabLoader label="Loading Core Competencies HUD..." />}>
+                            <CbeCoreCompetenciesManager
+                                currentInstitution={currentInstitution}
+                                users={users}
+                                courses={courses}
+                                academicLevels={academicLevels}
+                                currentUser={currentUser}
+                                onLogAction={onLogAction}
+                            />
+                        </Suspense>
                     ) : examViewSubTab === 'montessori' ? (
-                        <MontessoriAssessmentManager
-                            currentInstitution={currentInstitution}
-                            users={users}
-                            courses={courses}
-                            academicLevels={academicLevels}
-                            currentUser={currentUser}
-                            onLogAction={onLogAction}
-                        />
+                        <Suspense fallback={<AcademicTabLoader label="Loading Montessori Assessment Engine..." />}>
+                            <MontessoriAssessmentManager
+                                currentInstitution={currentInstitution}
+                                users={users}
+                                courses={courses}
+                                academicLevels={academicLevels}
+                                currentUser={currentUser}
+                                onLogAction={onLogAction}
+                            />
+                        </Suspense>
                     ) : (
-                        <CbePortfolioVaultManager
-                            currentInstitution={currentInstitution}
-                            subjects={subjects}
-                            users={users}
-                            courses={courses}
-                            academicLevels={academicLevels}
-                            currentUser={currentUser}
-                            onLogAction={onLogAction}
-                        />
+                        <Suspense fallback={<AcademicTabLoader label="Loading Learner CBE Portfolio Vault..." />}>
+                            <CbePortfolioVaultManager
+                                currentInstitution={currentInstitution}
+                                subjects={subjects}
+                                users={users}
+                                courses={courses}
+                                academicLevels={academicLevels}
+                                currentUser={currentUser}
+                                onLogAction={onLogAction}
+                            />
+                        </Suspense>
                     )}
                 </div>
             )}
 
             {activeTab === 'attendance' && (
                 <div className="space-y-6 animate-fade-in w-full">
-                    <AdvancedAttendanceManager
-                        users={users}
-                        students={users ? users.filter(u => u.role === 'student') : []}
-                        currentInstitution={currentInstitution}
-                        activeAcademicYear={activeAcademicYear}
-                        activeSemester={activeSemester}
-                        studentAttendances={props.studentAttendances}
-                        onSaveAttendance={props.onSaveAttendance as any}
-                        onLogAction={onLogAction}
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Advanced Attendance Engine..." />}>
+                        <AdvancedAttendanceManager
+                            users={users}
+                            students={students}
+                            currentInstitution={currentInstitution}
+                            activeAcademicYear={activeAcademicYear}
+                            activeSemester={activeSemester}
+                            studentAttendances={props.studentAttendances}
+                            onSaveAttendance={props.onSaveAttendance as any}
+                            onLogAction={onLogAction}
+                        />
+                    </Suspense>
                 </div>
             )}
 
             {(activeTab === 'students' || activeTab === 'teachers') && (
                 <div className="animate-fade-in space-y-6">
-                    <Suspense fallback={
-                        <div className="flex flex-col items-center justify-center p-12 min-h-[400px] space-y-4">
-                            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                            <p className="text-slate-500 font-semibold tracking-wide animate-pulse">Loading Students Registry...</p>
-                        </div>
-                    }>
+                    <Suspense fallback={<AcademicTabLoader label="Loading Students Registry..." />}>
                         <StudentEnrollmentManager
                             context="academic"
                             currentInstitution={currentInstitution!}
@@ -856,12 +893,14 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {activeTab === 'lessons' && (
                 <div className="animate-fade-in space-y-6 w-full">
-                    <LessonsAllocationManager
-                        currentInstitution={currentInstitution!}
-                        users={users}
-                        subjects={subjects}
-                        courses={courses}
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Lessons Allocation Engine..." />}>
+                        <LessonsAllocationManager
+                            currentInstitution={currentInstitution!}
+                            users={users}
+                            subjects={subjects}
+                            courses={courses}
+                        />
+                    </Suspense>
                 </div>
             )}
 
@@ -935,36 +974,42 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                     {/* Subtab 1: Lesson Plans & Schemes */}
                     {(activeTab === 'lesson_plans' || (activeTab === 'tools' && toolsSubTab === 'lesson_plans')) && (
                         <div className="animate-fade-in space-y-6 w-full">
-                            <TeacherLessonPlanManager
-                                currentInstitution={currentInstitution}
-                                currentUser={currentUser}
-                                subjects={subjects}
-                                courses={courses}
-                            />
+                            <Suspense fallback={<AcademicTabLoader label="Loading Lesson Plans & Schemes..." />}>
+                                <TeacherLessonPlanManager
+                                    currentInstitution={currentInstitution}
+                                    currentUser={currentUser}
+                                    subjects={subjects}
+                                    courses={courses}
+                                />
+                            </Suspense>
                         </div>
                     )}
 
                     {/* Subtab 2: AI Revision Generator */}
                     {(activeTab === 'revision_marketplace' || (activeTab === 'tools' && toolsSubTab === 'revision_marketplace')) && (
                         <div className="animate-fade-in space-y-6 w-full">
-                            <RevisionMarketplaceManager
-                                currentInstitution={currentInstitution}
-                                currentUser={currentUser}
-                                subjects={subjects}
-                            />
+                            <Suspense fallback={<AcademicTabLoader label="Loading AI Revision Generator..." />}>
+                                <RevisionMarketplaceManager
+                                    currentInstitution={currentInstitution}
+                                    currentUser={currentUser}
+                                    subjects={subjects}
+                                />
+                            </Suspense>
                         </div>
                     )}
 
                     {/* Subtab 3: School Leaving Certificates */}
                     {(activeTab === 'tools' && toolsSubTab === 'leaving_certificates') && (
                         <div className="animate-fade-in space-y-6 w-full">
-                            <LeavingCertificateManager
-                                currentInstitution={currentInstitution}
-                                currentUser={currentUser}
-                                users={users}
-                                courses={courses}
-                                letterheadConfig={letterheadConfig}
-                            />
+                            <Suspense fallback={<AcademicTabLoader label="Loading Leaving Certificates Manager..." />}>
+                                <LeavingCertificateManager
+                                    currentInstitution={currentInstitution}
+                                    currentUser={currentUser}
+                                    users={users}
+                                    courses={courses}
+                                    letterheadConfig={letterheadConfig}
+                                />
+                            </Suspense>
                         </div>
                     )}
                 </div>
@@ -972,13 +1017,15 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {activeTab === 'student_subscriptions' && (
                 <div className="animate-fade-in space-y-6 w-full">
-                    <StudentSubscriptionPlanManager
-                        currentInstitution={currentInstitution}
-                        currentUser={currentUser}
-                        users={users}
-                        courses={courses}
-                        moduleContext="academics"
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Student Subscriptions..." />}>
+                        <StudentSubscriptionPlanManager
+                            currentInstitution={currentInstitution}
+                            currentUser={currentUser}
+                            users={users}
+                            courses={courses}
+                            moduleContext="academics"
+                        />
+                    </Suspense>
                 </div>
             )}
 
@@ -986,13 +1033,15 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 <div className="space-y-6">
                     <h3 className="text-xl font-black tracking-tighter uppercase mb-2 text-slate-900 dark:text-white">Exam Performance Monitor</h3>
                     {assessments.length > 0 ? (
-                        <ExamInsights 
-                            assessment={assessments[0]} 
-                            marks={marks} 
-                            students={users.filter(u => u.role === 'student')} 
-                            teachers={users.filter(u => u.role !== 'student' && u.role !== 'super_admin')} 
-                            subjects={subjects} 
-                        />
+                        <Suspense fallback={<AcademicTabLoader label="Loading Exam Insights..." />}>
+                            <ExamInsights 
+                                assessment={assessments[0]} 
+                                marks={marks} 
+                                students={students} 
+                                teachers={teachers} 
+                                subjects={subjects} 
+                            />
+                        </Suspense>
                     ) : (
                         <div className="p-12 bg-white rounded-[2.5rem] text-center border-2 border-dashed border-slate-100">
                             <SparklesIcon className="w-12 h-12 text-slate-200 mx-auto mb-4" />
@@ -1004,17 +1053,19 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {activeTab === 'reports' && (
                 <div className="space-y-6">
-                    <AcademicReportsHub 
-                        assessments={assessments} 
-                        marks={marks} 
-                        students={users.filter(u => u.role === 'student')} 
-                        users={users}
-                        subjects={subjects} 
-                        activityLogs={activityLog} 
-                        currentInstitution={currentInstitution}
-                        courses={courses}
-                        academicLevels={academicLevels}
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Academic Reports Hub..." />}>
+                        <AcademicReportsHub 
+                            assessments={assessments} 
+                            marks={marks} 
+                            students={students} 
+                            users={users} 
+                            subjects={subjects} 
+                            activityLogs={activityLog} 
+                            currentInstitution={currentInstitution}
+                            courses={courses}
+                            academicLevels={academicLevels}
+                        />
+                    </Suspense>
                 </div>
             )}
 
@@ -1045,12 +1096,12 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                 <h4 className="font-black text-slate-900 mb-2 uppercase tracking-tighter">Student Population</h4>
-                                <p className="text-3xl font-black text-indigo-600">{users.filter(u => u.role === 'student').length}</p>
+                                <p className="text-3xl font-black text-indigo-600">{students.length}</p>
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Total Enrolled</p>
                             </div>
                             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
                                 <h4 className="font-black text-slate-900 mb-2 uppercase tracking-tighter">Teaching Staff</h4>
-                                <p className="text-3xl font-black text-slate-900">{users.filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u)).length}</p>
+                                <p className="text-3xl font-black text-slate-900">{teachers.length}</p>
                                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Active Faculty</p>
                             </div>
                         </div>
@@ -1060,71 +1111,79 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
             {activeTab === 'discipline' && (
                 <div className="space-y-6">
-                    <DisciplineManager 
-                        incidents={incidents} 
-                        students={users.filter(u => u.role === 'student')} 
-                        onAddIncident={onAddIncident || (async () => {})} 
-                    />
+                    <Suspense fallback={<AcademicTabLoader label="Loading Discipline Manager..." />}>
+                        <DisciplineManager 
+                            incidents={incidents} 
+                            students={students} 
+                            onAddIncident={onAddIncident || (async () => {})} 
+                        />
+                    </Suspense>
                 </div>
             )}
 
             {activeTab === 'settings' && (
-                <SettingsManager
-                    {...props}
-                    departments={props.departments || []}
-                    subjects={props.subjects || []}
-                    buildings={props.buildings || []}
-                    rooms={props.rooms || []}
-                    courses={props.courses || []}
-                    academicYears={props.academicYears || []}
-                    semesters={props.semesters || []}
-                    themeColor={props.themeColor || '#4f46e5'}
-                    timetableSettings={props.timetableSettings || {} as any}
-                    examTimetableSettings={props.examTimetableSettings || {} as any}
-                    users={props.users || []}
-                    currentUser={props.currentUser!}
-                    onAssociateSubjectToCourseLevel={onAssociateSubjectToCourseLevel}
-                    onDisassociateSubjectFromCourseLevel={onDisassociateSubjectFromCourseLevel}
-                    isAcademicsOfficer={true}
-                    isInstitutionalView={true}
-                    allocations={[]}
-                />
+                <Suspense fallback={<AcademicTabLoader label="Loading Academic Settings..." />}>
+                    <SettingsManager
+                        {...props}
+                        departments={props.departments || []}
+                        subjects={props.subjects || []}
+                        buildings={props.buildings || []}
+                        rooms={props.rooms || []}
+                        courses={props.courses || []}
+                        academicYears={props.academicYears || []}
+                        semesters={props.semesters || []}
+                        themeColor={props.themeColor || '#4f46e5'}
+                        timetableSettings={props.timetableSettings || {} as any}
+                        examTimetableSettings={props.examTimetableSettings || {} as any}
+                        users={props.users || []}
+                        currentUser={props.currentUser!}
+                        onAssociateSubjectToCourseLevel={onAssociateSubjectToCourseLevel}
+                        onDisassociateSubjectFromCourseLevel={onDisassociateSubjectFromCourseLevel}
+                        isAcademicsOfficer={true}
+                        isInstitutionalView={true}
+                        allocations={[]}
+                    />
+                </Suspense>
             )}
 
             {isWizardOpen && (
-                <TimetableWizard
-                    onClose={() => setIsWizardOpen(false)}
-                    allocations={(props.allocations || []).filter(r => r.status === 'approved')}
-                    subjects={subjects}
-                    lecturers={users.filter(u => (u.role === 'lecturer' || u.role === 'teacher') && !isSuperAdminUser(u))}
-                    rooms={rooms}
-                    courses={courses}
-                    timetableSettings={timetableSettings || {} as any}
-                    activeAcademicYear={activeAcademicYear || null}
-                    activeSemester={activeSemester || null}
-                    currentInstitution={currentInstitution}
-                    courseSizes={courseSizes}
-                    timeOffRequests={props.timeOffRequests || []}
-                    onTimetableGenerated={props.onTimetableGenerated ? ((entries: any, ay?: any, sem?: any) => (props.onTimetableGenerated as any)(entries, ay, sem)) : (async () => { })}
-                    onLogAction={handleLogAction}
-                />
+                <Suspense fallback={<AcademicTabLoader label="Launching Timetable Wizard..." />}>
+                    <TimetableWizard
+                        onClose={() => setIsWizardOpen(false)}
+                        allocations={(props.allocations || []).filter(r => r.status === 'approved')}
+                        subjects={subjects}
+                        lecturers={teachers}
+                        rooms={rooms}
+                        courses={courses}
+                        timetableSettings={timetableSettings || {} as any}
+                        activeAcademicYear={activeAcademicYear || null}
+                        activeSemester={activeSemester || null}
+                        currentInstitution={currentInstitution}
+                        courseSizes={courseSizes}
+                        timeOffRequests={props.timeOffRequests || []}
+                        onTimetableGenerated={props.onTimetableGenerated ? ((entries: any, ay?: any, sem?: any) => (props.onTimetableGenerated as any)(entries, ay, sem)) : (async () => { })}
+                        onLogAction={handleLogAction}
+                    />
+                </Suspense>
             )}
 
             {isPromotionWizardOpen && (
-                <StudentPromotionWizard
-                    isOpen={isPromotionWizardOpen}
-                    onClose={() => setIsPromotionWizardOpen(false)}
-                    activeAcademicYear={activeAcademicYear || null}
-                    semesters={props.semesters || []}
-                    students={users || []}
-                    courses={courses || []}
-                    institution={currentInstitution || ({ id: 'inst_demo', name: 'School' } as Institution)}
-                    currentUser={(users || [])[0] || ({ id: 'admin', name: 'Admin', role: 'super_admin' } as User)}
-                    onPromotionSuccess={() => {
-                        setIsPromotionWizardOpen(false);
-                        onLogAction?.('Executed batch student promotion & academic year rollover');
-                    }}
-                />
+                <Suspense fallback={<AcademicTabLoader label="Launching Promotion Wizard..." />}>
+                    <StudentPromotionWizard
+                        isOpen={isPromotionWizardOpen}
+                        onClose={() => setIsPromotionWizardOpen(false)}
+                        activeAcademicYear={activeAcademicYear || null}
+                        semesters={props.semesters || []}
+                        students={users || []}
+                        courses={courses || []}
+                        institution={currentInstitution || ({ id: 'inst_demo', name: 'School' } as Institution)}
+                        currentUser={(users || [])[0] || ({ id: 'admin', name: 'Admin', role: 'super_admin' } as User)}
+                        onPromotionSuccess={() => {
+                            setIsPromotionWizardOpen(false);
+                            onLogAction?.('Executed batch student promotion & academic year rollover');
+                        }}
+                    />
+                </Suspense>
             )}
             </div>
 
