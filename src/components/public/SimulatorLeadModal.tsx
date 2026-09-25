@@ -38,7 +38,7 @@ export const SimulatorLeadModal: React.FC<SimulatorLeadModalProps> = ({ onClose,
       });
 
       // Notify Super Admins
-      await apiService.notifySuperAdmins(`New Lead: ${formData.name} phone ${formData.phone} just launched the ${moduleName} simulator.`, 'guest_arrival');
+      await apiService.notifySuperAdmins(`New Lead: ${formData.name} phone ${formData.phone} just launched the ${moduleName} simulator.`, 'lead');
       
       onSuccess(formData.name, formData.phone);
     } catch (error) {

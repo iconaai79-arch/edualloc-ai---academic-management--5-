@@ -133,7 +133,7 @@ export const AiSalesAgentWidget: React.FC<AiSalesAgentWidgetProps> = ({
                 leadContactNotifiedRef.current = true;
                 await apiService.notifySuperAdmins(
                     `🔔 New AI Lead Captured: ${nameToSave} (Phone: ${phoneToSave}) chatting with ${agentName} on ${institution?.name || 'Showcase'}`,
-                    'guest_arrival'
+                    'lead'
                 ).catch(() => {});
             }
         } catch (err) {

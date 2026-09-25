@@ -2642,6 +2642,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
         if (targetHostId) {
             const visitorName = newVisitor.name || 'A visitor';
+            const instId = newVisitor.institutionId || activeInstitution?.id || '';
             const purposeStr = newVisitor.purpose ? ` (${newVisitor.purpose})` : '';
             const notifMsg = `You have a visitor: ${visitorName}${purposeStr} has arrived at the security gate.`;
             const notifMeta = {
@@ -2649,17 +2650,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 visitorName: visitorName,
                 purpose: newVisitor.purpose || '',
                 hostId: targetHostId,
-                hostName: newVisitor.hostName || ''
+                hostName: newVisitor.hostName || '',
+                institutionId: instId
             };
             
             // 1. Create in-app notification record in app_notifications table
-            apiService.createNotification(targetHostId, notifMsg, 'guest_arrival', notifMeta).catch(console.error);
+            apiService.createNotification({
+                userId: targetHostId,
+                institutionId: instId,
+                message: notifMsg,
+                type: 'guest_arrival',
+                metadata: notifMeta
+            }).catch(console.error);
 
             // 2. Optimistically update notification state if assigned user is the current active session
             if (currentUser && currentUser.id === targetHostId) {
                 setNotifications(prev => [{
                     id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     userId: targetHostId,
+                    institutionId: instId,
+                    institution_id: instId,
                     visitorName: visitorName,
                     purpose: newVisitor.purpose,
                     metadata: notifMeta,
@@ -2672,7 +2682,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // 3. Dispatch global custom event for instant cross-tab & reactive badge updates
             window.dispatchEvent(new CustomEvent('app_notification_created', {
-                detail: { userId: targetHostId, message: notifMsg, type: 'guest_arrival', visitorName, metadata: notifMeta }
+                detail: { userId: targetHostId, institutionId: instId, message: notifMsg, type: 'guest_arrival', visitorName, metadata: notifMeta }
             }));
 
             // 4. Dispatch live SMS notification to host phone
@@ -2778,17 +2788,27 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         );
 
         if (hostUser) {
+            const instId = v.institutionId || targetOffice?.institutionId || activeInstitution?.id || '';
             const notifMsg = `You have a visitor: ${v.visitorName} has registered at building security for ${targetOffice?.tenantName || 'your office'}.`;
             const notifMeta = {
                 visitorName: v.visitorName,
                 purpose: targetOffice?.tenantName ? `Visit to ${targetOffice.tenantName}` : 'Office visit',
-                hostId: hostUser.id
+                hostId: hostUser.id,
+                institutionId: instId
             };
-            apiService.createNotification(hostUser.id, notifMsg, 'guest_arrival', notifMeta).catch(console.error);
+            apiService.createNotification({
+                userId: hostUser.id,
+                institutionId: instId,
+                message: notifMsg,
+                type: 'guest_arrival',
+                metadata: notifMeta
+            }).catch(console.error);
             if (currentUser && currentUser.id === hostUser.id) {
                 setNotifications(prev => [{
                     id: `notif_${Date.now()}`,
                     userId: hostUser.id,
+                    institutionId: instId,
+                    institution_id: instId,
                     visitorName: v.visitorName,
                     metadata: notifMeta,
                     message: notifMsg,
@@ -2798,7 +2818,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 }, ...prev]);
             }
             window.dispatchEvent(new CustomEvent('app_notification_created', {
-                detail: { userId: hostUser.id, message: notifMsg, type: 'guest_arrival', visitorName: v.visitorName, metadata: notifMeta }
+                detail: { userId: hostUser.id, institutionId: instId, message: notifMsg, type: 'guest_arrival', visitorName: v.visitorName, metadata: notifMeta }
             }));
         }
 

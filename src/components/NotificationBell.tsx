@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { AppNotification, User } from '../types';
+import type { AppNotification, User, Institution } from '../types';
 import { BellIcon } from './icons/BellIcon';
 import { CheckIcon } from './icons/CheckIcon';
 
@@ -7,6 +7,7 @@ interface NotificationBellProps {
   notifications: AppNotification[];
   onMarkAsRead: (notificationId?: string) => void;
   currentUser?: User | null;
+  currentInstitution?: Institution | null;
   onAcknowledgeVisitorMet?: (notification: AppNotification) => void;
 }
 
@@ -24,6 +25,28 @@ function formatTimeAgo(timestamp: string): string {
     return `${diffInDays}d ago`;
 }
 
+export function isGateVisitorNotification(notification: AppNotification): boolean {
+    if (!notification) return false;
+    const rawType = String(notification.type || '').toLowerCase();
+    const notifMsg = String(notification.message || '');
+    
+    // Explicitly exclude marketing leads, demo requests, simulators, and AI chats
+    if (
+        rawType === 'demo_request' ||
+        rawType === 'lead' ||
+        rawType === 'contact_request' ||
+        notifMsg.toLowerCase().includes('demo request') ||
+        notifMsg.toLowerCase().includes('new lead') ||
+        notifMsg.toLowerCase().includes('simulator') ||
+        notifMsg.toLowerCase().includes('lead captured') ||
+        notifMsg.toLowerCase().includes('chatting with')
+    ) {
+        return false;
+    }
+
+    return rawType === 'guest_arrival' || rawType === 'visitor';
+}
+
 function extractVisitorDetails(notification: AppNotification): { visitorName: string; purpose: string } {
     const meta = (notification as any).metadata || {};
     let visitorName = notification.visitorName || (notification as any).visitor_name || meta.visitorName || meta.name || '';
@@ -36,7 +59,7 @@ function extractVisitorDetails(notification: AppNotification): { visitorName: st
         const match = notification.message.match(/(?:visitor:\s*|guest\s+)([^(\n\r,]+?)(?:\s+is\s+waiting|\s+has\s+arrived|\s+has\s+registered|\s*\(|\s+for|\.|$)/i);
         if (match && match[1]) {
             const candidate = match[1].trim();
-            if (candidate && !candidate.toLowerCase().includes('you have')) {
+            if (candidate && !candidate.toLowerCase().includes('you have') && !candidate.toLowerCase().includes('demo request') && !candidate.toLowerCase().includes('new lead')) {
                 visitorName = candidate;
             }
         }
@@ -55,21 +78,55 @@ function extractVisitorDetails(notification: AppNotification): { visitorName: st
     };
 }
 
-export const NotificationBell: React.FC<NotificationBellProps> = ({ notifications, onMarkAsRead, currentUser, onAcknowledgeVisitorMet }) => {
+export const NotificationBell: React.FC<NotificationBellProps> = ({ 
+    notifications, 
+    onMarkAsRead, 
+    currentUser, 
+    currentInstitution,
+    onAcknowledgeVisitorMet 
+}) => {
     const [isOpen, setIsOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
-    // ── STRICT FILTERING: Only show visitor notifications to the assigned host ──
+    // ── STRICT FILTERING: Only show visitor notifications to the assigned host within the correct tenant ──
     const filteredNotifications = useMemo(() => {
         if (!notifications || !Array.isArray(notifications)) return [];
         const currentUserId = String(currentUser?.id || '').trim();
         const currentUserIdNorm = currentUserId.replace(/^u_/, '').toLowerCase();
+        const isSuperAdmin = currentUser?.role === 'super_admin';
+        const activeInstId = String(currentInstitution?.id || currentUser?.institutionId || '').trim();
+        const isGlobalRootContext = isSuperAdmin && (!activeInstId || activeInstId === 'GLOBAL');
 
         return notifications.filter(notification => {
             if (!notification) return false;
-            const isVisitorNotif = notification.type === 'guest_arrival' || notification.type === 'visitor';
+            const isVisitorNotif = isGateVisitorNotification(notification);
 
-            // Visitor notifications MUST ONLY be visible to the assigned host!
+            // 1. Physical security gate arrivals belong to specific institutions,
+            // never the global platform super admin root / Cyber Command view.
+            if (isVisitorNotif && isGlobalRootContext) {
+                return false;
+            }
+
+            // 2. Tenant isolation: verify institution match if notification is tenant-scoped
+            const notifInstId = String(
+                notification.institutionId || 
+                (notification as any).institution_id || 
+                (notification as any).metadata?.institutionId || 
+                (notification as any).metadata?.institution_id || 
+                ''
+            ).trim();
+
+            if (activeInstId && activeInstId !== 'GLOBAL') {
+                if (notifInstId && notifInstId !== 'GLOBAL' && notifInstId !== activeInstId) {
+                    return false;
+                }
+                // Visitor notifications must belong to the active institution
+                if (isVisitorNotif && notifInstId && notifInstId !== activeInstId) {
+                    return false;
+                }
+            }
+
+            // 3. Visitor notifications MUST ONLY be visible to the assigned host!
             if (isVisitorNotif) {
                 if (!currentUser) return false;
 
@@ -81,14 +138,14 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                     ''
                 ).trim();
 
-                // If no host ID was recorded, do not leak visitor notifications to guards or other staff
+                // If no host ID was recorded, do not leak visitor notifications
                 if (!targetHostId) return false;
 
                 const targetHostIdNorm = targetHostId.replace(/^u_/, '').toLowerCase();
                 return targetHostIdNorm === currentUserIdNorm;
             }
 
-            // For targeted user notifications, ensure they belong to current user
+            // 4. For targeted user notifications, ensure they belong to current user
             const targetUserId = String(notification.userId || (notification as any).user_id || '').trim();
             if (targetUserId && currentUser) {
                 const targetUserIdNorm = targetUserId.replace(/^u_/, '').toLowerCase();
@@ -97,7 +154,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
 
             return true;
         });
-    }, [notifications, currentUser]);
+    }, [notifications, currentUser, currentInstitution]);
 
     const unreadCount = filteredNotifications.filter(n => !n.isRead).length;
     const sortedNotifications = useMemo(() => {
@@ -113,7 +170,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
     };
 
     const handleItemAction = (n: AppNotification) => {
-        const isVisitorNotif = n.type === 'guest_arrival' || n.type === 'visitor';
+        const isVisitorNotif = isGateVisitorNotification(n);
         if (isVisitorNotif && onAcknowledgeVisitorMet) {
             onAcknowledgeVisitorMet(n);
         }
@@ -167,7 +224,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ notification
                         {sortedNotifications.length > 0 ? (
                             <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                                 {sortedNotifications.map(notification => {
-                                    const isVisitorNotif = notification.type === 'guest_arrival' || notification.type === 'visitor';
+                                    const isVisitorNotif = isGateVisitorNotification(notification);
                                     const visitorDetails = isVisitorNotif ? extractVisitorDetails(notification) : null;
 
                                     return (

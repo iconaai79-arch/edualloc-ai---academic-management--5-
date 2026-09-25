@@ -263,6 +263,7 @@ export const Header: React.FC<HeaderProps> = ({
                             notifications={notifications || []} 
                             onMarkAsRead={onMarkAsRead || (() => {})} 
                             currentUser={currentUser} 
+                            currentInstitution={currentInstitution}
                             onAcknowledgeVisitorMet={onAcknowledgeVisitorMet}
                         />
 

@@ -4571,11 +4571,13 @@ export const apiService = {
         }
 
         const currentUser = apiService.getSession();
+        const effectiveInstId = resolvedInstitutionId || resolvedMetadata?.institutionId || resolvedMetadata?.institution_id || currentUser?.institutionId || '';
         const notification: any = {
             id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             userId: resolvedUserId,
             user_id: resolvedUserId,
-            institution_id: resolvedInstitutionId || currentUser?.institutionId || '',
+            institutionId: effectiveInstId,
+            institution_id: effectiveInstId,
             title: resolvedTitle,
             message: resolvedMessage,
             type: resolvedType,
@@ -4607,7 +4609,13 @@ export const apiService = {
         });
         if (admins && admins.length > 0) {
             for (const admin of admins) {
-                await apiService.createNotification(admin.id, message, type);
+                await apiService.createNotification({
+                    userId: admin.id,
+                    institutionId: 'GLOBAL',
+                    message,
+                    type,
+                    title: type === 'demo_request' ? 'Demo Request' : type === 'lead' ? 'New Lead' : 'Platform Alert'
+                });
             }
         }
     },

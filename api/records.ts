@@ -1279,21 +1279,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if (['alumni_posts', 'alumni_comments', 'alumni_notifications'].includes(moduleName)) {
                         // Social feed
                     } else if (!isTableWithoutInstitutionId(moduleName)) {
-                        sqlConditions.push({ sql: `institution_id = $VAL`, val: user.institutionId });
+                        sqlConditions.push({ sql: `institution_id::text = $VAL`, val: user.institutionId });
                     }
                 } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
-                    sqlConditions.push({ sql: `${moduleName === 'institutions' ? 'id' : 'institution_id'} = $VAL`, val: effectiveTenantInstId });
+                    sqlConditions.push({ sql: `"${moduleName === 'institutions' ? 'id' : 'institution_id'}"::text = $VAL`, val: effectiveTenantInstId });
                 }
                 if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
                     const rawUserId = user.id.replace(/^u_/, '');
                     if (user.institutionId) {
                         sqlConditions.push({
-                            sql: `(user_id = $VAL OR user_id = $VAL OR institution_id = $VAL)`,
+                            sql: `(user_id::text = $VAL OR user_id::text = $VAL OR institution_id::text = $VAL)`,
                             vals: [user.id, `u_${rawUserId}`, user.institutionId]
                         });
                     } else {
                         sqlConditions.push({
-                            sql: `(user_id = $VAL OR user_id = $VAL)`,
+                            sql: `(user_id::text = $VAL OR user_id::text = $VAL)`,
                             vals: [user.id, `u_${rawUserId}`]
                         });
                     }
@@ -1304,14 +1304,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
             if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                 if (moduleName === 'branches') {
-                    sqlConditions.push({ sql: `id = $VAL`, val: user.branchId });
+                    sqlConditions.push({ sql: `id::text = $VAL`, val: user.branchId });
                 } else {
-                    sqlConditions.push({ sql: `branch_id = $VAL`, val: user.branchId });
+                    sqlConditions.push({ sql: `branch_id::text = $VAL`, val: user.branchId });
                 }
             }
 
-            if (getStrParam(id)) sqlConditions.push({ sql: `id = $VAL`, val: getStrParam(id) });
-            if (getStrParam(queryCountyId)) sqlConditions.push({ sql: `county_id = $VAL`, val: getStrParam(queryCountyId) });
+            if (getStrParam(id)) sqlConditions.push({ sql: `id::text = $VAL`, val: getStrParam(id) });
+            if (getStrParam(queryCountyId)) sqlConditions.push({ sql: `county_id::text = $VAL`, val: getStrParam(queryCountyId) });
 
             Object.entries(req.query).forEach(([key, value]) => {
                 if (!reservedParams.includes(key) && value) {
@@ -1319,18 +1319,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (strVal && /^[a-zA-Z0-9_]+$/.test(key)) {
                         const lowerKey = key.toLowerCase();
                         if (lowerKey.includes('email')) {
-                            sqlConditions.push({ sql: `"${key}" ILIKE $VAL`, val: strVal.trim() });
+                            sqlConditions.push({ sql: `"${key}"::text ILIKE $VAL`, val: strVal.trim() });
                         } else if (lowerKey.includes('phone') || lowerKey === 'mobile') {
                             const digits = strVal.replace(/\D/g, '');
                             if (digits.length >= 9) {
                                 const last9 = digits.substring(digits.length - 9);
                                 const pattern = '%' + last9.split('').join('%') + '%';
-                                sqlConditions.push({ sql: `"${key}" ILIKE $VAL`, val: pattern });
+                                sqlConditions.push({ sql: `"${key}"::text ILIKE $VAL`, val: pattern });
                             } else {
-                                sqlConditions.push({ sql: `"${key}" = $VAL`, val: strVal });
+                                sqlConditions.push({ sql: `"${key}"::text = $VAL`, val: strVal });
                             }
                         } else {
-                            sqlConditions.push({ sql: `"${key}" = $VAL`, val: strVal });
+                            sqlConditions.push({ sql: `"${key}"::text = $VAL`, val: strVal });
                         }
                     }
                 }
@@ -1506,7 +1506,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isUuidMismatch = error.code === '22P02' || 
                                        error.message?.includes('invalid input syntax for type uuid');
                 if (isUuidMismatch) {
-                    console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID), returning empty list fallback.`);
+                    console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID). Attempting direct PostgreSQL fallback with text cast...`);
+                    try {
+                        const directData = await fetchViaDirectPg(
+                            targetDbTable,
+                            sqlConditions,
+                            defaultOrderBy,
+                            finalLimit,
+                            offset
+                        );
+                        if (directData !== null) {
+                            console.info(`[API GET Direct SQL Fallback on UUID Mismatch] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
+                            return res.status(200).json(directData);
+                        }
+                    } catch (pgEx: any) {
+                        console.warn(`[API GET Direct SQL Fallback on UUID Mismatch Exception] for '${moduleName}':`, pgEx?.message || pgEx);
+                    }
+                    console.warn(`[API GET] Direct PostgreSQL fallback unavailable for '${moduleName}' UUID mismatch, returning empty list fallback.`);
                     return res.status(200).json([]);
                 }
 

@@ -493,16 +493,24 @@ export const SecurityView: React.FC<SupportStaffViewProps> = (props) => {
                         // 1. In-App Notification (Bell Icon Alert)
                         // Note: onAddVisitor already handles notification creation, only create if onAddVisitor is not present
                         if (!onAddVisitor) {
+                            const instId = user?.institutionId || props.currentInstitution?.id || '';
                             const bellMsg = `You have a visitor: ${visitorPayload.name} is waiting at the security gate for ${visitorPayload.purpose}.`;
                             const notifMeta = {
                                 visitorId,
                                 visitorName: visitorPayload.name,
                                 purpose: visitorPayload.purpose,
-                                hostId: matchedHost.id
+                                hostId: matchedHost.id,
+                                institutionId: instId
                             };
-                            apiService.createNotification(matchedHost.id, bellMsg, 'guest_arrival', notifMeta).catch(console.error);
+                            apiService.createNotification({
+                                userId: matchedHost.id,
+                                institutionId: instId,
+                                message: bellMsg,
+                                type: 'guest_arrival',
+                                metadata: notifMeta
+                            }).catch(console.error);
                             window.dispatchEvent(new CustomEvent('app_notification_created', {
-                                detail: { userId: matchedHost.id, message: bellMsg, type: 'guest_arrival', visitorName: visitorPayload.name, metadata: notifMeta }
+                                detail: { userId: matchedHost.id, institutionId: instId, message: bellMsg, type: 'guest_arrival', visitorName: visitorPayload.name, metadata: notifMeta }
                             }));
                         }
 
