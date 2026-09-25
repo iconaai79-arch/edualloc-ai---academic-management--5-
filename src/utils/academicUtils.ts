@@ -813,3 +813,35 @@ export const isPlaceholderEmail = (email?: string | null): boolean => {
         clean === 'user@eduai.local'
     );
 };
+
+/**
+ * Pure helper: Extract strictly the Stream name without Grade or Year Group prefixes
+ */
+export const extractStreamOnly = (rawName: string, activeYearGroup?: string): string => {
+    if (!rawName || typeof rawName !== 'string') return '';
+    let val = rawName.trim();
+    if (!val || val.toLowerCase() === 'all' || val === '—' || val.toLowerCase() === 'null' || val.toLowerCase() === 'undefined') {
+        return '';
+    }
+
+    // Remove curriculum tags e.g. (8-4-4), (CBE)
+    val = val.replace(/\((8-4-4|cbe|cbc|kcse|igcse|cambridge)\)/gi, '').trim();
+
+    // If activeYearGroup provided, strip it safely using literal escape
+    if (activeYearGroup && typeof activeYearGroup === 'string') {
+        const escapedYg = activeYearGroup.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        val = val.replace(new RegExp(`^${escapedYg}\\s*[-–—:]*\\s*`, 'i'), '').trim();
+    }
+
+    // Strip any generic Grade/Form/Class/Standard prefixes if still present
+    // e.g. "Form 3 WEST" -> "WEST", "Grade 10 Alpha" -> "Alpha", "Grade 10 Grade 10 Alpha" -> "Alpha"
+    val = val.replace(/^(?:(?:Grade\s*\d+|Form\s*\d+|Std(?:andard)?\s*\d+|Class\s*\d+|PP\s*[12]|Playgroup)\s*[-–—:]*\s*)+/i, '').trim();
+
+    // Strip "Stream" prefix or suffix
+    val = val.replace(/^stream\s*[-–—:]*\s*/i, '').replace(/\s*stream\s*$/i, '').trim();
+
+    // Strip surrounding parentheses or hyphens
+    val = val.replace(/^[-–—()]+|[-–—()]+$/g, '').trim();
+
+    return val;
+};
