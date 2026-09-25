@@ -1972,30 +1972,27 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     // Fetch saved broadsheets and module state from DB on mount (exam_units is already fetched at top)
     useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<any>('institution_module_states', currentInstitution.id)
+        const instId = currentInstitution?.id;
+        if (instId) {
+            apiService.fetchModuleRecords<any>('institution_module_states', instId)
                 .then(records => {
-                    const match = (records || []).find(r => r.id === `ims_exam_broadsheets_${currentInstitution.id}` || r.id === `broadsheets_${currentInstitution.id}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
+                    const match = (records || []).find(r => r.id === `ims_exam_broadsheets_${instId}` || r.id === `broadsheets_${instId}` || r.module_id === 'exam_broadsheets' || r.moduleId === 'exam_broadsheets' || r.moduleName === 'exam_broadsheets');
                     const storeData = match?.settings || match?.stateData || match?.data;
                     if (storeData && typeof storeData === 'object') {
-                        setExamMarksStore(prev => {
-                            const merged = { ...prev, ...storeData };
+                        setExamMarksStore(prev => ({ ...prev, ...storeData }));
+                        // Non-blocking deferred local cache update
+                        setTimeout(() => {
                             try {
-                                localStorage.setItem(`eduai_exam_broadsheets_${currentInstitution.id}`, JSON.stringify(merged));
-                                Object.entries(storeData).forEach(([eId, rows]) => {
-                                    if (Array.isArray(rows) && rows.length > 0) {
-                                        localStorage.setItem(`eduai_exam_broadsheet_${eId}`, JSON.stringify(rows));
-                                    }
-                                });
+                                localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(storeData));
                             } catch (e) { }
-                            return merged;
-                        });
+                        }, 500);
+
                         if (selectedExamId && storeData[selectedExamId] && Array.isArray(storeData[selectedExamId]) && storeData[selectedExamId].length > 0) {
                             setBroadsheetStudentRows(sanitizeBroadsheetRows(storeData[selectedExamId]));
                         }
                     }
 
-                    const examUnitsMatch = (records || []).find(r => r.id === `ims_exam_units_${currentInstitution.id}` || r.module_id === 'exam_units' || r.moduleId === 'exam_units');
+                    const examUnitsMatch = (records || []).find(r => r.id === `ims_exam_units_${instId}` || r.module_id === 'exam_units' || r.moduleId === 'exam_units');
                     if (examUnitsMatch) {
                         const rawData = examUnitsMatch.data || examUnitsMatch.settings || examUnitsMatch.stateData;
                         const remoteExams = Array.isArray(rawData) ? rawData : (rawData?.exams || []);
@@ -2007,9 +2004,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 prev.filter(e => !dummyIds.has(e.id)).forEach(e => map.set(e.id, e));
                                 cleanRemote.forEach((r: any) => map.set(r.id, { ...map.get(r.id), ...r }));
                                 const merged = Array.from(map.values());
-                                try {
-                                    localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
-                                } catch (e) { }
+                                // Asynchronously persist to avoid blocking React state update
+                                setTimeout(() => {
+                                    try {
+                                        localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(merged));
+                                    } catch (e) { }
+                                }, 500);
                                 return merged;
                             });
                         }
@@ -2041,7 +2041,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             window.removeEventListener('eduai_broadsheets_updated', handleAcademicsSync);
             window.removeEventListener('eduai_academics_synced', handleAcademicsSync);
         };
-    }, [currentInstitution, selectedExamId, sanitizeBroadsheetRows]);
+    }, [currentInstitution?.id, selectedExamId, sanitizeBroadsheetRows]);
 
     // Display students list for Choose from students modal
     const displayStudentsList = useMemo(() => {

@@ -235,34 +235,16 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
 
     const [activeTab, setActiveTab] = useState<'home' | 'timetable' | 'exam_units' | 'attendance' | 'students' | 'teachers' | 'lessons' | 'settings' | 'exam_insights' | 'reports' | 'people' | 'discipline' | 'revision_marketplace' | 'student_subscriptions' | 'lesson_plans' | 'tools'>('home');
     const [isTabPending, startTabTransition] = useTransition();
-    const [hasLoadedExamUnits, setHasLoadedExamUnits] = useState(false);
 
-    // Wrap tab changes in startTransition so React can keep the UI interactive
-    // while the expensive ExamUnitsManager initializes in the background
+    // Wrap tab changes in startTransition so React keeps UI 100% responsive during chunk loads
     const handleTabChange = useCallback((tab: typeof activeTab) => {
-        if (tab === 'exam_units') {
-            setHasLoadedExamUnits(true);
-        }
         startTabTransition(() => setActiveTab(tab));
     }, []);
 
-    // Automatically pre-load ExamUnitsManager after a short idle timeout,
-    // so it is already warm in memory before the user clicks
-    useEffect(() => {
-        if (activeTab === 'exam_units') {
-            setHasLoadedExamUnits(true);
-            return;
-        }
-        const timer = setTimeout(() => {
-            setHasLoadedExamUnits(true);
-        }, 1200);
-        return () => clearTimeout(timer);
-    }, [activeTab]);
-
-    // Pre-warm academic records using the debounced background prefetcher
+    // Non-blocking background prefetch during idle browser time
     useEffect(() => {
         if (!currentInstitution?.id) return;
-        apiService.prefetchAcademicRecords(currentInstitution.id).catch(() => {});
+        apiService.prefetchAcademicRecords(currentInstitution.id);
     }, [currentInstitution?.id]);
     const [toolsSubTab, setToolsSubTab] = useState<'lesson_plans' | 'revision_marketplace' | 'leaving_certificates'>('lesson_plans');
     const [examViewSubTab, setExamViewSubTab] = useState<'summative' | 'cbe_strands' | 'cbe_competencies' | 'cbe_portfolio' | 'montessori'>('summative');
@@ -460,7 +442,6 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                         <button
                             key={item.id}
                             onClick={() => handleTabChange(item.id as any)}
-                            onMouseEnter={() => { if (item.id === 'exam_units') setHasLoadedExamUnits(true); }}
                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 relative group cursor-pointer ${
                                 activeTab === item.id 
                                 ? 'bg-gradient-to-r from-emerald-500 via-teal-600 to-indigo-600 text-white shadow-lg shadow-emerald-500/30 scale-105' 
@@ -495,7 +476,6 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                             <button
                                 key={sub.id}
                                 onClick={() => handleTabChange(sub.id as any)}
-                                onMouseEnter={() => { if ((sub.id as string) === 'exam_units') setHasLoadedExamUnits(true); }}
                                 className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap cursor-pointer ${
                                     activeTab === sub.id
                                     ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 dark:shadow-none scale-105 font-black'
@@ -735,8 +715,8 @@ export const AcademicsOfficerView: React.FC<AcademicsOfficerViewProps> = (props)
                 </div>
             )}
 
-            {(hasLoadedExamUnits || activeTab === 'exam_units') && (
-                <div className={activeTab === 'exam_units' ? "space-y-6 animate-fade-in w-full" : "hidden"}>
+            {activeTab === 'exam_units' && (
+                <div className="space-y-6 animate-fade-in w-full">
                     {/* View Mode Sub-Navigation Toggle */}
                     <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between gap-4 overflow-x-auto custom-scrollbar">
                         <div className="flex items-center gap-2">

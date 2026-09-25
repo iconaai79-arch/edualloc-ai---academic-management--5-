@@ -7564,59 +7564,58 @@ export const apiService = {
         }
     },
 
-    async prefetchAcademicRecords(institutionId?: string): Promise<void> {
+    prefetchAcademicRecords(institutionId?: string): void {
         if (!institutionId || institutionId === 'ALL') {
             const session = apiService.getSession();
             institutionId = session?.institutionId;
         }
         if (!institutionId) return;
 
-        // Skip prefetch if client is offline or fetched within last 2 minutes
+        // Skip prefetch if client is offline or fetched within last 5 minutes
         if (typeof navigator !== 'undefined' && !navigator.onLine) return;
         const lastPrefetchKey = `eduai_last_academic_prefetch_${institutionId}`;
         const lastTime = parseInt(safeLocalStorage.getItem(lastPrefetchKey) || '0', 10);
-        if (Date.now() - lastTime < 120000) return;
+        if (Date.now() - lastTime < 300000) return;
 
-        console.info(`[apiService] 🚀 Prefetching all academic records for high-speed instant switching (Inst: ${institutionId})...`);
+        // Run during browser idle time so main UI thread is NEVER blocked
+        const runPrefetch = async () => {
+            try {
+                // Batch 1: Core academic structures & configuration
+                await Promise.allSettled([
+                    apiService.fetchModuleRecords('academic_years', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('semesters', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('departments', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('academic_levels', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('courses', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('subjects', institutionId).catch(() => [])
+                ]);
 
-        try {
-            // First flush any pending offline writes
-            await apiService.flushOfflineSyncQueue().catch(() => {});
+                // Batch 2: Timetable settings, rooms, buildings, and allocations
+                await Promise.allSettled([
+                    apiService.fetchModuleRecords('rooms', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('buildings', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('timetable_settings', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('exam_timetable_settings', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('allocations', institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('exam_timetable_entries', institutionId).catch(() => [])
+                ]);
 
-            // Batch 1: Core academic structures & configuration
-            await Promise.allSettled([
-                apiService.fetchModuleRecords('academic_years', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('semesters', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('departments', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('academic_levels', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('courses', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('subjects', institutionId).catch(() => [])
-            ]);
+                // Batch 3: Shared IMS state & Assessment definitions (lightweight headers only)
+                await Promise.allSettled([
+                    apiService.getSharedInstitutionModuleStates(institutionId).catch(() => []),
+                    apiService.fetchModuleRecords('assessments', institutionId).catch(() => [])
+                ]);
 
-            // Batch 2: Timetable settings, rooms, buildings, and allocations
-            await Promise.allSettled([
-                apiService.fetchModuleRecords('rooms', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('buildings', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('timetable_settings', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('exam_timetable_settings', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('allocations', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('exam_timetable_entries', institutionId).catch(() => [])
-            ]);
+                safeLocalStorage.setItem(lastPrefetchKey, Date.now().toString());
+            } catch (e) {
+                console.warn('[apiService] Academic prefetch notice:', e);
+            }
+        };
 
-            // Batch 3: Shared IMS state & Exams (runs single-flight deduplicated)
-            await Promise.allSettled([
-                apiService.getSharedInstitutionModuleStates(institutionId).catch(() => []),
-                apiService.fetchModuleRecords('exam_units', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('exam_broadsheets', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('assessments', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('assessment_marks', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('student_attendances', institutionId).catch(() => [])
-            ]);
-
-            safeLocalStorage.setItem(lastPrefetchKey, Date.now().toString());
-            console.info(`[apiService] ✅ All academic records cached locally for maximum UI speed.`);
-        } catch (e) {
-            console.warn('[apiService] Academic prefetch notice:', e);
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(() => { runPrefetch(); }, { timeout: 4000 });
+        } else {
+            setTimeout(runPrefetch, 1000);
         }
     }
 };
