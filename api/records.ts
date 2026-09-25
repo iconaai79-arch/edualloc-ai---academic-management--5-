@@ -999,7 +999,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)
             if (CACHEABLE_MODULES.includes(moduleName) && !getStrParam(select)) {
                 const cached = _serverModuleMemoryCache.get(moduleName);
-                const ttl = moduleName === 'institutions' ? 30000 : 120000;
+                const ttl = moduleName === 'institutions' ? 60000 : 120000;
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
                     const reqId = getStrParam(id) || targetInstParam || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
                     if (reqId && moduleName === 'institutions') {
@@ -1007,8 +1007,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (matched.length > 0) {
                             return res.status(200).json(matched);
                         }
-                    } else if (!reqId && (!req.query.offset || req.query.offset === '0') && (!req.query.limit || parseInt(getStrParam(req.query.limit)) >= cached.data.length)) {
-                        return res.status(200).json(cached.data);
+                    } else if (!reqId && (!req.query.offset || req.query.offset === '0')) {
+                        const requestedLimit = req.query.limit ? parseInt(getStrParam(req.query.limit)) : Infinity;
+                        // Never return full cached set if caller only asked for 1 or a tiny slice (e.g. limit=1 healthcheck)
+                        if (requestedLimit >= cached.data.length) {
+                            return res.status(200).json(cached.data);
+                        } else if (requestedLimit > 0 && requestedLimit < cached.data.length) {
+                            return res.status(200).json(cached.data.slice(0, requestedLimit));
+                        }
                     }
                 }
             }
@@ -1165,7 +1171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 : (['assessment_marks', 'ta_assignments'].includes(moduleName) 
                                     ? 5000 
                                     : (moduleName === 'institutions' 
-                                        ? (targetInstParam || getStrParam(id) ? 1 : 200) 
+                                        ? (targetInstParam || getStrParam(id) ? 1 : 10000) 
                                         : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                                             ? 3000
                                             : (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods'].includes(moduleName)
@@ -1840,12 +1846,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 });
 
-                // Populate in-memory cache for general queries
-                if (!getStrParam(id) && !targetInstParam && records.length > 0) {
-                    _serverModuleMemoryCache.set('institutions', {
-                        data: [...records],
-                        timestamp: Date.now()
-                    });
+                // Populate in-memory cache for general, unconstrained queries
+                const hasPagingConstraint = Boolean(req.query.limit || req.query.offset || req.query.page);
+                if (!getStrParam(id) && !targetInstParam && !hasPagingConstraint && records.length > 0) {
+                    const existingCache = _serverModuleMemoryCache.get('institutions');
+                    if (!existingCache || records.length >= existingCache.data.length) {
+                        _serverModuleMemoryCache.set('institutions', {
+                            data: [...records],
+                            timestamp: Date.now()
+                        });
+                    }
                 }
             }
 

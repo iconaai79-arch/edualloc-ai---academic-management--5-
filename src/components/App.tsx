@@ -1160,7 +1160,10 @@ export const App: React.FC = () => {
                 consts = await localDb.getAll('constituencies').catch(() => []);
                 brs = await localDb.getAll('branches').catch(() => []);
 
-                if (!insts || insts.length === 0) insts = INITIAL_INSTITUTIONS;
+                if (!insts || insts.length === 0) {
+                    const lsInsts = ls.get('institutions');
+                    insts = (Array.isArray(lsInsts) && lsInsts.length > 0) ? lsInsts : INITIAL_INSTITUTIONS;
+                }
                 if (!u || u.length === 0) u = INITIAL_USERS;
                 if (!sett) sett = INITIAL_COMPANY_DETAILS;
 
@@ -1399,7 +1402,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                 if (!insts || insts.length === 0) {
                     const localInsts = await localDb.getAll<Institution>('institutions').catch(() => []);
-                    insts = (localInsts && localInsts.length > 0) ? localInsts : INITIAL_INSTITUTIONS;
+                    if (localInsts && localInsts.length > 0) {
+                        insts = localInsts;
+                    } else {
+                        const lsInsts = ls.get('institutions') as Institution[];
+                        insts = (Array.isArray(lsInsts) && lsInsts.length > 0) ? lsInsts : INITIAL_INSTITUTIONS;
+                    }
+                } else {
+                    localDb.bulkPut('institutions', insts).catch(() => {});
+                    try { ls.set('institutions', insts); } catch (_) {}
                 }
                 if (!u || u.length === 0) {
                     const localU = await localDb.getAll<User>('users').catch(() => []);
@@ -1423,7 +1434,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 ? normalizedUsers.filter((usr: any) => usr && (usr.institutionId === tenantInstPhase1 || usr.institution_id === tenantInstPhase1))
                 : normalizedUsers;
             setUsers(scopedPhase1Users);
-            setInstitutions(insts || []);
+            setInstitutions(prev => {
+                if (insts && insts.length > 0) {
+                    if (insts.length <= 2 && prev && prev.length > 2) {
+                        return prev;
+                    }
+                    return insts;
+                }
+                return (prev && prev.length > 0) ? prev : (insts || []);
+            });
             setEvents(evts || []);
             if (cnts) setCounties(cnts);
             if (reg) setSchoolRegistry(reg);
@@ -1504,6 +1523,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             // ── Commit Phase 1 data → unlock UI immediately ──────────────────
             if (insts && insts.length > 0) {
                 setInstitutions(prev => {
+                    if (insts.length <= 2 && prev && prev.length > 2) {
+                        return prev;
+                    }
                     const demoInsts = (prev || []).filter(i => i && i.id?.startsWith('demo_'));
                     const combined = [...insts];
                     demoInsts.forEach(di => {

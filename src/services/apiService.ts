@@ -2163,7 +2163,7 @@ export const apiService = {
                     });
                 }
 
-                const fetchTimeoutMs = module === 'activity_log' ? 8000 : (module === 'institutions' ? 10000 : 15000);
+                const fetchTimeoutMs = module === 'activity_log' ? 8000 : (module === 'institutions' ? 30000 : 15000);
                 const doFetch = (tkn: string) => {
                     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
                     const timeoutId = controller ? setTimeout(() => controller.abort(), fetchTimeoutMs) : null;
@@ -2429,10 +2429,15 @@ export const apiService = {
                         result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
                         finalRecords = Array.from(combined.values());
                     }
-                    if (finalRecords.length > 0 && !options?.offset && !options?.filter) {
+                    const isPartialLimit = options?.limit && typeof options.limit === 'number' && options.limit < 50;
+                    if (finalRecords.length > 0 && !options?.offset && !options?.filter && !isPartialLimit) {
                         try {
                             const modToCache = (module === 'v_house_statistics' || module === 'v_bed_occupancy') ? 'boarding_houses' : module;
-                            ls.set(modToCache, finalRecords);
+                            const existing = ls.get(modToCache);
+                            if (!Array.isArray(existing) || finalRecords.length >= existing.length || finalRecords.length >= 10) {
+                                ls.set(modToCache, finalRecords);
+                            }
+                            localDb.bulkPut(modToCache, finalRecords).catch(() => {});
                         } catch (_) {}
                     }
                     return finalRecords;
@@ -4798,7 +4803,20 @@ export const apiService = {
         }
     },
     async fetchInstitutions(institutionId?: string): Promise<Institution[]> { 
-        const insts = await apiService.fetchModuleRecords<Institution>('institutions', institutionId);
+        let insts = await apiService.fetchModuleRecords<Institution>('institutions', institutionId, undefined, { limit: 10000 });
+        if (!insts || insts.length === 0) {
+            const idbInsts = await localDb.getAll<Institution>('institutions').catch(() => []);
+            if (idbInsts && idbInsts.length > 0) {
+                insts = idbInsts;
+            } else {
+                const lsInsts = ls.get('institutions');
+                if (Array.isArray(lsInsts) && lsInsts.length > 0) {
+                    insts = lsInsts;
+                }
+            }
+        } else {
+            localDb.bulkPut('institutions', insts).catch(() => {});
+        }
         try {
             const states = await apiService.fetchModuleRecords<any>('institution_module_states', institutionId).catch(() => []);
             insts.forEach(inst => {
