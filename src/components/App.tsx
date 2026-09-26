@@ -1850,7 +1850,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         apiService.fetchModuleRecords<FinancialGoal>('financial_goals', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<PayrollRecord>('payroll_records', effectiveInstIdFinal).catch(() => []),
                         currentUser.role === 'super_admin' ? apiService.fetchDemoRequests().catch(() => []) : Promise.resolve([]),
-                        apiService.fetchModuleRecords<any>('integration_logs', undefined, undefined, { order: 'created_at.desc', limit: 100000 }).catch(() => []),
+                        apiService.fetchModuleRecords<any>('integration_logs', undefined, undefined, { order: 'created_at.desc', limit: 200 }).catch(() => []),
                         apiService.fetchModuleRecords<BuildingFloor>('building_floors', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<BuildingOffice>('building_offices').catch(() => []),
                         apiService.fetchModuleRecords<BuildingVisitorLog>('building_visitor_logs', effectiveInstIdFinal).catch(() => []),
