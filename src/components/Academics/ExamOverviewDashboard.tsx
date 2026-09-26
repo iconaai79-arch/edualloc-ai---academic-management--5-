@@ -1796,7 +1796,7 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                 return sCls === targetCls || sCls.includes(targetCls) || targetCls.includes(sCls) || (sStream && (sStream === targetCls || targetCls.includes(sStream)));
             });
 
-            const matchedStreamObj = streamRankingsList.find(s => s.stream.toLowerCase().trim() === className.toLowerCase().trim());
+            const matchedStreamObj = streamRankingsList.find(s => (s?.stream || '').toLowerCase().trim() === className.toLowerCase().trim());
             const currentStreamMean = classStudents.length > 0
                 ? parseFloat((classStudents.reduce((acc, s) => acc + s.meanScore, 0) / classStudents.length).toFixed(4))
                 : (matchedStreamObj ? matchedStreamObj.meanScore : (currentCohortMean > 0 ? parseFloat((currentCohortMean + ((cIdx % 2 === 0 ? 0.8 : -1.2) * (cIdx + 1))).toFixed(4)) : 80.0));

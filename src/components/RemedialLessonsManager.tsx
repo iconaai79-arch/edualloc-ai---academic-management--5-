@@ -8882,11 +8882,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         cls.className === selectedTimetableClass || 
                         courses.find(c => c.id === selectedTimetableClass)?.name === cls.className;
                     const matchStream = selectedTimetableStream === 'All' || 
-                        cls.stream.toLowerCase().trim() === selectedTimetableStream.toLowerCase().trim();
+                        (cls.stream || '').toLowerCase().trim() === selectedTimetableStream.toLowerCase().trim();
                     const matchSearch = !ascClassSearchQuery || 
-                        cls.shortCode.toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
-                        cls.className.toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
-                        cls.stream.toLowerCase().includes(ascClassSearchQuery.toLowerCase());
+                        (cls.shortCode || '').toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
+                        (cls.className || '').toLowerCase().includes(ascClassSearchQuery.toLowerCase()) || 
+                        (cls.stream || '').toLowerCase().includes(ascClassSearchQuery.toLowerCase());
 
                     // Auto-hide classes without allocation when enabled and looking at All classes
                     if (autoHideUnallocatedClasses && hasAnyAllocations && selectedTimetableClass === 'All') {

@@ -117,8 +117,8 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
         if (!targetClass || targetClass === 'all') return true;
         const cleanTarget = targetClass.toLowerCase().trim();
         const parsedTarget = extractClassAndStream(targetClass);
-        const canonicalTarget = parsedTarget.className.toLowerCase().trim();
-        const targetStream = parsedTarget.stream.toLowerCase().trim();
+        const canonicalTarget = (parsedTarget.className || '').toLowerCase().trim();
+        const targetStream = (parsedTarget.stream || '').toLowerCase().trim();
 
         // Direct user class properties
         const studentProps = [
@@ -132,11 +132,12 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
         ].filter(Boolean).map(x => String(x).toLowerCase().trim());
 
         for (const prop of studentProps) {
-            if (prop === cleanTarget || prop === canonicalTarget) return true;
+            if (prop === cleanTarget || (canonicalTarget && prop === canonicalTarget)) return true;
             const parsedProp = extractClassAndStream(prop);
-            const canonicalProp = parsedProp.className.toLowerCase().trim();
-            if (canonicalProp === canonicalTarget || canonicalProp === cleanTarget) {
-                if (!targetStream || parsedProp.stream.toLowerCase().trim() === targetStream) {
+            const canonicalProp = (parsedProp.className || '').toLowerCase().trim();
+            const propStream = (parsedProp.stream || '').toLowerCase().trim();
+            if (canonicalProp && (canonicalProp === canonicalTarget || canonicalProp === cleanTarget)) {
+                if (!targetStream || propStream === targetStream) {
                     return true;
                 }
             }

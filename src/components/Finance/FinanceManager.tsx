@@ -7198,7 +7198,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             let matchesStream = true;
             if (uninvoicedStreamFilter !== 'All') {
-                matchesStream = item.stream.toLowerCase() === uninvoicedStreamFilter.toLowerCase();
+                matchesStream = (item.stream || '').toLowerCase() === uninvoicedStreamFilter.toLowerCase();
             }
             return matchesQuery && matchesClass && matchesStream;
         });

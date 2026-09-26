@@ -1531,20 +1531,20 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         return displayStudents.filter(s => {
             const searchLower = searchTerm.toLowerCase().trim();
             const matchesSearch = !searchLower || 
-                s.name.toLowerCase().includes(searchLower) || 
-                s.admissionNumber.toLowerCase().includes(searchLower) ||
-                s.studentClass.toLowerCase().includes(searchLower) ||
-                s.stream.toLowerCase().includes(searchLower);
+                (s.name || '').toLowerCase().includes(searchLower) || 
+                (s.admissionNumber || '').toLowerCase().includes(searchLower) ||
+                (s.studentClass || '').toLowerCase().includes(searchLower) ||
+                (s.stream || '').toLowerCase().includes(searchLower);
 
             const matchesClass = 
                 selectedClassFilter === 'ALL' || 
-                s.baseClass.toLowerCase() === selectedClassFilter.toLowerCase() ||
-                s.studentClass.toLowerCase().includes(selectedClassFilter.toLowerCase()) ||
+                (s.baseClass || '').toLowerCase() === selectedClassFilter.toLowerCase() ||
+                (s.studentClass || '').toLowerCase().includes(selectedClassFilter.toLowerCase()) ||
                 (s as any).courseId === selectedClassFilter;
 
             const matchesStream = 
                 selectedStreamFilter === 'ALL' || 
-                s.stream.toLowerCase() === selectedStreamFilter.toLowerCase();
+                (s.stream || '').toLowerCase() === selectedStreamFilter.toLowerCase();
 
             return matchesSearch && matchesClass && matchesStream;
         });
