@@ -47,6 +47,10 @@ import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTe
 import { ChatBubbleLeftRightIcon } from './icons/ChatBubbleLeftRightIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 import { DocumentTextIcon } from './icons/DocumentTextIcon';
+import { ChevronLeftIcon } from './icons/ChevronLeftIcon';
+import { ChevronRightIcon } from './icons/ChevronRightIcon';
+import { ZapIcon } from './icons/ZapIcon';
+import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import * as pdfService from '../services/pdfService';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { PdfPreviewModal } from './PdfPreviewModal';
@@ -111,6 +115,24 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'expenses' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices' | 'utilities' | 'broadcasts'>('properties');
     const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears' | 'inspections' | 'refunds' | 'itax'>('analytics');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem('eduai_pm_sidebar_collapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+    const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+    const toggleSidebar = () => {
+        setIsSidebarCollapsed(prev => {
+            const next = !prev;
+            try {
+                localStorage.setItem('eduai_pm_sidebar_collapsed', String(next));
+            } catch {}
+            return next;
+        });
+    };
     const [expenses, setExpenses] = useState<PMExpenseVoucher[]>([]);
 
     const [landlords, setLandlords] = useState<PMLandlord[]>([]);
@@ -7713,40 +7735,294 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         );
     };
 
-    const renderTabs = () => (
-        <div className="relative group/tabs mb-8">
-            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl w-full overflow-x-auto scrollbar-hide border border-slate-200 dark:border-slate-700/50 shadow-inner no-scrollbar">
-                <div className="flex gap-1.5 min-w-max">
-                    {[
-                        { id: 'dashboard', label: 'Dashboard', icon: ChartBarIcon },
-                        { id: 'properties', label: 'Assets', icon: BuildingOfficeIcon },
-                        { id: 'staff', label: 'Staff Members', icon: UserGroupIcon },
-                        { id: 'config', label: 'PM Settings', icon: SettingsIcon },
-                        { id: 'payouts', label: 'Payouts', icon: CreditCardIcon },
-                        { id: 'expenses', label: 'Expenses', icon: CurrencyIcon },
-                        { id: 'listings', label: 'Listings', icon: ShoppingCartIcon },
-                        { id: 'inquiries', label: 'Inquiries', icon: UserPlusIcon },
-                        { id: 'comms', label: 'Communications', icon: ChatBubbleLeftRightIcon },
-                        { id: 'reports', label: 'Reports', icon: DocumentTextIcon },
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === tab.id
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30 ring-1 ring-blue-400/50'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-white/5'
-                                } `}
-                        >
-                            <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'animate-bounce' : ''} `} />
-                            {tab.label}
-                        </button>
-                    ))}
+    const renderVerticalMenu = () => {
+        // Computed counts for badges
+        const openTicketsCount = tickets.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+        const vacantUnitsCount = units.filter(u => u.status === 'Vacant').length;
+        const unpaidInvoicesCount = invoices.filter(i => i.status === 'Sent' || i.status === 'Partially Paid').length;
+        const newInquiriesCount = inquiries.filter(i => i.status === 'New').length;
+        const activeLeasesCount = leases.filter(l => l.status === 'Active').length;
+
+        interface NavItem {
+            id: string;
+            label: string;
+            shortLabel?: string;
+            icon: React.FC<any>;
+            tab: typeof activeTab;
+            subTab?: string;
+            badge?: number | string | null;
+            badgeColor?: 'blue' | 'emerald' | 'amber' | 'rose' | 'purple' | 'slate';
+        }
+
+        interface NavGroup {
+            group: string;
+            items: NavItem[];
+        }
+
+        const navGroups: NavGroup[] = [
+            {
+                group: 'Executive',
+                items: [
+                    { id: 'dashboard', label: 'Executive Dashboard', shortLabel: 'Dashboard', icon: ChartBarIcon, tab: 'dashboard' },
+                ]
+            },
+            {
+                group: 'Portfolio & Assets',
+                items: [
+                    { id: 'properties', label: 'Master Properties', shortLabel: 'Properties', icon: BuildingOfficeIcon, tab: 'properties', subTab: 'properties', badge: properties.length },
+                    { id: 'units', label: 'Unit Registry', shortLabel: 'Units', icon: GridIcon, tab: 'properties', subTab: 'units', badge: vacantUnitsCount > 0 ? `${vacantUnitsCount} Vacant` : units.length, badgeColor: vacantUnitsCount > 0 ? 'emerald' : 'slate' },
+                    { id: 'landlords', label: 'Landlord Directory', shortLabel: 'Landlords', icon: UserGroupIcon, tab: 'properties', subTab: 'landlords', badge: landlords.length },
+                    { id: 'tenants', label: 'Tenant Directory', shortLabel: 'Tenants', icon: UserIcon, tab: 'properties', subTab: 'tenants', badge: tenants.length },
+                    { id: 'leases', label: 'Lease Agreements', shortLabel: 'Leases', icon: ArchiveBoxIcon, tab: 'properties', subTab: 'leases', badge: activeLeasesCount },
+                ]
+            },
+            {
+                group: 'Financial Suite',
+                items: [
+                    { id: 'invoices', label: 'Invoices & Billing', shortLabel: 'Invoices', icon: DocumentTextIcon, tab: 'properties', subTab: 'invoices', badge: unpaidInvoicesCount > 0 ? unpaidInvoicesCount : null, badgeColor: 'rose' },
+                    { id: 'payments', label: 'Rent Collections', shortLabel: 'Payments', icon: CurrencyIcon, tab: 'properties', subTab: 'payments' },
+                    { id: 'payouts', label: 'Landlord Disbursements', shortLabel: 'Disbursements', icon: CreditCardIcon, tab: 'payouts' },
+                    { id: 'expenses', label: 'Expense Vouchers', shortLabel: 'Expenses', icon: BanknotesIcon, tab: 'expenses' },
+                ]
+            },
+            {
+                group: 'Facility & Operations',
+                items: [
+                    { id: 'maintenance', label: 'Maintenance Tickets', shortLabel: 'Maintenance', icon: Cog8ToothIcon, tab: 'properties', subTab: 'maintenance', badge: openTicketsCount > 0 ? openTicketsCount : null, badgeColor: 'amber' },
+                    { id: 'utilities', label: 'Utility Metering', shortLabel: 'Utilities', icon: ZapIcon, tab: 'properties', subTab: 'utilities' },
+                    { id: 'notices', label: 'Notices & Letters', shortLabel: 'Notices', icon: DocumentTextIcon, tab: 'properties', subTab: 'notices' },
+                    { id: 'inspections', label: 'Move-out Inspections', shortLabel: 'Inspections', icon: ListIcon, tab: 'reports', subTab: 'inspections' },
+                    { id: 'refunds', label: 'Deposit Refunds', shortLabel: 'Refunds', icon: BanknotesIcon, tab: 'reports', subTab: 'refunds' },
+                ]
+            },
+            {
+                group: 'Marketing & Comms',
+                items: [
+                    { id: 'listings', label: 'Vacant Ad Listings', shortLabel: 'Listings', icon: ShoppingCartIcon, tab: 'listings', badge: listings.length > 0 ? listings.length : null },
+                    { id: 'inquiries', label: 'Prospect Inquiries', shortLabel: 'Inquiries', icon: UserPlusIcon, tab: 'inquiries', badge: newInquiriesCount > 0 ? newInquiriesCount : null, badgeColor: 'blue' },
+                    { id: 'comms', label: 'Communications Hub', shortLabel: 'Comms', icon: ChatBubbleLeftRightIcon, tab: 'comms' },
+                    { id: 'broadcasts', label: 'SMS Broadcasts', shortLabel: 'SMS', icon: PaperAirplaneIcon, tab: 'properties', subTab: 'broadcasts' },
+                ]
+            },
+            {
+                group: 'Governance & Analytics',
+                items: [
+                    { id: 'reports', label: 'Financial Analytics', shortLabel: 'Reports', icon: ChartPieIcon, tab: 'reports', subTab: 'analytics' },
+                    { id: 'staff', label: 'Staff Members', shortLabel: 'Staff', icon: UserGroupIcon, tab: 'staff' },
+                    { id: 'config', label: 'PM Settings & Rates', shortLabel: 'Settings', icon: SettingsIcon, tab: 'config' },
+                ]
+            }
+        ];
+
+        const isItemActive = (item: NavItem) => {
+            if (item.tab === 'properties') {
+                return activeTab === 'properties' && (!item.subTab || propertyActiveSubTab === item.subTab);
+            }
+            if (item.tab === 'reports') {
+                return activeTab === 'reports' && (!item.subTab || reportsSubTab === item.subTab);
+            }
+            return activeTab === item.tab;
+        };
+
+        const handleSelect = (item: NavItem) => {
+            setActiveTab(item.tab);
+            if (item.tab === 'properties' && item.subTab) {
+                setPropertyActiveSubTab(item.subTab as any);
+            }
+            if (item.tab === 'reports' && item.subTab) {
+                setReportsSubTab(item.subTab as any);
+            }
+            setIsMobileDrawerOpen(false);
+        };
+
+        const renderNavContent = (isMobile: boolean = false) => (
+            <div className="flex flex-col h-full justify-between gap-6">
+                <div className="space-y-6">
+                    {/* Header of Sidebar */}
+                    <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100 dark:border-slate-800 pb-3">
+                        {(!isSidebarCollapsed || isMobile) ? (
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 font-black text-xs">
+                                    PM
+                                </div>
+                                <div className="leading-tight">
+                                    <div className="text-xs font-black uppercase text-slate-800 dark:text-white tracking-wider flex items-center gap-1.5">
+                                        Rental Suite
+                                        <span className="text-[9px] bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-black">PRO</span>
+                                    </div>
+                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[140px]">
+                                        {currentInstitution?.name || 'Institution Hub'}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="mx-auto w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black text-xs shadow-md shadow-blue-500/20">
+                                PM
+                            </div>
+                        )}
+
+                        {!isMobile && (
+                            <button
+                                onClick={toggleSidebar}
+                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                                title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                            >
+                                {isSidebarCollapsed ? (
+                                    <ChevronRightIcon className="w-5 h-5" />
+                                ) : (
+                                    <ChevronLeftIcon className="w-5 h-5" />
+                                )}
+                            </button>
+                        )}
+
+                        {isMobile && (
+                            <button
+                                onClick={() => setIsMobileDrawerOpen(false)}
+                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-600"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Nav Groups */}
+                    <div className="space-y-5 px-0.5">
+                        {navGroups.map((group, gIdx) => (
+                            <div key={gIdx} className="space-y-1">
+                                {(!isSidebarCollapsed || isMobile) && (
+                                    <div className="px-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400/90 dark:text-slate-500">
+                                        {group.group}
+                                    </div>
+                                )}
+                                <div className="space-y-0.5">
+                                    {group.items.map((item) => {
+                                        const active = isItemActive(item);
+                                        const Icon = item.icon;
+                                        return (
+                                            <button
+                                                key={item.id}
+                                                onClick={() => handleSelect(item)}
+                                                title={isSidebarCollapsed && !isMobile ? `${item.label} ${item.badge ? `(${item.badge})` : ''}` : undefined}
+                                                className={`w-full group relative flex items-center ${isSidebarCollapsed && !isMobile ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'} rounded-2xl text-xs font-bold transition-all duration-200 ${
+                                                    active
+                                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 ring-1 ring-blue-400/40 font-black'
+                                                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <div className={`p-1 rounded-lg transition-transform duration-200 group-hover:scale-110 ${active ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400'}`}>
+                                                        <Icon className="w-4 h-4 shrink-0" />
+                                                    </div>
+                                                    {(!isSidebarCollapsed || isMobile) && (
+                                                        <span className="truncate text-[11px] tracking-wide uppercase">
+                                                            {item.label}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Badge */}
+                                                {item.badge !== undefined && item.badge !== null && (
+                                                    <>
+                                                        {(!isSidebarCollapsed || isMobile) ? (
+                                                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider shrink-0 shadow-sm ${
+                                                                active
+                                                                    ? 'bg-white/20 text-white'
+                                                                    : item.badgeColor === 'rose'
+                                                                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900'
+                                                                    : item.badgeColor === 'emerald'
+                                                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900'
+                                                                    : item.badgeColor === 'amber'
+                                                                    ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900'
+                                                                    : item.badgeColor === 'blue'
+                                                                    ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900'
+                                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                                            }`}>
+                                                                {item.badge}
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${
+                                                                item.badgeColor === 'rose' ? 'bg-rose-500' :
+                                                                item.badgeColor === 'emerald' ? 'bg-emerald-500' :
+                                                                item.badgeColor === 'amber' ? 'bg-amber-500' :
+                                                                'bg-blue-500'
+                                                            } ${active ? 'ring-2 ring-white' : ''}`} />
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {/* Tooltip on Collapsed Desktop */}
+                                                {isSidebarCollapsed && !isMobile && (
+                                                    <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider rounded-xl shadow-2xl opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50 whitespace-nowrap flex items-center gap-2 border border-slate-700">
+                                                        <span>{item.label}</span>
+                                                        {item.badge && (
+                                                            <span className="bg-blue-600 text-white px-1.5 py-0.5 rounded-full text-[8px] font-black">
+                                                                {item.badge}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+
+                {/* Footer Plan Widget (Visible when expanded or on mobile) */}
+                {(!isSidebarCollapsed || isMobile) && (
+                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 px-1 space-y-2">
+                        <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-slate-800/80 dark:to-slate-800/40 rounded-2xl border border-blue-100/60 dark:border-slate-700/60 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 tracking-wider">
+                                    {currentInstitution?.subscriptionPlan || 'Rental Premier'}
+                                </span>
+                                <span className="text-[8px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                    Active
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                <span>SMS Balance:</span>
+                                <span className="font-black text-slate-900 dark:text-white font-mono">
+                                    {currentInstitution?.smsBalance?.toLocaleString() || '0'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-            {/* Scroll Indicator Gradient */}
-            <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-slate-50 dark:from-slate-900 to-transparent pointer-events-none opacity-0 group-hover/tabs:opacity-100 transition-opacity lg:hidden"></div>
-        </div>
-    );
+        );
+
+        return (
+            <>
+                {/* Desktop Sticky Sidebar */}
+                <aside
+                    className={`hidden lg:block shrink-0 sticky top-6 bg-white dark:bg-slate-900/90 backdrop-blur-md rounded-[2.5rem] p-4 border border-slate-200/80 dark:border-slate-800 shadow-xl transition-all duration-300 ${
+                        isSidebarCollapsed ? 'w-20' : 'w-72'
+                    }`}
+                    style={{ maxHeight: 'calc(100vh - 3rem)', overflowY: 'auto' }}
+                >
+                    {renderNavContent(false)}
+                </aside>
+
+                {/* Mobile Drawer Backdrop & Slide-out */}
+                {isMobileDrawerOpen && (
+                    <div className="lg:hidden fixed inset-0 z-[120] flex">
+                        {/* Backdrop */}
+                        <div
+                            onClick={() => setIsMobileDrawerOpen(false)}
+                            className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300"
+                        />
+                        {/* Slide-out Panel */}
+                        <div className="relative w-80 max-w-[85vw] bg-white dark:bg-slate-900 h-full p-6 shadow-2xl overflow-y-auto animate-in slide-in-from-left duration-300 z-10">
+                            {renderNavContent(true)}
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+    };
 
     const SmartTenantImporterModal = () => {
         const [importFile, setImportFile] = useState<File | null>(null);
@@ -8338,6 +8614,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        onClick={() => setIsMobileDrawerOpen(true)}
+                        className="lg:hidden p-4 bg-blue-50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 rounded-2xl hover:bg-blue-100 dark:hover:bg-slate-700 transition-all text-blue-600 dark:text-blue-400 shadow-sm flex items-center gap-2 font-black text-xs uppercase tracking-wider"
+                        title="Toggle Navigation Menu"
+                    >
+                        <ListIcon className="w-6 h-6" />
+                        <span>Menu</span>
+                    </button>
                     <button onClick={loadData} className="p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all text-slate-600 shadow-sm group">
                         <ArrowPathIcon className="w-6 h-6 group-active:rotate-180 transition-transform duration-500" />
                     </button>
@@ -8419,7 +8703,19 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
             </div>
 
-            {renderTabs()}
+            {/* Top Subscription & SMS Expiry Banner */}
+            <SubscriptionExpiryBanner
+                institution={currentInstitution}
+                className="mb-8"
+            />
+
+            {/* Layout: Vertical Sidebar Navigation + Main Dynamic View */}
+            <div className="flex flex-col lg:flex-row gap-8 items-start w-full">
+                {/* Vertical Sidebar */}
+                {renderVerticalMenu()}
+
+                {/* Main Content Area */}
+                <div className="flex-1 min-w-0 w-full space-y-8">
 
             {activeTab === 'dashboard' && (
                 <div className="space-y-8 animate-in fade-in duration-500 mt-4">
@@ -8846,6 +9142,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     />
                 </div>
             )}
+                </div>
+            </div>
 
             <Modal show={showListingModal} onClose={() => setShowListingModal(false)} title="Create Marketplace Ad" maxWidth="max-w-2xl">
                 <form onSubmit={(e) => {
