@@ -265,13 +265,16 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     // 2. Try JWT
     if (token.length > 20 && token.includes('.') && token.split('.').length === 3) {
       let userObj: any = null;
+      let authTimer: any;
       try {
-        const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Auth getUser timeout')), 2000));
+        const timeoutP = new Promise<never>((_, rej) => { authTimer = setTimeout(() => rej(new Error('Auth getUser timeout')), 2000); });
         const authRes: any = await Promise.race([supabase.auth.getUser(token), timeoutP]);
         if (authRes?.error) console.warn('[Auth JWT Warning]', authRes.error.message);
         if (authRes?.data?.user) userObj = authRes.data.user;
       } catch (e: any) {
         console.warn('[Auth JWT Exception or Timeout]', e?.message || e);
+      } finally {
+        clearTimeout(authTimer);
       }
       
       let jwtUserId = userObj?.id;
@@ -301,12 +304,15 @@ async function getAuthUser(supabase: any, authHeader?: string) {
 
         // Fast DB lookup with 2.0s timeout + direct pg fallback
         let profile: any = null;
+        let pTimer: any;
         try {
-          const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000));
+          const timeoutP = new Promise<never>((_, rej) => { pTimer = setTimeout(() => rej(new Error('timeout')), 2000); });
           const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${jwtUserId},id.eq.u_${jwtUserId}`).maybeSingle();
           const res: any = await Promise.race([q, timeoutP]);
           profile = res?.data;
-        } catch (_) {}
+        } catch (_) {} finally {
+          clearTimeout(pTimer);
+        }
 
         if (!profile) {
           try {
@@ -330,12 +336,15 @@ async function getAuthUser(supabase: any, authHeader?: string) {
 
     // 3. Try User ID fallback (non-JWT token) with direct pg fallback
     let profile: any = null;
+    let uidTimer: any;
     try {
-      const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000));
+      const timeoutP = new Promise<never>((_, rej) => { uidTimer = setTimeout(() => rej(new Error('timeout')), 2000); });
       const q = supabase.from('users').select('id, institution_id, role, branch_id').or(`id.eq.${token},id.eq.u_${token}`).maybeSingle();
       const res: any = await Promise.race([q, timeoutP]);
       profile = res?.data;
-    } catch (_) {}
+    } catch (_) {} finally {
+      clearTimeout(uidTimer);
+    }
 
     if (!profile) {
       try {
@@ -1003,7 +1012,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
                     const reqId = getStrParam(id) || targetInstParam || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
                     if (reqId && moduleName === 'institutions') {
-                        const matched = cached.data.filter((i: any) => i.id === reqId);
+                        const matched = cached.data.filter((i: any) => i && i.id === reqId);
                         if (matched.length > 0) {
                             return res.status(200).json(matched);
                         }
@@ -1510,9 +1519,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return res.status(200).json([]);
                 }
                 const isUuidMismatch = error.code === '22P02' || 
-                                       error.message?.includes('invalid input syntax for type uuid');
+                                       error.code === '42883' ||
+                                       error.message?.includes('invalid input syntax for type uuid') ||
+                                       error.message?.includes('operator does not exist');
                 if (isUuidMismatch) {
-                    console.warn(`[API GET] UUID type mismatch for '${moduleName}' (DB column expects UUID, received string ID). Attempting direct PostgreSQL fallback with text cast...`);
+                    console.warn(`[API GET] UUID/Operator type mismatch for '${moduleName}' (${error.message || error.code}). Attempting direct PostgreSQL fallback with text cast...`);
                     try {
                         const directData = await fetchViaDirectPg(
                             targetDbTable,
@@ -1527,6 +1538,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     } catch (pgEx: any) {
                         console.warn(`[API GET Direct SQL Fallback on UUID Mismatch Exception] for '${moduleName}':`, pgEx?.message || pgEx);
+                    }
+                    if (moduleName === 'institutions') {
+                        const fallbackCache = _serverModuleMemoryCache.get('institutions');
+                        if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
+                            console.warn('[API GET] Recovered institutions from memory cache on UUID/Operator mismatch');
+                            return res.status(200).json(fallbackCache.data);
+                        }
                     }
                     console.warn(`[API GET] Direct PostgreSQL fallback unavailable for '${moduleName}' UUID mismatch, returning empty list fallback.`);
                     return res.status(200).json([]);
@@ -1557,6 +1575,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.info(`[API GET] Returning ${data.length} records despite trailing error on '${moduleName}'.`);
                         error = null;
                     } else {
+                        if (moduleName === 'institutions') {
+                            const fallbackCache = _serverModuleMemoryCache.get('institutions');
+                            if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
+                                console.warn('[API GET] Recovered institutions from memory cache on DB error:', error.message || error.code);
+                                return res.status(200).json(fallbackCache.data);
+                            }
+                        }
                         console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
                         // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
                         // Returning 503 ensures frontend clients (apiService.ts / localDb) retain their cached records!
@@ -1786,13 +1811,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // 2. Only query institution_module_states if any institution is missing visitor settings
                 const needsFallback = records.filter(inst => inst && inst.id && inst.visitor_auto_finalize_enabled === undefined);
                 if (needsFallback.length > 0) {
+                    let vTimer: any;
                     try {
                         const targetIds = needsFallback.map(i => i.id).slice(0, 50);
                         const vStatesPromise = targetIds.length === 1 
                             ? supabase.from('institution_module_states').select('institution_id, data').eq('institution_id', targetIds[0]).eq('module_id', 'visitor_settings').maybeSingle()
                             : supabase.from('institution_module_states').select('institution_id, data').in('institution_id', targetIds).eq('module_id', 'visitor_settings');
                         
-                        const timeoutP = new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500));
+                        const timeoutP = new Promise<never>((_, rej) => { vTimer = setTimeout(() => rej(new Error('timeout')), 1500); });
                         const { data: vStatesData } = await Promise.race([vStatesPromise, timeoutP]);
                         
                         const stateList = Array.isArray(vStatesData) ? vStatesData : (vStatesData ? [vStatesData] : []);
@@ -1820,7 +1846,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 } catch (_) {}
                             }
                         });
-                    } catch (_) {}
+                    } catch (_) {} finally {
+                        clearTimeout(vTimer);
+                    }
                 }
 
                 // 3. Final normalization
@@ -1850,7 +1878,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const hasPagingConstraint = Boolean(req.query.limit || req.query.offset || req.query.page);
                 if (!getStrParam(id) && !targetInstParam && !hasPagingConstraint && records.length > 0) {
                     const existingCache = _serverModuleMemoryCache.get('institutions');
-                    if (!existingCache || records.length >= existingCache.data.length) {
+                    if (!existingCache || !Array.isArray(existingCache.data) || records.length >= existingCache.data.length) {
                         _serverModuleMemoryCache.set('institutions', {
                             data: [...records],
                             timestamp: Date.now()
@@ -4959,6 +4987,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(405).json({ success: false, error: 'Method not allowed' });
     } catch (err: any) {
         console.error('[API Records] Crash:', err);
-        return res.status(500).json({ success: false, error: 'Server Error', message: err.message });
+        const reqMod = (req?.query?.module as string) || '';
+        if (reqMod === 'institutions') {
+            const fallbackCache = _serverModuleMemoryCache.get('institutions');
+            if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
+                console.warn('[API Records] Rescued crashing request with in-memory institutions cache');
+                return res.status(200).json(fallbackCache.data);
+            }
+        }
+        return res.status(500).json({ success: false, error: 'Server Error', message: err?.message || String(err) });
     }
 }

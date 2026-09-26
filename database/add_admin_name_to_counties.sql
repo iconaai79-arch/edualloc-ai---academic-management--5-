@@ -140,5 +140,59 @@ CREATE POLICY "counties_delete_policy" ON public.counties
 
 GRANT ALL ON public.counties TO authenticated, anon, service_role;
 
--- 12. Notify PostgREST schema cache reload
+-- 12. Fix legacy RLS policies on institutions that reference counties.admin_id
+-- Prevents PostgreSQL error 42883 (operator does not exist: text = uuid) on institutions queries
+DROP POLICY IF EXISTS "County admins can view institutions in their county" ON public.institutions;
+DROP POLICY IF EXISTS "County admins can update institutions in their county" ON public.institutions;
+DROP POLICY IF EXISTS "County admins can insert institutions in their county" ON public.institutions;
+
+DROP POLICY IF EXISTS "institutions_select_policy" ON public.institutions;
+CREATE POLICY "institutions_select_policy" ON public.institutions
+    FOR SELECT TO authenticated, anon
+    USING (true);
+
+CREATE POLICY "County admins can view institutions in their county"
+    ON public.institutions
+    FOR SELECT TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            JOIN public.counties c ON c.admin_id::text = u.id::text
+            WHERE u.id::text = auth.uid()::text
+            AND u.role = 'county_admin'
+            AND institutions.county_id::text = c.id::text
+        )
+    );
+
+CREATE POLICY "County admins can update institutions in their county"
+    ON public.institutions
+    FOR UPDATE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            JOIN public.counties c ON c.admin_id::text = u.id::text
+            WHERE u.id::text = auth.uid()::text
+            AND u.role = 'county_admin'
+            AND institutions.county_id::text = c.id::text
+        )
+    );
+
+CREATE POLICY "County admins can insert institutions in their county"
+    ON public.institutions
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            JOIN public.counties c ON c.admin_id::text = u.id::text
+            WHERE u.id::text = auth.uid()::text
+            AND u.role = 'county_admin'
+            AND institutions.county_id::text = c.id::text
+        )
+    );
+
+GRANT ALL ON public.institutions TO authenticated, anon, service_role;
+
+-- 13. Notify PostgREST schema cache reload
 NOTIFY pgrst, 'reload schema';
