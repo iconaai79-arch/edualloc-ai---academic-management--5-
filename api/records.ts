@@ -1218,7 +1218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? 1000 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
-                    : (['inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
+                    : (['inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
                         : (['visitors', 'security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
                             ? 250
@@ -1407,6 +1407,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Executes in a single parameterized query (< 400ms), completely bypassing PostgREST HTTP round-trips and chunking loops.
                 const isBulkModule = [
                     'users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory', 'retail_inventory_items',
+                    'books', 'library_transactions', 'library_fines',
                     'ds_students', 'mpesa_transactions',
                     // Academic lookup tables — frequently large, benefit most from direct PG
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
