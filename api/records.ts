@@ -462,7 +462,12 @@ const isTableWithoutInstitutionId = (module: string) => {
 const cleanRemedialRateSettings = (rec: any) => {
     if (!rec || typeof rec !== 'object') return rec;
     const copy = { ...rec };
-    const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+    let meta: any = {};
+    if (typeof copy.metadata === 'object' && copy.metadata !== null) {
+        meta = { ...copy.metadata };
+    } else if (typeof copy.metadata === 'string') {
+        try { meta = JSON.parse(copy.metadata); } catch (_) { meta = {}; }
+    }
 
     if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
     if (copy.hourlyRate !== undefined && copy.hourly_rate === undefined) copy.hourly_rate = copy.hourlyRate;
@@ -508,6 +513,16 @@ const cleanRemedialRateSettings = (rec: any) => {
         meta.max_weekend_lessons_per_class_per_day = copy.max_weekend_lessons_per_class_per_day;
         meta.maxWeekendLessonsPerClassPerDay = copy.max_weekend_lessons_per_class_per_day;
     }
+    if (copy.maxSaturdayLessonsPerClassPerDay !== undefined && copy.max_saturday_lessons_per_class_per_day === undefined) copy.max_saturday_lessons_per_class_per_day = copy.maxSaturdayLessonsPerClassPerDay;
+    if (copy.max_saturday_lessons_per_class_per_day !== undefined) {
+        meta.max_saturday_lessons_per_class_per_day = copy.max_saturday_lessons_per_class_per_day;
+        meta.maxSaturdayLessonsPerClassPerDay = copy.max_saturday_lessons_per_class_per_day;
+    }
+    if (copy.maxSundayLessonsPerClassPerDay !== undefined && copy.max_sunday_lessons_per_class_per_day === undefined) copy.max_sunday_lessons_per_class_per_day = copy.maxSundayLessonsPerClassPerDay;
+    if (copy.max_sunday_lessons_per_class_per_day !== undefined) {
+        meta.max_sunday_lessons_per_class_per_day = copy.max_sunday_lessons_per_class_per_day;
+        meta.maxSundayLessonsPerClassPerDay = copy.max_sunday_lessons_per_class_per_day;
+    }
     if (copy.maxLessonsPerTeacherPerDay !== undefined && copy.max_lessons_per_teacher_per_day === undefined) copy.max_lessons_per_teacher_per_day = copy.maxLessonsPerTeacherPerDay;
     if (copy.max_lessons_per_teacher_per_day !== undefined) {
         meta.max_lessons_per_teacher_per_day = copy.max_lessons_per_teacher_per_day;
@@ -517,6 +532,26 @@ const cleanRemedialRateSettings = (rec: any) => {
     if (copy.max_weekend_lessons_per_teacher_per_day !== undefined) {
         meta.max_weekend_lessons_per_teacher_per_day = copy.max_weekend_lessons_per_teacher_per_day;
         meta.maxWeekendLessonsPerTeacherPerDay = copy.max_weekend_lessons_per_teacher_per_day;
+    }
+    if (copy.maxSaturdayLessonsPerTeacherPerDay !== undefined && copy.max_saturday_lessons_per_teacher_per_day === undefined) copy.max_saturday_lessons_per_teacher_per_day = copy.maxSaturdayLessonsPerTeacherPerDay;
+    if (copy.max_saturday_lessons_per_teacher_per_day !== undefined) {
+        meta.max_saturday_lessons_per_teacher_per_day = copy.max_saturday_lessons_per_teacher_per_day;
+        meta.maxSaturdayLessonsPerTeacherPerDay = copy.max_saturday_lessons_per_teacher_per_day;
+    }
+    if (copy.maxSundayLessonsPerTeacherPerDay !== undefined && copy.max_sunday_lessons_per_teacher_per_day === undefined) copy.max_sunday_lessons_per_teacher_per_day = copy.maxSundayLessonsPerTeacherPerDay;
+    if (copy.max_sunday_lessons_per_teacher_per_day !== undefined) {
+        meta.max_sunday_lessons_per_teacher_per_day = copy.max_sunday_lessons_per_teacher_per_day;
+        meta.maxSundayLessonsPerTeacherPerDay = copy.max_sunday_lessons_per_teacher_per_day;
+    }
+    if (copy.saturdayPeriodsCount !== undefined && copy.saturday_periods_count === undefined) copy.saturday_periods_count = copy.saturdayPeriodsCount;
+    if (copy.saturday_periods_count !== undefined) {
+        meta.saturday_periods_count = copy.saturday_periods_count;
+        meta.saturdayPeriodsCount = copy.saturday_periods_count;
+    }
+    if (copy.sundayPeriodsCount !== undefined && copy.sunday_periods_count === undefined) copy.sunday_periods_count = copy.sundayPeriodsCount;
+    if (copy.sunday_periods_count !== undefined) {
+        meta.sunday_periods_count = copy.sunday_periods_count;
+        meta.sundayPeriodsCount = copy.sunday_periods_count;
     }
     if (copy.cancellationCutoffHours !== undefined && copy.cancellation_cutoff_hours === undefined) copy.cancellation_cutoff_hours = copy.cancellationCutoffHours;
     if (copy.cancellation_cutoff_hours !== undefined) {
@@ -630,8 +665,14 @@ const cleanRemedialRateSettings = (rec: any) => {
     delete copy.maxWeekendLessonsPerDay;
     delete copy.maxLessonsPerClassPerDay;
     delete copy.maxWeekendLessonsPerClassPerDay;
+    delete copy.maxSaturdayLessonsPerClassPerDay;
+    delete copy.maxSundayLessonsPerClassPerDay;
     delete copy.maxLessonsPerTeacherPerDay;
     delete copy.maxWeekendLessonsPerTeacherPerDay;
+    delete copy.maxSaturdayLessonsPerTeacherPerDay;
+    delete copy.maxSundayLessonsPerTeacherPerDay;
+    delete copy.saturdayPeriodsCount;
+    delete copy.sundayPeriodsCount;
     delete copy.cancellationCutoffHours;
     delete copy.confirmationTimeoutMinutes;
     delete copy.teacherPreferences;
@@ -1633,55 +1674,118 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 records.forEach((r: any) => {
                     if (r && typeof r === 'object') {
-                        const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
-                        if (r.max_weekend_lessons_per_day === undefined && meta.max_weekend_lessons_per_day !== undefined) {
-                            r.max_weekend_lessons_per_day = meta.max_weekend_lessons_per_day;
-                        }
-                        if (r.maxWeekendLessonsPerDay === undefined) {
-                            r.maxWeekendLessonsPerDay = r.max_weekend_lessons_per_day ?? meta.maxWeekendLessonsPerDay ?? 2;
-                        }
-                        if (r.cancellation_cutoff_hours === undefined && meta.cancellation_cutoff_hours !== undefined) {
-                            r.cancellation_cutoff_hours = meta.cancellation_cutoff_hours;
-                        }
-                        if (r.cancellationCutoffHours === undefined) {
-                            r.cancellationCutoffHours = r.cancellation_cutoff_hours ?? meta.cancellationCutoffHours ?? 3;
-                        }
-                        if (r.confirmation_timeout_minutes === undefined && meta.confirmation_timeout_minutes !== undefined) {
-                            r.confirmation_timeout_minutes = meta.confirmation_timeout_minutes;
-                        }
-                        if (r.confirmationTimeoutMinutes === undefined) {
-                            r.confirmationTimeoutMinutes = r.confirmation_timeout_minutes ?? meta.confirmationTimeoutMinutes ?? 45;
-                        }
-                        if (r.teacher_preferences === undefined && meta.teacher_preferences !== undefined) {
-                            r.teacher_preferences = meta.teacher_preferences;
-                        }
-                        if (r.teacherPreferences === undefined) {
-                            r.teacherPreferences = r.teacher_preferences ?? meta.teacherPreferences ?? {};
-                        }
-                        if (r.weekend_break_start_time === undefined && meta.weekend_break_start_time !== undefined) {
-                            r.weekend_break_start_time = meta.weekend_break_start_time;
-                        }
-                        if (r.weekendBreakStartTime === undefined) {
-                            r.weekendBreakStartTime = r.weekend_break_start_time ?? meta.weekendBreakStartTime ?? '10:00';
-                        }
-                        if (r.weekend_break_end_time === undefined && meta.weekend_break_end_time !== undefined) {
-                            r.weekend_break_end_time = meta.weekend_break_end_time;
-                        }
-                        if (r.weekendBreakEndTime === undefined) {
-                            r.weekendBreakEndTime = r.weekend_break_end_time ?? meta.weekendBreakEndTime ?? '10:30';
-                        }
-                        if (r.weekend_break_label === undefined && meta.weekend_break_label !== undefined) {
-                            r.weekend_break_label = meta.weekend_break_label;
-                        }
-                        if (r.weekendBreakLabel === undefined) {
-                            r.weekendBreakLabel = r.weekend_break_label ?? meta.weekendBreakLabel ?? 'Tea & Refreshment Break';
-                        }
-                        if (r.include_weekend_break === undefined && meta.include_weekend_break !== undefined) {
-                            r.include_weekend_break = meta.include_weekend_break;
-                        }
-                        if (r.includeWeekendBreak === undefined) {
-                            r.includeWeekendBreak = r.include_weekend_break ?? meta.includeWeekendBreak ?? true;
-                        }
+                        const meta = typeof r.metadata === 'object' && r.metadata !== null 
+                            ? r.metadata 
+                            : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
+
+                        // Saturday & Sunday Times
+                        const satStart = r.saturday_start_time ?? r.saturdayStartTime ?? meta.saturday_start_time ?? meta.saturdayStartTime ?? r.weekend_start_time ?? r.weekendStartTime ?? '08:00';
+                        const satEnd = r.saturday_end_time ?? r.saturdayEndTime ?? meta.saturday_end_time ?? meta.saturdayEndTime ?? r.weekend_end_time ?? r.weekendEndTime ?? '12:00';
+                        const sunStart = r.sunday_start_time ?? r.sundayStartTime ?? meta.sunday_start_time ?? meta.sundayStartTime ?? '09:00';
+                        const sunEnd = r.sunday_end_time ?? r.sundayEndTime ?? meta.sunday_end_time ?? meta.sundayEndTime ?? '13:00';
+
+                        r.saturday_start_time = satStart;
+                        r.saturdayStartTime = satStart;
+                        r.saturday_end_time = satEnd;
+                        r.saturdayEndTime = satEnd;
+                        r.sunday_start_time = sunStart;
+                        r.sundayStartTime = sunStart;
+                        r.sunday_end_time = sunEnd;
+                        r.sundayEndTime = sunEnd;
+                        r.weekend_start_time = r.weekend_start_time ?? satStart;
+                        r.weekendStartTime = r.weekendStartTime ?? satStart;
+                        r.weekend_end_time = r.weekend_end_time ?? satEnd;
+                        r.weekendEndTime = r.weekendEndTime ?? satEnd;
+
+                        // Saturday & Sunday Breaks
+                        const satBreakStart = r.saturday_break_start_time ?? r.saturdayBreakStartTime ?? meta.saturday_break_start_time ?? meta.saturdayBreakStartTime ?? r.weekend_break_start_time ?? r.weekendBreakStartTime ?? '10:00';
+                        const satBreakEnd = r.saturday_break_end_time ?? r.saturdayBreakEndTime ?? meta.saturday_break_end_time ?? meta.saturdayBreakEndTime ?? r.weekend_break_end_time ?? r.weekendBreakEndTime ?? '10:30';
+                        const satBreakLabel = r.saturday_break_label ?? r.saturdayBreakLabel ?? meta.saturday_break_label ?? meta.saturdayBreakLabel ?? r.weekend_break_label ?? r.weekendBreakLabel ?? 'Saturday Refreshment Break';
+                        const satIncBreak = r.include_saturday_break ?? r.includeSaturdayBreak ?? meta.include_saturday_break ?? meta.includeSaturdayBreak ?? r.include_weekend_break ?? r.includeWeekendBreak ?? true;
+
+                        const sunBreakStart = r.sunday_break_start_time ?? r.sundayBreakStartTime ?? meta.sunday_break_start_time ?? meta.sundayBreakStartTime ?? '11:00';
+                        const sunBreakEnd = r.sunday_break_end_time ?? r.sundayBreakEndTime ?? meta.sunday_break_end_time ?? meta.sundayBreakEndTime ?? '11:30';
+                        const sunBreakLabel = r.sunday_break_label ?? r.sundayBreakLabel ?? meta.sunday_break_label ?? meta.sundayBreakLabel ?? 'Sunday Recess Break';
+                        const sunIncBreak = r.include_sunday_break ?? r.includeSundayBreak ?? meta.include_sunday_break ?? meta.includeSundayBreak ?? true;
+
+                        r.saturday_break_start_time = satBreakStart;
+                        r.saturdayBreakStartTime = satBreakStart;
+                        r.saturday_break_end_time = satBreakEnd;
+                        r.saturdayBreakEndTime = satBreakEnd;
+                        r.saturday_break_label = satBreakLabel;
+                        r.saturdayBreakLabel = satBreakLabel;
+                        r.include_saturday_break = satIncBreak !== false;
+                        r.includeSaturdayBreak = satIncBreak !== false;
+
+                        r.sunday_break_start_time = sunBreakStart;
+                        r.sundayBreakStartTime = sunBreakStart;
+                        r.sunday_break_end_time = sunBreakEnd;
+                        r.sundayBreakEndTime = sunBreakEnd;
+                        r.sunday_break_label = sunBreakLabel;
+                        r.sundayBreakLabel = sunBreakLabel;
+                        r.include_sunday_break = sunIncBreak !== false;
+                        r.includeSundayBreak = sunIncBreak !== false;
+
+                        r.weekend_break_start_time = satBreakStart;
+                        r.weekendBreakStartTime = satBreakStart;
+                        r.weekend_break_end_time = satBreakEnd;
+                        r.weekendBreakEndTime = satBreakEnd;
+                        r.weekend_break_label = satBreakLabel;
+                        r.weekendBreakLabel = satBreakLabel;
+                        r.include_weekend_break = satIncBreak !== false;
+                        r.includeWeekendBreak = satIncBreak !== false;
+
+                        // Lesson quotas & periods
+                        r.max_weekend_lessons_per_day = r.max_weekend_lessons_per_day ?? meta.max_weekend_lessons_per_day ?? 2;
+                        r.maxWeekendLessonsPerDay = r.max_weekend_lessons_per_day;
+
+                        r.max_lessons_per_class_per_day = r.max_lessons_per_class_per_day ?? meta.max_lessons_per_class_per_day ?? 1;
+                        r.maxLessonsPerClassPerDay = r.max_lessons_per_class_per_day;
+
+                        r.max_weekend_lessons_per_class_per_day = r.max_weekend_lessons_per_class_per_day ?? meta.max_weekend_lessons_per_class_per_day ?? 2;
+                        r.maxWeekendLessonsPerClassPerDay = r.max_weekend_lessons_per_class_per_day;
+
+                        r.max_saturday_lessons_per_class_per_day = r.max_saturday_lessons_per_class_per_day ?? r.maxSaturdayLessonsPerClassPerDay ?? meta.max_saturday_lessons_per_class_per_day ?? meta.maxSaturdayLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? 3;
+                        r.maxSaturdayLessonsPerClassPerDay = r.max_saturday_lessons_per_class_per_day;
+
+                        r.max_sunday_lessons_per_class_per_day = r.max_sunday_lessons_per_class_per_day ?? r.maxSundayLessonsPerClassPerDay ?? meta.max_sunday_lessons_per_class_per_day ?? meta.maxSundayLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? 2;
+                        r.maxSundayLessonsPerClassPerDay = r.max_sunday_lessons_per_class_per_day;
+
+                        r.max_lessons_per_teacher_per_day = r.max_lessons_per_teacher_per_day ?? meta.max_lessons_per_teacher_per_day ?? 1;
+                        r.maxLessonsPerTeacherPerDay = r.max_lessons_per_teacher_per_day;
+
+                        r.max_weekend_lessons_per_teacher_per_day = r.max_weekend_lessons_per_teacher_per_day ?? meta.max_weekend_lessons_per_teacher_per_day ?? 2;
+                        r.maxWeekendLessonsPerTeacherPerDay = r.max_weekend_lessons_per_teacher_per_day;
+
+                        r.max_saturday_lessons_per_teacher_per_day = r.max_saturday_lessons_per_teacher_per_day ?? r.maxSaturdayLessonsPerTeacherPerDay ?? meta.max_saturday_lessons_per_teacher_per_day ?? meta.maxSaturdayLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? 3;
+                        r.maxSaturdayLessonsPerTeacherPerDay = r.max_saturday_lessons_per_teacher_per_day;
+
+                        r.max_sunday_lessons_per_teacher_per_day = r.max_sunday_lessons_per_teacher_per_day ?? r.maxSundayLessonsPerTeacherPerDay ?? meta.max_sunday_lessons_per_teacher_per_day ?? meta.maxSundayLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? 2;
+                        r.maxSundayLessonsPerTeacherPerDay = r.max_sunday_lessons_per_teacher_per_day;
+
+                        r.saturday_periods_count = r.saturday_periods_count ?? r.saturdayPeriodsCount ?? meta.saturday_periods_count ?? meta.saturdayPeriodsCount ?? 5;
+                        r.saturdayPeriodsCount = r.saturday_periods_count;
+
+                        r.sunday_periods_count = r.sunday_periods_count ?? r.sundayPeriodsCount ?? meta.sunday_periods_count ?? meta.sundayPeriodsCount ?? 4;
+                        r.sundayPeriodsCount = r.sunday_periods_count;
+
+                        // Cancellation & confirmation
+                        r.cancellation_cutoff_hours = r.cancellation_cutoff_hours ?? meta.cancellation_cutoff_hours ?? 3;
+                        r.cancellationCutoffHours = r.cancellation_cutoff_hours;
+
+                        r.confirmation_timeout_minutes = r.confirmation_timeout_minutes ?? meta.confirmation_timeout_minutes ?? 45;
+                        r.confirmationTimeoutMinutes = r.confirmation_timeout_minutes;
+
+                        // Teacher Preferences & Codes
+                        r.teacher_preferences = r.teacher_preferences ?? meta.teacher_preferences ?? meta.teacherPreferences ?? {};
+                        r.teacherPreferences = r.teacher_preferences;
+
+                        r.teacher_codes = r.teacher_codes ?? meta.teacher_codes ?? meta.teacherCodes ?? {};
+                        r.teacherCodes = r.teacher_codes;
+
+                        // Rates
+                        r.weekday_duty_flat_rate = r.weekday_duty_flat_rate ?? meta.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? 200;
+                        r.weekdayDutyFlatRate = r.weekday_duty_flat_rate;
                     }
                 });
             }
@@ -3810,15 +3914,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             'weekend_break_start_time', 'weekend_break_end_time', 'weekend_break_label', 'include_weekend_break',
                             'max_weekend_lessons_per_day',
                             'max_lessons_per_class_per_day', 'max_weekend_lessons_per_class_per_day',
+                            'max_saturday_lessons_per_class_per_day', 'max_sunday_lessons_per_class_per_day',
                             'max_lessons_per_teacher_per_day', 'max_weekend_lessons_per_teacher_per_day',
+                            'max_saturday_lessons_per_teacher_per_day', 'max_sunday_lessons_per_teacher_per_day',
+                            'saturday_periods_count', 'sunday_periods_count',
                             'cancellation_cutoff_hours', 'confirmation_timeout_minutes',
-                            'teacher_preferences', 'weekday_duty_flat_rate', 'fee_per_student', 'term_fee',
+                            'teacher_preferences', 'teacher_codes', 'weekday_duty_flat_rate', 'fee_per_student', 'term_fee',
                             'updated_at', 'created_at'
                         ];
                         const stripRateExtended = (item: any) => {
                             if (!item || typeof item !== 'object') return item;
                             const copy = { ...item };
-                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            let meta: any = {};
+                            if (typeof copy.metadata === 'object' && copy.metadata !== null) {
+                                meta = { ...copy.metadata };
+                            } else if (typeof copy.metadata === 'string') {
+                                try { meta = JSON.parse(copy.metadata); } catch (_) { meta = {}; }
+                            }
                             EXTENDED_RATE_COLS.forEach(c => {
                                 if (copy[c] !== undefined && copy[c] !== null) {
                                     meta[c] = copy[c];

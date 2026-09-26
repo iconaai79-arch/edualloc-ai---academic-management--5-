@@ -6624,11 +6624,13 @@ export const apiService = {
     async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> {
         const records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);
         return (records || []).map((r: any) => {
-            const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+            const meta = (typeof r.metadata === 'object' && r.metadata !== null) 
+                ? r.metadata 
+                : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
             const satStart = r.saturdayStartTime ?? r.saturday_start_time ?? meta.saturdayStartTime ?? meta.saturday_start_time ?? r.weekendStartTime ?? r.weekend_start_time ?? '08:00';
             const satEnd = r.saturdayEndTime ?? r.saturday_end_time ?? meta.saturdayEndTime ?? meta.saturday_end_time ?? r.weekendEndTime ?? r.weekend_end_time ?? '12:00';
-            const sunStart = r.sundayStartTime ?? r.sunday_start_time ?? meta.sundayStartTime ?? meta.sunday_start_time ?? r.weekendStartTime ?? r.weekend_start_time ?? '09:00';
-            const sunEnd = r.sundayEndTime ?? r.sunday_end_time ?? meta.sundayEndTime ?? meta.sunday_end_time ?? r.weekendEndTime ?? r.weekend_end_time ?? '13:00';
+            const sunStart = r.sundayStartTime ?? r.sunday_start_time ?? meta.sundayStartTime ?? meta.sunday_start_time ?? '09:00';
+            const sunEnd = r.sundayEndTime ?? r.sunday_end_time ?? meta.sundayEndTime ?? meta.sunday_end_time ?? '13:00';
             const satBreakStart = r.saturdayBreakStartTime ?? r.saturday_break_start_time ?? meta.saturdayBreakStartTime ?? meta.saturday_break_start_time ?? r.weekendBreakStartTime ?? r.weekend_break_start_time ?? '10:00';
             const satBreakEnd = r.saturdayBreakEndTime ?? r.saturday_break_end_time ?? meta.saturdayBreakEndTime ?? meta.saturday_break_end_time ?? r.weekendBreakEndTime ?? r.weekend_break_end_time ?? '10:30';
             const satBreakLabel = r.saturdayBreakLabel ?? r.saturday_break_label ?? meta.saturdayBreakLabel ?? meta.saturday_break_label ?? r.weekendBreakLabel ?? r.weekend_break_label ?? 'Saturday Refreshment Break';
@@ -6636,7 +6638,7 @@ export const apiService = {
             const sunBreakStart = r.sundayBreakStartTime ?? r.sunday_break_start_time ?? meta.sundayBreakStartTime ?? meta.sunday_break_start_time ?? '11:00';
             const sunBreakEnd = r.sundayBreakEndTime ?? r.sunday_break_end_time ?? meta.sundayBreakEndTime ?? meta.sunday_break_end_time ?? '11:30';
             const sunBreakLabel = r.sundayBreakLabel ?? r.sunday_break_label ?? meta.sundayBreakLabel ?? meta.sunday_break_label ?? 'Sunday Recess Break';
-            const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? meta.includeSundayBreak ?? meta.include_sunday_break ?? r.includeWeekendBreak ?? r.include_weekend_break ?? true;
+            const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? meta.includeSundayBreak ?? meta.include_sunday_break ?? true;
             const maxClassWeekday = r.maxLessonsPerClassPerDay ?? r.max_lessons_per_class_per_day ?? meta.maxLessonsPerClassPerDay ?? meta.max_lessons_per_class_per_day ?? 1;
             const maxClassWeekend = r.maxWeekendLessonsPerClassPerDay ?? r.max_weekend_lessons_per_class_per_day ?? meta.maxWeekendLessonsPerClassPerDay ?? meta.max_weekend_lessons_per_class_per_day ?? 2;
             const maxClassSat = r.maxSaturdayLessonsPerClassPerDay ?? r.max_saturday_lessons_per_class_per_day ?? meta.maxSaturdayLessonsPerClassPerDay ?? meta.max_saturday_lessons_per_class_per_day ?? maxClassWeekend ?? 3;
@@ -6741,7 +6743,22 @@ export const apiService = {
             };
         });
     },
-    async saveRemedialRateSetting(data: Partial<RemedialRateSetting>): Promise<void> { await apiService.saveModuleRecord('school_remedial_rate_settings', data); },
+    async saveRemedialRateSetting(data: Partial<RemedialRateSetting>): Promise<void> { 
+        await apiService.saveModuleRecord('school_remedial_rate_settings', data); 
+        const instId = (data as any)?.institutionId || (data as any)?.institution_id;
+        if (instId) {
+            try {
+                await apiService.saveModuleRecord('institution_module_states', {
+                    id: `${instId}_school_remedial_rate_settings`,
+                    institution_id: instId,
+                    module_id: 'school_remedial_rate_settings',
+                    data: data,
+                    status: 'active',
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            } catch (_) {}
+        }
+    },
     async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { return apiService.fetchModuleRecords('school_remedial_payouts', instId); },
     async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { await apiService.saveModuleRecord('school_remedial_payouts', data); },
     async fetchRemedialAllocations(instId?: string): Promise<RemedialAllocation[]> {

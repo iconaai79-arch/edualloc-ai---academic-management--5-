@@ -314,16 +314,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const applyRateSettings = (r: any) => {
         if (!r) return;
         setRateSetting(r);
+        const meta = (typeof r.metadata === 'object' && r.metadata !== null) 
+            ? r.metadata 
+            : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
+
         setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
         setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
         setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
-        setWeekdayDutyFlatRate(r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? r.metadata?.weekdayDutyFlatRate ?? 200);
+        setWeekdayDutyFlatRate(r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200);
         setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
         setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
-        const satStart = r.saturdayStartTime || r.saturday_start_time || r.metadata?.saturdayStartTime || r.metadata?.saturday_start_time || r.weekendStartTime || r.weekend_start_time || '08:00';
-        const satEnd = r.saturdayEndTime || r.saturday_end_time || r.metadata?.saturdayEndTime || r.metadata?.saturday_end_time || r.weekendEndTime || r.weekend_end_time || '12:00';
-        const sunStart = r.sundayStartTime || r.sunday_start_time || r.metadata?.sundayStartTime || r.metadata?.sunday_start_time || r.weekendStartTime || r.weekend_start_time || '09:00';
-        const sunEnd = r.sundayEndTime || r.sunday_end_time || r.metadata?.sundayEndTime || r.metadata?.sunday_end_time || r.weekendEndTime || r.weekend_end_time || '13:00';
+
+        const cachedSatStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_start_${institutionId}`) : null;
+        const cachedSatEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_end_${institutionId}`) : null;
+        const cachedSunStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_start_${institutionId}`) : null;
+        const cachedSunEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_end_${institutionId}`) : null;
+
+        const satStart = r.saturdayStartTime || r.saturday_start_time || meta.saturdayStartTime || meta.saturday_start_time || cachedSatStart || r.weekendStartTime || r.weekend_start_time || '08:00';
+        const satEnd = r.saturdayEndTime || r.saturday_end_time || meta.saturdayEndTime || meta.saturday_end_time || cachedSatEnd || r.weekendEndTime || r.weekend_end_time || '12:00';
+        const sunStart = r.sundayStartTime || r.sunday_start_time || meta.sundayStartTime || meta.sunday_start_time || cachedSunStart || '09:00';
+        const sunEnd = r.sundayEndTime || r.sunday_end_time || meta.sundayEndTime || meta.sunday_end_time || cachedSunEnd || '13:00';
         setSaturdayStartTime(satStart);
         setSaturdayEndTime(satEnd);
         setSundayStartTime(sunStart);
@@ -2370,6 +2380,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Save Rate Settings (including teacher preferences)
     const handleSaveRates = async () => {
         try {
+            safeLocalStorage.setItem(`eduai_remedial_sat_start_${institutionId}`, saturdayStartTime);
+            safeLocalStorage.setItem(`eduai_remedial_sat_end_${institutionId}`, saturdayEndTime);
+            safeLocalStorage.setItem(`eduai_remedial_sun_start_${institutionId}`, sundayStartTime);
+            safeLocalStorage.setItem(`eduai_remedial_sun_end_${institutionId}`, sundayEndTime);
             safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay));
             safeLocalStorage.setItem(`eduai_remedial_class_wd_max_${institutionId}`, String(maxLessonsPerClassPerDay));
             safeLocalStorage.setItem(`eduai_remedial_class_we_max_${institutionId}`, String(maxWeekendLessonsPerClassPerDay));
@@ -2381,7 +2395,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             safeLocalStorage.setItem(`eduai_remedial_sun_periods_${institutionId}`, String(sundayPeriodsCount));
             safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(teacherPreferences));
             const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
-            const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') ? rateSetting.metadata : {};
+            const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') 
+                ? rateSetting.metadata 
+                : (typeof rateSetting?.metadata === 'string' ? (() => { try { return JSON.parse(rateSetting.metadata); } catch (_) { return {}; } })() : {});
             const data: any = {
                 id: stableId,
                 hourlyRate: weekdayHourlyRate,
