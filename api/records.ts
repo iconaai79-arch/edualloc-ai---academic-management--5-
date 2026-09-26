@@ -2,9 +2,15 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
 // Self-contained Supabase service client factory to avoid external lib crashes
-const getSupabase = () => {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const getSupabase = (req?: VercelRequest) => {
+  const url = 
+    (req?.headers?.['x-supabase-url'] as string) ||
+    process.env.SUPABASE_URL || 
+    process.env.VITE_SUPABASE_URL;
   const key = 
+    (req?.headers?.['x-supabase-service-key'] as string) ||
+    (req?.headers?.['x-supabase-key'] as string) ||
+    (req?.headers?.['x-supabase-anon-key'] as string) ||
     process.env.SUPABASE_SERVICE_ROLE_KEY || 
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_ANON_KEY || 
@@ -765,8 +771,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     try {
-        const supabase = getSupabase();
-        if (!supabase) return res.status(503).json({ success: false, error: 'Supabase keys missing in environment' });
+        const supabase = getSupabase(req);
+        if (!supabase) {
+            if (req.method === 'GET' && moduleName === 'institutions') {
+                const fallbackCache = _serverModuleMemoryCache.get('institutions');
+                if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
+                    return res.status(200).json(fallbackCache.data);
+                }
+                return res.status(200).json([]);
+            }
+            return res.status(503).json({ success: false, error: 'Supabase keys missing in environment' });
+        }
 
         const authHeader = req.headers.authorization;
         const reqAction = getStrParam(req.query.action) || (typeof req.body === 'object' && req.body !== null ? req.body.action : '');
@@ -1581,6 +1596,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 console.warn('[API GET] Recovered institutions from memory cache on DB error:', error.message || error.code);
                                 return res.status(200).json(fallbackCache.data);
                             }
+                            console.warn('[API GET] DB query failed on institutions with no memory cache. Returning empty list fallback to prevent crash.');
+                            return res.status(200).json([]);
                         }
                         console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
                         // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
@@ -4994,6 +5011,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.warn('[API Records] Rescued crashing request with in-memory institutions cache');
                 return res.status(200).json(fallbackCache.data);
             }
+            console.warn('[API Records] Rescued crashing institutions request with empty list fallback');
+            return res.status(200).json([]);
         }
         return res.status(500).json({ success: false, error: 'Server Error', message: err?.message || String(err) });
     }

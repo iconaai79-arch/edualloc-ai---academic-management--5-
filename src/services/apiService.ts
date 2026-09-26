@@ -2007,6 +2007,8 @@ export const apiService = {
                         headers: {
                             'Authorization': tkn ? `Bearer ${tkn}` : '',
                             'Content-Type': 'application/json',
+                            ...(_activeUrl ? { 'x-supabase-url': _activeUrl } : {}),
+                            ...(_activeKey ? { 'x-supabase-key': _activeKey } : {}),
                             ...(effectiveInstId && effectiveInstId !== 'ALL' ? { 'x-institution-id': effectiveInstId } : {})
                         }
                     }).finally(() => {
