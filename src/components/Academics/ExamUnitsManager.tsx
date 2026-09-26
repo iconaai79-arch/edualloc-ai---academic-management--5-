@@ -337,6 +337,70 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
     );
 });
 
+// Strictly identify staff/teachers/admins/parents across all schema variations
+export const isNonStudentUser = (u: any): boolean => {
+    if (!u) return false;
+    const r = String(u.role || u.userType || u.type || '').toLowerCase().trim();
+    const nonStudentRoles = [
+        'teacher', 'lecturer', 'instructor', 'tutor', 'trainer',
+        'admin', 'super_admin', 'superadmin', 'super-admin', 'institution_admin', 'system_admin',
+        'staff', 'support_staff', 'support',
+        'principal', 'deputy_principal', 'headmaster', 'headmistress', 'dean', 'director',
+        'accountant', 'bursar', 'finance_officer', 'cashier',
+        'librarian', 'driver', 'security', 'nurse', 'cook', 'janitor', 'boarding_master', 'matron',
+        'parent', 'guardian', 'vendor', 'contractor'
+    ];
+    if (nonStudentRoles.includes(r)) return true;
+
+    // Check roles array
+    if (Array.isArray(u.roles)) {
+        const hasStaffRole = u.roles.some((role: any) => nonStudentRoles.includes(String(role).toLowerCase().trim()));
+        const hasStudentRole = u.roles.some((role: any) => ['student', 'learner', 'pupil'].includes(String(role).toLowerCase().trim()));
+        if (hasStaffRole && !hasStudentRole) return true;
+    }
+
+    // Check employment / staff specific identifiers
+    if (u.tscNumber || u.tsc_number || u.staffNumber || u.staff_number || u.employeeNumber || u.employee_number || u.payrollNumber) {
+        return true;
+    }
+    if (u.isTeacher || u.isStaff || (u as any).is_staff || u.is_teacher) {
+        return true;
+    }
+    if (u.designation || u.department || u.qualifications) {
+        if (r !== 'student' && r !== 'learner' && r !== 'pupil') {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+// Strictly identify genuine students, excluding all teachers and staff
+export const isStudentUser = (u: any): boolean => {
+    if (!u) return false;
+    if (isNonStudentUser(u)) return false;
+
+    const r = String(u.role || u.userType || u.type || u.enrollmentType || '').toLowerCase().trim();
+    if (r === 'student' || r === 'learner' || r === 'pupil' || r === 'student_enrollment') return true;
+    if (Array.isArray(u.roles) && u.roles.some((role: any) => ['student', 'learner', 'pupil'].includes(String(role).toLowerCase().trim()))) return true;
+
+    // Check genuine admission number (MUST NOT be staff/user ID)
+    const adm = u.admissionNumber || u.admission_number || u.admNo || u.registrationNo || u.regNo || u.metadata?.admissionNumber;
+    if (adm && typeof adm === 'string') {
+        const cleanAdm = adm.trim().toLowerCase();
+        if (cleanAdm && !cleanAdm.startsWith('usr_') && !cleanAdm.startsWith('user_') && !cleanAdm.startsWith('teach_') && !cleanAdm.startsWith('staff_') && !cleanAdm.startsWith('emp_')) {
+            return true;
+        }
+    }
+
+    // Check student-specific class or grade metadata without staff attributes
+    if ((u.studentClass || u.metadata?.studentClass || u.enrollmentType === 'academic') && !isNonStudentUser(u)) {
+        return true;
+    }
+
+    return false;
+};
+
 export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     currentInstitution,
     subjects = [],
@@ -353,10 +417,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const instId = currentInstitution?.id || 'default_inst';
     const examUnitsStorageKey = `eduai_exam_units_${instId}`;
 
-    // Safely resolved students list from prop or users array
+    // Safely resolved students list from prop or users array strictly excluding teachers and staff
     const resolvedStudents = useMemo(() => {
-        if (Array.isArray(propStudents) && propStudents.length > 0) return propStudents;
-        return (users || []).filter((u: any) => u && (u.role === 'student' || u.studentClass || u.admissionNumber));
+        if (Array.isArray(propStudents) && propStudents.length > 0) return propStudents.filter(isStudentUser);
+        return (users || []).filter(isStudentUser);
     }, [propStudents, users]);
 
     // List of Exams State (Persisted in localStorage & DB)
@@ -1351,30 +1415,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [examMarksStore]);
     const loadedExamIdRef = useRef<string | null>(null);
 
-    // Helper to identify student records across all schema types
-    const isStudentUser = useCallback((u: any) => {
-        if (!u) return false;
-        const r = String(u.role || u.userType || u.type || u.enrollmentType || '').toLowerCase().trim();
-        return (
-            r === 'student' ||
-            r === 'student_enrollment' ||
-            r === 'academic' ||
-            Boolean(u.studentClass) ||
-            Boolean(u.admissionNumber) ||
-            Boolean(u.admission_number) ||
-            Boolean(u.admNo) ||
-            Boolean(u.courseLevelId) ||
-            Boolean(u.gradeLevel) ||
-            Boolean(u.className) ||
-            Boolean(u.metadata?.studentClass) ||
-            Boolean(u.metadata?.gradeLevel) ||
-            Boolean(u.metadata?.studentName) ||
-            Boolean(u.stream) ||
-            Boolean(u.streamName) ||
-            (Boolean(u.userId || u.user_id || u.studentId) && Boolean(u.institutionId || u.institution_id))
-        );
-    }, []);
-
     // Helper to get a stable unique deduplication key for a student record
     const getStudentDedupKey = useCallback((s: any): string => {
         if (!s) return '';
@@ -1398,7 +1438,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         return s.id ? `id_${String(s.id).toLowerCase()}` : '';
     }, []);
 
-    // Enrollments Registry for genuine stream resolution
+    // Enrollments Registry for genuine stream resolution strictly filtering out non-students
     const [enrollmentsRegistry, setEnrollmentsRegistry] = useState<any[]>(() => {
         try {
             const cached = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
@@ -1407,12 +1447,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                            localStorage.getItem('student_enrollments') ||
                            (instId ? localStorage.getItem(`eduai_students_${instId}`) : null) ||
                            localStorage.getItem('eduai_students_default');
-            if (cached) return JSON.parse(cached) || [];
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) return parsed.filter(u => !isNonStudentUser(u));
+            }
         } catch (e) {}
         return [];
     });
 
-    // Dynamic Real Students State - accurately initialized from enrollments + users + local registry
+    // Dynamic Real Students State - strictly students only, never teachers or administrators
     const [allRealStudents, setAllRealStudents] = useState<any[]>(() => {
         const map = new Map<string, any>();
         let cachedEnr: any[] = [];
@@ -1424,7 +1467,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (enrRaw) cachedEnr = JSON.parse(enrRaw) || [];
         } catch (e) {}
 
-        (cachedEnr || []).forEach((enr, enrIdx) => {
+        (cachedEnr || []).filter(e => !isNonStudentUser(e)).forEach((enr, enrIdx) => {
             if (!enr) return;
             const adm = enr.admissionNumber || enr.admission_number || enr.admNo || enr.metadata?.admissionNumber || enr.id;
             const name = enr.studentName || enr.student_name || enr.name || enr.metadata?.studentName || enr.metadata?.name;
@@ -1451,7 +1494,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (k) map.set(k, stObj);
         });
 
-        // Also merge from users prop
+        // Also merge from users prop strictly filtering genuine students
         (users || []).filter(isStudentUser).forEach(u => {
             const k = getStudentDedupKey(u);
             if (k && !map.has(k)) {
@@ -1591,6 +1634,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Precise student matcher against target classes
     const isStudentInTargetClasses = useCallback((stOrClass: any, targetClasses: string[]) => {
         if (!stOrClass || !targetClasses || targetClasses.length === 0) return false;
+        if (typeof stOrClass === 'object' && isNonStudentUser(stOrClass)) return false;
         if (targetClasses.includes('all') || targetClasses.includes('All Classes')) return true;
 
         // Direct exact match
@@ -1731,11 +1775,12 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     // Helper to sanitize any loaded broadsheet rows with real student admission numbers & names
     const sanitizeBroadsheetRows = useCallback((rows: any[]) => {
         if (!Array.isArray(rows)) return rows;
+        const validRows = rows.filter(r => !isNonStudentUser(r));
         const realStList = allRealStudents.length > 0
-            ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+            ? allRealStudents.filter(s => !isNonStudentUser(s))
+            : (users || []).filter(isStudentUser);
 
-        return rows.map((row, idx) => {
+        return validRows.map((row, idx) => {
             const matchedSt = realStList.find(u =>
                 (u.name && row.name && u.name.toLowerCase().trim() === row.name.toLowerCase().trim()) ||
                 u.id === row.admNo ||
@@ -1761,7 +1806,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (fromProps.length > 0) {
             setAllRealStudents(prev => {
                 const map = new Map<string, any>();
-                prev.forEach(p => {
+                prev.filter(s => !isNonStudentUser(s)).forEach(p => {
                     const k = getStudentDedupKey(p);
                     if (k) map.set(k, p);
                 });
@@ -1774,7 +1819,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 return Array.from(map.values());
             });
         }
-    }, [users, isStudentUser, getStudentDedupKey]);
+    }, [users, getStudentDedupKey]);
 
     useEffect(() => {
         if (!currentInstitution?.id) return;
@@ -1876,14 +1921,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 const unifiedStudentMap = new Map<string, any>();
 
                 // 1. Process enrollment records first (primary source for active class enrollment)
-                hydratedEnrollments.forEach((enr: any, enrIdx: number) => {
+                hydratedEnrollments.filter(e => !isNonStudentUser(e)).forEach((enr: any, enrIdx: number) => {
                     if (!enr) return;
                     const key = getStudentDedupKey(enr) || (enr.admissionNumber ? `adm_${enr.admissionNumber}` : (enr.id ? `enr_${enr.id}` : `idx_${enrIdx}`));
                     if (key) unifiedStudentMap.set(key, enr);
                 });
 
                 // 2. Process student registry & user records without creating duplicate rows
-                [...(stRecords || []), ...(userRecords || [])].forEach((u: any) => {
+                [...(stRecords || []).filter(s => !isNonStudentUser(s)), ...(userRecords || []).filter(isStudentUser)].forEach((u: any) => {
                     if (!u || !isStudentUser(u)) return;
                     const key = getStudentDedupKey(u);
                     if (!key) return;
@@ -2072,8 +2117,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const existingRows = currentStore[selectedExamId];
 
         let activeStList = allRealStudents.length > 0
-            ? allRealStudents
-            : (propStudents && propStudents.length > 0 ? propStudents : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student')));
+            ? allRealStudents.filter(s => !isNonStudentUser(s))
+            : (propStudents && propStudents.length > 0 ? propStudents.filter(isStudentUser) : (users || []).filter(isStudentUser));
 
         if (activeStList.length === 0 || activeStList.length < 10) {
             try {
@@ -2082,8 +2127,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                localStorage.getItem(`eduai_students_${instId}`);
                 if (cached) {
                     const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed) && parsed.length > activeStList.length) {
-                        activeStList = parsed;
+                    if (Array.isArray(parsed)) {
+                        const cleanParsed = parsed.filter(u => !isNonStudentUser(u));
+                        if (cleanParsed.length > activeStList.length) {
+                            activeStList = cleanParsed;
+                        }
                     }
                 }
             } catch (e) {}
@@ -2093,6 +2141,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // Filter real students strictly for this active exam's target classes
         const matchingRealStudents = activeStList.filter(st => {
+            if (isNonStudentUser(st)) return false;
             const stClass = getStudentClass(st);
             return isStudentInTargetClasses(stClass || st, targetClasses);
         });
@@ -2428,8 +2477,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         const activeStList = allRealStudents.length > 0
-            ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+            ? allRealStudents.filter(s => !isNonStudentUser(s))
+            : (users || []).filter(isStudentUser);
 
         // Determine effective target classes based on both grade filter and class filter
         let targetClasses: string[] = [];
@@ -3466,7 +3515,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // Pre-bucket students by normalized class name in single O(N) pass to avoid O(Classes * Students) scans
         const realStudentsByClass = new Map<string, any[]>();
-        allRealStudents.forEach(st => {
+        allRealStudents.filter(st => !isNonStudentUser(st)).forEach(st => {
             const cls = getStudentClass(st);
             if (cls) {
                 const k = cls.trim().toLowerCase();
@@ -3476,7 +3525,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         });
 
         const examRowsByClass = new Map<string, any[]>();
-        (activeExamRows || []).forEach(r => {
+        (activeExamRows || []).filter(r => !isNonStudentUser(r)).forEach(r => {
             const cls = r.class || getStudentClass(r);
             if (cls) {
                 const k = cls.trim().toLowerCase();
@@ -3491,6 +3540,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const tcNoStream = cleanTC.replace(/\s+(east|west|north|south|central|stream\s*[a-z0-9]*|[a-d])$/i, '').trim().toLowerCase();
 
             const realStudentsForClass = realStudentsByClass.get(tcLower) || allRealStudents.filter(st => {
+                if (isNonStudentUser(st)) return false;
                 return isStudentInTargetClasses(st, [cName]);
             });
 
@@ -3835,8 +3885,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         let realStudents = allRealStudents.length > 0
-            ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+            ? allRealStudents.filter(s => !isNonStudentUser(s))
+            : (users || []).filter(isStudentUser);
 
         if (realStudents.length === 0 || realStudents.length < 10) {
             try {
@@ -3846,19 +3896,23 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                localStorage.getItem('eduai_students');
                 if (cached) {
                     const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed) && parsed.length > realStudents.length) {
-                        realStudents = parsed;
+                    if (Array.isArray(parsed)) {
+                        const cleanParsed = parsed.filter(u => !isNonStudentUser(u));
+                        if (cleanParsed.length > realStudents.length) {
+                            realStudents = cleanParsed;
+                        }
                     }
                 }
             } catch (e) {}
         }
 
         const matchedStudents = realStudents.filter(st => {
+            if (isNonStudentUser(st)) return false;
             const cl = getStudentClass(st);
             return isStudentInTargetClasses(cl || st, targetClasses);
         });
 
-        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : broadsheetStudentRows.length;
+        const studentCount = matchedStudents.length > 0 ? matchedStudents.length : broadsheetStudentRows.filter(r => !isNonStudentUser(r)).length;
 
         // EDIT EXISTING EXAM CASE
         if (isEditingExam && activeExam) {
@@ -4293,27 +4347,71 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
     };
 
-    // Dynamic total enrollment for active exam unit
+    // Dynamic total enrollment for active exam unit - strictly genuine enrolled students
     const activeExamTotalEnrollment = useMemo(() => {
         if (!activeExam) return 0;
+        const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : [];
+        if (targetClasses.length > 0) {
+            const activeStList = allRealStudents.length > 0
+                ? allRealStudents.filter(st => !isNonStudentUser(st))
+                : (users || []).filter(isStudentUser);
+
+            const matched = activeStList.filter(st => {
+                if (isNonStudentUser(st)) return false;
+                const stClass = getStudentClass(st);
+                return isStudentInTargetClasses(stClass || st, targetClasses);
+            });
+            if (matched.length > 0) {
+                const dedupKeys = new Set(matched.map(s => getStudentDedupKey(s)).filter(Boolean));
+                return dedupKeys.size > 0 ? dedupKeys.size : matched.length;
+            }
+        }
+
         const totalFromClasses = classPaperRows.reduce((acc, cRow) => acc + (cRow.enrollment || 0), 0);
         if (totalFromClasses > 0) return totalFromClasses;
 
-        const activeStList = allRealStudents.length > 0
-            ? allRealStudents
-            : users.filter(u => u && (u.role === 'student' || (u as any).role === 'Student' || (u as any).userType === 'student'));
+        return activeExam?.studentsEnrolled || broadsheetStudentRows.filter(r => !isNonStudentUser(r)).length || 0;
+    }, [activeExam, activeExamClasses, allRealStudents, users, isStudentInTargetClasses, getStudentClass, getStudentDedupKey, classPaperRows, broadsheetStudentRows]);
 
-        const targetClasses = activeExamClasses.length > 0 ? activeExamClasses : [];
-        if (targetClasses.length > 0) {
-            const matched = activeStList.filter(st => {
-                const stClass = getStudentClass(st);
-                return isStudentInTargetClasses(stClass, targetClasses);
+    // Automatically cleanse and correct exam enrollment figures from previous teacher-polluted sums
+    useEffect(() => {
+        if (allRealStudents.length === 0) return;
+
+        const cleansedStudents = allRealStudents.filter(st => !isNonStudentUser(st));
+        if (cleansedStudents.length === 0) return;
+
+        setExams(prev => {
+            if (!prev || prev.length === 0) return prev;
+            let hasChanges = false;
+            const corrected = prev.map(exam => {
+                const examClasses = (exam.classes && exam.classes.length > 0) ? exam.classes : registeredClasses;
+                if (!examClasses || examClasses.length === 0) return exam;
+
+                const genuineEnrolled = cleansedStudents.filter(st => {
+                    const stClass = getStudentClass(st);
+                    return isStudentInTargetClasses(stClass || st, examClasses);
+                });
+
+                const dedup = new Set(genuineEnrolled.map(s => getStudentDedupKey(s)).filter(Boolean));
+                const trueCount = dedup.size > 0 ? dedup.size : genuineEnrolled.length;
+
+                if (trueCount > 0 && exam.studentsEnrolled !== trueCount) {
+                    hasChanges = true;
+                    return { ...exam, studentsEnrolled: trueCount };
+                }
+                return exam;
             });
-            if (matched.length > 0) return matched.length;
-        }
 
-        return activeExam?.studentsEnrolled || broadsheetStudentRows.length || 0;
-    }, [classPaperRows, allRealStudents, users, activeExamClasses, isStudentInTargetClasses, broadsheetStudentRows, activeExam, getStudentClass]);
+            if (hasChanges) {
+                try {
+                    localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(corrected));
+                } catch (e) { }
+                syncExamsToCloud(corrected);
+                return corrected;
+            }
+            return prev;
+        });
+    }, [allRealStudents, registeredClasses, getStudentClass, isStudentInTargetClasses, getStudentDedupKey, instId, syncExamsToCloud]);
 
     // Dynamic missing marks count for active exam unit
     const activeExamMissingMarks = useMemo(() => {

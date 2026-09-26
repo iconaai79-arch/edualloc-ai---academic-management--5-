@@ -65,10 +65,20 @@ export const isPureStreamName = (str?: string): boolean => {
 
 export const isStudentUser = (u: any): boolean => {
     if (!u) return false;
-    const r = (u.role || '').toLowerCase();
-    if (r === 'student' || r === 'learner' || r === 'pupil') return true;
+    const r = (u.role || u.userType || u.type || '').toLowerCase().trim();
+    const nonStudentRoles = [
+        'teacher', 'lecturer', 'instructor', 'tutor', 'trainer',
+        'admin', 'super_admin', 'superadmin', 'institution_admin', 'system_admin',
+        'staff', 'support_staff', 'principal', 'deputy_principal', 'headmaster',
+        'finance_officer', 'bursar', 'accountant', 'librarian', 'driver', 'parent', 'guardian'
+    ];
+    if (nonStudentRoles.includes(r)) return false;
+    if (u.tscNumber || u.tsc_number || u.staffNumber || u.staff_number || u.employeeNumber || u.employee_number) return false;
+    if (u.isTeacher || u.isStaff || (u as any).is_staff) return false;
+
+    if (r === 'student' || r === 'learner' || r === 'pupil' || r === 'student_enrollment') return true;
     if (Array.isArray(u.roles) && u.roles.some((role: any) => ['student', 'learner', 'pupil'].includes(String(role).toLowerCase()))) return true;
-    if (u.admissionNumber || u.admission_number || u.admNo || u.studentId || u.regNo || u.metadata?.admissionNumber) return true;
+    if (u.admissionNumber || u.admission_number || u.admNo || u.regNo || u.metadata?.admissionNumber) return true;
     if (u.enrollmentType === 'academic' || u.enrollmentType === 'driving_school') return true;
     return false;
 };
