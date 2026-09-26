@@ -5174,9 +5174,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             )}
 
             {/* MODAL 3: MARKS ENTRY & BROADSHEET SPREADSHEET */}
-            {isBroadsheetModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-6xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto">
+            {isBroadsheetModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-7xl w-full max-h-[95vh] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in flex flex-col my-auto">
 
                         {/* Toast Alert */}
                         {saveToastMessage && (
@@ -5187,7 +5187,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         )}
 
                         {/* Title Bar & Subject Filter Selector */}
-                        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-900">
+                        <div className="shrink-0 px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 dark:bg-slate-900">
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
                                     <h3 className="font-black text-lg text-slate-900 dark:text-white tracking-tight">
@@ -5388,7 +5388,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         </div>
 
                         {/* Modal Body */}
-                        <div ref={broadsheetModalBodyRef} className="p-6 space-y-4 overflow-y-auto max-h-[calc(100vh-180px)]">
+                        <div ref={broadsheetModalBodyRef} className="flex-1 min-h-0 p-6 space-y-4 overflow-y-auto">
                             {/* Read-Only Published Banner */}
                             {activeExam?.status === 'published' && (
                                 <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-bold text-amber-900 dark:text-amber-200 shadow-sm">
@@ -5613,7 +5613,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         </div>
 
                         {/* Footer Controls */}
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                        <div className="shrink-0 px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
                             <span className="text-xs text-slate-400 font-medium">
                                 {filteredStudentRows.length} Students listed {searchStudentQuery ? `(Filtered from ${broadsheetStudentRows.length})` : ''} • Real-time database sync enabled
                             </span>
@@ -5642,16 +5642,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* MODAL 3: CHOOSE FROM STUDENTS */}
-            {isStudentPickerModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto">
+            {isStudentPickerModalOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-scale-in my-auto">
                         
                         {/* Header matching exact screenshot styling */}
-                        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
+                        <div className="shrink-0 px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
                             <h3 className="text-base font-bold text-slate-800 dark:text-white">Choose from students</h3>
                             <div className="flex items-center gap-2">
                                 <button 
@@ -5664,7 +5665,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         </div>
 
                         {/* Modal Body */}
-                        <div className="p-6 space-y-4">
+                        <div className="flex-1 min-h-0 p-6 space-y-4 overflow-y-auto">
                             {/* Academic Year Filter Bar */}
                             <div className="flex items-center gap-3">
                                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Academic year:</span>
@@ -5800,7 +5801,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         </div>
 
                         {/* Footer */}
-                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                        <div className="shrink-0 px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                             <span className="text-xs text-slate-500 font-medium">
                                 {selectedStudentIds.length} student(s) selected
                             </span>
@@ -5815,15 +5816,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════════
                 CLASS CHANGE WARNING DIALOG
                 Fires when exam classes are changed while marks have been entered.
             ═══════════════════════════════════════════════════════════════════════ */}
-            {classChangeWarning && (
-                <div className="fixed inset-0 z-[100] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+            {classChangeWarning && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[10001] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full shadow-2xl border border-amber-300 dark:border-amber-700 overflow-hidden">
                         {/* Warning Header */}
                         <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 flex items-start gap-3">
@@ -5884,15 +5886,16 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* ═══════════════════════════════════════════════════════════════════════
                 MARKS BACKUP RESTORE PANEL
                 Lists all archived snapshots so user can restore any past version.
             ═══════════════════════════════════════════════════════════════════════ */}
-            {isBackupPanelOpen && (
-                <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+            {isBackupPanelOpen && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4 flex items-center justify-between">
@@ -5966,7 +5969,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             </p>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
