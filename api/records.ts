@@ -1184,7 +1184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId;
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory'].includes(moduleName)
+                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
                     ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
                     : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
                         ? 2000 
@@ -1213,14 +1213,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory',
+            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices',
                 'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters'].includes(moduleName) 
                 ? 1000 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
-                    : (['visitors', 'security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
+                    : (['inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
                         ? 250
-                        : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000))));
+                        : (['visitors', 'security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
+                            ? 250
+                            : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000)))));
             let data: any[] = [];
             let error: any = null;
 
@@ -1404,7 +1406,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // ── Direct PostgreSQL Fast-Path for Bulk Requests ──
                 // Executes in a single parameterized query (< 400ms), completely bypassing PostgREST HTTP round-trips and chunking loops.
                 const isBulkModule = [
-                    'users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory',
+                    'users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory', 'retail_inventory_items',
                     'ds_students', 'mpesa_transactions',
                     // Academic lookup tables — frequently large, benefit most from direct PG
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
