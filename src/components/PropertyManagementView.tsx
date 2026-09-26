@@ -598,22 +598,37 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         };
     }, [propertiesCollectionData]);
 
+    const effectiveSmsConfig = useMemo(() => {
+        if (currentInstitution?.smsConfig && (currentInstitution.smsConfig.apiKey || currentInstitution.smsConfig.userId || currentInstitution.smsConfig.username || currentInstitution.smsConfig.accountId)) {
+            return currentInstitution.smsConfig;
+        }
+        if (companyDetails?.smsConfig && (companyDetails.smsConfig.apiKey || companyDetails.smsConfig.userId || companyDetails.smsConfig.username || companyDetails.smsConfig.accountId)) {
+            return companyDetails.smsConfig;
+        }
+        if (smsConfig && (smsConfig.apiKey || smsConfig.userId || smsConfig.username || smsConfig.accountId)) {
+            return smsConfig;
+        }
+        return currentInstitution?.smsConfig || companyDetails?.smsConfig || smsConfig || undefined;
+    }, [currentInstitution?.smsConfig, companyDetails?.smsConfig, smsConfig]);
+
     const findOrCreatePortalUser = async (name: string, email: string | null | undefined, phoneNumber: string | null | undefined, role: 'landlord' | 'tenant', tempPassword: string) => {
         let matchingUser: any = null;
+        const cleanEmail = email && typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+        const cleanPhone = phoneNumber && typeof phoneNumber === 'string' ? phoneNumber.trim() : null;
 
         // 1. First search in local state array as a fast check
         const localMatch = users.find(u => 
-            (email && u.email?.toLowerCase() === email.toLowerCase()) || 
-            (phoneNumber && u.phoneNumber === phoneNumber)
+            (cleanEmail && u.email?.toLowerCase() === cleanEmail) || 
+            (cleanPhone && (u.phoneNumber === cleanPhone || (u as any).phone === cleanPhone))
         );
         if (localMatch) {
             matchingUser = localMatch;
         } else {
             // 2. If not found locally, check the database globally via email
-            if (email) {
+            if (cleanEmail) {
                 try {
                     const dbMatches = await apiService.fetchModuleRecords('users', undefined, undefined, { 
-                        filter: { email: email.toLowerCase() } 
+                        filter: { email: cleanEmail } 
                     });
                     if (dbMatches && dbMatches.length > 0) {
                         matchingUser = dbMatches[0];
@@ -624,10 +639,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
             
             // 3. If still not found, check the database globally via phone number
-            if (!matchingUser && phoneNumber) {
+            if (!matchingUser && cleanPhone) {
                 try {
                     const dbMatches = await apiService.fetchModuleRecords('users', undefined, undefined, { 
-                        filter: { phoneNumber: phoneNumber } 
+                        filter: { phoneNumber: cleanPhone } 
                     });
                     if (dbMatches && dbMatches.length > 0) {
                         matchingUser = dbMatches[0];
@@ -646,24 +661,32 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 password: tempPassword,
                 mustChangePassword: true 
             };
-            await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+            try {
+                await apiService.updateModuleRecord('users', matchingUser.id, updatedUser);
+            } catch (err) {
+                console.warn("[PM] Failed to update matching user in users table:", err);
+            }
             return matchingUser;
         } else {
             // Create a new user profile
             const newUser: any = {
                 id: `user_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
                 name: name,
-                email: email || '',
-                phoneNumber: phoneNumber || '',
+                email: cleanEmail,
+                phoneNumber: cleanPhone || '',
                 role: role,
-                institutionId,
+                institutionId: institutionId || currentInstitution?.id,
                 createdAt: new Date().toISOString(),
                 isActive: true,
                 mustChangePassword: true,
-                needsEmailActivation: !email,
+                needsEmailActivation: !cleanEmail,
                 password: tempPassword
             };
-            await apiService.saveModuleRecord('users', newUser);
+            try {
+                await apiService.saveModuleRecord('users', newUser);
+            } catch (err) {
+                console.warn("[PM] Failed to save new user in users table:", err);
+            }
             return newUser;
         }
     };
@@ -705,8 +728,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
                     } else if (data.phoneNumber) {
                         const smsBody = `Welcome ${data.name}! Your Landlord Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN. You will be asked to provide your email on first login.`;
+                        const hasCustomGateway = !!(effectiveSmsConfig?.apiKey || effectiveSmsConfig?.userId || effectiveSmsConfig?.username || effectiveSmsConfig?.accountId);
                         const smsBalance = currentInstitution?.smsBalance || 0;
-                        if (smsBalance < 1) {
+                        if (!hasCustomGateway && smsBalance < 1) {
                             const outboxMsg = {
                                 id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                                 phoneNumber: data.phoneNumber,
@@ -718,7 +742,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             await apiService.saveToSmsOutbox([outboxMsg]);
                             alert(`Landlord created. Insufficient SMS units, so credentials message was queued to outbox.`);
                         } else {
-                            const res = await apiService.sendSms(data.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                            const res = await apiService.sendSms(data.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
                             if (res && res.success === false) {
                                 throw new Error(res.message || "Failed to send SMS credentials");
                             }
@@ -785,13 +809,33 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         } catch (e: any) { alert(e.message || 'Failed to delete landlord'); console.error(e); }
     };
 
-    const handleResendLandlordCredentials = async (landlord: PMLandlord) => {
+    const handleResendLandlordCredentials = async (landlord: PMLandlord, preferredMethod?: 'sms' | 'email') => {
         if (!landlord.email && !landlord.phoneNumber) {
             return alert('This landlord has neither email nor phone number on record.');
         }
-        
-        const destination = landlord.email ? landlord.email : landlord.phoneNumber;
-        if (!window.confirm(`Resend login credentials to ${destination}?`)) return;
+
+        let sendViaSms = false;
+        let sendViaEmail = false;
+
+        if (preferredMethod === 'sms') {
+            if (!landlord.phoneNumber) return alert('This landlord has no phone number on record.');
+            sendViaSms = true;
+        } else if (preferredMethod === 'email') {
+            if (!landlord.email) return alert('This landlord has no email on record.');
+            sendViaEmail = true;
+        } else {
+            if (landlord.phoneNumber && landlord.email) {
+                const choice = window.confirm(`Resend credentials to ${landlord.name} via SMS (${landlord.phoneNumber})?\n\nClick OK for SMS, or Cancel for Email (${landlord.email}).`);
+                if (choice) sendViaSms = true;
+                else sendViaEmail = true;
+            } else if (landlord.phoneNumber) {
+                if (!window.confirm(`Resend credentials via SMS to ${landlord.phoneNumber}?`)) return;
+                sendViaSms = true;
+            } else {
+                if (!window.confirm(`Resend credentials via Email to ${landlord.email}?`)) return;
+                sendViaEmail = true;
+            }
+        }
         
         try {
             const tempPassword = Math.random().toString(36).slice(-8);
@@ -800,16 +844,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             await findOrCreatePortalUser(landlord.name, landlord.email, landlord.phoneNumber, 'landlord', tempPassword);
             
             // 2. Send the notification
-            if (landlord.email) {
+            if (sendViaEmail && landlord.email) {
                 const subject = 'Your Landlord Portal Login Credentials';
                 const body = `Dear ${landlord.name},\n\nHere are your updated login credentials for the Landlord Portal.\n\nPortal: ${window.location.origin}\nEmail: ${landlord.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password as soon as possible.\n\nBest Regards,\nProperty Management`;
                 const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
                 await apiService.sendEmail(landlord.email, subject, body, emailConfig);
                 alert(`Login credentials emailed to ${landlord.email} successfully!`);
-            } else if (landlord.phoneNumber) {
+            } else if (sendViaSms && landlord.phoneNumber) {
                 const smsBody = `Hello ${landlord.name}! Your updated Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
+                const hasCustomGateway = !!(effectiveSmsConfig?.apiKey || effectiveSmsConfig?.userId || effectiveSmsConfig?.username || effectiveSmsConfig?.accountId);
                 const smsBalance = currentInstitution?.smsBalance || 0;
-                if (smsBalance < 1) {
+
+                if (!hasCustomGateway && smsBalance < 1) {
                     const outboxMsg = {
                         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                         phoneNumber: landlord.phoneNumber,
@@ -821,7 +867,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     await apiService.saveToSmsOutbox([outboxMsg]);
                     alert(`Insufficient SMS units. The credentials message has been queued to your outbox.`);
                 } else {
-                    const res = await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                    const res = await apiService.sendSms(
+                        landlord.phoneNumber, 
+                        smsBody, 
+                        effectiveSmsConfig, 
+                        1, 
+                        institutionId || currentInstitution?.id,
+                        undefined,
+                        true // isSystemAlert
+                    );
                     if (res && res.success === false) {
                         throw new Error(res.message || "Failed to send SMS credentials");
                     }
@@ -842,9 +896,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         
         try {
             const smsBody = `Hello ${landlord.name}, please log in to your Landlord Portal at ${window.location.origin} and update your email address so you can receive direct financial statements and payment receipts. Thank you.`;
+            const hasCustomGateway = !!(effectiveSmsConfig?.apiKey || effectiveSmsConfig?.userId || effectiveSmsConfig?.username || effectiveSmsConfig?.accountId);
             const smsBalance = currentInstitution?.smsBalance || 0;
             
-            if (smsBalance < 1) {
+            if (!hasCustomGateway && smsBalance < 1) {
                 const outboxMsg = {
                     id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     phoneNumber: landlord.phoneNumber,
@@ -856,7 +911,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 await apiService.saveToSmsOutbox([outboxMsg]);
                 alert(`Insufficient SMS units. The email prompt message has been queued to your outbox.`);
             } else {
-                const res = await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                const res = await apiService.sendSms(landlord.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
                 if (res && res.success === false) {
                     throw new Error(res.message || "Failed to send SMS prompt");
                 }
@@ -879,10 +934,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         let successCount = 0;
         let failCount = 0;
         try {
+            const hasCustomGateway = !!(effectiveSmsConfig?.apiKey || effectiveSmsConfig?.userId || effectiveSmsConfig?.username || effectiveSmsConfig?.accountId);
             const smsBalance = currentInstitution?.smsBalance || 0;
             const totalUnitsNeeded = pendingLandlords.length;
 
-            if (smsBalance < totalUnitsNeeded) {
+            if (!hasCustomGateway && smsBalance < totalUnitsNeeded) {
                 const outboxMessages = pendingLandlords.map((landlord, idx) => {
                     const smsBody = `Hello ${landlord.name}, please log in to your Landlord Portal at ${window.location.origin} and update your email address so you can receive direct financial statements and payment receipts. Thank you.`;
                     return {
@@ -903,7 +959,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             for (const landlord of pendingLandlords) {
                 try {
                     const smsBody = `Hello ${landlord.name}, please log in to your Landlord Portal at ${window.location.origin} and update your email address so you can receive direct financial statements and payment receipts. Thank you.`;
-                    const res = await apiService.sendSms(landlord.phoneNumber!, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                    const res = await apiService.sendSms(landlord.phoneNumber!, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
                     if (res && res.success === false) {
                         throw new Error(res.message || "Failed to send SMS");
                     }
@@ -936,10 +992,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         
         // Confirm SMS units balance first for SMS dispatch
         if (method === 'sms') {
+            const hasCustomGateway = !!(effectiveSmsConfig?.apiKey || effectiveSmsConfig?.userId || effectiveSmsConfig?.username || effectiveSmsConfig?.accountId);
             const smsBalance = currentInstitution?.smsBalance || 0;
             const totalUnitsNeeded = targetLandlords.length; // 1 unit per landlord credentials message
             
-            if (smsBalance < totalUnitsNeeded) {
+            if (!hasCustomGateway && smsBalance < totalUnitsNeeded) {
                 setLoading(true);
                 try {
                     const outboxMessages = [];
@@ -994,7 +1051,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         await apiService.sendEmail(landlord.email, subject, body, emailConfig);
                     } else if (method === 'sms' && landlord.phoneNumber) {
                         const smsBody = `Hello ${landlord.name}! Your Landlord Portal login details:\nURL: ${window.location.origin}\nPhone: ${landlord.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
-                        const res = await apiService.sendSms(landlord.phoneNumber, smsBody, currentInstitution.smsConfig, 1, institutionId);
+                        const res = await apiService.sendSms(landlord.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
                         if (res && res.success === false) {
                             throw new Error(res.message || "Failed to send SMS credentials");
                         }
@@ -1012,6 +1069,83 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         } finally {
             setLoading(false);
         }
+    };
+
+    const handlePmSendBulkCredentials = async (targetUsers: User[], method: 'email' | 'sms'): Promise<{ success_count: number; fail_count: number }> => {
+        if (props.onSendBulkCredentials) {
+            try {
+                const res = await props.onSendBulkCredentials(targetUsers, method);
+                if (res && (res.success_count > 0 || res.fail_count > 0)) {
+                    return res;
+                }
+            } catch (err) {
+                console.warn("[PM] Parent onSendBulkCredentials threw, falling back to local handler:", err);
+            }
+        }
+
+        let success_count = 0;
+        let fail_count = 0;
+
+        for (const user of targetUsers) {
+            try {
+                const tempPassword = user.password || Math.random().toString(36).slice(-8);
+                const phone = user.phoneNumber || (user as any).phone;
+                const email = user.email;
+
+                // 1. Update user password in DB so login works immediately
+                if (user.id) {
+                    try {
+                        await apiService.updateModuleRecord('users', user.id, {
+                            password: tempPassword,
+                            mustChangePassword: true
+                        });
+                    } catch (pwErr) {
+                        console.warn("[PM] Could not update user temp password in DB:", pwErr);
+                    }
+                }
+
+                if (method === 'email') {
+                    if (!email) {
+                        fail_count++;
+                        continue;
+                    }
+                    const subject = `Your ${currentInstitution.name || 'Property Management'} Login Credentials`;
+                    const body = `Dear ${user.name},\n\nHere are your login credentials for the Property Management Portal.\n\nPortal: ${window.location.origin}\nEmail: ${email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.\n\nBest Regards,\nProperty Management`;
+                    const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                    const res = await apiService.sendEmail(email, subject, body, emailConfig);
+                    if (res?.success) success_count++;
+                    else fail_count++;
+                } else if (method === 'sms') {
+                    if (!phone) {
+                        fail_count++;
+                        continue;
+                    }
+                    const smsBody = `Hello ${user.name}! Your ${currentInstitution.name || 'PM'} Portal login:\nURL: ${window.location.origin}\nPhone: ${phone}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
+                    
+                    const res = await apiService.sendSms(
+                        phone, 
+                        smsBody, 
+                        effectiveSmsConfig, 
+                        1, 
+                        institutionId || currentInstitution?.id, 
+                        undefined, 
+                        true // isSystemAlert
+                    );
+
+                    if (res && res.success !== false) {
+                        success_count++;
+                    } else {
+                        console.error(`[PM] SMS send failed for ${phone}:`, res?.message);
+                        fail_count++;
+                    }
+                }
+            } catch (err) {
+                console.error(`[PM] Error sending credentials to ${user.name}:`, err);
+                fail_count++;
+            }
+        }
+
+        return { success_count, fail_count };
     };
 
     const handleSaveProperty = async (data: Partial<PMProperty>) => {
@@ -1135,17 +1269,26 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             const tenantId = editingTenant?.id || `tenant_${Date.now()}`;
             const tempPassword = Math.random().toString(36).slice(-8);
 
-            // 1. Create or update system user account for the tenant if email is provided (only for new tenants)
-            if (!editingTenant && data.email) {
+            // 1. Create or update system user account for the tenant (only for new tenants)
+            if (!editingTenant && (data.email || data.phoneNumber)) {
                 await findOrCreatePortalUser(data.name || '', data.email, data.phoneNumber, 'tenant', tempPassword);
 
-                // 2. Send tenant welcome email
-                try {
-                    const subject = 'Welcome to your Tenant Portal';
-                    const body = `Welcome, ${data.name}!\n\nYou have been registered as a Tenant in our property management system.\nYou can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
-                    await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
-                } catch (emailErr) {
-                    console.error("Failed to send tenant welcome email:", emailErr);
+                // 2. Send tenant welcome notification
+                if (data.email) {
+                    try {
+                        const subject = 'Welcome to your Tenant Portal';
+                        const body = `Welcome, ${data.name}!\n\nYou have been registered as a Tenant in our property management system.\nYou can now log in to view your lease agreement, track your rent payments, and raise maintenance requests.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${data.email}\nPassword: ${tempPassword}\n\nPlease change your password upon first login.\n\nBest Regards,\nSystem Admin`;
+                        await apiService.sendEmail(data.email, subject, body, getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig));
+                    } catch (emailErr) {
+                        console.error("Failed to send tenant welcome email:", emailErr);
+                    }
+                } else if (data.phoneNumber) {
+                    try {
+                        const smsBody = `Welcome ${data.name}! Your Tenant Portal access:\nURL: ${window.location.origin}\nPhone: ${data.phoneNumber}\nPIN: ${tempPassword}\nLogin with your phone number & PIN.`;
+                        await apiService.sendSms(data.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
+                    } catch (smsErr) {
+                        console.error("Failed to send tenant welcome SMS:", smsErr);
+                    }
                 }
             }
 
@@ -1168,10 +1311,56 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             if (!editingTenant && data.email) {
                 alert(`Tenant saved! Login credentials have been emailed to ${data.email}`);
+            } else if (!editingTenant && data.phoneNumber) {
+                alert(`Tenant saved! Login credentials sent via SMS to ${data.phoneNumber}`);
             } else {
                 alert("Tenant saved successfully!");
             }
         } catch (e: any) { alert(e.message || "Failed to save tenant"); console.error(e); }
+    };
+
+    const handleResendTenantCredentials = async (tenant: PMTenant) => {
+        if (!tenant.email && !tenant.phoneNumber) {
+            return alert('This tenant has neither email nor phone number on record.');
+        }
+
+        let sendViaSms = false;
+        let sendViaEmail = false;
+
+        if (tenant.phoneNumber && tenant.email) {
+            const choice = window.confirm(`Resend credentials to ${tenant.name} via SMS (${tenant.phoneNumber})?\n\nClick OK for SMS, or Cancel for Email (${tenant.email}).`);
+            if (choice) sendViaSms = true;
+            else sendViaEmail = true;
+        } else if (tenant.phoneNumber) {
+            if (!window.confirm(`Resend credentials via SMS to ${tenant.phoneNumber}?`)) return;
+            sendViaSms = true;
+        } else {
+            if (!window.confirm(`Resend credentials via Email to ${tenant.email}?`)) return;
+            sendViaEmail = true;
+        }
+
+        try {
+            const tempPassword = Math.random().toString(36).slice(-8);
+            await findOrCreatePortalUser(tenant.name, tenant.email, tenant.phoneNumber, 'tenant', tempPassword);
+
+            if (sendViaEmail && tenant.email) {
+                const subject = 'Your Tenant Portal Login Credentials';
+                const body = `Dear ${tenant.name},\n\nHere are your updated login credentials for the Tenant Portal.\n\nPortal: ${window.location.origin}\nEmail: ${tenant.email}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.\n\nBest Regards,\nProperty Management`;
+                const emailConfig = getInstitutionEmailConfig(currentInstitution, currentInstitution.emailConfig);
+                await apiService.sendEmail(tenant.email, subject, body, emailConfig);
+                alert(`Login credentials emailed to ${tenant.email} successfully!`);
+            } else if (sendViaSms && tenant.phoneNumber) {
+                const smsBody = `Hello ${tenant.name}! Your updated Tenant Portal login details:\nURL: ${window.location.origin}\nPhone: ${tenant.phoneNumber}\nTemporary Password: ${tempPassword}\n\nPlease log in and change your password.`;
+                const res = await apiService.sendSms(tenant.phoneNumber, smsBody, effectiveSmsConfig, 1, institutionId || currentInstitution?.id, undefined, true);
+                if (res && res.success === false) {
+                    throw new Error(res.message || "Failed to send SMS credentials");
+                }
+                alert(`Login credentials sent via SMS to ${tenant.phoneNumber} successfully!`);
+            }
+        } catch (e: any) {
+            alert(e.message || 'Failed to send credentials');
+            console.error(e);
+        }
     };
 
     const handleDeleteTenant = async (id: string) => {
@@ -2004,6 +2193,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <td className="p-6 text-right space-x-2 whitespace-nowrap">
                                         <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="KCB Integration"><KcbIcon className="w-4 h-4" /></button>
                                         <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-xl hover:scale-105 transition-all" title="Coop B2B Integration"><CoopIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => handleResendTenantCredentials(tenant)} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="Resend Tenant Credentials"><PaperAirplaneIcon className="w-4 h-4" /></button>
                                         <button className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-400 rounded-xl hover:text-blue-600 transition-colors"><EyeIcon className="w-4 h-4" /></button>
                                         <button onClick={() => { setEditingTenant(tenant); setShowTenantModal(true); }} className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-xl hover:scale-105 transition-all" title="Edit Tenant"><PencilIcon className="w-4 h-4" /></button>
                                         <button onClick={() => handleDeleteTenant(tenant.id)} className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl hover:scale-105 transition-all" title="Delete Tenant"><TrashIcon className="w-4 h-4" /></button>
@@ -2029,9 +2219,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <div className="flex gap-2">
                                     <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><KcbIcon className="w-5 h-5" /></button>
                                     <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-2xl" title="Coop B2B Integration"><CoopIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => handleResendTenantCredentials(tenant)} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl" title="Resend Tenant Credentials"><PaperAirplaneIcon className="w-5 h-5" /></button>
                                     <button className="p-3 bg-slate-50 dark:bg-slate-900 rounded-2xl text-slate-400"><EyeIcon className="w-5 h-5" /></button>
-                                    <button onClick={() => { setEditingTenant(tenant); setShowTenantModal(true); }} className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-2xl" title="Edit Tenant"><PencilIcon className="w-5 h-5" /></button>
-                                    <button onClick={() => handleDeleteTenant(tenant.id)} className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-2xl" title="Delete Tenant"><TrashIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => { setEditingTenant(tenant); setShowTenantModal(true); }} className="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-2xl" title="Edit Tenant"><PencilIcon className="w-4 h-4" /></button>
+                                    <button onClick={() => handleDeleteTenant(tenant.id)} className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-2xl" title="Delete Tenant"><TrashIcon className="w-4 h-4" /></button>
                                 </div>
                             </div>
                         </div>
@@ -8632,7 +8823,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         onImportUsers={onImportUsers}
                         onImportStudents={async () => {}}
                         onLogAction={onLogAction}
-                        smsConfig={smsConfig}
+                        smsConfig={effectiveSmsConfig || smsConfig}
                         departments={departments}
                         subjects={subjects}
                         courses={courses}
@@ -8643,7 +8834,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         footerImageUrl={footerImageUrl}
                         isAdding={isAddingStaff}
                         isPm={true}
-                        onSendBulkCredentials={onSendBulkCredentials}
+                        onSendBulkCredentials={handlePmSendBulkCredentials}
                     />
                 </div>
             )}

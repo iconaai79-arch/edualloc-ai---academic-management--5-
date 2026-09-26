@@ -5832,6 +5832,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             await handleLogAction(`Sent SMS to ${r}`); 
             return res; 
         },
+        onSendBulkCredentials: async (usersToSend: User[], method: 'email' | 'sms') => {
+            const effectiveSmsConfig = (activeInstitution?.smsConfig && (activeInstitution.smsConfig.apiKey || activeInstitution.smsConfig.userId || activeInstitution.smsConfig.username || activeInstitution.smsConfig.accountId))
+                ? activeInstitution.smsConfig
+                : companyDetails?.smsConfig;
+            return await apiService.sendBulkCredentials(usersToSend, method, effectiveSmsConfig, activeInstitution?.id);
+        },
         onRefreshData: async () => await loadData(false, true),
         onAddRequisition: handleAddRequisition,
         onUpdateRequisition: handleUpdateRequisition,
@@ -6874,7 +6880,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         currentUser: currentUser || undefined,
         currentInstitution: activeInstitution!,
         onLogAction: handleLogAction,
-    }), [currentUser, activeInstitution, handleLogAction]);
+        companyDetails: companyDetails,
+        smsConfig: activeInstitution?.smsConfig || companyDetails?.smsConfig,
+        onSendBulkCredentials: async (usersToSend: User[], method: 'email' | 'sms') => {
+            const effectiveSmsConfig = (activeInstitution?.smsConfig && (activeInstitution.smsConfig.apiKey || activeInstitution.smsConfig.userId || activeInstitution.smsConfig.username || activeInstitution.smsConfig.accountId))
+                ? activeInstitution.smsConfig
+                : companyDetails?.smsConfig;
+            return await apiService.sendBulkCredentials(usersToSend, method, effectiveSmsConfig, activeInstitution?.id);
+        }
+    }), [currentUser, activeInstitution, handleLogAction, companyDetails]);
 
     // ── EARLY ESCAPE: Public SpeechBuddy AI standalone portal — skip auth & institution boot entirely ──
     if (window.location.search.includes('view=speechbuddy') || window.location.search.includes('view=speech-buddy') || window.location.pathname.startsWith('/speechbuddy')) {

@@ -5100,7 +5100,7 @@ export const apiService = {
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
             const isOtpMsg = isSystemAlert || 
-                /code|otp|verification|verificaiton|password\s*reset|recovery|pin\b/i.test(message);
+                /code|otp|verification|verificaiton|password\s*reset|recovery|pin\b|credential|credentials|login\s*details|temporary\s*password|login\s*credentials|portal\s*access|pass:\s*/i.test(message);
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',
@@ -5377,31 +5377,55 @@ export const apiService = {
             return { success: false, message: e.message || "Email gateway connection failed." };
         }
     },
-    async sendBulkCredentials(users: User[], method: 'email' | 'sms'): Promise<{ success_count: number; fail_count: number }> {
+    async sendBulkCredentials(users: User[], method: 'email' | 'sms', customConfig?: SmsConfig, targetInstitutionId?: string): Promise<{ success_count: number; fail_count: number }> {
         let success_count = 0;
         let fail_count = 0;
 
         for (const user of users) {
-            const password = user.password || 'password123';
+            const password = user.password || Math.random().toString(36).slice(-8);
+            const userInstId = targetInstitutionId || user.institutionId || (user as any).institution_id;
+
+            // Ensure DB record has this temporary password so login actually works
+            if (user.id && !user.password) {
+                try {
+                    await apiService.updateModuleRecord('users', user.id, {
+                        password,
+                        mustChangePassword: true
+                    });
+                } catch (e) {
+                    console.warn('[sendBulkCredentials] Failed to update temp password in DB:', e);
+                }
+            }
+
             const subject = "Account Credentials - Eduai Automation Hub";
             const body = `Dear ${user.name},\n\nYour account on Eduai Automation has been initialized.\n\nLogin Credentials:\nPortal: ${window.location.origin}\nEmail: ${user.email}\nPassword: ${password}\n\nPlease secure your account upon login.\n\nBest Regards,\nSystem Admin`;
 
-            const smsBody = `Eduai Automation Hub: Your account for ${user.name} is ready. Email: ${user.email}, Pass: ${password}. Portal: ${window.location.host}`;
+            const rawPhone = user.phoneNumber || (user as any).phone;
+            const smsBody = `Eduai Automation Hub: Your account for ${user.name} is ready. Login: ${user.email || rawPhone}, Pass: ${password}. Portal: ${window.location.host}`;
 
             try {
-                let res;
+                let res: any;
                 if (method === 'email' && user.email) {
                     if (isPlaceholderEmail(user.email)) {
                         continue;
                     }
                     res = await apiService.sendEmail(user.email, subject, body);
-                } else if (method === 'sms' && user.phoneNumber) {
-                    res = await apiService.sendSms(user.phoneNumber, smsBody);
+                } else if (method === 'sms' && rawPhone) {
+                    res = await apiService.sendSms(
+                        rawPhone, 
+                        smsBody, 
+                        customConfig, 
+                        1, 
+                        userInstId, 
+                        undefined, 
+                        true // isSystemAlert: ensures bypass and cascade across candidate gateways
+                    );
                 }
 
-                if (res?.success) success_count++;
+                if (res && res.success !== false) success_count++;
                 else fail_count++;
             } catch (e) {
+                console.error(`[sendBulkCredentials] Failed dispatch for ${user.name}:`, e);
                 fail_count++;
             }
         }
