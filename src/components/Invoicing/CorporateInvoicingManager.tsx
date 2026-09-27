@@ -240,7 +240,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             }
 
             // Fallback letterhead defaults from institution / company details
-            const defaultHeader = currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.headerImageUrl || (currentInstitution as any)?.header_image_url || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || '';
+            const defaultHeader = currentInstitution?.letterheadConfig?.headerImageUrl || (currentInstitution as any)?.headerImageUrl || (currentInstitution as any)?.header_image_url || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || '';
             const defaultFooter = currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || (currentInstitution as any)?.footer_image_url || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl || '';
             const defaultLogo = currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || logoUrl || companyDetails?.logoUrl || '';
             const defaultStamp = currentInstitution?.letterheadConfig?.stampImageUrl || (currentInstitution as any)?.stampUrl || (currentInstitution as any)?.stamp_url || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (companyDetails as any)?.stampUrl || '';
@@ -780,9 +780,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const handleDownloadDocument = async (doc: Invoice) => {
         try {
             const effectiveLetterheadConfig: LetterheadConfig = {
-                headerImageUrl: formHeaderImageUrl || currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || null,
+                headerImageUrl: formHeaderImageUrl || currentInstitution?.letterheadConfig?.headerImageUrl || (currentInstitution as any)?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || null,
                 footerImageUrl: formFooterImageUrl || currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl || null,
-                stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || currentInstitution?.stampUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (companyDetails as any)?.stampUrl || null,
+                stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || (currentInstitution as any)?.stampUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (companyDetails as any)?.stampUrl || null,
                 footerText: currentInstitution?.letterheadConfig?.footerText || letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || `${currentInstitution?.name || 'EduAI'} - Official Corporate Document`,
                 showStamp: true
             };
@@ -791,25 +791,25 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 ...currentInstitution,
                 letterheadConfig: effectiveLetterheadConfig,
                 logoUrl: formLogoUrl || currentInstitution?.logoUrl || logoUrl || companyDetails?.logoUrl || '',
-                headerImageUrl: effectiveLetterheadConfig.headerImageUrl || undefined,
                 footerImageUrl: effectiveLetterheadConfig.footerImageUrl || undefined
             };
 
             const effectiveCompanyDetails: CompanyDetails = {
+                ...(companyDetails || {}),
                 name: currentInstitution?.name || companyDetails?.name || 'Company Name',
                 address: currentInstitution?.address || companyDetails?.address || 'P.O. Box 100, City',
                 phone: currentInstitution?.phoneNumber || companyDetails?.phone || '0700000000',
                 email: currentInstitution?.email || companyDetails?.email || 'billing@company.com',
                 website: currentInstitution?.website || companyDetails?.website || '',
                 letterheadConfig: effectiveLetterheadConfig,
-                logoUrl: effectiveInstitution.logoUrl,
+                logoUrl: effectiveInstitution.logoUrl ?? null,
                 paymentInstructions: (formBankName || formMpesaPaybill) ? [
                     formBankName ? `Bank: ${formBankName} | Account Name: ${formAccountName} | A/C No: ${formAccountNumber}` : '',
                     formMpesaPaybill ? `M-Pesa Paybill: ${formMpesaPaybill} | Account: ${doc.invoiceNumber}` : '',
                     formMpesaTill ? `M-Pesa Till: ${formMpesaTill}` : '',
                     doc.terms || formTermsTemplate || ''
                 ].filter(Boolean).join('\n') : undefined
-            };
+            } as CompanyDetails;
 
             const effectiveLogo = formLogoUrl || currentInstitution?.logoUrl || logoUrl || companyDetails?.logoUrl || null;
 
@@ -829,9 +829,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         try {
             const targetInst = institutionMap.get(rec.institutionId || '') || currentInstitution;
             const effectiveLetterheadConfig: LetterheadConfig = {
-                headerImageUrl: formHeaderImageUrl || targetInst?.letterheadConfig?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || targetInst?.headerImageUrl || null,
+                headerImageUrl: formHeaderImageUrl || targetInst?.letterheadConfig?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (targetInst as any)?.headerImageUrl || null,
                 footerImageUrl: formFooterImageUrl || targetInst?.letterheadConfig?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || targetInst?.footerImageUrl || null,
-                stampImageUrl: formStampUrl || targetInst?.letterheadConfig?.stampImageUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || targetInst?.stampUrl || null,
+                stampImageUrl: formStampUrl || targetInst?.letterheadConfig?.stampImageUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (targetInst as any)?.stampUrl || null,
                 footerText: targetInst?.letterheadConfig?.footerText || letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || `${targetInst?.name || 'EduAI'} - Official Receipt`,
                 showStamp: true
             };
@@ -840,31 +840,33 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 ...targetInst,
                 letterheadConfig: effectiveLetterheadConfig,
                 logoUrl: formLogoUrl || targetInst?.logoUrl || logoUrl || companyDetails?.logoUrl || '',
-                headerImageUrl: effectiveLetterheadConfig.headerImageUrl || undefined,
                 footerImageUrl: effectiveLetterheadConfig.footerImageUrl || undefined
             };
 
             const effectiveCompanyDetails: CompanyDetails = {
+                ...(companyDetails || {}),
                 name: companyDetails?.name || targetInst?.name || 'Corporate Invoicing Hub',
                 address: companyDetails?.address || targetInst?.address || 'P.O. Box 100, City',
                 phone: companyDetails?.phone || targetInst?.phoneNumber || '0700000000',
                 email: companyDetails?.email || targetInst?.email || 'billing@company.com',
                 website: companyDetails?.website || '',
                 letterheadConfig: effectiveLetterheadConfig,
-                logoUrl: targetInstWithLetterhead.logoUrl
-            };
+                logoUrl: targetInstWithLetterhead.logoUrl ?? null
+            } as CompanyDetails;
 
             const fallbackTx: MpesaTransaction = {
                 id: rec.relatedTransactionId || rec.id,
                 transactionId: rec.relatedTransactionId || rec.receiptNumber || 'TXN-CLEARED',
-                receiptNumber: rec.receiptNumber,
                 amount: rec.amountPaid,
                 phoneNumber: '',
+                payerName: (rec as any).receivedFrom || 'Client',
                 institutionId: rec.institutionId || targetInst?.id || '',
                 timestamp: rec.paymentDate || new Date().toISOString(),
-                status: 'Completed',
-                type: 'Paybill',
-                description: rec.paidFor || 'Official Payment Receipt'
+                status: 'completed',
+                provider: 'mpesa',
+                paymentMethod: 'paybill',
+                description: rec.paidFor || 'Official Payment Receipt',
+                referenceId: rec.receiptNumber
             };
 
             await downloadReceiptPdf(
