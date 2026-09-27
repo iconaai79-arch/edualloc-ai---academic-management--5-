@@ -46,6 +46,9 @@ import {
     KENYA_COUNTIES_LIST,
     detectAdministrativeBoundary
 } from '../utils/kenyaAdminData';
+import { apiService } from '../services/apiService';
+import { CommunicationsManager } from './CommunicationsManager';
+
 
 interface CountyAdminViewProps {
     currentUser?: User;

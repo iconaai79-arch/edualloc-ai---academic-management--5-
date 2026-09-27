@@ -328,11 +328,16 @@ export const generateInvoicePdfDataUri = async (
     const letterConfig = isPlatformInvoice 
         ? companyDetails?.letterheadConfig 
         : (institution?.letterheadConfig || companyDetails?.letterheadConfig);
-    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
-    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
-    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
-    const footerText = letterConfig?.footerText || '';
-    const logoImg = await loadImage(isPlatformInvoice ? companyDetails?.logoUrl : logoUrl);
+    const headerImgUrl = letterConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.headerImageUrl || (institution as any)?.header_image_url || (institution as any)?.letterheadImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || companyDetails?.headerImageUrl || (companyDetails as any)?.header_image_url || null;
+    const footerImgUrl = letterConfig?.footerImageUrl || institution?.letterheadConfig?.footerImageUrl || institution?.footerImageUrl || (institution as any)?.footer_image_url || companyDetails?.letterheadConfig?.footerImageUrl || companyDetails?.footerImageUrl || (companyDetails as any)?.footer_image_url || null;
+    const stampImgUrl = letterConfig?.stampImageUrl || (institution as any)?.stampUrl || (institution as any)?.stamp_url || companyDetails?.letterheadConfig?.stampImageUrl || companyDetails?.stampUrl || null;
+    const footerText = letterConfig?.footerText || institution?.letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || '';
+    const logoImgUrl = isPlatformInvoice ? companyDetails?.logoUrl : (logoUrl || institution?.logoUrl || (institution as any)?.logo_url || companyDetails?.logoUrl || null);
+
+    const headerImg = headerImgUrl ? await loadImage(headerImgUrl) : null;
+    const footerImg = footerImgUrl ? await loadImage(footerImgUrl) : null;
+    const stampImg = stampImgUrl ? await loadImage(stampImgUrl) : null;
+    const logoImg = logoImgUrl ? await loadImage(logoImgUrl) : null;
 
     // Create Page Header with Letterhead Cascade
     const tableStartY = createPdfWithLetterhead(
@@ -342,8 +347,14 @@ export const generateInvoicePdfDataUri = async (
         isPlatformInvoice ? {
             name: companyDetails.name,
             email: companyDetails.email,
-            phoneNumber: companyDetails.phone
-        } as Institution : institution, 
+            phoneNumber: companyDetails.phone,
+            address: companyDetails.address
+        } as Institution : (institution || {
+            name: companyDetails.name,
+            email: companyDetails.email,
+            phoneNumber: companyDetails.phone,
+            address: companyDetails.address
+        } as Institution), 
         logoImg, 
         headerImg
     );
@@ -408,19 +419,25 @@ export const generateInvoicePdfDataUri = async (
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(30, 41, 59);
-        doc.text(`Organization :  ${institution?.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
-        doc.text(`Representative: ${institution?.email || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 13);
-        doc.text(`Contact Phone :  ${institution?.phoneNumber || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 19);
+        const billToClient = invoice?.clientName || (invoice as any)?.client?.clientName || (invoice as any)?.customerName || 'Corporate Client';
+        const billToContact = invoice?.clientEmail || (invoice as any)?.client?.email || (invoice as any)?.clientContactPerson || 'N/A';
+        const billToPhone = invoice?.clientPhone || (invoice as any)?.client?.phone || 'N/A';
+        const billToAddress = invoice?.clientAddress || (invoice as any)?.client?.address || '';
+        doc.text(`Organization :  ${billToClient}`, pageWidth / 2 + 6, tableStartY + 7);
+        doc.text(`Representative: ${billToContact}`, pageWidth / 2 + 6, tableStartY + 13);
+        doc.text(`Contact Phone :  ${billToPhone}${billToAddress ? ` | ${billToAddress}` : ''}`, pageWidth / 2 + 6, tableStartY + 19);
     }
 
+    const docCurrency = invoice?.currency || 'KES';
+
     // Main line items table
-    const head = [['#', 'DESCRIPTION / BILLABLE ITEM', 'QTY', 'UNIT PRICE (KES)', 'TOTAL AMOUNT (KES)']];
+    const head = [['#', 'DESCRIPTION / BILLABLE ITEM', 'QTY', `UNIT PRICE (${docCurrency})`, `TOTAL AMOUNT (${docCurrency})`]];
     const body = (invoice?.items || []).map((item, index) => [
         index + 1,
         item.description,
         item.quantity,
-        `KES ${item.unitPrice?.toLocaleString()}.00`,
-        `KES ${item.amount?.toLocaleString()}.00`
+        `${docCurrency} ${item.unitPrice?.toLocaleString()}.00`,
+        `${docCurrency} ${item.amount?.toLocaleString()}.00`
     ]);
 
     doc.autoTable({
@@ -446,20 +463,25 @@ export const generateInvoicePdfDataUri = async (
     doc.setLineWidth(0.3);
     doc.line(margin, finalY + 5, pageWidth - margin, finalY + 5);
 
+    const invCurrency = invoice?.currency || 'KES';
+    const subtotalAmount = Number(invoice?.subtotal) || Number(invoice?.totalAmount) || 0;
+    const taxAmountVal = Number(invoice?.taxAmount) || 0;
+    const taxRateVal = invoice?.taxRate !== undefined ? Number(invoice.taxRate) : 0;
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(100, 116, 139); // Slate-500
     doc.text('SUBTOTAL:', pageWidth - margin - 75, finalY + 12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`KES ${(invoice?.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+    doc.text(`${invCurrency} ${subtotalAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text('VAT / TAX (0%):', pageWidth - margin - 75, finalY + 17);
+    doc.text(`VAT / TAX (${taxRateVal}%):`, pageWidth - margin - 75, finalY + 17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text('KES 0.00', pageWidth - margin, finalY + 17, { align: 'right' });
+    doc.text(`${invCurrency} ${taxAmountVal.toLocaleString()}.00`, pageWidth - margin, finalY + 17, { align: 'right' });
 
     // Net total paid amount container box
     const totalBoxY = finalY + 21;
@@ -470,7 +492,7 @@ export const generateInvoicePdfDataUri = async (
     doc.setFontSize(9.5);
     doc.setTextColor(79, 70, 229); // Indigo-600 (Primary accent)
     doc.text('TOTAL PAYABLE AMOUNT:', pageWidth - margin - 75, totalBoxY + 7);
-    doc.text(`KES ${(invoice?.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+    doc.text(`${invCurrency} ${(invoice?.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
 
     // Payment details / instructions
     const instructionsY = totalBoxY + 20;
@@ -1418,11 +1440,16 @@ export const generateQuotePdfDataUri = async (
     const letterConfig = isPlatformInvoice 
         ? companyDetails?.letterheadConfig 
         : (institution?.letterheadConfig || companyDetails?.letterheadConfig);
-    const headerImg = letterConfig?.headerImageUrl ? await loadImage(letterConfig.headerImageUrl) : null;
-    const footerImg = letterConfig?.footerImageUrl ? await loadImage(letterConfig.footerImageUrl) : null;
-    const stampImg = letterConfig?.stampImageUrl ? await loadImage(letterConfig.stampImageUrl) : null;
-    const footerText = letterConfig?.footerText || '';
-    const logoImg = await loadImage(isPlatformInvoice ? companyDetails?.logoUrl : logoUrl);
+    const headerImgUrl = letterConfig?.headerImageUrl || institution?.letterheadConfig?.headerImageUrl || institution?.headerImageUrl || (institution as any)?.header_image_url || (institution as any)?.letterheadImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || companyDetails?.headerImageUrl || (companyDetails as any)?.header_image_url || null;
+    const footerImgUrl = letterConfig?.footerImageUrl || institution?.letterheadConfig?.footerImageUrl || institution?.footerImageUrl || (institution as any)?.footer_image_url || companyDetails?.letterheadConfig?.footerImageUrl || companyDetails?.footerImageUrl || (companyDetails as any)?.footer_image_url || null;
+    const stampImgUrl = letterConfig?.stampImageUrl || (institution as any)?.stampUrl || (institution as any)?.stamp_url || companyDetails?.letterheadConfig?.stampImageUrl || companyDetails?.stampUrl || null;
+    const footerText = letterConfig?.footerText || institution?.letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || '';
+    const logoImgUrl = isPlatformInvoice ? companyDetails?.logoUrl : (logoUrl || institution?.logoUrl || (institution as any)?.logo_url || companyDetails?.logoUrl || null);
+
+    const headerImg = headerImgUrl ? await loadImage(headerImgUrl) : null;
+    const footerImg = footerImgUrl ? await loadImage(footerImgUrl) : null;
+    const stampImg = stampImgUrl ? await loadImage(stampImgUrl) : null;
+    const logoImg = logoImgUrl ? await loadImage(logoImgUrl) : null;
 
     // Create Page Header with Letterhead Cascade
     const tableStartY = createPdfWithLetterhead(
@@ -1432,8 +1459,14 @@ export const generateQuotePdfDataUri = async (
         isPlatformInvoice ? {
             name: companyDetails.name,
             email: companyDetails.email,
-            phoneNumber: companyDetails.phone
-        } as Institution : institution, 
+            phoneNumber: companyDetails.phone,
+            address: companyDetails.address
+        } as Institution : (institution || {
+            name: companyDetails.name,
+            email: companyDetails.email,
+            phoneNumber: companyDetails.phone,
+            address: companyDetails.address
+        } as Institution), 
         logoImg, 
         headerImg
     );
@@ -1493,18 +1526,24 @@ export const generateQuotePdfDataUri = async (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Organization :  ${institution?.name || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 7);
-    doc.text(`Representative: ${institution?.email || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 13);
-    doc.text(`Contact Phone :  ${institution?.phoneNumber || 'N/A'}`, pageWidth / 2 + 6, tableStartY + 19);
+    const quoteClient = quote?.clientName || (quote as any)?.client?.clientName || (quote as any)?.customerName || 'Corporate Client';
+    const quoteContact = quote?.clientEmail || (quote as any)?.client?.email || (quote as any)?.clientContactPerson || 'N/A';
+    const quotePhone = quote?.clientPhone || (quote as any)?.client?.phone || 'N/A';
+    const quoteAddress = quote?.clientAddress || (quote as any)?.client?.address || '';
+    doc.text(`Organization :  ${quoteClient}`, pageWidth / 2 + 6, tableStartY + 7);
+    doc.text(`Representative: ${quoteContact}`, pageWidth / 2 + 6, tableStartY + 13);
+    doc.text(`Contact Phone :  ${quotePhone}${quoteAddress ? ` | ${quoteAddress}` : ''}`, pageWidth / 2 + 6, tableStartY + 19);
+
+    const quoteCurrency = quote?.currency || 'KES';
 
     // Main line items table
-    const head = [['#', 'DESCRIPTION / ESTIMATED ITEM', 'QTY', 'UNIT PRICE (KES)', 'TOTAL AMOUNT (KES)']];
+    const head = [['#', 'DESCRIPTION / ESTIMATED ITEM', 'QTY', `UNIT PRICE (${quoteCurrency})`, `TOTAL AMOUNT (${quoteCurrency})`]];
     const body = (quote?.items || []).map((item, index) => [
         index + 1,
         item.description,
         item.quantity,
-        `KES ${item.unitPrice?.toLocaleString()}.00`,
-        `KES ${item.amount?.toLocaleString()}.00`
+        `${quoteCurrency} ${item.unitPrice?.toLocaleString()}.00`,
+        `${quoteCurrency} ${item.amount?.toLocaleString()}.00`
     ]);
 
     doc.autoTable({
@@ -1547,14 +1586,14 @@ export const generateQuotePdfDataUri = async (
     doc.text('SUBTOTAL ESTIMATE:', pageWidth - margin - 75, finalY + 12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`KES ${subtotal.toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+    doc.text(`${quoteCurrency} ${subtotal.toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
     doc.text(`ESTIMATED TAX / VAT (${taxRate}%):`, pageWidth - margin - 75, finalY + 17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`KES ${taxAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 17, { align: 'right' });
+    doc.text(`${quoteCurrency} ${taxAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 17, { align: 'right' });
 
     // Net total paid amount container box
     const totalBoxY = finalY + 21;
@@ -1565,7 +1604,7 @@ export const generateQuotePdfDataUri = async (
     doc.setFontSize(9.5);
     doc.setTextColor(79, 70, 229); // Indigo-600 (Primary accent)
     doc.text('TOTAL ESTIMATED AMOUNT:', pageWidth - margin - 75, totalBoxY + 7);
-    doc.text(`KES ${finalTotal.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+    doc.text(`${quoteCurrency} ${finalTotal.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
 
     // Stamp / Authorized Signature
     const sigBaseY = pageHeight - 55;

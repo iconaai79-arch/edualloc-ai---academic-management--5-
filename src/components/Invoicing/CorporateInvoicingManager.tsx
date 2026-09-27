@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Invoice, InvoiceItem, InvoiceClient, CompanyInvoiceSettings, Receipt, Institution, User, CompanyDetails, MpesaTransaction } from '../../types';
+import type { Invoice, InvoiceItem, InvoiceClient, CompanyInvoiceSettings, Receipt, Institution, User, CompanyDetails, MpesaTransaction, LetterheadConfig } from '../../types';
 import { apiService } from '../../services/apiService';
 import { downloadInvoicePdf, downloadQuotePdf, downloadReceiptPdf } from '../../services/pdfService';
 import { sendEmailNotification } from '../../services/emailService';
@@ -13,6 +13,7 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { EyeIcon } from '../icons/EyeIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { PencilIcon } from '../icons/PencilIcon';
+import { PrinterIcon } from '../icons/PrinterIcon';
 
 interface CorporateInvoicingManagerProps {
     currentUser: User;
@@ -22,6 +23,8 @@ interface CorporateInvoicingManagerProps {
     availableInstitutions?: Institution[];
     initialInvoices?: Invoice[];
     initialReceipts?: Receipt[];
+    letterheadConfig?: LetterheadConfig;
+    logoUrl?: string | null;
 }
 
 const INVOICE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -40,7 +43,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     onLogAction,
     availableInstitutions,
     initialInvoices,
-    initialReceipts
+    initialReceipts,
+    letterheadConfig,
+    logoUrl
 }) => {
     const institutionId = currentInstitution?.id || currentUser?.institutionId || 'GLOBAL';
 
@@ -113,8 +118,14 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
     // Settings Form State
     const [formInvoicePrefix, setFormInvoicePrefix] = useState('INV-');
+    const [formInvoiceNextNumber, setFormInvoiceNextNumber] = useState<number>(1001);
     const [formQuotePrefix, setFormQuotePrefix] = useState('QUO-');
+    const [formQuoteNextNumber, setFormQuoteNextNumber] = useState<number>(1001);
     const [formReceiptPrefix, setFormReceiptPrefix] = useState('REC-');
+    const [formReceiptNextNumber, setFormReceiptNextNumber] = useState<number>(1001);
+    const [formHeaderImageUrl, setFormHeaderImageUrl] = useState('');
+    const [formFooterImageUrl, setFormFooterImageUrl] = useState('');
+    const [customDocNumber, setCustomDocNumber] = useState('');
     const [formCurrency, setFormCurrency] = useState('KES');
     const [formDefaultTaxRate, setFormDefaultTaxRate] = useState(16);
     const [formDefaultTermsDays, setFormDefaultTermsDays] = useState(14);
@@ -144,11 +155,12 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             const isSuperAdmin = currentUser?.role === 'super_admin' || institutionId === 'GLOBAL' || !institutionId;
             const targetInstId = isSuperAdmin ? undefined : institutionId;
 
-            const [invRes, recRes, clientRes, setRes] = await Promise.allSettled([
+            const [invRes, recRes, clientRes, setRes, numConfigsRes] = await Promise.allSettled([
                 apiService.fetchInvoices(targetInstId),
                 apiService.fetchModuleRecords<Receipt>('receipts', targetInstId),
                 apiService.fetchInvoiceClients(targetInstId),
-                apiService.fetchCompanyInvoiceSettings(institutionId)
+                apiService.fetchCompanyInvoiceSettings(institutionId),
+                apiService.fetchModuleRecords<any>('finance_numbering_configs', institutionId).catch(() => [])
             ]);
 
             if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {
@@ -168,12 +180,45 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             if (clientRes.status === 'fulfilled' && Array.isArray(clientRes.value)) {
                 setClients(clientRes.value);
             }
+
+            // Sync configured Document Numbering from finance_numbering_configs
+            if (numConfigsRes.status === 'fulfilled' && Array.isArray(numConfigsRes.value)) {
+                const configs = numConfigsRes.value;
+                const invCfg = configs.find(c => String(c.documentType || c.document_type || '').toLowerCase() === 'invoice');
+                if (invCfg) {
+                    if (invCfg.prefix) setFormInvoicePrefix(invCfg.prefix);
+                    const n = Number(invCfg.nextNumber || invCfg.next_number);
+                    if (n) setFormInvoiceNextNumber(n);
+                }
+                const quoCfg = configs.find(c => {
+                    const t = String(c.documentType || c.document_type || '').toLowerCase();
+                    return t === 'quote' || t === 'quotation';
+                });
+                if (quoCfg) {
+                    if (quoCfg.prefix) setFormQuotePrefix(quoCfg.prefix);
+                    const n = Number(quoCfg.nextNumber || quoCfg.next_number);
+                    if (n) setFormQuoteNextNumber(n);
+                }
+                const recCfg = configs.find(c => String(c.documentType || c.document_type || '').toLowerCase() === 'receipt');
+                if (recCfg) {
+                    if (recCfg.prefix) setFormReceiptPrefix(recCfg.prefix);
+                    const n = Number(recCfg.nextNumber || recCfg.next_number);
+                    if (n) setFormReceiptNextNumber(n);
+                }
+            }
+
+            // Merge with CompanyInvoiceSettings
             if (setRes.status === 'fulfilled' && Array.isArray(setRes.value) && setRes.value.length > 0) {
                 const s = setRes.value[0];
                 setSettings(s);
-                setFormInvoicePrefix(s.invoicePrefix || 'INV-');
-                setFormQuotePrefix(s.quotePrefix || 'QUO-');
-                setFormReceiptPrefix(s.receiptPrefix || 'REC-');
+                if (s.invoicePrefix) setFormInvoicePrefix(s.invoicePrefix);
+                if (s.quotePrefix) setFormQuotePrefix(s.quotePrefix);
+                if (s.receiptPrefix) setFormReceiptPrefix(s.receiptPrefix);
+                if (s.nextInvoiceNumber) setFormInvoiceNextNumber(s.nextInvoiceNumber);
+                if (s.nextQuoteNumber) setFormQuoteNextNumber(s.nextQuoteNumber);
+                if (s.nextReceiptNumber) setFormReceiptNextNumber(s.nextReceiptNumber);
+                if (s.headerImageUrl) setFormHeaderImageUrl(s.headerImageUrl);
+                if (s.footerImageUrl) setFormFooterImageUrl(s.footerImageUrl);
                 setFormCurrency(s.currency || 'KES');
                 setFormDefaultTaxRate(s.taxRate ?? 16);
                 setFormDefaultTermsDays(s.paymentTermsDays ?? 14);
@@ -184,9 +229,20 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 setFormMpesaTill(s.mpesaTill || '');
                 if (s.notesTemplate) setFormNotesTemplate(s.notesTemplate);
                 if (s.termsTemplate) setFormTermsTemplate(s.termsTemplate);
-                setFormLogoUrl(s.logoUrl || '');
-                setFormStampUrl(s.stampUrl || '');
+                if (s.logoUrl) setFormLogoUrl(s.logoUrl);
+                if (s.stampUrl) setFormStampUrl(s.stampUrl);
             }
+
+            // Fallback letterhead defaults from institution / company details
+            const defaultHeader = currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.headerImageUrl || (currentInstitution as any)?.header_image_url || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || '';
+            const defaultFooter = currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || (currentInstitution as any)?.footer_image_url || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl || '';
+            const defaultLogo = currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || logoUrl || companyDetails?.logoUrl || '';
+            const defaultStamp = currentInstitution?.letterheadConfig?.stampImageUrl || (currentInstitution as any)?.stampUrl || (currentInstitution as any)?.stamp_url || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (companyDetails as any)?.stampUrl || '';
+
+            setFormHeaderImageUrl(prev => prev || defaultHeader);
+            setFormFooterImageUrl(prev => prev || defaultFooter);
+            setFormLogoUrl(prev => prev || defaultLogo);
+            setFormStampUrl(prev => prev || defaultStamp);
         } catch (e) {
             console.error('Failed to load corporate invoicing data:', e);
         } finally {
@@ -421,6 +477,32 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         return Math.max(0, calculatedSubtotal + calculatedTaxAmount - (Number(invDiscount) || 0));
     }, [calculatedSubtotal, calculatedTaxAmount, invDiscount]);
 
+    // Helper for uploading local images as data URLs
+    const handleImageUpload = (file: File, setter: (url: string) => void) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (typeof e.target?.result === 'string') {
+                setter(e.target.result);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    // Helper to open create invoice/quote modal with auto-sequenced document number
+    const handleOpenCreateDocModal = async (quoteMode: boolean) => {
+        setIsQuoteMode(quoteMode);
+        try {
+            const nextNumber = await apiService.peekNextDocumentNumber(institutionId, quoteMode ? 'quote' : 'invoice');
+            setCustomDocNumber(nextNumber);
+        } catch {
+            const p = quoteMode ? formQuotePrefix : formInvoicePrefix;
+            const n = quoteMode ? formQuoteNextNumber : formInvoiceNextNumber;
+            setCustomDocNumber(`${p}${n}`);
+        }
+        setShowInvoiceModal(true);
+    };
+
     // Save New Invoice / Quote
     const handleSaveInvoiceSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -428,8 +510,23 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         if (invItems.length === 0 || calculatedSubtotal <= 0) return alert('Please provide at least one valid line item with an amount.');
 
         const client = clients.find(c => c.id === invClientId);
-        const prefix = isQuoteMode ? (formQuotePrefix || 'QUO-') : (formInvoicePrefix || 'INV-');
-        const serial = `${prefix}${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const docType = isQuoteMode ? 'quote' : 'invoice';
+
+        // Obtain sequential number from the configured sequence
+        let serial = customDocNumber.trim();
+        if (!serial) {
+            serial = await apiService.getNextDocumentNumber(institutionId, docType);
+        } else {
+            // Pre-peeked or customized number was approved; advance persistent counter
+            await apiService.getNextDocumentNumber(institutionId, docType).catch(() => {});
+        }
+
+        // Update local sequence counter
+        if (isQuoteMode) {
+            setFormQuoteNextNumber(prev => prev + 1);
+        } else {
+            setFormInvoiceNextNumber(prev => prev + 1);
+        }
 
         const newDoc: Invoice = {
             id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
@@ -475,7 +572,8 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const handleConvertQuoteToInvoice = async (quote: Invoice) => {
         if (!window.confirm(`Convert Quotation ${quote.invoiceNumber} for ${quote.clientName} into an official Tax Invoice?`)) return;
 
-        const newInvoiceNumber = `${formInvoicePrefix || 'INV-'}${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newInvoiceNumber = await apiService.getNextDocumentNumber(institutionId, 'invoice');
+        setFormInvoiceNextNumber(prev => prev + 1);
         const updatedDoc: Invoice = {
             ...quote,
             invoiceNumber: newInvoiceNumber,
@@ -505,7 +603,8 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         const total = Number(paymentTargetInvoice.totalAmount) || 0;
         const remaining = Math.max(0, total - newPaidTotal);
 
-        const newReceiptNumber = `${formReceiptPrefix || 'REC-'}${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const newReceiptNumber = await apiService.getNextDocumentNumber(institutionId, 'receipt');
+        setFormReceiptNextNumber(prev => prev + 1);
         const newReceipt: Receipt = {
             id: `rec_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             receiptNumber: newReceiptNumber,
@@ -600,6 +699,11 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             invoicePrefix: formInvoicePrefix,
             quotePrefix: formQuotePrefix,
             receiptPrefix: formReceiptPrefix,
+            nextInvoiceNumber: Number(formInvoiceNextNumber) || 1001,
+            nextQuoteNumber: Number(formQuoteNextNumber) || 1001,
+            nextReceiptNumber: Number(formReceiptNextNumber) || 1001,
+            headerImageUrl: formHeaderImageUrl,
+            footerImageUrl: formFooterImageUrl,
             currency: formCurrency,
             taxRate: Number(formDefaultTaxRate) || 0,
             taxName: `VAT (${formDefaultTaxRate}%)`,
@@ -618,9 +722,47 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
         try {
             await apiService.saveCompanyInvoiceSettings(updatedSettings);
+
+            // Also synchronize finance_numbering_configs
+            await Promise.allSettled([
+                apiService.saveModuleRecord('finance_numbering_configs', {
+                    id: `num_cfg_invoice_${institutionId}`,
+                    institutionId,
+                    institution_id: institutionId,
+                    documentType: 'invoice',
+                    document_type: 'invoice',
+                    prefix: formInvoicePrefix,
+                    nextNumber: Number(formInvoiceNextNumber) || 1001,
+                    next_number: Number(formInvoiceNextNumber) || 1001,
+                    updatedAt: new Date().toISOString()
+                }),
+                apiService.saveModuleRecord('finance_numbering_configs', {
+                    id: `num_cfg_quote_${institutionId}`,
+                    institutionId,
+                    institution_id: institutionId,
+                    documentType: 'quote',
+                    document_type: 'quote',
+                    prefix: formQuotePrefix,
+                    nextNumber: Number(formQuoteNextNumber) || 1001,
+                    next_number: Number(formQuoteNextNumber) || 1001,
+                    updatedAt: new Date().toISOString()
+                }),
+                apiService.saveModuleRecord('finance_numbering_configs', {
+                    id: `num_cfg_receipt_${institutionId}`,
+                    institutionId,
+                    institution_id: institutionId,
+                    documentType: 'receipt',
+                    document_type: 'receipt',
+                    prefix: formReceiptPrefix,
+                    nextNumber: Number(formReceiptNextNumber) || 1001,
+                    next_number: Number(formReceiptNextNumber) || 1001,
+                    updatedAt: new Date().toISOString()
+                })
+            ]);
+
             setSettings(updatedSettings);
-            onLogAction?.('Updated company invoice & billing profile configurations.');
-            alert('Invoicing preferences, numbering prefixes, and banking details saved successfully!');
+            onLogAction?.('Updated company invoice & billing profile configurations, numbering sequences, and letterhead.');
+            alert('Invoicing preferences, numbering sequences, letterhead branding, and banking details saved successfully!');
         } catch (err: any) {
             alert('Failed to save settings: ' + err.message);
         } finally {
@@ -628,35 +770,82 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         }
     };
 
-    // Download PDF Invoice / Quote
-    const handleDownloadDocument = (doc: Invoice) => {
-        const effectiveCompanyDetails: CompanyDetails = {
-            name: currentInstitution?.name || 'Company Name',
-            address: currentInstitution?.address || 'P.O. Box 100, City',
-            phone: currentInstitution?.phoneNumber || '0700000000',
-            email: currentInstitution?.email || 'billing@company.com',
-            website: '',
-            taxPin: formBankName ? undefined : undefined
-        };
+    // Download PDF Invoice / Quote with Letterhead
+    const handleDownloadDocument = async (doc: Invoice) => {
+        try {
+            const effectiveLetterheadConfig: LetterheadConfig = {
+                headerImageUrl: formHeaderImageUrl || currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || null,
+                footerImageUrl: formFooterImageUrl || currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl || null,
+                stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || currentInstitution?.stampUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (companyDetails as any)?.stampUrl || null,
+                footerText: currentInstitution?.letterheadConfig?.footerText || letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || `${currentInstitution?.name || 'EduAI'} - Official Corporate Document`,
+                showStamp: true
+            };
 
-        if (doc.status === 'quote') {
-            downloadQuotePdf(doc, effectiveCompanyDetails, formLogoUrl || currentInstitution?.logoUrl || null);
-        } else {
-            downloadInvoicePdf(doc, effectiveCompanyDetails, formLogoUrl || currentInstitution?.logoUrl || null);
+            const effectiveInstitution: Institution = {
+                ...currentInstitution,
+                letterheadConfig: effectiveLetterheadConfig,
+                logoUrl: formLogoUrl || currentInstitution?.logoUrl || logoUrl || companyDetails?.logoUrl || '',
+                headerImageUrl: effectiveLetterheadConfig.headerImageUrl || undefined,
+                footerImageUrl: effectiveLetterheadConfig.footerImageUrl || undefined
+            };
+
+            const effectiveCompanyDetails: CompanyDetails = {
+                name: currentInstitution?.name || companyDetails?.name || 'Company Name',
+                address: currentInstitution?.address || companyDetails?.address || 'P.O. Box 100, City',
+                phone: currentInstitution?.phoneNumber || companyDetails?.phone || '0700000000',
+                email: currentInstitution?.email || companyDetails?.email || 'billing@company.com',
+                website: currentInstitution?.website || companyDetails?.website || '',
+                letterheadConfig: effectiveLetterheadConfig,
+                logoUrl: effectiveInstitution.logoUrl,
+                paymentInstructions: (formBankName || formMpesaPaybill) ? [
+                    formBankName ? `Bank: ${formBankName} | Account Name: ${formAccountName} | A/C No: ${formAccountNumber}` : '',
+                    formMpesaPaybill ? `M-Pesa Paybill: ${formMpesaPaybill} | Account: ${doc.invoiceNumber}` : '',
+                    formMpesaTill ? `M-Pesa Till: ${formMpesaTill}` : '',
+                    doc.terms || formTermsTemplate || ''
+                ].filter(Boolean).join('\n') : undefined
+            };
+
+            const effectiveLogo = formLogoUrl || currentInstitution?.logoUrl || logoUrl || companyDetails?.logoUrl || null;
+
+            if (doc.status === 'quote') {
+                await downloadQuotePdf(doc, effectiveInstitution, effectiveCompanyDetails, effectiveLogo);
+            } else {
+                await downloadInvoicePdf(doc, effectiveInstitution, effectiveCompanyDetails, effectiveLogo);
+            }
+        } catch (err: any) {
+            console.error("Failed to generate document PDF:", err);
+            alert("Failed to generate PDF: " + (err.message || err));
         }
     };
 
-    // Download PDF Receipt
+    // Download PDF Receipt with Letterhead
     const handleDownloadReceiptPdf = async (rec: Receipt) => {
         try {
             const targetInst = institutionMap.get(rec.institutionId || '') || currentInstitution;
+            const effectiveLetterheadConfig: LetterheadConfig = {
+                headerImageUrl: formHeaderImageUrl || targetInst?.letterheadConfig?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || targetInst?.headerImageUrl || null,
+                footerImageUrl: formFooterImageUrl || targetInst?.letterheadConfig?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || targetInst?.footerImageUrl || null,
+                stampImageUrl: formStampUrl || targetInst?.letterheadConfig?.stampImageUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || targetInst?.stampUrl || null,
+                footerText: targetInst?.letterheadConfig?.footerText || letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || `${targetInst?.name || 'EduAI'} - Official Receipt`,
+                showStamp: true
+            };
+
+            const targetInstWithLetterhead: Institution = {
+                ...targetInst,
+                letterheadConfig: effectiveLetterheadConfig,
+                logoUrl: formLogoUrl || targetInst?.logoUrl || logoUrl || companyDetails?.logoUrl || '',
+                headerImageUrl: effectiveLetterheadConfig.headerImageUrl || undefined,
+                footerImageUrl: effectiveLetterheadConfig.footerImageUrl || undefined
+            };
+
             const effectiveCompanyDetails: CompanyDetails = {
                 name: companyDetails?.name || targetInst?.name || 'Corporate Invoicing Hub',
                 address: companyDetails?.address || targetInst?.address || 'P.O. Box 100, City',
                 phone: companyDetails?.phone || targetInst?.phoneNumber || '0700000000',
                 email: companyDetails?.email || targetInst?.email || 'billing@company.com',
                 website: companyDetails?.website || '',
-                taxPin: formBankName ? undefined : undefined
+                letterheadConfig: effectiveLetterheadConfig,
+                logoUrl: targetInstWithLetterhead.logoUrl
             };
 
             const fallbackTx: MpesaTransaction = {
@@ -675,9 +864,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             await downloadReceiptPdf(
                 rec,
                 fallbackTx,
-                targetInst,
+                targetInstWithLetterhead,
                 effectiveCompanyDetails,
-                formLogoUrl || targetInst?.logoUrl || null
+                formLogoUrl || targetInst?.logoUrl || logoUrl || null
             );
         } catch (err: any) {
             console.error("Failed to generate receipt PDF:", err);
@@ -763,13 +952,13 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
                 <div className="relative z-10 flex flex-wrap items-center gap-3 w-full md:w-auto">
                     <button
-                        onClick={() => { setIsQuoteMode(false); setShowInvoiceModal(true); }}
+                        onClick={() => handleOpenCreateDocModal(false)}
                         className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2"
                     >
                         <PlusIcon className="w-4 h-4" /> New Tax Invoice
                     </button>
                     <button
-                        onClick={() => { setIsQuoteMode(true); setShowInvoiceModal(true); }}
+                        onClick={() => handleOpenCreateDocModal(true)}
                         className="px-5 py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2"
                     >
                         <PencilIcon className="w-4 h-4" /> New Quotation
@@ -933,13 +1122,22 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                     </span>
                                                 </td>
                                                 <td className="p-3 text-center">
-                                                    <button
-                                                        onClick={() => handleDownloadDocument(inv)}
-                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                                        title="Download Official PDF"
-                                                    >
-                                                        <DocumentArrowDownIcon className="w-4 h-4" />
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            onClick={() => setPreviewInvoice(inv)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Preview Invoice with Letterhead"
+                                                        >
+                                                            <EyeIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadDocument(inv)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Download Official PDF"
+                                                        >
+                                                            <DocumentArrowDownIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -999,10 +1197,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
                         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
                             <button
-                                onClick={() => {
-                                    setIsQuoteMode(activeTab === 'quotes');
-                                    setShowInvoiceModal(true);
-                                }}
+                                onClick={() => handleOpenCreateDocModal(activeTab === 'quotes')}
                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-2"
                             >
                                 <PlusIcon className="w-4 h-4" /> {activeTab === 'quotes' ? 'Create Quotation' : 'Create Invoice'}
@@ -1083,6 +1278,13 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                                 Record Pay
                                                             </button>
                                                         )}
+                                                        <button
+                                                            onClick={() => setPreviewInvoice(doc)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Preview Document with Letterhead"
+                                                        >
+                                                            <EyeIcon className="w-4 h-4" />
+                                                        </button>
                                                         <button
                                                             onClick={() => handleDownloadDocument(doc)}
                                                             className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -1470,52 +1672,252 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                     </div>
 
                     <form onSubmit={handleSaveSettingsSubmit} className="space-y-6">
-                        {/* Numbering & Currency */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Invoice Prefix</label>
-                                <input
-                                    type="text"
-                                    value={formInvoicePrefix}
-                                    onChange={e => setFormInvoicePrefix(e.target.value)}
-                                    placeholder="e.g. INV-"
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                />
+                        {/* Numbering Sequences & Currency */}
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                        Document Numbering Sequences &amp; Currency
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500">Auto-incrementing counters used whenever official invoices, quotes, and receipts are generated.</p>
+                                </div>
+                                <span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-mono font-bold text-xs rounded-lg border border-indigo-200 dark:border-indigo-800">
+                                    {formCurrency} Active
+                                </span>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Quote Prefix</label>
-                                <input
-                                    type="text"
-                                    value={formQuotePrefix}
-                                    onChange={e => setFormQuotePrefix(e.target.value)}
-                                    placeholder="e.g. QUO-"
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                />
+
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Invoice Series</label>
+                                        <span className="text-[9px] font-mono text-indigo-500 font-bold">{formInvoicePrefix}{formInvoiceNextNumber}</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formInvoicePrefix}
+                                        onChange={e => setFormInvoicePrefix(e.target.value)}
+                                        placeholder="e.g. INV-"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <div className="flex items-center gap-1.5 pt-1">
+                                        <span className="text-[10px] text-slate-400 font-bold">Next #:</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={formInvoiceNextNumber}
+                                            onChange={e => setFormInvoiceNextNumber(Number(e.target.value))}
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Quote Series</label>
+                                        <span className="text-[9px] font-mono text-purple-500 font-bold">{formQuotePrefix}{formQuoteNextNumber}</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formQuotePrefix}
+                                        onChange={e => setFormQuotePrefix(e.target.value)}
+                                        placeholder="e.g. QUO-"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <div className="flex items-center gap-1.5 pt-1">
+                                        <span className="text-[10px] text-slate-400 font-bold">Next #:</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={formQuoteNextNumber}
+                                            onChange={e => setFormQuoteNextNumber(Number(e.target.value))}
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Receipt Series</label>
+                                        <span className="text-[9px] font-mono text-emerald-500 font-bold">{formReceiptPrefix}{formReceiptNextNumber}</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formReceiptPrefix}
+                                        onChange={e => setFormReceiptPrefix(e.target.value)}
+                                        placeholder="e.g. REC-"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <div className="flex items-center gap-1.5 pt-1">
+                                        <span className="text-[10px] text-slate-400 font-bold">Next #:</span>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={formReceiptNextNumber}
+                                            onChange={e => setFormReceiptNextNumber(Number(e.target.value))}
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Billing Currency</label>
+                                    <select
+                                        value={formCurrency}
+                                        onChange={e => setFormCurrency(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    >
+                                        <option value="KES">KES - Kenyan Shilling</option>
+                                        <option value="USD">USD - US Dollar</option>
+                                        <option value="EUR">EUR - Euro</option>
+                                        <option value="GBP">GBP - British Pound</option>
+                                        <option value="UGX">UGX - Ugandan Shilling</option>
+                                        <option value="TZS">TZS - Tanzanian Shilling</option>
+                                    </select>
+                                    <p className="text-[10px] text-slate-400">Applies to all generated invoices &amp; PDF totals.</p>
+                                </div>
                             </div>
+                        </div>
+
+                        {/* Official Letterhead & Company Branding */}
+                        <div className="p-5 bg-gradient-to-br from-indigo-50/40 via-white to-slate-50 dark:from-slate-900 dark:via-slate-850 dark:to-slate-900 rounded-3xl border border-indigo-200/50 dark:border-indigo-900/40 space-y-4">
                             <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Receipt Prefix</label>
-                                <input
-                                    type="text"
-                                    value={formReceiptPrefix}
-                                    onChange={e => setFormReceiptPrefix(e.target.value)}
-                                    placeholder="e.g. REC-"
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                />
+                                <h4 className="text-xs font-black uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
+                                    Official Letterhead &amp; Document Branding
+                                </h4>
+                                <p className="text-[11px] text-slate-500">Configure letterhead header banner, footer banner, corporate logo, and authorized verification stamp.</p>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Billing Currency</label>
-                                <select
-                                    value={formCurrency}
-                                    onChange={e => setFormCurrency(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                >
-                                    <option value="KES">KES - Kenyan Shilling</option>
-                                    <option value="USD">USD - US Dollar</option>
-                                    <option value="EUR">EUR - Euro</option>
-                                    <option value="GBP">GBP - British Pound</option>
-                                    <option value="UGX">UGX - Ugandan Shilling</option>
-                                    <option value="TZS">TZS - Tanzanian Shilling</option>
-                                </select>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Letterhead Header Banner</label>
+                                        <label className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer">
+                                            <span>Upload File</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], setFormHeaderImageUrl)}
+                                            />
+                                        </label>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formHeaderImageUrl}
+                                        onChange={e => setFormHeaderImageUrl(e.target.value)}
+                                        placeholder="https://... or uploaded image data"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <p className="text-[10px] text-slate-400">Full-width top banner image displayed across all PDF invoices and quotations.</p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Letterhead Footer Banner</label>
+                                        <label className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer">
+                                            <span>Upload File</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], setFormFooterImageUrl)}
+                                            />
+                                        </label>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formFooterImageUrl}
+                                        onChange={e => setFormFooterImageUrl(e.target.value)}
+                                        placeholder="https://... or uploaded image data"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <p className="text-[10px] text-slate-400">Bottom decorative banner displayed at the base of every page.</p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Company / School Logo</label>
+                                        <label className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer">
+                                            <span>Upload File</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], setFormLogoUrl)}
+                                            />
+                                        </label>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formLogoUrl}
+                                        onChange={e => setFormLogoUrl(e.target.value)}
+                                        placeholder="https://... or uploaded logo data"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <p className="text-[10px] text-slate-400">High-resolution logo embedded in document headers and receipts.</p>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Official Stamp / Seal</label>
+                                        <label className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer">
+                                            <span>Upload File</span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], setFormStampUrl)}
+                                            />
+                                        </label>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={formStampUrl}
+                                        onChange={e => setFormStampUrl(e.target.value)}
+                                        placeholder="https://... or uploaded stamp data"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                    />
+                                    <p className="text-[10px] text-slate-400">Official seal applied above the signature block on approved invoices.</p>
+                                </div>
+                            </div>
+
+                            {/* Letterhead Live Visual Preview Card */}
+                            <div className="mt-4 p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Letterhead Preview</span>
+                                <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/50">
+                                    {formHeaderImageUrl ? (
+                                        <img src={formHeaderImageUrl} alt="Header Preview" className="w-full object-contain max-h-20 bg-white" />
+                                    ) : (
+                                        <div className="p-3 text-center text-xs text-slate-400 bg-slate-100 dark:bg-slate-800">
+                                            [ No Header Banner Configured - Will Use Text Letterhead ]
+                                        </div>
+                                    )}
+                                    <div className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            {formLogoUrl ? (
+                                                <img src={formLogoUrl} alt="Logo Preview" className="h-10 w-auto object-contain" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500">
+                                                    LOGO
+                                                </div>
+                                            )}
+                                            <div>
+                                                <p className="font-black text-xs text-slate-900 dark:text-white uppercase">{currentInstitution?.name || 'Company Name'}</p>
+                                                <p className="text-[10px] text-slate-400">{currentInstitution?.address || 'Address'} • {currentInstitution?.phoneNumber || 'Phone'}</p>
+                                            </div>
+                                        </div>
+                                        {formStampUrl && (
+                                            <img src={formStampUrl} alt="Stamp Preview" className="h-10 w-auto object-contain opacity-75" />
+                                        )}
+                                    </div>
+                                    {formFooterImageUrl ? (
+                                        <img src={formFooterImageUrl} alt="Footer Preview" className="w-full object-contain max-h-12 bg-white" />
+                                    ) : (
+                                        <div className="p-2 text-center text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
+                                            {currentInstitution?.name || 'EduAI'} • Official Corporate Document
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -1654,6 +2056,31 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                         </div>
 
                         <form onSubmit={handleSaveInvoiceSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                            {/* Document Serial Number & Sequence Verification */}
+                            <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-0.5">
+                                        {isQuoteMode ? 'Quotation Number' : 'Official Tax Invoice Number'}
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            required
+                                            value={customDocNumber}
+                                            onChange={e => setCustomDocNumber(e.target.value)}
+                                            placeholder={isQuoteMode ? `${formQuotePrefix}${formQuoteNextNumber}` : `${formInvoicePrefix}${formInvoiceNextNumber}`}
+                                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-mono font-black text-indigo-600 dark:text-indigo-400 outline-none focus:border-indigo-600 w-44"
+                                        />
+                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                            Auto-Sequenced
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                    Next Configured: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{isQuoteMode ? `${formQuotePrefix}${formQuoteNextNumber}` : `${formInvoicePrefix}${formInvoiceNextNumber}`}</span>
+                                </div>
+                            </div>
+
                             {/* Client & Date Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div>
@@ -1995,6 +2422,258 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MODAL: DOCUMENT PREVIEW WITH OFFICIAL LETTERHEAD ===== */}
+            {previewInvoice && (
+                <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+                    <div className="bg-slate-100 dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-4xl border border-slate-200 dark:border-slate-800 overflow-hidden my-6 flex flex-col max-h-[92vh]">
+                        {/* Modal Action Bar */}
+                        <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+                                    {previewInvoice.status === 'quote' ? 'Quotation Preview' : 'Tax Invoice Preview'}
+                                </span>
+                                <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
+                                    {previewInvoice.invoiceNumber}
+                                </span>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${(INVOICE_STATUS_CONFIG[previewInvoice.status] || INVOICE_STATUS_CONFIG.pending).bg} ${(INVOICE_STATUS_CONFIG[previewInvoice.status] || INVOICE_STATUS_CONFIG.pending).color}`}>
+                                    {(INVOICE_STATUS_CONFIG[previewInvoice.status] || INVOICE_STATUS_CONFIG.pending).label}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleDownloadDocument(previewInvoice)}
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition-all"
+                                >
+                                    <DocumentArrowDownIcon className="w-4 h-4" /> Download PDF
+                                </button>
+                                <button
+                                    onClick={() => window.print()}
+                                    className="px-3.5 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                                >
+                                    <PrinterIcon className="w-4 h-4" /> Print
+                                </button>
+                                <button
+                                    onClick={() => setPreviewInvoice(null)}
+                                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800"
+                                >
+                                    <XIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Document Sheet Body */}
+                        <div className="p-4 sm:p-8 overflow-y-auto flex-grow bg-slate-100 dark:bg-slate-900">
+                            <div className="bg-white text-slate-900 rounded-2xl shadow-xl max-w-3xl mx-auto overflow-hidden border border-slate-200 print:border-none print:shadow-none">
+                                {/* Letterhead Header Banner */}
+                                {formHeaderImageUrl ? (
+                                    <div className="w-full bg-slate-50 border-b border-slate-200 overflow-hidden">
+                                        <img src={formHeaderImageUrl} alt="Official Letterhead Banner" className="w-full object-contain max-h-36 block" />
+                                    </div>
+                                ) : (
+                                    <div className="p-6 border-b border-slate-200 flex justify-between items-start gap-4 bg-slate-50/50">
+                                        <div className="flex items-center gap-4">
+                                            {(formLogoUrl || currentInstitution?.logoUrl || logoUrl) && (
+                                                <img
+                                                    src={formLogoUrl || currentInstitution?.logoUrl || logoUrl || ''}
+                                                    alt="Institution Logo"
+                                                    className="h-16 w-auto object-contain max-w-[120px]"
+                                                />
+                                            )}
+                                            <div>
+                                                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{currentInstitution?.name || 'Corporate Invoicing Hub'}</h2>
+                                                <p className="text-xs text-slate-500">{currentInstitution?.address || 'P.O. Box 100, City'}</p>
+                                                <p className="text-xs text-slate-500">{currentInstitution?.phoneNumber || '0700000000'} | {currentInstitution?.email || 'billing@company.com'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Official Document</span>
+                                            <h3 className="text-xl font-black text-indigo-700 uppercase tracking-tight">{previewInvoice.status === 'quote' ? 'Quotation' : 'Tax Invoice'}</h3>
+                                            <p className="font-mono font-black text-sm text-slate-900">{previewInvoice.invoiceNumber}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Header details bar when header banner exists */}
+                                {formHeaderImageUrl && (
+                                    <div className="px-8 pt-6 pb-2 flex justify-between items-start">
+                                        <div className="flex items-center gap-3">
+                                            {(formLogoUrl || currentInstitution?.logoUrl || logoUrl) && (
+                                                <img
+                                                    src={formLogoUrl || currentInstitution?.logoUrl || logoUrl || ''}
+                                                    alt="Logo"
+                                                    className="h-12 w-auto object-contain max-w-[100px]"
+                                                />
+                                            )}
+                                            <div>
+                                                <h3 className="font-black text-slate-900 text-sm uppercase">{currentInstitution?.name}</h3>
+                                                <p className="text-[11px] text-slate-500">{currentInstitution?.email || 'billing@company.com'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <h2 className="text-lg font-black uppercase text-indigo-700 tracking-wider">
+                                                {previewInvoice.status === 'quote' ? 'Quotation / Estimate' : 'Tax Invoice'}
+                                            </h2>
+                                            <p className="font-mono font-black text-sm text-slate-900">{previewInvoice.invoiceNumber}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Invoice Metadata and Bill To Block */}
+                                <div className="p-8 space-y-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-100">
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Billed To (Client / Customer)</span>
+                                            <h4 className="text-base font-black text-slate-900">{previewInvoice.clientName || 'Corporate Client'}</h4>
+                                            {previewInvoice.clientAddress && <p className="text-xs text-slate-600 mt-0.5">{previewInvoice.clientAddress}</p>}
+                                            {previewInvoice.clientTaxPin && <p className="text-xs font-mono text-slate-500">PIN: {previewInvoice.clientTaxPin}</p>}
+                                            {previewInvoice.clientEmail && <p className="text-xs text-slate-600">{previewInvoice.clientEmail}</p>}
+                                            {previewInvoice.clientPhone && <p className="text-xs text-slate-600">{previewInvoice.clientPhone}</p>}
+                                        </div>
+                                        <div className="space-y-1 text-right md:border-l md:border-slate-200 md:pl-6">
+                                            <div className="flex justify-between md:justify-end gap-3 text-xs">
+                                                <span className="text-slate-400 font-bold uppercase text-[10px]">Issue Date:</span>
+                                                <span className="font-bold text-slate-800">{previewInvoice.issueDate}</span>
+                                            </div>
+                                            <div className="flex justify-between md:justify-end gap-3 text-xs">
+                                                <span className="text-slate-400 font-bold uppercase text-[10px]">{previewInvoice.status === 'quote' ? 'Valid Until:' : 'Due Date:'}</span>
+                                                <span className="font-bold text-slate-800">{previewInvoice.dueDate}</span>
+                                            </div>
+                                            <div className="flex justify-between md:justify-end gap-3 text-xs">
+                                                <span className="text-slate-400 font-bold uppercase text-[10px]">Currency:</span>
+                                                <span className="font-bold font-mono text-slate-800">{previewInvoice.currency || formCurrency || 'KES'}</span>
+                                            </div>
+                                            <div className="flex justify-between md:justify-end gap-3 text-xs">
+                                                <span className="text-slate-400 font-bold uppercase text-[10px]">Status:</span>
+                                                <span className="font-black uppercase text-indigo-700">{previewInvoice.status}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Line Items Table */}
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+                                            <thead className="bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-wider border-b border-slate-200">
+                                                <tr>
+                                                    <th className="p-3">#</th>
+                                                    <th className="p-3">Item / Service Description</th>
+                                                    <th className="p-3 text-center">Qty</th>
+                                                    <th className="p-3 text-right">Unit Price</th>
+                                                    <th className="p-3 text-right">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {(previewInvoice.items || []).map((item, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-50/50">
+                                                        <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
+                                                        <td className="p-3 font-bold text-slate-800">{item.description}</td>
+                                                        <td className="p-3 text-center font-mono">{item.quantity}</td>
+                                                        <td className="p-3 text-right font-mono">{previewInvoice.currency || formCurrency} {Number(item.unitPrice).toLocaleString()}</td>
+                                                        <td className="p-3 text-right font-mono font-bold">{previewInvoice.currency || formCurrency} {Number(item.amount).toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Totals & Calculations */}
+                                    <div className="flex flex-col sm:flex-row justify-between items-start gap-6 pt-2">
+                                        {/* Payment instructions */}
+                                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs space-y-2 flex-grow max-w-md">
+                                            <h5 className="font-black uppercase text-[10px] tracking-wider text-slate-500">Payment &amp; Settlement Details</h5>
+                                            {formBankName && (
+                                                <p className="text-slate-700 text-[11px]">
+                                                    <strong>Bank:</strong> {formBankName} | <strong>A/C:</strong> {formAccountNumber} ({formAccountName})
+                                                </p>
+                                            )}
+                                            {formMpesaPaybill && (
+                                                <p className="text-slate-700 text-[11px]">
+                                                    <strong>M-Pesa Paybill:</strong> {formMpesaPaybill} | <strong>Account:</strong> {previewInvoice.invoiceNumber}
+                                                </p>
+                                            )}
+                                            {formMpesaTill && (
+                                                <p className="text-slate-700 text-[11px]">
+                                                    <strong>M-Pesa Till:</strong> {formMpesaTill}
+                                                </p>
+                                            )}
+                                            {previewInvoice.terms && (
+                                                <p className="text-slate-500 text-[10px] italic border-t border-slate-200 pt-1.5 mt-1.5">
+                                                    {previewInvoice.terms}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        {/* Numbers */}
+                                        <div className="w-full sm:w-64 space-y-2 text-xs">
+                                            <div className="flex justify-between text-slate-600">
+                                                <span>Subtotal:</span>
+                                                <span className="font-mono font-bold">{previewInvoice.currency || formCurrency} {Number(previewInvoice.subtotal || previewInvoice.totalAmount).toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-600">
+                                                <span>VAT / Tax ({previewInvoice.taxRate || 0}%):</span>
+                                                <span className="font-mono font-bold">{previewInvoice.currency || formCurrency} {Number(previewInvoice.taxAmount || 0).toLocaleString()}</span>
+                                            </div>
+                                            {Number(previewInvoice.discountAmount) > 0 && (
+                                                <div className="flex justify-between text-emerald-600 font-bold">
+                                                    <span>Discount:</span>
+                                                    <span className="font-mono">- {previewInvoice.currency || formCurrency} {Number(previewInvoice.discountAmount).toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            <div className="border-t-2 border-slate-900 pt-2 flex justify-between text-sm font-black text-slate-900">
+                                                <span>Total Due:</span>
+                                                <span className="font-mono text-indigo-700">{previewInvoice.currency || formCurrency} {Number(previewInvoice.totalAmount).toLocaleString()}</span>
+                                            </div>
+                                            {previewInvoice.status !== 'quote' && (
+                                                <>
+                                                    <div className="flex justify-between text-emerald-600 text-xs">
+                                                        <span>Amount Cleared:</span>
+                                                        <span className="font-mono font-bold">{previewInvoice.currency || formCurrency} {Number(previewInvoice.amountPaid || 0).toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-rose-600 font-bold text-xs border-t border-slate-200 pt-1">
+                                                        <span>Balance Remaining:</span>
+                                                        <span className="font-mono font-black">{previewInvoice.currency || formCurrency} {Math.max(0, Number(previewInvoice.totalAmount) - (Number(previewInvoice.amountPaid) || 0)).toLocaleString()}</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Stamp & Authorized Signatory Block */}
+                                    <div className="pt-6 flex justify-between items-end border-t border-slate-100">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-slate-400">Electronic Verification</p>
+                                            <p className="text-[11px] text-slate-500">Generated securely by EduAI Invoicing Engine. Valid without signature.</p>
+                                        </div>
+                                        <div className="text-center space-y-1">
+                                            {(formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl) && (
+                                                <img
+                                                    src={formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || ''}
+                                                    alt="Official Stamp"
+                                                    className="h-16 w-auto object-contain mx-auto opacity-80"
+                                                />
+                                            )}
+                                            <div className="w-40 border-t border-slate-400 mt-2 pt-1">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Authorized Signature</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Letterhead Footer Banner */}
+                                {formFooterImageUrl ? (
+                                    <div className="w-full bg-slate-50 border-t border-slate-200 overflow-hidden">
+                                        <img src={formFooterImageUrl} alt="Official Letterhead Footer" className="w-full object-contain max-h-24 block" />
+                                    </div>
+                                ) : (
+                                    <div className="p-4 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-400">
+                                        {currentInstitution?.name || 'EduAI'} • Official Corporate Document
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

@@ -1161,7 +1161,7 @@ export const App: React.FC = () => {
                 brs = await localDb.getAll('branches').catch(() => []);
 
                 if (!insts || insts.length === 0) {
-                    const lsInsts = ls.get('institutions');
+                    const lsInsts = (() => { try { return JSON.parse(localStorage.getItem('institutions') || 'null'); } catch { return null; } })();
                     insts = (Array.isArray(lsInsts) && lsInsts.length > 0) ? lsInsts : INITIAL_INSTITUTIONS;
                 }
                 if (!u || u.length === 0) u = INITIAL_USERS;
@@ -1405,12 +1405,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     if (localInsts && localInsts.length > 0) {
                         insts = localInsts;
                     } else {
-                        const lsInsts = ls.get('institutions') as Institution[];
+                        const lsInsts = (() => { try { return JSON.parse(localStorage.getItem('institutions') || 'null') as Institution[]; } catch { return null; } })();
                         insts = (Array.isArray(lsInsts) && lsInsts.length > 0) ? lsInsts : INITIAL_INSTITUTIONS;
                     }
                 } else {
                     localDb.bulkPut('institutions', insts).catch(() => {});
-                    try { ls.set('institutions', insts); } catch (_) {}
+                    try { localStorage.setItem('institutions', JSON.stringify(insts)); } catch (_) {}
                 }
                 if (!u || u.length === 0) {
                     const localU = await localDb.getAll<User>('users').catch(() => []);

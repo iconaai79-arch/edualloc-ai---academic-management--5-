@@ -2853,18 +2853,31 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 </div>
             )}
 
-                {activeTab === 'remedials' && (
-                    <div className="animate-fade-in-up">
-                        <RemedialLessonsManager
-                            currentUser={props.currentUser!}
-                            users={props.users || []}
-                            courses={props.courses || []}
-                            subjects={props.subjects || []}
-                            currentInstitution={props.currentInstitution}
-                            onLogAction={props.onLogAction}
-                        />
-                    </div>
-                )}
+                {activeTab === 'remedials' && (() => {
+                    const targetInstId = props.currentInstitution?.id || (props.currentUser?.institutionId && props.currentUser.institutionId !== 'GLOBAL' ? props.currentUser.institutionId : undefined);
+                    const tenantScopedUsers = targetInstId
+                        ? (props.users || []).filter(u => (u.institutionId || (u as any).institution_id) === targetInstId)
+                        : (props.users || []);
+                    const tenantScopedCourses = targetInstId
+                        ? (props.courses || []).filter(c => (c.institutionId || (c as any).institution_id) === targetInstId)
+                        : (props.courses || []);
+                    const tenantScopedSubjects = targetInstId
+                        ? (props.subjects || []).filter(s => (s.institutionId || (s as any).institution_id) === targetInstId)
+                        : (props.subjects || []);
+
+                    return (
+                        <div className="animate-fade-in-up">
+                            <RemedialLessonsManager
+                                currentUser={props.currentUser!}
+                                users={tenantScopedUsers}
+                                courses={tenantScopedCourses}
+                                subjects={tenantScopedSubjects}
+                                currentInstitution={props.currentInstitution}
+                                onLogAction={props.onLogAction}
+                            />
+                        </div>
+                    );
+                })()}
 
                 {activeTab === 'timetable' && (
                     <ModuleAccessGuard
@@ -2919,7 +2932,6 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     onSendTestEmail={props.onSendTestEmail as any}
                                     currentInstitution={props.currentInstitution}
                                     examTimetableSettings={props.examTimetableSettings}
-                                    onSaveExamTimetableSettings={props.onSaveExamTimetableSettings as any}
                                     onAddAcademicYear={props.onAddAcademicYear}
                                     onUpdateAcademicYear={props.onUpdateAcademicYear}
                                     onDeleteAcademicYear={props.onDeleteAcademicYear}
@@ -3684,27 +3696,27 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         onActivateTrial={onActivateModuleTrial}
                     >
                         <BoardingMasterView
-                            currentUser={props.currentUser}
+                            currentUser={props.currentUser as any}
                             currentInstitution={props.currentInstitution!}
-                            companyDetails={props.companyDetails}
-                            users={props.users}
-                            academicYears={props.academicYears}
-                            semesters={props.semesters}
-                            courses={props.courses}
-                            departments={props.departments}
-                            onLogAction={props.onLogAction!}
-                            onAddUser={props.onAddUser}
-                            onEditUser={props.onEditUser}
-                            onDeleteUser={props.onDeleteUser}
-                            onImportStudents={props.onImportStudents}
-                            smsConfig={props.smsConfig}
-                            subjects={props.subjects}
-                            letterheadConfig={props.letterheadConfig}
-                            logoUrl={props.logoUrl}
-                            footerImageUrl={props.footerImageUrl}
-                            onSendSms={props.onSendSms}
-                            onAddParent={props.onAddParent}
-                            onDeleteParent={props.onDeleteParent}
+                            companyDetails={props.companyDetails as any}
+                            users={props.users as any}
+                            academicYears={props.academicYears as any}
+                            semesters={props.semesters as any}
+                            courses={props.courses as any}
+                            departments={props.departments as any}
+                            onLogAction={props.onLogAction! as any}
+                            onAddUser={props.onAddUser as any}
+                            onEditUser={props.onEditUser as any}
+                            onDeleteUser={props.onDeleteUser as any}
+                            onImportStudents={props.onImportStudents as any}
+                            smsConfig={props.smsConfig as any}
+                            subjects={props.subjects as any}
+                            letterheadConfig={props.letterheadConfig as any}
+                            logoUrl={props.logoUrl as any}
+                            footerImageUrl={props.footerImageUrl as any}
+                            onSendSms={props.onSendSms as any}
+                            onAddParent={props.onAddParent as any}
+                            onDeleteParent={props.onDeleteParent as any}
                         />
                     </ModuleAccessGuard>
                 )}
@@ -3781,6 +3793,8 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             currentUser={props.currentUser!}
                             currentInstitution={props.currentInstitution!}
                             companyDetails={props.companyDetails}
+                            letterheadConfig={props.letterheadConfig || props.currentInstitution?.letterheadConfig}
+                            logoUrl={props.logoUrl || props.currentInstitution?.logoUrl}
                             onLogAction={props.onLogAction}
                         />
                     </Suspense>

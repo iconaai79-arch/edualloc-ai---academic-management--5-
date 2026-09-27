@@ -2538,8 +2538,10 @@ Please change it after login.`;
                                     <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                                         <CorporateInvoicingManager
                                             currentUser={currentUser}
-                                            currentInstitution={{ id: 'GLOBAL', name: companyDetails?.name || 'EduAI Enterprise Global', code: 'HQ' } as any}
+                                            currentInstitution={{ id: 'GLOBAL', name: companyDetails?.name || 'EduAI Enterprise Global', code: 'HQ', letterheadConfig: companyDetails?.letterheadConfig, logoUrl: companyDetails?.logoUrl } as any}
                                             companyDetails={companyDetails}
+                                            letterheadConfig={companyDetails?.letterheadConfig}
+                                            logoUrl={companyDetails?.logoUrl}
                                             availableInstitutions={institutions}
                                             onLogAction={props.onLogAction}
                                             initialInvoices={invoices}

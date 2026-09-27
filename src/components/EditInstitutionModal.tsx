@@ -176,7 +176,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
   if (!institution) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 bg-slate-900/80 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="p-8 pb-4 flex justify-between items-center bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
           <div>

@@ -415,6 +415,13 @@ export interface User {
     guardianPhone?: string;
     parentPhone2?: string;
     guardianPhone2?: string;
+    // Academic fields
+    stream?: string;
+    className?: string;
+    classLevel?: string;
+    parentName?: string;
+    // Alias fields
+    county?: string;
 }
 
 export interface StudentEnrollment {
@@ -545,6 +552,9 @@ export interface County {
     motto?: string;
     website?: string;
     registered_voters?: number;
+    adminId?: string;
+    directorOfEducation?: string;
+    smsBalance?: number;
 }
 
 export interface PoliticalParty {
@@ -738,6 +748,11 @@ export interface Institution {
     // Legacy / pdfService fields
     phone?: string;    // alias for phoneNumber used in some PDF templates
     website?: string;  // institution website URL
+    // Legacy county/region alias
+    county?: string;
+    // School alias fields
+    code?: string;
+    streams?: string[];
 }
 
 export interface SchoolGallery {
@@ -1102,6 +1117,7 @@ export interface AcademicYear {
     institutionId: string;
     status: 'active' | 'inactive';
     isConcluded?: boolean;
+    isCurrent?: boolean;
 }
 
 export type PromotionAction = 'promoted' | 'repeated' | 'graduated' | 'withdrawn';
@@ -1151,6 +1167,7 @@ export interface Semester {
     requestDeadline?: string | null;
     enrollmentDeadline?: string | null;
     sessions?: SemesterSession[];
+    isCurrent?: boolean;
 }
 
 export type StampMode = 'system_generated' | 'uploaded' | 'none';
@@ -1199,6 +1216,8 @@ export interface SmsConfig {
     lowSmsThreshold?: number;
     accountId?: string;
     authToken?: string;
+    userId?: string;
+    username?: string;
 }
 
 export interface EmailConfig {
@@ -1629,6 +1648,8 @@ export interface AssessmentMark {
     rubricGrade?: 'EE' | 'ME' | 'AE' | 'BE'; // For CBC
     competencies?: Record<string, 'EE' | 'ME' | 'AE' | 'BE'>; // e.g. {"Creativity": "EE"}
     institutionId?: string;
+    subjectId?: string;
+    score?: number | null;
 }
 
 export type TimeOffCategory = 'Disability' | 'Medical' | 'Personal Leave' | 'Conference' | 'Other';
@@ -1861,6 +1882,7 @@ export interface Invoice {
     invoiceNumber: string;
     institutionId: string;
     issueDate: string;
+    issue_date?: string; // alias for issueDate (snake_case compatibility)
     dueDate: string;
     due_date?: string;
     items: InvoiceItem[];
@@ -1909,6 +1931,12 @@ export interface CompanyInvoiceSettings {
     invoicePrefix?: string;
     quotePrefix?: string;
     receiptPrefix?: string;
+    nextInvoiceNumber?: number;
+    nextQuoteNumber?: number;
+    nextReceiptNumber?: number;
+    headerImageUrl?: string;
+    footerImageUrl?: string;
+    footerText?: string;
     currency?: string;
     taxRate?: number;
     taxName?: string;
@@ -3793,6 +3821,7 @@ export interface RetailInventoryItem {
     costPrice: number;
     basePrice: number;
     srpPrice: number;
+    unitPrice?: number; // Alias for srpPrice / display price
     quantity: number;
     unit: string;
     imageUrl?: string;
@@ -4038,6 +4067,7 @@ export interface HISAppointment {
     patientName?: string;
     doctorName?: string;
     specialty?: string;
+    admissionNumber?: string;
     // MCH & Maternity helpers
     mchClinicType?: 'ANC' | 'CWC' | 'PNC' | 'NBU' | 'FP' | 'Other';
     gestationWeeks?: number;
@@ -6742,6 +6772,7 @@ export interface BuildingFloor {
 export interface BuildingOffice {
     id: string;
     floorId: string;
+    institutionId?: string;
     officeNumber: string;
     tenantName: string;
     contactPersonName: string;

@@ -46,7 +46,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     currentInstitution,
     onLogAction
 }) => {
-    const institutionId = currentInstitution?.id || currentUser?.institutionId;
+    const targetInstitutionId = currentInstitution?.id || (currentUser?.institutionId && currentUser.institutionId !== 'GLOBAL' ? currentUser.institutionId : undefined);
+    const institutionId = targetInstitutionId || currentInstitution?.id || currentUser?.institutionId;
 
     // States
     const [sessions, setSessions] = useState<RemedialSession[]>([]);
@@ -56,10 +57,55 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [allocations, setAllocations] = useState<RemedialAllocation[]>([]);
     const [remedialSubjects, setRemedialSubjects] = useState<RemedialSubject[]>([]);
     const [fetchedSchoolSubjects, setFetchedSchoolSubjects] = useState<Subject[]>([]);
+    const [fetchedTenantUsers, setFetchedTenantUsers] = useState<User[]>([]);
+    const [fetchedTenantCourses, setFetchedTenantCourses] = useState<Course[]>([]);
+    const [fetchedTenantSubjects, setFetchedTenantSubjects] = useState<Subject[]>([]);
+
+    // Scoped lists strictly isolated to the target institution (defends against cross-tenant data leakage when viewed by Super Admin)
+    const tenantUsers = useMemo(() => {
+        if (!targetInstitutionId) return users || [];
+        const filtered = (users || []).filter(u => {
+            const uInst = u.institutionId || (u as any).institution_id;
+            return uInst === targetInstitutionId;
+        });
+        if (filtered.length > 0) return filtered;
+        if (fetchedTenantUsers.length > 0) return fetchedTenantUsers;
+        return [];
+    }, [users, targetInstitutionId, fetchedTenantUsers]);
+
+    const tenantCourses = useMemo(() => {
+        if (!targetInstitutionId) return courses || [];
+        const filtered = (courses || []).filter(c => {
+            const cInst = c.institutionId || (c as any).institution_id;
+            return cInst === targetInstitutionId;
+        });
+        if (filtered.length > 0) return filtered;
+        if (fetchedTenantCourses.length > 0) return fetchedTenantCourses;
+        return [];
+    }, [courses, targetInstitutionId, fetchedTenantCourses]);
+
+    const tenantSubjects = useMemo(() => {
+        if (!targetInstitutionId) return subjects || [];
+        const filtered = (subjects || []).filter(s => {
+            const sInst = s.institutionId || (s as any).institution_id;
+            return sInst === targetInstitutionId;
+        });
+        if (filtered.length > 0) return filtered;
+        if (fetchedTenantSubjects.length > 0) return fetchedTenantSubjects;
+        return [];
+    }, [subjects, targetInstitutionId, fetchedTenantSubjects]);
+
     const effectiveSchoolSubjects = useMemo(() => {
-        if (subjects && subjects.length > 0) return subjects;
-        return fetchedSchoolSubjects;
-    }, [subjects, fetchedSchoolSubjects]);
+        if (tenantSubjects && tenantSubjects.length > 0) return tenantSubjects;
+        if (fetchedSchoolSubjects && fetchedSchoolSubjects.length > 0) {
+            if (!targetInstitutionId) return fetchedSchoolSubjects;
+            return fetchedSchoolSubjects.filter(s => {
+                const sInst = s.institutionId || (s as any).institution_id;
+                return !sInst || sInst === targetInstitutionId;
+            });
+        }
+        return [];
+    }, [tenantSubjects, fetchedSchoolSubjects, targetInstitutionId]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'teachers' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
@@ -106,6 +152,166 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [previewSelectedId, setPreviewSelectedId] = useState<string>('');
     const previewIframeRef = React.useRef<HTMLIFrameElement | null>(null);
 
+    // Unified list of all distinct school classes from courses, allocations, institution allocations, and student rosters
+    const allSchoolClasses = useMemo(() => {
+        const classMap = new Map<string, { id: string; name: string; streams: Set<string>; allocCount: number }>();
+
+        const ensureClass = (rawName: string, idHint?: string) => {
+            if (!rawName) return null;
+            const name = String(rawName).trim();
+            if (!name || name === 'Class' || name === 'All') return null;
+            const key = name.toLowerCase();
+            if (!classMap.has(key)) {
+                classMap.set(key, {
+                    id: idHint || name,
+                    name,
+                    streams: new Set<string>(),
+                    allocCount: 0
+                });
+            }
+            return classMap.get(key)!;
+        };
+
+        const addStreamToEntry = (entry: { streams: Set<string> }, raw: any) => {
+            if (!raw) return;
+            const str = (typeof raw === 'string' ? raw : (raw?.name ? String(raw.name) : '')).trim();
+            if (!str || str === 'All Streams' || str === 'All') return;
+            const parts = str.split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
+            if (parts.length > 1) {
+                parts.forEach(p => entry.streams.add(p));
+            }
+            entry.streams.add(str.replace(/[()]/g, '').trim());
+        };
+
+        // 1. From courses prop (strictly scoped to tenant)
+        (tenantCourses || []).forEach(c => {
+            const cName = c.name || (c as any).level;
+            if (cName) {
+                const entry = ensureClass(cName, c.id);
+                if (entry) {
+                    if (Array.isArray(c.levels)) {
+                        c.levels.forEach(lvl => addStreamToEntry(entry, lvl));
+                    }
+                    if (Array.isArray((c as any).streams)) {
+                        (c as any).streams.forEach((s: any) => addStreamToEntry(entry, s));
+                    }
+                }
+            }
+        });
+
+        // 2. From allocations (contains the real active classes and streams like "Grade 7", "Grade 8", "Grade 9" or "7", "8", etc.)
+        (allocations || []).forEach(a => {
+            const cName = a.className || a.courseId;
+            if (cName) {
+                const entry = ensureClass(cName, a.courseId);
+                if (entry) {
+                    if (!a.isUnallocated && a.dayOfWeek !== 'Unallocated') {
+                        entry.allocCount++;
+                    }
+                    if (a.stream) {
+                        addStreamToEntry(entry, a.stream);
+                    }
+                    if (Array.isArray(a.jointStreams)) {
+                        a.jointStreams.forEach(s => addStreamToEntry(entry, s));
+                    }
+                }
+            }
+        });
+
+        // 3. From classSubjectAllocations in institution
+        const instSubjectAllocations = (currentInstitution as any)?.classSubjectAllocations || (currentInstitution as any)?.class_subject_allocations || {};
+        Object.keys(instSubjectAllocations || {}).forEach(cName => {
+            ensureClass(cName);
+        });
+
+        // 4. From student users in the school (strictly scoped to tenant)
+        (tenantUsers || []).forEach(u => {
+            if (u.role === 'student') {
+                const cName = (u as any).class || (u as any).className || (u as any).grade || '';
+                const sName = (u as any).stream || (u as any).streamName || '';
+                if (cName) {
+                    const entry = ensureClass(cName, u.courseId);
+                    if (entry && sName) {
+                        addStreamToEntry(entry, sName);
+                    }
+                }
+            }
+        });
+
+        // 5. Also institution streamDefinitions
+        const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
+        const globalStreams = new Set<string>();
+        if (Array.isArray(instStreams)) {
+            instStreams.forEach(s => {
+                const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
+                if (sName && sName !== 'All Streams' && sName !== 'All') {
+                    const parts = sName.split(/[,/&+]|\band\b/i).map(p => p.trim().replace(/[()]/g, '')).filter(Boolean);
+                    if (parts.length > 1) {
+                        parts.forEach(p => globalStreams.add(p));
+                    }
+                    globalStreams.add(sName.replace(/[()]/g, '').trim());
+                }
+            });
+        }
+
+        return Array.from(classMap.values())
+            .map(c => ({
+                id: c.id,
+                name: c.name,
+                streams: Array.from(new Set([...Array.from(c.streams), ...Array.from(globalStreams)])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
+                allocCount: c.allocCount
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    }, [tenantCourses, allocations, currentInstitution, tenantUsers]);
+
+    // Unified course list combining props.courses with all discovered school classes
+    const combinedCourses = useMemo(() => {
+        const courseMap = new Map<string, Course>();
+
+        // 1. Existing courses prop (strictly scoped to tenant)
+        (tenantCourses || []).forEach(c => {
+            const name = c.name || (c as any).level;
+            if (name) {
+                courseMap.set(name.toLowerCase(), c);
+            }
+        });
+
+        // 2. Synthesize Course objects for any discovered classes not yet in courses prop
+        allSchoolClasses.forEach(cls => {
+            const key = cls.name.toLowerCase();
+            if (!courseMap.has(key)) {
+                courseMap.set(key, {
+                    id: cls.id || `course_${cls.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                    name: cls.name,
+                    level: cls.name,
+                    code: cls.name.slice(0, 4).toUpperCase(),
+                    streams: cls.streams.map(s => ({ id: `s_${s.toLowerCase()}`, name: s })),
+                    levels: cls.streams.map(s => ({ id: `lvl_${s.toLowerCase()}`, name: s }))
+                } as any);
+            } else {
+                const existing = courseMap.get(key)!;
+                const existingStreamNames = new Set(
+                    [
+                        ...(Array.isArray(existing.streams) ? existing.streams.map((s: any) => typeof s === 'string' ? s : s?.name) : []),
+                        ...(Array.isArray(existing.levels) ? existing.levels.map((l: any) => typeof l === 'string' ? l : l?.name) : [])
+                    ].filter(Boolean)
+                );
+                cls.streams.forEach(s => {
+                    if (!existingStreamNames.has(s)) {
+                        existingStreamNames.add(s);
+                        if (Array.isArray(existing.levels)) {
+                            existing.levels.push({ id: `lvl_${s.toLowerCase()}`, name: s } as any);
+                        } else {
+                            existing.levels = [{ id: `lvl_${s.toLowerCase()}`, name: s } as any];
+                        }
+                    }
+                });
+            }
+        });
+
+        return Array.from(courseMap.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true, sensitivity: 'base' }));
+    }, [tenantCourses, allSchoolClasses]);
+
     // Unallocated lessons waiting for free timetable periods
     const unallocatedAllocations = useMemo(() => {
         return allocations.filter(a => a.isUnallocated || a.dayOfWeek === ('Unallocated' as any) || !a.dayOfWeek || !a.startTime);
@@ -115,7 +321,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const filteredUnallocatedAllocations = useMemo(() => {
         return unallocatedAllocations.filter(a => {
             // 1. Class filter
-            const selectedCourse = courses.find(c => c.id === selectedTimetableClass);
+            const selectedCourse = combinedCourses.find(c => c.id === selectedTimetableClass || c.name === selectedTimetableClass);
             const matchClass = selectedTimetableClass === 'All' || 
                 a.courseId === selectedTimetableClass || 
                 a.className === selectedTimetableClass || 
@@ -144,7 +350,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             return true;
         });
-    }, [unallocatedAllocations, selectedTimetableClass, selectedTimetableStream, selectedTimetableTeacher, ascClassSearchQuery, courses]);
+    }, [unallocatedAllocations, selectedTimetableClass, selectedTimetableStream, selectedTimetableTeacher, ascClassSearchQuery, combinedCourses]);
 
     // Weekend & Weekday Duty Roster State
     const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>([]);
@@ -233,7 +439,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     });
     const [sundayPeriodsCount, setSundayPeriodsCount] = useState<number>(() => {
         const cached = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_periods_${institutionId}`) : null;
-        return cached ? Number(cached) : 4;
+        if (cached) return Number(cached);
+        const cachedSunMax = institutionId ? safeLocalStorage.getItem(`eduai_remedial_class_sun_max_${institutionId}`) : null;
+        if (cachedSunMax) return Number(cachedSunMax);
+        return 2;
     });
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
@@ -406,7 +615,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const teacherSunLimit = r.maxSundayLessonsPerTeacherPerDay ?? r.max_sunday_lessons_per_teacher_per_day ?? r.metadata?.maxSundayLessonsPerTeacherPerDay ?? r.metadata?.max_sunday_lessons_per_teacher_per_day ?? teacherWeLimit ?? 2;
 
         const satPeriods = (cachedSatPeriods ? Number(cachedSatPeriods) : undefined) ?? r.saturdayPeriodsCount ?? r.saturday_periods_count ?? r.metadata?.saturdayPeriodsCount ?? r.metadata?.saturday_periods_count ?? 5;
-        const sunPeriods = (cachedSunPeriods ? Number(cachedSunPeriods) : undefined) ?? r.sundayPeriodsCount ?? r.sunday_periods_count ?? r.metadata?.sundayPeriodsCount ?? r.metadata?.sunday_periods_count ?? 4;
+        const sunPeriods = (cachedSunPeriods ? Number(cachedSunPeriods) : undefined) ?? r.sundayPeriodsCount ?? r.sunday_periods_count ?? r.metadata?.sundayPeriodsCount ?? r.metadata?.sunday_periods_count ?? classSunLimit ?? 2;
 
         setMaxLessonsPerClassPerDay(classWdLimit);
         setMaxWeekendLessonsPerClassPerDay(classWeLimit);
@@ -595,14 +804,31 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             // Unblock the user interface immediately!
             setLoading(false);
 
-            // 3. Asynchronously fetch heavy tables (invoices, student enrollments, school subjects fallback) in the background
-            Promise.allSettled([
+            // 3. Asynchronously fetch heavy tables (invoices, student enrollments, school subjects fallback, and tenant users/courses) in the background
+            const fetchPromises: Promise<any>[] = [
                 apiService.fetchInvoices(institutionId),
                 apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', institutionId).catch(() => []),
                 (!subjects || subjects.length === 0)
                     ? apiService.fetchModuleRecords<Subject>('subjects', institutionId).catch(() => [])
                     : Promise.resolve([])
-            ]).then(([invRes, enrRes, subRes]) => {
+            ];
+
+            const needsTenantUsers = targetInstitutionId && (!users || users.length === 0 || !users.some(u => (u.institutionId || (u as any).institution_id) === targetInstitutionId));
+            const needsTenantCourses = targetInstitutionId && (!courses || courses.length === 0 || !courses.some(c => (c.institutionId || (c as any).institution_id) === targetInstitutionId));
+
+            if (needsTenantUsers) {
+                fetchPromises.push(apiService.fetchUsers(targetInstitutionId).catch(() => []));
+            } else {
+                fetchPromises.push(Promise.resolve([]));
+            }
+
+            if (needsTenantCourses) {
+                fetchPromises.push(apiService.fetchCourses(targetInstitutionId).catch(() => []));
+            } else {
+                fetchPromises.push(Promise.resolve([]));
+            }
+
+            Promise.allSettled(fetchPromises).then(([invRes, enrRes, subRes, userRes, courseRes]) => {
                 if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {
                     setInvoices(invRes.value);
                 }
@@ -611,6 +837,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
                 if (subRes.status === 'fulfilled' && Array.isArray(subRes.value) && subRes.value.length > 0) {
                     setFetchedSchoolSubjects(subRes.value);
+                }
+                if (userRes && userRes.status === 'fulfilled' && Array.isArray(userRes.value) && userRes.value.length > 0) {
+                    setFetchedTenantUsers(userRes.value);
+                }
+                if (courseRes && courseRes.status === 'fulfilled' && Array.isArray(courseRes.value) && courseRes.value.length > 0) {
+                    setFetchedTenantCourses(courseRes.value);
                 }
             }).catch(e => {
                 console.warn('[Remedial] Background invoice/enrollment fetch warning:', e);
@@ -629,9 +861,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     }, [institutionId]);
 
-    // Enriched users with active teacherCodes mapped for instant reactivity
+    // Enriched users with active teacherCodes mapped for instant reactivity (strictly scoped to tenant)
     const enrichedUsers = useMemo(() => {
-        return (users || []).map(u => {
+        return (tenantUsers || []).map(u => {
             const customCode = teacherCodes[u.id];
             if (customCode) {
                 return {
@@ -647,13 +879,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
             return u;
         });
-    }, [users, teacherCodes]);
+    }, [tenantUsers, teacherCodes]);
 
     // Sync initial teacher codes from user objects when users load
     useEffect(() => {
-        if (!users || users.length === 0) return;
+        if (!tenantUsers || tenantUsers.length === 0) return;
         const newMap: Record<string, string> = {};
-        users.forEach(u => {
+        tenantUsers.forEach(u => {
             if (u && isAcademicTeacher(u)) {
                 const explicit = u.teacherCode || u.code || u.metadata?.teacherCode || u.metadata?.remedialTeacherCode || u.staffId;
                 if (explicit && !teacherCodes[u.id]) {
@@ -664,9 +896,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (Object.keys(newMap).length > 0) {
             setTeacherCodes(prev => ({ ...newMap, ...prev }));
         }
-    }, [users]);
+    }, [tenantUsers]);
 
-    // Teachers and Prefects Lists (strictly verified academic teachers, excluding non-academic support staff)
+    // Teachers and Prefects Lists (strictly verified academic teachers of active tenant, excluding non-academic support staff)
     const teachersList = useMemo(() => {
         return (enrichedUsers || []).filter(u => isAcademicTeacher(u));
     }, [enrichedUsers]);
@@ -704,11 +936,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const list: any[] = [];
         const addedIds = new Set<string>();
 
-        // 1. Existing user-level prefects
-        (users || []).forEach(u => {
+        // 1. Existing user-level prefects (strictly scoped to tenant)
+        (tenantUsers || []).forEach(u => {
             if (u && ((u.role as string) === 'prefect' || (u.metadata as any)?.isPrefect)) {
                 const leadPos = (u.metadata as any)?.leadershipPosition || ((u.role as string) === 'prefect' ? 'Class Prefect' : 'Class Leader');
-                const uCourse = courses.find(c => c.id === u.courseId || (u.metadata as any)?.courseId || (c.name && (u as any).studentClass && c.name.trim().toLowerCase() === String((u as any).studentClass).trim().toLowerCase()));
+                const uCourse = combinedCourses.find(c => c.id === u.courseId || (u.metadata as any)?.courseId || (c.name && (u as any).studentClass && c.name.trim().toLowerCase() === String((u as any).studentClass).trim().toLowerCase()));
                 const stream = (u.metadata as any)?.stream || (u as any).stream || '';
                 list.push({
                     ...u,
@@ -740,7 +972,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const leadPos = (enr.leadershipPosition || enr.metadata?.leadershipPosition || (enr as any)?.leadership_position || '').trim();
             if (!leadPos) return;
 
-            const studentUser = users.find(u => u.id === enr.userId);
+            const studentUser = tenantUsers.find(u => u.id === enr.userId);
             const rawId = studentUser?.id || enr.userId || enr.id;
             if (addedIds.has(rawId)) return;
 
@@ -749,7 +981,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const stream = enr.metadata?.stream || (studentUser as any)?.stream || '';
 
             // Match course/class
-            const matchedCourse = courses.find(c => 
+            const matchedCourse = combinedCourses.find(c => 
                 c.id === enr.courseId || 
                 (c.name && grade && c.name.trim().toLowerCase() === grade.trim().toLowerCase())
             );
@@ -780,7 +1012,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
 
         return list;
-    }, [users, enrollments, courses, institutionId]);
+    }, [tenantUsers, enrollments, combinedCourses, institutionId]);
 
     // Helper to get distinct streams for a class
     const getClassStreams = (course: Course): string[] => {
@@ -802,7 +1034,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 if (str && str !== 'All Streams') streamSet.add(str);
             }
         });
-        (users || []).forEach(u => {
+        (tenantUsers || []).forEach(u => {
             if (u.role === 'student' && (u.courseId === course.id || (u as any).studentClass === course.name)) {
                 const str = ((u.metadata as any)?.stream || (u as any).stream || '').trim();
                 if (str && str !== 'All Streams') streamSet.add(str);
@@ -832,11 +1064,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Students eligible to be appointed as class prefects or secretaries
     const eligibleStudents = useMemo(() => {
-        return (users || [])
+        return (tenantUsers || [])
             .filter(u => u.role === 'student' || !u.role || (u.role as string) === 'prefect')
             .map(u => {
                 const enr = (enrollments || []).find(e => e.userId === u.id);
-                const course = courses.find(c => c.id === enr?.courseId || c.id === u.courseId);
+                const course = combinedCourses.find(c => c.id === enr?.courseId || c.id === u.courseId);
                 const grade = enr?.metadata?.gradeLevel || (u as any).studentClass || course?.name || '';
                 const stream = enr?.metadata?.stream || (u as any).stream || '';
                 const admNo = enr?.admissionNumber || enr?.metadata?.admissionNumber || (u as any).admissionNumber || '';
@@ -853,13 +1085,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     enrollmentId: enr?.id
                 };
             });
-    }, [users, enrollments, courses]);
+    }, [tenantUsers, enrollments, combinedCourses]);
 
     // Modal filtered students list for assigning a leader
     const modalFilteredStudents = useMemo(() => {
         let list = eligibleStudents;
         if (leaderModalTargetCourseId) {
-            const targetCourse = courses.find(c => c.id === leaderModalTargetCourseId);
+            const targetCourse = combinedCourses.find(c => c.id === leaderModalTargetCourseId || c.name === leaderModalTargetCourseId);
             const courseName = targetCourse?.name?.toLowerCase().trim() || '';
             const classMatches = list.filter(st => {
                 const matchesClass = st.courseId === leaderModalTargetCourseId || 
@@ -891,12 +1123,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
 
         return list;
-    }, [eligibleStudents, leaderModalTargetCourseId, leaderModalTargetStream, leaderModalStudentSearch, courses]);
+    }, [eligibleStudents, leaderModalTargetCourseId, leaderModalTargetStream, leaderModalStudentSearch, combinedCourses]);
 
     // Filtered prefects & secretaries list
     const filteredPrefectsList = useMemo(() => {
         return prefectsList.filter(p => {
-            const course = courses.find(c => c.id === p.courseId);
+            const course = combinedCourses.find(c => c.id === p.courseId || c.name === p.className);
             const className = course?.name || p.className || '';
             const role = (p.leadershipPosition || '').toLowerCase();
             const isSecretary = role.includes('secretary');
@@ -923,7 +1155,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             return true;
         });
-    }, [prefectsList, prefectClassFilter, prefectRoleFilter, prefectSearchQuery, courses]);
+    }, [prefectsList, prefectClassFilter, prefectRoleFilter, prefectSearchQuery, combinedCourses]);
 
     // Statistics for Prefects & Secretaries Tab
     const prefectStats = useMemo(() => {
@@ -952,14 +1184,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             secretariesCount,
             otherCount,
             classesCovered: coveredClasses.size,
-            totalClasses: courses.length,
+            totalClasses: combinedCourses.length,
             streamsCovered: coveredStreams.size
         };
-    }, [prefectsList, courses]);
+    }, [prefectsList, combinedCourses]);
 
     // Handler to open assign leader modal
     const handleOpenAssignLeaderModal = (prefillCourseId?: string, prefillStream?: string, prefillRole?: string) => {
-        setLeaderModalTargetCourseId(prefillCourseId || (courses[0]?.id || ''));
+        setLeaderModalTargetCourseId(prefillCourseId || (combinedCourses[0]?.id || ''));
         setLeaderModalTargetStream(prefillStream || '');
         setLeaderModalCustomStream('');
         setLeaderModalRole(prefillRole || 'Class Prefect');
@@ -983,8 +1215,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         const finalRole = (leaderModalRole === '__custom__' ? leaderModalCustomRole.trim() : leaderModalRole) || 'Class Prefect';
         const finalStream = (leaderModalTargetStream === '__custom__' ? leaderModalCustomStream.trim() : leaderModalTargetStream) || '';
-        const targetCourse = courses.find(c => c.id === leaderModalTargetCourseId);
-        const targetStudent = users.find(u => u.id === leaderModalSelectedStudentId);
+        const targetCourse = combinedCourses.find(c => c.id === leaderModalTargetCourseId);
+        const targetStudent = tenantUsers.find(u => u.id === leaderModalSelectedStudentId);
 
         try {
             setIsSavingLeader(true);
@@ -1087,7 +1319,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 setEnrollments(prev => prev.map(item => item.id === updatedEnr.id ? updatedEnr : item));
             }
 
-            const targetUser = users.find(u => u.id === leader.id);
+            const targetUser = tenantUsers.find(u => u.id === leader.id);
             if (targetUser) {
                 const updatedUser: User = {
                     ...targetUser,
@@ -1123,7 +1355,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const schoolName = String(currentInstitution?.name || 'School Remedial Program').toUpperCase();
 
         const cardsHtml = prefectsList.map(p => {
-            const course = courses.find(c => c.id === p.courseId);
+            const course = combinedCourses.find(c => c.id === p.courseId);
             const className = course?.name || p.className || 'Class';
             const stream = p.stream || 'All Streams';
             const role = p.leadershipPosition || 'Class Leader';
@@ -1197,13 +1429,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     ].includes(userRole);
     const isTeacherUser = userRole === 'teacher';
 
-    // Extracted Headteachers / Principals directory
+    // Extracted Headteachers / Principals directory (strictly scoped to tenant)
     const headteachersList = useMemo(() => {
-        return users.filter(u => {
+        return tenantUsers.filter(u => {
             const r = (u.role || '').toLowerCase();
             return ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'admin', 'super_admin'].includes(r);
         });
-    }, [users]);
+    }, [tenantUsers]);
 
     // Current Timetable Approval State from rateSetting.metadata.timetableApproval
     const timetableApproval: RemedialTimetableApproval = useMemo(() => {
@@ -1297,7 +1529,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         setWorkflowNotes(
             timetableApproval.forwardingNotes || 
-            `Compiled Remedial Timetable with ${allocations.length} sessions across ${courses.length} classes for Term review. Forwarded for official approval and teacher dispersal.`
+            `Compiled Remedial Timetable with ${allocations.length} sessions across ${combinedCourses.length} classes for Term review. Forwarded for official approval and teacher dispersal.`
         );
         setTargetHeadteacherId(headteachersList[0]?.id || '');
         setIsForwardModalOpen(true);
@@ -1456,7 +1688,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Auto-select matching prefect when class or stream changes in manual logging
     useEffect(() => {
         if (!manualCourseId) return;
-        const selectedCourse = courses.find(c => c.id === manualCourseId);
+        const selectedCourse = combinedCourses.find(c => c.id === manualCourseId);
         const courseName = selectedCourse?.name?.toLowerCase().trim() || '';
 
         // Find best matching enrolled leader for this class & stream
@@ -1473,7 +1705,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (matchingPrefect) {
             setManualPrefectId(matchingPrefect.id);
         }
-    }, [manualCourseId, manualStream, courses, prefectsList]);
+    }, [manualCourseId, manualStream, combinedCourses, prefectsList]);
 
     // Active Remedial Subjects for dropdowns
     const activeRemedialSubjectsList = useMemo(() => {
@@ -1514,48 +1746,66 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Available streams for manual allocation modal
     const availableStreamsForAlloc = useMemo(() => {
         if (!allocCourseId) return [];
-        const selectedCourse = courses.find(c => c.id === allocCourseId);
+        const selectedCourse = combinedCourses.find(c => c.id === allocCourseId || c.name === allocCourseId);
         const streamSet = new Set<string>();
 
-        // 1. From course.levels
+        // 1. From course.levels / streams
         if (selectedCourse?.levels && Array.isArray(selectedCourse.levels)) {
             selectedCourse.levels.forEach(lvl => {
-                const name = String(lvl.name || '').trim();
-                if (name) streamSet.add(name);
+                const name = String(lvl.name || lvl || '').trim();
+                if (name && name !== 'All Streams' && name !== 'All') streamSet.add(name);
+            });
+        }
+        if ((selectedCourse as any)?.streams && Array.isArray((selectedCourse as any).streams)) {
+            (selectedCourse as any).streams.forEach((s: any) => {
+                const name = String(s.name || s || '').trim();
+                if (name && name !== 'All Streams' && name !== 'All') streamSet.add(name);
             });
         }
 
-        // 2. From students enrolled in this course
-        users.forEach(u => {
-            if (u.role === 'student' && u.courseId === allocCourseId) {
+        // 2. From allocations
+        allocations.forEach(a => {
+            if (a.courseId === allocCourseId || a.className === allocCourseId || (selectedCourse && a.className === selectedCourse.name)) {
+                if (a.stream && a.stream !== 'All Streams' && a.stream !== 'All') streamSet.add(a.stream.trim());
+                if (Array.isArray(a.jointStreams)) {
+                    a.jointStreams.forEach(s => {
+                        if (s && s !== 'All Streams' && s !== 'All') streamSet.add(String(s).trim());
+                    });
+                }
+            }
+        });
+
+        // 3. From students enrolled in this course (strictly scoped to tenant)
+        tenantUsers.forEach(u => {
+            if (u.role === 'student' && (u.courseId === allocCourseId || (u as any).class === selectedCourse?.name || (u as any).className === selectedCourse?.name)) {
                 const sName = (u as any).stream || (u as any).streamName || (u as any).metadata?.stream || '';
-                if (sName && typeof sName === 'string' && sName.trim()) {
+                if (sName && typeof sName === 'string' && sName.trim() && sName !== 'All Streams') {
                     streamSet.add(sName.trim());
                 }
             }
         });
 
-        // 3. From institution streams / streamDefinitions
+        // 4. From institution streams / streamDefinitions
         const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
         if (Array.isArray(instStreams)) {
             instStreams.forEach(s => {
                 const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
-                if (sName) streamSet.add(sName);
+                if (sName && sName !== 'All Streams' && sName !== 'All') streamSet.add(sName);
             });
         }
 
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [allocCourseId, courses, users, currentInstitution]);
+    }, [allocCourseId, combinedCourses, allocations, tenantUsers, currentInstitution]);
 
     // Selected course name for allocation conflict detection
     const selectedAllocCourseName = useMemo(() => {
-        return courses.find(c => c.id === allocCourseId)?.name || allocCourseId;
-    }, [courses, allocCourseId]);
+        return combinedCourses.find(c => c.id === allocCourseId || c.name === allocCourseId)?.name || allocCourseId;
+    }, [combinedCourses, allocCourseId]);
 
     // Effective stream for allocation modal
     const effectiveModalAllocStream = useMemo(() => {
         if (isJointAlloc) {
-            return jointStreamsSelected.length > 0 ? jointStreamsSelected[0] : 'All Streams';
+            return jointStreamsSelected.length > 0 ? `${jointStreamsSelected.join(' + ')} (Joint)` : 'All Streams';
         }
         return allocStream === '__custom__' ? customAllocStream.trim() : allocStream;
     }, [isJointAlloc, jointStreamsSelected, allocStream, customAllocStream]);
@@ -1611,8 +1861,55 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
 
         if (isSun) {
-            const count = Math.max(1, sundayPeriodsCount || 4);
+            const count = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2));
             const slots: { periodNum: number; startTime: string; endTime: string; label: string; isBreak?: boolean }[] = [];
+
+            if (count <= 2) {
+                if (includeSundayBreak && count === 2) {
+                    slots.push({
+                        periodNum: 1,
+                        startTime: sundayStartTime || '09:00',
+                        endTime: sundayBreakStartTime || '11:00',
+                        label: `Period 1 • Pre-Break (${sundayStartTime || '09:00'} - ${sundayBreakStartTime || '11:00'})`
+                    });
+                    slots.push({
+                        periodNum: 0,
+                        startTime: sundayBreakStartTime || '11:00',
+                        endTime: sundayBreakEndTime || '11:30',
+                        label: `Recess (${sundayBreakStartTime || '11:00'} - ${sundayBreakEndTime || '11:30'})`,
+                        isBreak: true
+                    });
+                    slots.push({
+                        periodNum: 2,
+                        startTime: sundayBreakEndTime || '11:30',
+                        endTime: sundayEndTime || '13:30',
+                        label: `Period 2 • Post-Break (${sundayBreakEndTime || '11:30'} - ${sundayEndTime || '13:30'})`
+                    });
+                } else if (count === 1) {
+                    slots.push({
+                        periodNum: 1,
+                        startTime: sundayStartTime || '09:00',
+                        endTime: sundayEndTime || '13:00',
+                        label: `Period 1 (${sundayStartTime || '09:00'} - ${sundayEndTime || '13:00'})`
+                    });
+                } else {
+                    const midTime = '11:00';
+                    slots.push({
+                        periodNum: 1,
+                        startTime: sundayStartTime || '09:00',
+                        endTime: midTime,
+                        label: `Period 1 (${sundayStartTime || '09:00'} - ${midTime})`
+                    });
+                    slots.push({
+                        periodNum: 2,
+                        startTime: midTime,
+                        endTime: sundayEndTime || '13:00',
+                        label: `Period 2 (${midTime} - ${sundayEndTime || '13:00'})`
+                    });
+                }
+                return slots;
+            }
+
             const preBreakCount = includeSundayBreak ? Math.min(2, Math.max(1, count - 1)) : count;
 
             let curStart = sundayStartTime || '09:00';
@@ -1791,9 +2088,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return;
         }
 
-        const selCourse = courses.find(c => c.id === allocCourseId);
+        const selCourse = combinedCourses.find(c => c.id === allocCourseId);
         const courseName = selCourse?.name || '';
-        const effectiveStream = isJointAlloc ? (jointStreamsSelected[0] || 'All Streams') : (allocStream === '__custom__' ? customAllocStream.trim() : allocStream);
+        const effectiveStream = isJointAlloc ? (jointStreamsSelected.length > 0 ? `${jointStreamsSelected.join(' + ')} (Joint)` : 'All Streams') : (allocStream === '__custom__' ? customAllocStream.trim() : allocStream);
 
         // Subject restrictions
         const subCfg = remedialSubjects.find(rs => 
@@ -1880,6 +2177,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     if (a.dayOfWeek !== 'Saturday') return false;
                     const sameCourse = a.courseId === allocCourseId || a.className === courseName;
                     if (!sameCourse) return false;
+                    if (isJointAlloc) {
+                        return jointStreamsSelected.some(js => matchAllocationStream(a, js) || matchAllocationStream({ stream: js }, a.stream));
+                    }
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
@@ -1941,6 +2241,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     if (a.dayOfWeek !== 'Sunday') return false;
                     const sameCourse = a.courseId === allocCourseId || a.className === courseName;
                     if (!sameCourse) return false;
+                    if (isJointAlloc) {
+                        return jointStreamsSelected.some(js => matchAllocationStream(a, js) || matchAllocationStream({ stream: js }, a.stream));
+                    }
                     return matchAllocationStream(a, effectiveStream) || matchAllocationStream({ stream: effectiveStream }, a.stream);
                 });
 
@@ -2009,25 +2312,43 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         } else {
             alert(`No conflict-free slots found across permitted days (${candidateDays.join(', ')}) for this class and teacher.\n\nAll candidate periods are already booked. You can check the Unallocated shelf or enable 'Allow manual override'.`);
         }
-    }, [allocCourseId, courses, isJointAlloc, jointStreamsSelected, allocStream, customAllocStream, remedialSubjects, allocSubjectId, customSubjectName, allocations, editingAlloc, weekdayStartTime, weekdayEndTime, allocTeacherId, maxLessonsPerClassPerDay, maxWeekendLessonsPerClassPerDay, maxLessonsPerTeacherPerDay, maxWeekendLessonsPerTeacherPerDay, maxLessonsPerDay, maxWeekendLessonsPerDay, includeSaturdayBreak, saturdayStartTime, saturdayBreakStartTime, saturdayBreakEndTime, saturdayEndTime, includeSundayBreak, sundayStartTime, sundayBreakStartTime, sundayBreakEndTime, sundayEndTime, teachersList]);
+    }, [allocCourseId, combinedCourses, isJointAlloc, jointStreamsSelected, allocStream, customAllocStream, remedialSubjects, allocSubjectId, customSubjectName, allocations, editingAlloc, weekdayStartTime, weekdayEndTime, allocTeacherId, maxLessonsPerClassPerDay, maxWeekendLessonsPerClassPerDay, maxLessonsPerTeacherPerDay, maxWeekendLessonsPerTeacherPerDay, maxLessonsPerDay, maxWeekendLessonsPerDay, includeSaturdayBreak, saturdayStartTime, saturdayBreakStartTime, saturdayBreakEndTime, saturdayEndTime, includeSundayBreak, sundayStartTime, sundayBreakStartTime, sundayBreakEndTime, sundayEndTime, teachersList]);
 
     // Available streams for manual session log modal
     const availableStreamsForManualLog = useMemo(() => {
         if (!manualCourseId) return [];
-        const selectedCourse = courses.find(c => c.id === manualCourseId);
+        const selectedCourse = combinedCourses.find(c => c.id === manualCourseId || c.name === manualCourseId);
         const streamSet = new Set<string>();
 
         if (selectedCourse?.levels && Array.isArray(selectedCourse.levels)) {
             selectedCourse.levels.forEach(lvl => {
-                const name = String(lvl.name || '').trim();
-                if (name) streamSet.add(name);
+                const name = String(lvl.name || lvl || '').trim();
+                if (name && name !== 'All Streams' && name !== 'All') streamSet.add(name);
+            });
+        }
+        if ((selectedCourse as any)?.streams && Array.isArray((selectedCourse as any).streams)) {
+            (selectedCourse as any).streams.forEach((s: any) => {
+                const name = String(s.name || s || '').trim();
+                if (name && name !== 'All Streams' && name !== 'All') streamSet.add(name);
             });
         }
 
-        users.forEach(u => {
-            if (u.role === 'student' && u.courseId === manualCourseId) {
+        allocations.forEach(a => {
+            if (a.courseId === manualCourseId || a.className === manualCourseId || (selectedCourse && a.className === selectedCourse.name)) {
+                if (a.stream && a.stream !== 'All Streams' && a.stream !== 'All') streamSet.add(a.stream.trim());
+                if (Array.isArray(a.jointStreams)) {
+                    a.jointStreams.forEach(s => {
+                        if (s && s !== 'All Streams' && s !== 'All') streamSet.add(String(s).trim());
+                    });
+                }
+            }
+        });
+
+        // 3. From students enrolled in this course (strictly scoped to tenant)
+        tenantUsers.forEach(u => {
+            if (u.role === 'student' && (u.courseId === manualCourseId || (u as any).class === selectedCourse?.name || (u as any).className === selectedCourse?.name)) {
                 const sName = (u as any).stream || (u as any).streamName || (u as any).metadata?.stream || '';
-                if (sName && typeof sName === 'string' && sName.trim()) {
+                if (sName && typeof sName === 'string' && sName.trim() && sName !== 'All Streams') {
                     streamSet.add(sName.trim());
                 }
             }
@@ -2037,12 +2358,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (Array.isArray(instStreams)) {
             instStreams.forEach(s => {
                 const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
-                if (sName) streamSet.add(sName);
+                if (sName && sName !== 'All Streams' && sName !== 'All') streamSet.add(sName);
             });
         }
 
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [manualCourseId, courses, users, currentInstitution]);
+    }, [manualCourseId, combinedCourses, allocations, tenantUsers, currentInstitution]);
 
     // Distinct streams for Timetable Filter Bar
     const distinctTimetableStreams = useMemo(() => {
@@ -2060,13 +2381,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             streamSet.add(str.replace(/[()]/g, '').trim());
         };
 
-        const selectedCourse = courses.find(c => c.id === selectedTimetableClass);
+        const targetCourse = combinedCourses.find(c => c.id === selectedTimetableClass || c.name === selectedTimetableClass);
 
+        // 1. From all allocations matching the selected class
         allocations.forEach(a => {
             const matchClass = selectedTimetableClass === 'All' || 
                 a.courseId === selectedTimetableClass || 
                 a.className === selectedTimetableClass || 
-                (selectedCourse && a.className === selectedCourse.name);
+                (targetCourse && (a.className === targetCourse.name || a.courseId === targetCourse.id));
 
             if (matchClass) {
                 if (a.stream) addStreamName(a.stream);
@@ -2076,15 +2398,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
         });
 
+        // 2. From combinedCourses
         if (selectedTimetableClass !== 'All') {
-            if (selectedCourse?.levels && Array.isArray(selectedCourse.levels)) {
-                selectedCourse.levels.forEach((l: any) => addStreamName(l));
+            if (targetCourse?.levels && Array.isArray(targetCourse.levels)) {
+                targetCourse.levels.forEach((l: any) => addStreamName(l));
             }
-            if ((selectedCourse as any)?.streams && Array.isArray((selectedCourse as any).streams)) {
-                (selectedCourse as any).streams.forEach((s: any) => addStreamName(s));
+            if ((targetCourse as any)?.streams && Array.isArray((targetCourse as any).streams)) {
+                (targetCourse as any).streams.forEach((s: any) => addStreamName(s));
             }
         } else {
-            courses.forEach(c => {
+            combinedCourses.forEach(c => {
                 if (c.levels && Array.isArray(c.levels)) {
                     c.levels.forEach((l: any) => addStreamName(l));
                 }
@@ -2099,7 +2422,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
 
         return Array.from(streamSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
-    }, [allocations, selectedTimetableClass, courses, currentInstitution]);
+    }, [allocations, selectedTimetableClass, combinedCourses, currentInstitution]);
 
     // Open Create Subject Modal
     const handleOpenCreateSubject = () => {
@@ -2859,7 +3182,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 ? (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2)
                 : (maxLessonsPerClassPerDay || 1);
         if (existingClassSessionsOnDate.length >= effectiveClassDailyLimit) {
-            const courseName = courses.find(c => c.id === manualCourseId)?.name || 'Class';
+            const courseName = combinedCourses.find(c => c.id === manualCourseId)?.name || 'Class';
             return alert(`Daily Class Quota Exceeded: ${courseName} (${manualStream}) has already reached the maximum ${limitLabel} limit of ${effectiveClassDailyLimit} remedial lesson(s) on ${manualDate}.`);
         }
 
@@ -2873,17 +3196,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
                 : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
         if (existingTeacherSessionsOnDate.length >= effectiveTeacherDailyLimit) {
-            const teacherName = users.find(u => u.id === manualTeacherId)?.name || 'Teacher';
+            const teacherName = tenantUsers.find(u => u.id === manualTeacherId)?.name || 'Teacher';
             return alert(`Daily Teacher Quota Exceeded: ${teacherName} has already reached the maximum ${limitLabel} limit of ${effectiveTeacherDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
         }
 
         try {
-            const teacher = users.find(u => u.id === manualTeacherId);
+            const teacher = tenantUsers.find(u => u.id === manualTeacherId);
             const remSubMatch = remedialSubjects.find(r => r.subjectId === manualSubjectId || r.id === manualSubjectId);
             const schoolSubMatch = effectiveSchoolSubjects.find(s => s.id === manualSubjectId);
             const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || manualSubjectId || 'Unknown';
-            const course = courses.find(c => c.id === manualCourseId);
-            const prefect = users.find(u => u.id === manualPrefectId);
+            const course = combinedCourses.find(c => c.id === manualCourseId);
+            const prefect = tenantUsers.find(u => u.id === manualPrefectId);
 
             const isSunday = manualDateObj.getDay() === 0;
             const isSaturday = manualDateObj.getDay() === 6;
@@ -3135,7 +3458,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             setIsSavingDuty(true);
-            const teacher = users.find(u => u.id === dutyModalTeacherId);
+            const teacher = tenantUsers.find(u => u.id === dutyModalTeacherId);
             const teacherCode = teacher?.name 
                 ? teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 3) 
                 : 'DUT';
@@ -3158,7 +3481,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             // Auto-allocate 1 Saturday lesson and 1 Sunday lesson
             if (dutyModalAutoAllocate) {
-                const targetCourse = courses.find(c => c.id === dutyModalCourseId) || courses[0];
+                const targetCourse = combinedCourses.find(c => c.id === dutyModalCourseId) || combinedCourses[0];
                 const targetSubject = remedialSubjects.find(s => s.subjectId === dutyModalSubjectId) || remedialSubjects[0];
 
                 const satAlloc: RemedialAllocation = {
@@ -3235,13 +3558,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         try {
             setIsSavingDuty(true);
-            const targetCourse = courses.find(c => c.id === dutyModalCourseId) || courses[0];
+            const targetCourse = combinedCourses.find(c => c.id === dutyModalCourseId) || combinedCourses[0];
             const targetSubject = remedialSubjects.find(s => s.subjectId === dutyModalSubjectId) || remedialSubjects[0];
             const startTime = weekdayStartTime || '16:00';
             const endTime = weekdayEndTime || '18:00';
 
             for (const entry of dutyTeacherList) {
-                const teacher = users.find(u => u.id === entry.teacherId);
+                const teacher = tenantUsers.find(u => u.id === entry.teacherId);
                 if (!teacher) continue;
                 const teacherCode = teacher.name
                     ? teacher.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 3)
@@ -3353,7 +3676,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Open Create Allocation Modal pre-filling slot, class, day, and time
     const handleOpenCreateAllocationForSlot = (targetClass?: string, targetStream?: string, day?: string, startTime?: string, endTime?: string) => {
         setEditingAlloc(null);
-        const matchingCourse = courses.find(c => (c.name || '').trim() === (targetClass || '').trim() || c.id === targetClass);
+        const matchingCourse = combinedCourses.find(c => (c.name || '').trim() === (targetClass || '').trim() || c.id === targetClass);
         setAllocCourseId(matchingCourse?.id || targetClass || '');
         setAllocStream(targetStream && targetStream !== 'All Streams' ? targetStream : 'All Streams');
         setCustomAllocStream('');
@@ -3406,7 +3729,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             safeLocalStorage.setItem(`remedial_teacher_codes_${institutionId}`, JSON.stringify(nextCodes));
         }
 
-        const targetUser = users.find(u => u.id === teacherId);
+        const targetUser = tenantUsers.find(u => u.id === teacherId);
         if (targetUser) {
             const updatedUser: User = {
                 ...targetUser,
@@ -3490,14 +3813,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             initialJointStreams = [...alloc.jointStreams];
         } else if (Array.isArray(alloc.joint_streams) && alloc.joint_streams.length > 0) {
             initialJointStreams = [...alloc.joint_streams];
-        } else if (alloc.stream && alloc.stream.includes('+')) {
-            initialJointStreams = alloc.stream.replace(/\(Joint\)/gi, '').split('+').map(s => s.trim()).filter(Boolean);
+        } else if (alloc.stream && (/[,/&+]|\band\b/i.test(alloc.stream) || isJoint)) {
+            initialJointStreams = alloc.stream.replace(/\(Joint\)/gi, '').split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
         }
         setJointStreamsSelected(initialJointStreams);
         setJointCoursesSelected(Array.isArray(alloc.jointCourses) ? alloc.jointCourses : (Array.isArray(alloc.joint_courses) ? alloc.joint_courses : []));
         setCustomJointStream('');
 
-        const matchedCourse = courses.find(c => c.id === alloc.courseId);
+        const matchedCourse = combinedCourses.find(c => c.id === alloc.courseId);
         const courseStreams = matchedCourse?.streams || [];
         if (!alloc.stream || alloc.stream === 'All Streams') {
             setAllocStream('All Streams');
@@ -3534,11 +3857,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
 
         try {
-            const course = courses.find(c => c.id === allocCourseId);
+            const course = combinedCourses.find(c => c.id === allocCourseId);
             const remSubMatch = remedialSubjects.find(r => r.subjectId === allocSubjectId || r.id === allocSubjectId);
             const schoolSubMatch = effectiveSchoolSubjects.find(s => s.id === allocSubjectId);
             const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || 'Subject';
-            const teacher = users.find(u => u.id === allocTeacherId);
+            const teacher = tenantUsers.find(u => u.id === allocTeacherId);
             const isWeekend = ['Saturday', 'Sunday'].includes(allocDay);
 
             let effectiveStream = allocStream === '__custom__'
@@ -3548,8 +3871,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             let finalJointStreams: string[] = [];
             if (isJointAlloc) {
                 finalJointStreams = [...jointStreamsSelected];
-                if (customJointStream.trim() && !finalJointStreams.includes(customJointStream.trim())) {
-                    finalJointStreams.push(customJointStream.trim());
+                if (customJointStream.trim()) {
+                    const customTokens = customJointStream.split(/[,;/+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
+                    customTokens.forEach(t => {
+                        if (!finalJointStreams.includes(t)) finalJointStreams.push(t);
+                    });
                 }
                 if (finalJointStreams.length > 0) {
                     effectiveStream = `${finalJointStreams.join(' + ')} (Joint)`;
@@ -3797,7 +4123,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Smart Auto-Generate Timetable Engine (Strictly for Allocated Classes & Teachers with Manual Allocation)
     const handleAutoGenerateTimetable = async () => {
-        if (courses.length === 0 || teachersList.length === 0) {
+        if (combinedCourses.length === 0 || teachersList.length === 0) {
             return alert('Insufficient data to auto-generate remedial timetable. Please ensure classes and teachers are registered.');
         }
 
@@ -3837,7 +4163,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
 
         // Filter courses strictly to those that have manual allocations by the user
-        const allocatedCourses = courses.filter(c =>
+        const allocatedCourses = combinedCourses.filter(c =>
             allocatedCourseIds.has(c.id) ||
             allocatedCourseNames.has(c.name.trim().toLowerCase())
         );
@@ -3938,10 +4264,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             classSlotBooked[matchedCourse.id]?.add(`${day}_${ma.startTime}`);
                         }
                         const isJointAlloc = !!(ma.isJoint || ma.is_joint || (ma.jointStreams && ma.jointStreams.length > 0));
-                        if (ma.stream && ma.stream !== 'All Streams') {
-                            const sKey = `${matchedCourse.id}_${ma.stream}`;
-                            if (!streamDayBooked[sKey]) streamDayBooked[sKey] = new Set();
-                            streamDayBooked[sKey].add(day);
+                        const jStreams = Array.isArray(ma.jointStreams) && ma.jointStreams.length > 0 
+                            ? ma.jointStreams 
+                            : (Array.isArray(ma.joint_streams) && ma.joint_streams.length > 0 ? ma.joint_streams : []);
+
+                        if (isJointAlloc && jStreams.length > 0) {
+                            jStreams.forEach(s => {
+                                const sKey = `${matchedCourse.id}_${s}`;
+                                if (!streamDayBooked[sKey]) streamDayBooked[sKey] = new Set();
+                                streamDayBooked[sKey].add(day);
+                            });
                         } else if (isJointAlloc) {
                             const cStreams = getClassStreams(matchedCourse);
                             cStreams.forEach(s => {
@@ -3949,6 +4281,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 if (!streamDayBooked[sKey]) streamDayBooked[sKey] = new Set();
                                 streamDayBooked[sKey].add(day);
                             });
+                        } else if (ma.stream && ma.stream !== 'All Streams') {
+                            const sKey = `${matchedCourse.id}_${ma.stream}`;
+                            if (!streamDayBooked[sKey]) streamDayBooked[sKey] = new Set();
+                            streamDayBooked[sKey].add(day);
                         }
                     }
                 }
@@ -4070,7 +4406,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         ) || subEntry.manualAllocations[0];
 
                         const designatedTeacherId = matchingManual?.teacherId || subEntry.teacherId;
-                        const designatedTeacher = users.find(u => u.id === designatedTeacherId) || teachersList.find(t => t.id === designatedTeacherId);
+                        const designatedTeacher = tenantUsers.find(u => u.id === designatedTeacherId) || teachersList.find(t => t.id === designatedTeacherId);
 
                         // Check existing manual allocations for this specific stream
                         const alreadyAllocatedForStream = subEntry.manualAllocations.filter(m =>
@@ -4403,7 +4739,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const processedClassKeys = new Set<string>();
         const processedTeacherKeys = new Set<string>();
 
-        const allDistinctCls = getDistinctTimetableClasses(allocations, courses);
+        const allDistinctCls = getDistinctTimetableClasses(allocations, combinedCourses);
         const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
         // 1. Detect Class Slot Overlaps
@@ -4513,7 +4849,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         allocations.filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated' && !!a.startTime).forEach(a => {
             const isJoint = !!(a.isJoint || a.is_joint || (a.jointStreams && a.jointStreams.length > 0));
             if (!isJoint) {
-                const cMatch = courses.find(c => c.id === a.courseId || c.name === a.className);
+                const cMatch = combinedCourses.find(c => c.id === a.courseId || c.name === a.className);
                 if (cMatch) {
                     const cStreams = getClassStreams(cMatch);
                     if (cStreams.length > 1 && (!a.stream || a.stream === 'All Streams')) {
@@ -4540,18 +4876,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
 
         return collisions;
-    }, [allocations, courses]);
+    }, [allocations, combinedCourses]);
 
     const totalOverlappingLessons = useMemo(() => {
         return detectedCollisions.reduce((acc, c) => {
             if (c.stream === 'All Streams' && c.allocations.length === 1) {
-                const cMatch = courses.find(course => course.id === c.allocations[0].courseId || course.name === c.allocations[0].className);
+                const cMatch = combinedCourses.find(course => course.id === c.allocations[0].courseId || course.name === c.allocations[0].className);
                 const cStreams = cMatch ? getClassStreams(cMatch) : [];
                 return acc + Math.max(0, cStreams.length - 1);
             }
             return acc + (c.allocations.length - 1);
         }, 0);
-    }, [detectedCollisions, courses]);
+    }, [detectedCollisions, combinedCourses]);
 
     // Subject Day-Restriction Violations (e.g. Weekend-only allocated on weekdays, or Weekday-only on weekends)
     const dayViolations = useMemo(() => {
@@ -4847,7 +5183,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             targetsToResolve = detectedCollisions.map(col => {
                 if (col.stream === 'All Streams' && col.allocations.length === 1) {
                     const orig = col.allocations[0];
-                    const cMatch = courses.find(c => c.id === orig.courseId || c.name === orig.className);
+                    const cMatch = combinedCourses.find(c => c.id === orig.courseId || c.name === orig.className);
                     const cStreams = cMatch ? getClassStreams(cMatch) : [];
                     if (cStreams.length > 1) {
                         const stream0Alloc: RemedialAllocation = {
@@ -4901,6 +5237,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
             // Candidate slots in order of priority:
             // STRICT RULE: Only 1 period per weekday, using the configured evening window.
+            const effSunPeriods = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2));
+            const sundayCandidateSlots: { day: 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [];
+            if (effSunPeriods <= 2) {
+                if (includeSundayBreak && effSunPeriods === 2) {
+                    sundayCandidateSlots.push({ day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true });
+                    sundayCandidateSlots.push({ day: 'Sunday', startTime: sundayBreakEndTime || '11:30', endTime: sundayEndTime || '13:30', isWeekend: true });
+                } else if (effSunPeriods === 1) {
+                    sundayCandidateSlots.push({ day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: sundayEndTime || '13:00', isWeekend: true });
+                } else {
+                    sundayCandidateSlots.push({ day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: '11:00', isWeekend: true });
+                    sundayCandidateSlots.push({ day: 'Sunday', startTime: '11:00', endTime: sundayEndTime || '13:00', isWeekend: true });
+                }
+            } else {
+                sundayCandidateSlots.push({ day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: '10:00', isWeekend: true });
+                sundayCandidateSlots.push({ day: 'Sunday', startTime: '10:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true });
+                sundayCandidateSlots.push({ day: 'Sunday', startTime: sundayBreakEndTime || '11:30', endTime: '12:30', isWeekend: true });
+                if (effSunPeriods >= 4) {
+                    sundayCandidateSlots.push({ day: 'Sunday', startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true });
+                }
+            }
+
             const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
                 // Weekday evening window (1 period per day, Mon-Fri)
                 { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
@@ -4916,11 +5273,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 { day: 'Saturday', startTime: '11:30', endTime: '12:30', isWeekend: true },
                 { day: 'Saturday', startTime: '12:30', endTime: saturdayEndTime || '13:30', isWeekend: true },
 
-                // Sunday slots
-                { day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: '10:00', isWeekend: true },
-                { day: 'Sunday', startTime: '10:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
-                { day: 'Sunday', startTime: sundayBreakEndTime || '11:30', endTime: '12:30', isWeekend: true },
-                { day: 'Sunday', startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true }
+                // Sunday slots (strictly capped)
+                ...sundayCandidateSlots
             ];
 
             for (const target of targetsToResolve) {
@@ -4936,13 +5290,47 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 }
 
                 for (const allocToMove of target.others) {
-                    const cMatch = courses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
+                    const cMatch = combinedCourses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
                     const classId = cMatch?.id || allocToMove.courseId;
                     const className = cMatch?.name || allocToMove.className;
 
                     let assignedSlot: typeof candidateSlots[0] | null = null;
 
                     for (const candidate of candidateSlots) {
+                        // Class/stream daily quota check:
+                        const existingCountOnCandidateDay = workingSet.filter(a => {
+                            if (a.id === allocToMove.id) return false;
+                            if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
+                            if (a.dayOfWeek !== candidate.day) return false;
+                            const sameCourse = a.courseId === classId || a.className === className;
+                            if (!sameCourse) return false;
+                            return matchAllocationStream(a, allocToMove.stream) || matchAllocationStream(allocToMove, a.stream);
+                        }).length;
+
+                        const maxClassLimitOnDay = candidate.day === 'Saturday'
+                            ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+                            : candidate.day === 'Sunday'
+                                ? effSunPeriods
+                                : (maxLessonsPerClassPerDay || 1);
+
+                        if (existingCountOnCandidateDay >= maxClassLimitOnDay) continue;
+
+                        // Teacher daily quota check:
+                        const existingTeacherCountOnCandidateDay = workingSet.filter(a => {
+                            if (a.id === allocToMove.id) return false;
+                            if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
+                            if (a.dayOfWeek !== candidate.day) return false;
+                            return a.teacherId === allocToMove.teacherId;
+                        }).length;
+
+                        const maxTeacherLimitOnDay = candidate.day === 'Saturday'
+                            ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                            : candidate.day === 'Sunday'
+                                ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                                : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+
+                        if (existingTeacherCountOnCandidateDay >= maxTeacherLimitOnDay) continue;
+
                         // Class/stream collision check
                         const classBusy = workingSet.some(a => {
                             if (a.id === allocToMove.id) return false;
@@ -5075,20 +5463,70 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 { day: 'Saturday', startTime: '11:30', endTime: '12:30', isWeekend: true },
                 { day: 'Saturday', startTime: '12:30', endTime: saturdayEndTime || '13:30', isWeekend: true },
 
-                // Sunday slots
-                { day: 'Sunday', startTime: sundayStartTime || '09:00', endTime: '10:00', isWeekend: true },
-                { day: 'Sunday', startTime: '10:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
-                { day: 'Sunday', startTime: sundayBreakEndTime || '11:30', endTime: '12:30', isWeekend: true },
-                { day: 'Sunday', startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true }
+                // Sunday slots (strictly capped)
+                ...((effSunPeriods = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2))) <= 2
+                    ? (includeSundayBreak && effSunPeriods === 2
+                        ? [
+                            { day: 'Sunday' as const, startTime: sundayStartTime || '09:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
+                            { day: 'Sunday' as const, startTime: sundayBreakEndTime || '11:30', endTime: sundayEndTime || '13:30', isWeekend: true }
+                        ]
+                        : effSunPeriods === 1
+                            ? [{ day: 'Sunday' as const, startTime: sundayStartTime || '09:00', endTime: sundayEndTime || '13:00', isWeekend: true }]
+                            : [
+                                { day: 'Sunday' as const, startTime: sundayStartTime || '09:00', endTime: '11:00', isWeekend: true },
+                                { day: 'Sunday' as const, startTime: '11:00', endTime: sundayEndTime || '13:00', isWeekend: true }
+                            ]
+                    )
+                    : [
+                        { day: 'Sunday' as const, startTime: sundayStartTime || '09:00', endTime: '10:00', isWeekend: true },
+                        { day: 'Sunday' as const, startTime: '10:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
+                        { day: 'Sunday' as const, startTime: sundayBreakEndTime || '11:30', endTime: '12:30', isWeekend: true },
+                        ...(effSunPeriods >= 4 ? [{ day: 'Sunday' as const, startTime: '12:30', endTime: sundayEndTime || '13:30', isWeekend: true }] : [])
+                    ]
+                )
             ];
 
             for (const allocToMove of allocsToSpread) {
-                const cMatch = courses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
+                const cMatch = combinedCourses.find(c => c.id === allocToMove.courseId || c.name === allocToMove.className);
                 const classId = cMatch?.id || allocToMove.courseId;
                 const className = cMatch?.name || allocToMove.className;
 
                 let assignedSlot: typeof candidateSlots[0] | null = null;
                 for (const candidate of candidateSlots) {
+                    // Class/stream daily quota check:
+                    const existingCountOnCandidateDay = workingSet.filter(a => {
+                        if (a.id === allocToMove.id) return false;
+                        if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
+                        if (a.dayOfWeek !== candidate.day) return false;
+                        const sameCourse = a.courseId === classId || a.className === className;
+                        if (!sameCourse) return false;
+                        return matchAllocationStream(a, allocToMove.stream) || matchAllocationStream(allocToMove, a.stream);
+                    }).length;
+
+                    const maxClassLimitOnDay = candidate.day === 'Saturday'
+                        ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+                        : candidate.day === 'Sunday'
+                            ? effSunPeriods
+                            : (maxLessonsPerClassPerDay || 1);
+
+                    if (existingCountOnCandidateDay >= maxClassLimitOnDay) continue;
+
+                    // Teacher daily quota check:
+                    const existingTeacherCountOnCandidateDay = workingSet.filter(a => {
+                        if (a.id === allocToMove.id) return false;
+                        if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
+                        if (a.dayOfWeek !== candidate.day) return false;
+                        return a.teacherId === allocToMove.teacherId;
+                    }).length;
+
+                    const maxTeacherLimitOnDay = candidate.day === 'Saturday'
+                        ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                        : candidate.day === 'Sunday'
+                            ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                            : (maxLessonsPerTeacherPerDay || 1);
+
+                    if (existingTeacherCountOnCandidateDay >= maxTeacherLimitOnDay) continue;
+
                     const classBusy = workingSet.some(a => {
                         if (a.id === allocToMove.id) return false;
                         if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
@@ -5366,7 +5804,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         filtered.forEach(s => {
             const tId = s.teacherId || 'unknown';
             if (!teacherMap[tId]) {
-                const u = users.find(user => user.id === tId);
+                const u = tenantUsers.find(user => user.id === tId);
                 teacherMap[tId] = {
                     teacherName: s.teacherName || u?.name || 'Unknown Teacher',
                     teacherEmail: u?.email,
@@ -5399,7 +5837,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
 
         return Object.values(teacherMap);
-    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, users, weekendDutyRoster]);
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster]);
 
     // 2. Report: Prefect QR Audit Trail Data
     const reportPrefectAuditData = useMemo(() => {
@@ -5412,7 +5850,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const matchStatus = reportStatusFilter === 'all' || s.status === reportStatusFilter;
             return matchStart && matchEnd && matchTeacher && matchClass && matchStatus;
         }).map(s => {
-            const course = courses.find(c => c.id === s.courseId);
+            const course = combinedCourses.find(c => c.id === s.courseId);
             return {
                 date: s.date || s.startTime?.split('T')[0] || 'N/A',
                 subjectName: s.subjectName || 'Remedial Session',
@@ -5426,16 +5864,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 verifiedAt: s.verifiedAt
             };
         });
-    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportClassFilter, reportStatusFilter, courses]);
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportClassFilter, reportStatusFilter, combinedCourses]);
 
     // 3. Report: Student Billing & Arrears Data
     const reportBillingData = useMemo(() => {
-        const studentUsers = (users || []).filter(u => u.role === 'student' && (!institutionId || u.institutionId === institutionId));
+        const studentUsers = (tenantUsers || []).filter(u => u.role === 'student');
         return studentUsers.filter(stu => {
             const matchClass = reportClassFilter === 'All' || stu.courseId === reportClassFilter;
             return matchClass;
         }).map(stu => {
-            const course = courses.find(c => c.id === stu.courseId);
+            const course = combinedCourses.find(c => c.id === stu.courseId);
             const stuInvoices = (invoices || []).filter(inv => inv.studentId === stu.id);
             const remedialInv = stuInvoices.find(inv => 
                 (inv.items || []).some(item => (item.description || '').toLowerCase().includes('remedial'))
@@ -5472,7 +5910,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             parentPhone?: string;
             status: string;
         }>;
-    }, [users, courses, invoices, termFee, reportClassFilter, reportStatusFilter, institutionId]);
+    }, [tenantUsers, combinedCourses, invoices, termFee, reportClassFilter, reportStatusFilter, institutionId]);
 
     // 4. Report: Workload & Subject Distribution Data
     const reportWorkloadData = useMemo(() => {
@@ -5552,13 +5990,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const handleDownloadReportPdf = async () => {
         setIsExporting(true);
         try {
-            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(users.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(courses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}`;
+            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(tenantUsers.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(combinedCourses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}`;
 
             if (selectedReportType === 'master_timetable') {
                 const doc = await generateRemedialMasterTimetablePdf({
                     institution: currentInstitution,
                     allocations,
-                    courses,
+                    courses: combinedCourses,
                     users: teachersList,
                     rateSetting,
                     termName: timetableTerm,
@@ -5616,7 +6054,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 exportRemedialMasterTimetableToExcel({
                     fileName: `${timetableStage ? `${timetableStage}_` : ''}${timetableWeek.replace(/\s+/g, '_')}_${timetableTerm.replace(/\s+/g, '_')}_${timetableYear}_Remedial_Timetable`,
                     allocations,
-                    courses,
+                    courses: combinedCourses,
                     users: teachersList,
                     termName: timetableTerm,
                     weekName: timetableWeek,
@@ -5929,7 +6367,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const target = prefectToPrint || printingPrefect;
         if (!target) return;
 
-        const courseName = courses.find(c => c.id === target.courseId)?.name || 'Class / Stream';
+        const courseName = combinedCourses.find(c => c.id === target.courseId)?.name || 'Class / Stream';
         const institutionName = currentInstitution?.name || 'School Remedial Program';
         const institutionLogo = currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo || null;
         const tokenId = `prefect_remedial_token_class_${target.courseId}`;
@@ -6118,7 +6556,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (selectedReportType === 'master_timetable') {
             const schoolName = String(currentInstitution?.name || 'KIPKEINO SCHOOL').toUpperCase();
             const docTitle = `${timetableStage ? `${timetableStage} ` : ''}${timetableWeek} ${timetableTerm} ${timetableYear} REMEDIAL TT`.toUpperCase();
-            const distinctClasses = getDistinctTimetableClasses(allocations, courses, true);
+            const distinctClasses = getDistinctTimetableClasses(allocations, combinedCourses, true);
             const weekdayDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
 
             // Weekday rows
@@ -6407,17 +6845,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         // Determine list of classes to print
         let classesToRender: { id: string; name: string; stream: string }[] = [];
         if (selectedTimetableClass === 'All') {
-            const distinct = getDistinctTimetableClasses(allocations, courses);
+            const distinct = getDistinctTimetableClasses(allocations, combinedCourses);
             classesToRender = distinct.map(d => ({
                 id: d.className,
                 name: d.className,
                 stream: d.stream || 'All Streams'
             }));
             if (classesToRender.length === 0) {
-                classesToRender = courses.map(c => ({ id: c.id, name: c.name, stream: 'All Streams' }));
+                classesToRender = combinedCourses.map(c => ({ id: c.id, name: c.name, stream: 'All Streams' }));
             }
         } else {
-            const courseObj = courses.find(c => c.id === selectedTimetableClass);
+            const courseObj = combinedCourses.find(c => c.id === selectedTimetableClass);
             classesToRender = [{
                 id: selectedTimetableClass,
                 name: courseObj?.name || selectedTimetableClass,
@@ -6760,8 +7198,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [allocations, enrichedUsers]);
 
     const classesWithAllocs = useMemo(() => {
-        return getDistinctTimetableClasses(allocations, courses, true);
-    }, [allocations, courses]);
+        return getDistinctTimetableClasses(allocations, combinedCourses, true);
+    }, [allocations, combinedCourses]);
 
     // Standard aSc Grid Slots (Periods 1-10 + Breaks)
     const ascStandardSlots = useMemo(() => [
@@ -6953,11 +7391,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     } else if (matches.length === 1) {
                         const a = matches[0];
                         const sCode = getSubjectCode(a.subjectName, a.subjectId);
-                        const tCode = getTeacherCode(a.teacherId, a.teacherName, users);
+                        const tCode = getTeacherCode(a.teacherId, a.teacherName, tenantUsers);
                         const subColor = getAscSubjectColor(a.subjectName, a.subjectId);
                         cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;background-color:${subColor.bg};color:${subColor.text};position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:4px 2px;overflow:hidden;"><span style="position:absolute;top:3px;left:4px;font-size:9px;font-weight:900;font-family:Arial;line-height:1;opacity:0.95;text-transform:uppercase;">${sCode}</span><span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;text-transform:uppercase;font-family:Arial;line-height:1;text-align:center;margin-top:6px;">${tCode}</span></div></td>`;
                     } else {
-                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;display:flex;flex-direction:column;overflow:hidden;">${matches.map((a, idx) => { const sCode = getSubjectCode(a.subjectName, a.subjectId); const tCode = getTeacherCode(a.teacherId, a.teacherName, users); const subColor = getAscSubjectColor(a.subjectName, a.subjectId); return `<div style="flex:1;background-color:${subColor.bg};color:${subColor.text};border-bottom:${idx < matches.length-1 ? '1px solid #000' : 'none'};display:flex;align-items:center;justify-content:space-between;padding:0 4px;box-sizing:border-box;"><span style="font-size:9px;font-weight:900;font-family:Arial;">${sCode}</span><span style="font-size:11px;font-weight:900;font-family:Arial;">${tCode}</span></div>`; }).join('')}</div></td>`;
+                        cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:100%;min-height:72px;display:flex;flex-direction:column;overflow:hidden;">${matches.map((a, idx) => { const sCode = getSubjectCode(a.subjectName, a.subjectId); const tCode = getTeacherCode(a.teacherId, a.teacherName, tenantUsers); const subColor = getAscSubjectColor(a.subjectName, a.subjectId); return `<div style="flex:1;background-color:${subColor.bg};color:${subColor.text};border-bottom:${idx < matches.length-1 ? '1px solid #000' : 'none'};display:flex;align-items:center;justify-content:space-between;padding:0 4px;box-sizing:border-box;"><span style="font-size:9px;font-weight:900;font-family:Arial;">${sCode}</span><span style="font-size:11px;font-weight:900;font-family:Arial;">${tCode}</span></div>`; }).join('')}</div></td>`;
                     }
                 }
             });
@@ -6972,7 +7410,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (sc && a.subjectName && !subjMap.has(sc)) {
                 subjMap.set(sc, { name: a.subjectName, color: getAscSubjectColor(a.subjectName, a.subjectId) });
             }
-            const tc = getTeacherCode(a.teacherId, a.teacherName, users);
+            const tc = getTeacherCode(a.teacherId, a.teacherName, tenantUsers);
             if (tc && a.teacherName && !teacherMap.has(tc)) {
                 teacherMap.set(tc, a.teacherName);
             }
@@ -7020,7 +7458,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 </div>
             </div>
         `;
-    }, [allocations, ascStandardSlots, matchAllocToSlotAsc, users]);
+    }, [allocations, ascStandardSlots, matchAllocToSlotAsc, tenantUsers]);
 
     // Build the complete HTML document for single preview or multi-page printing
     const generateIndividualTimetableDoc = useCallback((type: 'teacher' | 'class', targetId: string, isPreview: boolean = false) => {
@@ -7098,9 +7536,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Parent Billing Calculations (Term Fee billing)
     const billingSummary = useMemo(() => {
-        const students = users.filter(u => u.role === 'student' && u.institutionId === institutionId);
+        const students = tenantUsers.filter(u => u.role === 'student');
         return students.map(student => {
-            const course = courses.find(c => c.id === student.courseId);
+            const course = combinedCourses.find(c => c.id === student.courseId);
             const studentInvoices = invoices.filter(inv => inv.studentId === student.id);
             const isInvoiced = studentInvoices.some(inv => 
                 inv.items.some(item => item.description.includes('Term Remedial Fee'))
@@ -7114,7 +7552,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 amount: termFee
             };
         });
-    }, [users, courses, invoices, termFee, institutionId]);
+    }, [tenantUsers, combinedCourses, invoices, termFee, institutionId]);
 
     // Generate Term Fee Invoice for single Student
     const handleBillParent = async (studentId: string, studentName: string, className: string) => {
@@ -7761,7 +8199,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                     {alloc.subjectName}
                                                                 </span>
                                                                 <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300">
-                                                                    {alloc.className || courses.find(c => c.id === alloc.courseId)?.name || 'Class'}
+                                                                    {alloc.className || combinedCourses.find(c => c.id === alloc.courseId)?.name || 'Class'}
                                                                     {alloc.stream && alloc.stream !== 'All Streams' ? ` • ${alloc.stream}` : ''}
                                                                 </span>
                                                             </div>
@@ -7955,7 +8393,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Classes Covered</p>
                                 <h4 className="text-xl font-black text-cyan-600 dark:text-cyan-400 mt-0.5">
-                                    {prefectStats.classesCovered} / {courses.length || 1}
+                                    {prefectStats.classesCovered} / {combinedCourses.length || 1}
                                 </h4>
                                 <p className="text-[9px] font-bold text-slate-500">{prefectStats.streamsCovered} streams with leaders</p>
                             </div>
@@ -7993,8 +8431,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
                             >
                                 <option value="All">All Classes</option>
-                                {courses.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                {combinedCourses.map(c => (
+                                    <option key={c.id || c.name} value={c.id || c.name}>{c.name}</option>
                                 ))}
                             </select>
 
@@ -8039,8 +8477,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     {/* VIEW MODE 1: MATRIX VIEW (Organized Per Class and Stream) */}
                     {prefectViewMode === 'matrix' && (
                         <div className="space-y-8">
-                            {courses
-                                .filter(course => prefectClassFilter === 'All' || course.id === prefectClassFilter)
+                            {combinedCourses
+                                .filter(course => prefectClassFilter === 'All' || course.id === prefectClassFilter || course.name === prefectClassFilter)
                                 .map(course => {
                                     const classStreams = getClassStreams(course);
                                     const classLeaders = prefectsList.filter(p => p.courseId === course.id || (p.className && p.className.trim().toLowerCase() === course.name.trim().toLowerCase()));
@@ -8338,7 +8776,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-bold">
                                         {filteredPrefectsList.map(leader => {
-                                            const course = courses.find(c => c.id === leader.courseId);
+                                            const course = combinedCourses.find(c => c.id === leader.courseId);
                                             const className = course?.name || leader.className || 'General';
                                             const role = leader.leadershipPosition || 'Class Leader';
                                             const isSecretary = role.toLowerCase().includes('secretary');
@@ -8487,8 +8925,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-blue-500 dark:text-white"
                                     >
                                         <option value="">-- Select Class --</option>
-                                        {courses.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        {combinedCourses.map(c => (
+                                            <option key={c.id || c.name} value={c.id || c.name}>{c.name}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -8498,7 +8936,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         Stream *
                                     </label>
                                     {(() => {
-                                        const selectedCourse = courses.find(c => c.id === leaderModalTargetCourseId);
+                                        const selectedCourse = combinedCourses.find(c => c.id === leaderModalTargetCourseId || c.name === leaderModalTargetCourseId);
                                         const streams = selectedCourse ? getClassStreams(selectedCourse) : [];
                                         return (
                                             <select
@@ -9007,13 +9445,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
                 })();
 
-                const allDistinctClasses = getDistinctTimetableClasses(allocations, courses, false);
+                const allDistinctClasses = getDistinctTimetableClasses(allocations, combinedCourses, false);
                 const hasAnyAllocations = allocations.some(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated');
 
                 const countAllocsForClass = (cls: { className: string; stream: string }) => {
                     return allocations.filter(a =>
                         !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
-                        (a.className === cls.className || a.courseId === cls.className) &&
+                        (a.className === cls.className || a.courseId === cls.className || (combinedCourses.find(c => c.id === a.courseId)?.name === cls.className)) &&
                         matchAllocationStream(a, cls.stream)
                     ).length;
                 };
@@ -9025,7 +9463,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const filteredClasses = allDistinctClasses.filter(cls => {
                     const matchCourse = selectedTimetableClass === 'All' || 
                         cls.className === selectedTimetableClass || 
-                        courses.find(c => c.id === selectedTimetableClass)?.name === cls.className;
+                        combinedCourses.find(c => c.id === selectedTimetableClass || c.name === selectedTimetableClass)?.name === cls.className ||
+                        cls.className.toLowerCase() === selectedTimetableClass.toLowerCase() ||
+                        cls.shortCode.toLowerCase().startsWith(selectedTimetableClass.toLowerCase());
                     const matchStream = selectedTimetableStream === 'All' || 
                         (cls.stream || '').toLowerCase().trim() === selectedTimetableStream.toLowerCase().trim();
                     const matchSearch = !ascClassSearchQuery || 
@@ -9122,8 +9562,55 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     }
 
                     if (isSunday) {
-                        const count = Math.max(1, sundayPeriodsCount || 4);
+                        const count = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2));
                         const sunSlots: AscGridSlot[] = [];
+
+                        if (count <= 2) {
+                            if (includeSundayBreak && count === 2) {
+                                sunSlots.push({
+                                    periodNum: 1,
+                                    startTime: sundayStartTime || '09:00',
+                                    endTime: sundayBreakStartTime || '11:00',
+                                    label: `P1 (${(sundayStartTime || '09:00').slice(0, 5)}-${(sundayBreakStartTime || '11:00').slice(0, 5)})`
+                                });
+                                sunSlots.push({
+                                    periodNum: 0,
+                                    startTime: sundayBreakStartTime || '11:00',
+                                    endTime: sundayBreakEndTime || '11:30',
+                                    label: 'RECESS',
+                                    isBreak: true
+                                });
+                                sunSlots.push({
+                                    periodNum: 2,
+                                    startTime: sundayBreakEndTime || '11:30',
+                                    endTime: sundayEndTime || '13:30',
+                                    label: `P2 (${(sundayBreakEndTime || '11:30').slice(0, 5)}-${(sundayEndTime || '13:30').slice(0, 5)})`
+                                });
+                            } else if (count === 1) {
+                                sunSlots.push({
+                                    periodNum: 1,
+                                    startTime: sundayStartTime || '09:00',
+                                    endTime: sundayEndTime || '13:00',
+                                    label: `P1 (${(sundayStartTime || '09:00').slice(0, 5)}-${(sundayEndTime || '13:00').slice(0, 5)})`
+                                });
+                            } else {
+                                const midTime = '11:00';
+                                sunSlots.push({
+                                    periodNum: 1,
+                                    startTime: sundayStartTime || '09:00',
+                                    endTime: midTime,
+                                    label: `P1 (${(sundayStartTime || '09:00').slice(0, 5)}-${midTime})`
+                                });
+                                sunSlots.push({
+                                    periodNum: 2,
+                                    startTime: midTime,
+                                    endTime: sundayEndTime || '13:00',
+                                    label: `P2 (${midTime}-${(sundayEndTime || '13:00').slice(0, 5)})`
+                                });
+                            }
+                            return sunSlots;
+                        }
+
                         const preBreakCount = includeSundayBreak ? Math.min(2, Math.max(1, count - 1)) : count;
 
                         let curStart = sundayStartTime || '09:00';
@@ -9163,12 +9650,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             }
                         }
 
-                        // Check if any allocations have extra start times
+                        // STRICT: Never exceed configured maximum periods!
                         allocations.filter(a => a.dayOfWeek === 'Sunday' && a.startTime).forEach(a => {
+                            const currentPeriods = sunSlots.filter(s => !s.isBreak).length;
+                            if (currentPeriods >= count) return;
                             const match = sunSlots.some(s => (!s.isBreak && a.startTime && s.startTime && s.endTime && a.startTime >= s.startTime && a.startTime < s.endTime) || a.startTime === s.startTime);
                             if (!match && a.startTime) {
                                 const endT = a.endTime || addMinutesToTime(a.startTime, 60);
-                                sunSlots.push({ periodNum: sunSlots.length + 1, startTime: a.startTime, endTime: endT, label: `P${sunSlots.length + 1} (${a.startTime}-${endT})` });
+                                sunSlots.push({ periodNum: currentPeriods + 1, startTime: a.startTime, endTime: endT, label: `P${currentPeriods + 1} (${a.startTime}-${endT})` });
                             }
                         });
                         return sunSlots;
@@ -9202,6 +9691,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         // For weekdays: only 1 period column exists, so match ALL allocations on this day
                         const isWeekday = !['Saturday', 'Sunday'].includes(day);
                         if (isWeekday) return true;
+
+                        // For Sunday with count <= 2: cleanly divide lessons into Period 1 (morning) and Period 2 (post-break)
+                        const effSunCount = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2));
+                        if (day === 'Sunday' && effSunCount <= 2) {
+                            const breakStart = sundayBreakStartTime || '11:00';
+                            if (slot.periodNum === 1) {
+                                return (a.startTime < breakStart) || a.startTime === slot.startTime;
+                            }
+                            if (slot.periodNum === 2) {
+                                return (a.startTime >= breakStart) || a.startTime === slot.startTime;
+                            }
+                        }
 
                         // For weekends: match by time window as before
                         if (slot.startTime && slot.endTime) {
@@ -9706,7 +10207,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Step 1: DOS</p>
                                         <h6 className="text-xs font-black text-slate-800 dark:text-white truncate">Timetable Draft &amp; Slots</h6>
                                         <p className="text-[9px] text-slate-500 truncate">
-                                            {allocations.length} sessions across {courses.length} classes
+                                            {allocations.length} sessions across {combinedCourses.length} classes
                                         </p>
                                     </div>
                                 </div>
@@ -10006,12 +10507,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <option value="All">
                                                 {autoHideUnallocatedClasses && hasAnyAllocations
                                                     ? `Allocated Classes (${classesWithAllocationsCount})`
-                                                    : `All Classes (${courses.length})`}
+                                                    : `All Classes (${combinedCourses.length})`}
                                             </option>
-                                            {courses.map(c => {
-                                                const cCount = allocations.filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated' && (a.className === c.name || a.courseId === c.id)).length;
+                                            {combinedCourses.map(c => {
+                                                const cCount = allocations.filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated' && (a.className === c.name || a.courseId === c.id || a.courseId === c.name)).length;
                                                 return (
-                                                    <option key={c.id} value={c.id}>
+                                                    <option key={c.id || c.name} value={c.name}>
                                                         {c.name} {cCount > 0 ? `(${cCount} allocs)` : '(0)'}
                                                     </option>
                                                 );
@@ -10380,7 +10881,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 )}
                                                 {selectedTimetableClass !== 'All' && (
                                                     <span className="px-2.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 text-[9px] font-black uppercase tracking-wider border border-violet-200 dark:border-violet-800 flex items-center gap-1">
-                                                        Class: {courses.find(c => c.id === selectedTimetableClass)?.name || selectedTimetableClass}
+                                                        Class: {combinedCourses.find(c => c.id === selectedTimetableClass)?.name || selectedTimetableClass}
                                                         <button 
                                                             onClick={() => setSelectedTimetableClass('All')}
                                                             className="hover:text-violet-900 dark:hover:text-white ml-0.5"
@@ -11694,6 +12195,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     const val = Number(e.target.value);
                                                     setSundayPeriodsCount(val);
                                                     persistTimingField(`eduai_remedial_sun_periods_${institutionId}`, val, { sundayPeriodsCount: val });
+                                                    if (maxSundayLessonsPerClassPerDay !== val && val <= 6) {
+                                                        setMaxSundayLessonsPerClassPerDay(val);
+                                                        safeLocalStorage.setItem(`eduai_remedial_class_sun_max_${institutionId}`, String(val));
+                                                        persistTimingField(`eduai_remedial_class_sun_max_${institutionId}`, String(val), { maxSundayLessonsPerClassPerDay: val, max_sunday_lessons_per_class_per_day: val });
+                                                    }
                                                 }}
                                                 className="w-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                             >
@@ -11942,6 +12448,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     const val = Number(e.target.value);
                                                     setMaxSundayLessonsPerClassPerDay(val);
                                                     setMaxWeekendLessonsPerClassPerDay(Math.max(val, maxSaturdayLessonsPerClassPerDay));
+                                                    safeLocalStorage.setItem(`eduai_remedial_class_sun_max_${institutionId}`, String(val));
+                                                    persistTimingField(`eduai_remedial_class_sun_max_${institutionId}`, String(val), { maxSundayLessonsPerClassPerDay: val, max_sunday_lessons_per_class_per_day: val });
+                                                    if (val <= 8) {
+                                                        setSundayPeriodsCount(val);
+                                                        safeLocalStorage.setItem(`eduai_remedial_sun_periods_${institutionId}`, String(val));
+                                                        persistTimingField(`eduai_remedial_sun_periods_${institutionId}`, val, { sundayPeriodsCount: val });
+                                                    }
                                                 }}
                                                 className="w-full bg-slate-50 dark:bg-slate-800/80 border border-amber-300 dark:border-amber-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                             >
@@ -12144,7 +12657,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                         <div className="max-h-[300px] overflow-y-auto space-y-3 custom-scrollbar">
                             {prefectsList.map(prefect => {
-                                const course = courses.find(c => c.id === prefect.courseId);
+                                const course = combinedCourses.find(c => c.id === prefect.courseId);
                                 return (
                                     <div key={prefect.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-800/50 transition-all">
                                         <div>
@@ -12785,7 +13298,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
                                     >
                                         <option value="All">All Classes / Grades</option>
-                                        {courses.map(c => (
+                                        {combinedCourses.map(c => (
                                             <option key={c.id} value={c.id}>{c.name}</option>
                                         ))}
                                     </select>
@@ -12831,7 +13344,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, courses, autoHideUnallocatedClasses).map(cls => (
+                                                    {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
                                                         <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                                                             <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
                                                                 {cls.shortCode}
@@ -12888,7 +13401,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, courses, autoHideUnallocatedClasses).map(cls => (
+                                                    {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
                                                         <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                                                             <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
                                                                 {cls.shortCode}
@@ -12957,7 +13470,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, courses, autoHideUnallocatedClasses).map(cls => (
+                                                    {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
                                                         <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                                                             <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
                                                                 {cls.shortCode}
@@ -13390,7 +13903,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         {printingPrefect.name}
                                     </h3>
                                     <p className="text-xs font-black uppercase text-indigo-600 mt-0.5">
-                                        Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
+                                        Stream: {combinedCourses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
                                     </p>
                                 </div>
 
@@ -13437,7 +13950,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 onClick={() => downloadPrefectCardPdf(
                                     printingPrefect,
                                     prefectQrUrl,
-                                    courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class',
+                                    combinedCourses.find(c => c.id === printingPrefect.courseId)?.name || 'Class',
                                     currentInstitution?.name || 'School Remedial Program',
                                     currentInstitution?.logoUrl || (currentInstitution as any)?.logo_url || (currentInstitution as any)?.logo || null
                                 )}
@@ -13479,7 +13992,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 {printingPrefect.name}
                             </h3>
                             <p className="text-xs font-black uppercase text-indigo-600 mt-1">
-                                Stream: {courses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
+                                Stream: {combinedCourses.find(c => c.id === printingPrefect.courseId)?.name || 'Class'}
                             </p>
                         </div>
                         
@@ -13559,7 +14072,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
                                     >
                                         <option value="">-- Select Class --</option>
-                                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {combinedCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -13676,7 +14189,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                                     >
                                         <option value="">-- Select Class --</option>
-                                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {combinedCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
 
@@ -13730,7 +14243,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 const next = e.target.checked;
                                                 setIsJointAlloc(next);
                                                 if (next && jointStreamsSelected.length === 0 && availableStreamsForAlloc.length > 0) {
-                                                    setJointStreamsSelected(availableStreamsForAlloc.slice(0, 2));
+                                                    setJointStreamsSelected([...availableStreamsForAlloc]);
                                                 }
                                             }}
                                             className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700"
@@ -13741,7 +14254,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 Joint Class / Multi-Stream Allocation
                                             </span>
                                             <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                                                Enable when one teacher teaches a subject (e.g. CRE, IRE, Electives) for multiple streams at once.
+                                                Enable when one teacher teaches a subject (e.g. CRE, IRE, Electives) for multiple streams simultaneously (supports 2, 3, 4, 5+ streams).
                                             </p>
                                         </div>
                                     </label>
@@ -13768,7 +14281,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         onClick={() => setJointStreamsSelected([...availableStreamsForAlloc])}
                                                         className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
                                                     >
-                                                        Select All
+                                                        Select All ({availableStreamsForAlloc.length})
                                                     </button>
                                                     <span className="text-emerald-300 dark:text-emerald-700">•</span>
                                                     <button
@@ -13815,19 +14328,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </p>
                                         )}
 
-                                        {/* Additional / Custom Stream Adder */}
+                                        {/* Additional / Custom Stream Adder (supports comma / plus / semicolon separated lists) */}
                                         <div className="flex items-center gap-2 pt-1">
                                             <input
                                                 type="text"
-                                                placeholder="Add custom stream (e.g. East, West, North, Red)..."
+                                                placeholder="Add custom streams (e.g. East, West, North, South, Stream A)..."
                                                 value={customJointStream}
                                                 onChange={e => setCustomJointStream(e.target.value)}
                                                 onKeyDown={e => {
                                                     if (e.key === 'Enter') {
                                                         e.preventDefault();
-                                                        if (customJointStream.trim() && !jointStreamsSelected.includes(customJointStream.trim())) {
-                                                            setJointStreamsSelected(prev => [...prev, customJointStream.trim()]);
-                                                            setCustomJointStream('');
+                                                        if (customJointStream.trim()) {
+                                                            const tokens = customJointStream.split(/[,;/+]|\band\b/i).map(s => s.trim()).filter(Boolean);
+                                                            if (tokens.length > 0) {
+                                                                setJointStreamsSelected(prev => {
+                                                                    const set = new Set(prev);
+                                                                    tokens.forEach(t => set.add(t));
+                                                                    return Array.from(set);
+                                                                });
+                                                                setCustomJointStream('');
+                                                            }
                                                         }
                                                     }
                                                 }}
@@ -13836,17 +14356,49 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => {
-                                                    if (customJointStream.trim() && !jointStreamsSelected.includes(customJointStream.trim())) {
-                                                        setJointStreamsSelected(prev => [...prev, customJointStream.trim()]);
-                                                        setCustomJointStream('');
+                                                    if (customJointStream.trim()) {
+                                                        const tokens = customJointStream.split(/[,;/+]|\band\b/i).map(s => s.trim()).filter(Boolean);
+                                                        if (tokens.length > 0) {
+                                                            setJointStreamsSelected(prev => {
+                                                                const set = new Set(prev);
+                                                                tokens.forEach(t => set.add(t));
+                                                                return Array.from(set);
+                                                            });
+                                                            setCustomJointStream('');
+                                                        }
                                                     }
                                                 }}
                                                 disabled={!customJointStream.trim()}
                                                 className="px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-40 hover:bg-emerald-700 transition-all shadow-xs"
                                             >
-                                                + Add Stream
+                                                + Add Streams
                                             </button>
                                         </div>
+
+                                        {/* Show extra custom streams selected with remove buttons */}
+                                        {jointStreamsSelected.filter(s => !availableStreamsForAlloc.includes(s)).length > 0 && (
+                                            <div className="space-y-1.5 pt-1">
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Additional Custom Streams Added:</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {jointStreamsSelected.filter(s => !availableStreamsForAlloc.includes(s)).map(s => (
+                                                        <span
+                                                            key={s}
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800"
+                                                        >
+                                                            {s}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setJointStreamsSelected(prev => prev.filter(x => x !== s))}
+                                                                className="text-emerald-600 dark:text-emerald-400 hover:text-rose-600 cursor-pointer"
+                                                                title={`Remove ${s}`}
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Optional Cross-Class Joining */}
                                         <details className="text-[10px] text-slate-500 dark:text-slate-400 pt-1 cursor-pointer">
@@ -13858,7 +14410,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     Select other classes that attend this joint lesson at the same time:
                                                 </p>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    {courses.filter(c => c.id !== allocCourseId).map(c => {
+                                                    {combinedCourses.filter(c => c.id !== allocCourseId).map(c => {
                                                         const isChecked = jointCoursesSelected.includes(c.id);
                                                         return (
                                                             <button
@@ -13893,7 +14445,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     <p className="text-[10.5px] font-black uppercase text-emerald-900 dark:text-emerald-200">
                                                         {jointStreamsSelected.length > 0 
                                                             ? `Joint Streams: ${jointStreamsSelected.join(' + ')}` 
-                                                            : 'Please pick or add at least 2 streams above'}
+                                                            : 'Please pick or add streams above (supports 2, 3, 4, or unlimited streams)'}
                                                     </p>
                                                     <p className="text-[9px] text-slate-400 font-medium">
                                                         Lesson will show up for each stream's timetable and can be signed off by either stream prefect.
@@ -13901,8 +14453,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </div>
                                             </div>
                                             {jointStreamsSelected.length > 0 && (
-                                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                                                    {jointStreamsSelected.length} Streams
+                                                <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                                                    {jointStreamsSelected.length} Streams Combined
                                                 </span>
                                             )}
                                         </div>
@@ -14626,7 +15178,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                             <div>
                                 <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Classes</p>
-                                <p className="text-base font-black text-slate-800 dark:text-slate-200 mt-0.5">{courses.length}</p>
+                                <p className="text-base font-black text-slate-800 dark:text-slate-200 mt-0.5">{combinedCourses.length}</p>
                             </div>
                             <div>
                                 <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Teachers</p>
@@ -15136,7 +15688,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                 >
                                     <option value="">General</option>
-                                    {courses.map(c => (
+                                    {combinedCourses.map(c => (
                                         <option key={c.id} value={c.id}>{c.name}</option>
                                     ))}
                                 </select>
@@ -15171,7 +15723,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                     >
                                         <option value="">-- Choose Teacher --</option>
-                                        {users.filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase())).map(u => (
+                                        {tenantUsers.filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase())).map(u => (
                                             <option key={u.id} value={u.id}>
                                                 {u.name} ({u.role || 'Teacher'})
                                             </option>
@@ -15234,7 +15786,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         className="w-full bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-indigo-500 dark:text-white"
                                     >
                                         <option value="">-- Select Teacher --</option>
-                                        {users
+                                        {tenantUsers
                                             .filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase()))
                                             .filter(u => !dutyTeacherList.some(e => e.teacherId === u.id))
                                             .map(u => (
@@ -15303,7 +15855,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             Duty Teachers — {dutyModalWeekday} ({dutyTeacherList.length})
                                         </p>
                                         {dutyTeacherList.map((entry, idx) => {
-                                            const t = users.find(u => u.id === entry.teacherId);
+                                            const t = tenantUsers.find(u => u.id === entry.teacherId);
                                             return (
                                                 <div key={entry.teacherId} className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
                                                     <div className="flex items-center gap-2">
