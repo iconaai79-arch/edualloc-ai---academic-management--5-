@@ -1046,7 +1046,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     getStrParam(req.query.staff_id) ||
                     getStrParam(req.query.studentId) ||
                     getStrParam(req.query.student_id);
-                const isScopedToTenant = Boolean(targetInstParam && targetInstParam !== 'ALL');
+                const isScopedToTenant = Boolean(targetInstParam && targetInstParam !== 'ALL' && targetInstParam !== 'SYSTEM' && targetInstParam !== 'all');
                 if (!hasSpecificIdentifier && !isScopedToTenant) {
                     console.info(`[API GET] Blocked unauthenticated global bulk fetch for '${moduleName}'. Returning empty list.`);
                     return res.status(200).json([]);
@@ -1054,11 +1054,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Non-superadmins MUST ALWAYS be strictly scoped to their assigned institution
-            const effectiveTenantInstId = (!isGroupOrSuperAdmin && user?.institutionId)
-                ? user.institutionId
-                : (targetInstParam && targetInstParam !== 'ALL' ? targetInstParam : undefined);
+            // 'SYSTEM' represents the pseudo-institution for system administrators, NOT a tenant UUID.
+            const isSystemOrAll = (val?: string) => !val || val === 'ALL' || val === 'all' || val === 'SYSTEM';
 
-            const shouldSkipTenancy = isGroupOrSuperAdmin && (!targetInstParam || targetInstParam === 'ALL');
+            const effectiveTenantInstId = (!isGroupOrSuperAdmin && user?.institutionId && !isSystemOrAll(user.institutionId))
+                ? user.institutionId
+                : (targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : undefined);
+
+            const shouldSkipTenancy = isGroupOrSuperAdmin && (!targetInstParam || isSystemOrAll(targetInstParam));
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
 
             // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)

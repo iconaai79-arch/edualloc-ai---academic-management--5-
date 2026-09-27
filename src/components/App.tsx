@@ -1714,9 +1714,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // ── PHASE 3: Context-Specific Extended Data ──────────────────────
             if (currentUser) {
+                const isSystemOrGlobal = (id?: string) => !id || id === 'SYSTEM' || id === 'GLOBAL' || id === 'ALL' || id === 'all';
                 const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
-                const explicitTargetInstId = instOverrideId || activeInstitution?.id || (currentUser?.institutionId && currentUser.institutionId !== 'GLOBAL' && currentUser.institutionId !== 'ALL' ? currentUser.institutionId : undefined);
-                const effectiveInstIdFinal: string | undefined = explicitTargetInstId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || undefined));
+                const explicitTargetInstId = instOverrideId 
+                    ? (!isSystemOrGlobal(instOverrideId) ? instOverrideId : undefined)
+                    : (activeInstitution?.id && !isSystemOrGlobal(activeInstitution.id) 
+                        ? activeInstitution.id 
+                        : (currentUser?.institutionId && !isSystemOrGlobal(currentUser.institutionId) 
+                            ? currentUser.institutionId 
+                            : undefined));
+                const effectiveInstIdFinal: string | undefined = explicitTargetInstId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id && !isSystemOrGlobal(activeInst.id) ? activeInst.id : undefined));
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstIdFinal || 'GLOBAL/ALL');
             

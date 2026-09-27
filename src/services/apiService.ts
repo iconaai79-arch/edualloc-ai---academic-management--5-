@@ -1978,10 +1978,14 @@ export const apiService = {
                 if (!effectiveInstId && !isGlobalModule && !isGlobalUserSearch) {
                     const savedInst = ls.get('current_institution') as any;
                     const savedUser = ls.get('current_user') as any;
-                    effectiveInstId = savedInst?.id || savedUser?.institutionId || savedUser?.institution_id;
+                    const isSuper = savedUser?.role === 'super_admin' || savedUser?.role === 'group_admin';
+                    if (!isSuper) {
+                        effectiveInstId = savedInst?.id || savedUser?.institutionId || savedUser?.institution_id;
+                    }
                 }
 
-                if (effectiveInstId && effectiveInstId !== 'ALL') {
+                const isSystemOrAllParam = !effectiveInstId || effectiveInstId === 'ALL' || effectiveInstId === 'all' || effectiveInstId === 'SYSTEM';
+                if (effectiveInstId && !isSystemOrAllParam) {
                     url.searchParams.append('institutionId', effectiveInstId);
                 }
                 if (countyId) url.searchParams.append('countyId', countyId);
