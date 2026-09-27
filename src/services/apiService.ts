@@ -2610,6 +2610,11 @@ export const apiService = {
                 if (item.studentId && (typeof item.studentId !== 'string' || item.studentId.startsWith('ext_') || item.studentId.startsWith('temp_') || item.studentId.trim() === '')) {
                     item.studentId = null;
                 }
+                // Normalize `items` to always be an array — DB may return JSONB as a string
+                if (typeof item.items === 'string') {
+                    try { item.items = JSON.parse(item.items); } catch (e) { item.items = []; }
+                }
+                if (!Array.isArray(item.items)) item.items = [];
                 delete item.created_at;
                 delete item.createdAt;
                 delete item.updated_at;
