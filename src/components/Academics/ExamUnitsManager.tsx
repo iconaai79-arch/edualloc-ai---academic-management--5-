@@ -271,12 +271,6 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
         }, 0);
     }, [st, singleSubjectPapers, selectedSubjectFilter, getStudentPaperMark]);
 
-    const hasAnyEnteredValue = singleSubjectPapers.some((p: any) => {
-        const markInfo = getStudentPaperMark(st, p.key, selectedSubjectFilter, p.label);
-        const val = (st as any)[p.key] !== undefined ? (st as any)[p.key] : (markInfo.hasMark ? markInfo.val : undefined);
-        return val !== undefined && val !== null && val !== '';
-    });
-
     return (
         <tr className={`hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition-colors ${isUnsaved ? 'bg-amber-50/40 dark:bg-amber-950/20' : ''}`}>
             <td className="px-4 py-3 font-mono font-bold text-slate-900 dark:text-white">{st.admNo}</td>
@@ -306,21 +300,6 @@ const StudentSubjectRow: React.FC<StudentSubjectRowProps> = React.memo(({
             <td className="px-4 py-3 text-center font-mono font-black text-slate-900 dark:text-white">
                 <span className="text-sm font-extrabold text-indigo-700 dark:text-indigo-300">{rawTotal}</span>
                 <span className="text-[11px] text-slate-400 font-semibold ml-1">/ {singleSubjectMaxTotal}</span>
-            </td>
-            <td className="px-4 py-3 text-center">
-                {isUnsaved ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 text-[10px] font-black rounded-lg uppercase tracking-wider shadow-sm animate-pulse border border-amber-300 dark:border-amber-700">
-                        ● Unsaved
-                    </span>
-                ) : hasAnyEnteredValue ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 text-[10px] font-black rounded-lg uppercase tracking-wider border border-emerald-300 dark:border-emerald-800">
-                        ✓ Saved
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800/80 text-slate-400 text-[10px] font-bold rounded-lg uppercase tracking-wider">
-                        Empty
-                    </span>
-                )}
             </td>
         </tr>
     );
@@ -3474,9 +3453,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         // Immediate 0ms exit when no exam is created or selected
         if (!activeExam) return [];
 
-        // While Add/Edit exam modal is open, preserve previously computed dashboard rows
-        // to avoid freezing the UI thread with synchronous calculations across all students & classes
-        if (isAddExamModalOpen && lastClassPaperRowsRef.current.length > 0) {
+        // While Add/Edit exam modal or Marks Entry (Broadsheet) modal is open, preserve previously computed dashboard rows
+        // to avoid freezing the UI thread with synchronous calculations across all students & classes during rapid typing
+        if ((isAddExamModalOpen || isBroadsheetModalOpen) && lastClassPaperRowsRef.current.length > 0) {
             return lastClassPaperRowsRef.current;
         }
 
@@ -3651,7 +3630,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         lastClassPaperRowsRef.current = computedRows;
         return computedRows;
-    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark, getSubjectTeacherForClass, isAddExamModalOpen]);
+    }, [activeExamClasses, broadsheetStudentRows, activeExam, instId, currentInstitution, subjects, testedPaperConfigs, users, examMarksStore, getRegisteredSubjectsForClass, allRealStudents, isStudentInTargetClasses, resolveCleanAdmNo, resolveCleanStudentName, getCandidateKeysForPaper, getStudentPaperMark, getSubjectTeacherForClass, isAddExamModalOpen, isBroadsheetModalOpen]);
 
     const displayClassPaperRows = useMemo(() => {
         // Filter by grade, then hide streams that have zero enrolled learners
@@ -5468,7 +5447,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
                                         className={`px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                                             unsavedStudentAdms.size > 0
-                                                ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400 animate-pulse'
+                                                ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400'
                                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                         }`}
                                     >
@@ -5582,7 +5561,6 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                     ))}
 
                                                     <th className="px-4 py-3 text-center bg-slate-800">Raw Score Total</th>
-                                                    <th className="px-4 py-3 text-center w-28 bg-slate-800">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-medium">
@@ -5604,7 +5582,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                                 ))}
                                                 {filteredStudentRows.length === 0 && (
                                                     <tr>
-                                                        <td colSpan={singleSubjectPapers.length + 4} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                        <td colSpan={singleSubjectPapers.length + 3} className="px-6 py-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
                                                             🔍 No students match "{searchStudentQuery}"
                                                         </td>
                                                     </tr>
@@ -5723,7 +5701,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                         onClick={() => handleSaveSubjectMarks(selectedSubjectFilter)}
                                         className={`px-5 py-2 font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer disabled:opacity-50 ${
                                             unsavedStudentAdms.size > 0
-                                                ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400 animate-pulse'
+                                                ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400'
                                                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                         }`}
                                     >
