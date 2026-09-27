@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty } from '../types';
 import { apiService, safeLocalStorage } from '../services/apiService';
@@ -193,14 +193,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [weekdayHourlyRate, setWeekdayHourlyRate] = useState<number>(1000);
     const [weekendHourlyRate, setWeekendHourlyRate] = useState<number>(1500);
     const [weekdayDutyFlatRate, setWeekdayDutyFlatRate] = useState<number>(200);
-    const [weekdayStartTime, setWeekdayStartTime] = useState<string>('16:00');
-    const [weekdayEndTime, setWeekdayEndTime] = useState<string>('18:00');
-    const [weekendStartTime, setWeekendStartTime] = useState<string>('08:00');
-    const [weekendEndTime, setWeekendEndTime] = useState<string>('12:00');
-    const [saturdayStartTime, setSaturdayStartTime] = useState<string>('08:00');
-    const [saturdayEndTime, setSaturdayEndTime] = useState<string>('12:00');
-    const [sundayStartTime, setSundayStartTime] = useState<string>('09:00');
-    const [sundayEndTime, setSundayEndTime] = useState<string>('13:00');
+    const [weekdayStartTime, setWeekdayStartTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_wd_start_${institutionId}`)) || '16:00';
+    });
+    const [weekdayEndTime, setWeekdayEndTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_wd_end_${institutionId}`)) || '18:00';
+    });
+    const [weekendStartTime, setWeekendStartTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_start_${institutionId}`)) || '08:00';
+    });
+    const [weekendEndTime, setWeekendEndTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_end_${institutionId}`)) || '12:00';
+    });
+    const [saturdayStartTime, setSaturdayStartTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_start_${institutionId}`)) || '08:00';
+    });
+    const [saturdayEndTime, setSaturdayEndTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_end_${institutionId}`)) || '12:00';
+    });
+    const [sundayStartTime, setSundayStartTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sun_start_${institutionId}`)) || '09:00';
+    });
+    const [sundayEndTime, setSundayEndTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sun_end_${institutionId}`)) || '13:00';
+    });
     const [maxLessonsPerClassPerDay, setMaxLessonsPerClassPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerClassPerDay, setMaxWeekendLessonsPerClassPerDay] = useState<number>(2);
     const [maxSaturdayLessonsPerClassPerDay, setMaxSaturdayLessonsPerClassPerDay] = useState<number>(3);
@@ -211,25 +227,51 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [maxSundayLessonsPerTeacherPerDay, setMaxSundayLessonsPerTeacherPerDay] = useState<number>(2);
     const [maxLessonsPerDay, setMaxLessonsPerDay] = useState<number>(1);
     const [maxWeekendLessonsPerDay, setMaxWeekendLessonsPerDay] = useState<number>(2);
-    const [saturdayPeriodsCount, setSaturdayPeriodsCount] = useState<number>(5);
-    const [sundayPeriodsCount, setSundayPeriodsCount] = useState<number>(4);
+    const [saturdayPeriodsCount, setSaturdayPeriodsCount] = useState<number>(() => {
+        const cached = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_periods_${institutionId}`) : null;
+        return cached ? Number(cached) : 5;
+    });
+    const [sundayPeriodsCount, setSundayPeriodsCount] = useState<number>(() => {
+        const cached = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_periods_${institutionId}`) : null;
+        return cached ? Number(cached) : 4;
+    });
     const [feePerStudent, setFeePerStudent] = useState<number>(200);
     const [termFee, setTermFee] = useState<number>(3000);
     const [weekendBreakStartTime, setWeekendBreakStartTime] = useState<string>('10:00');
     const [weekendBreakEndTime, setWeekendBreakEndTime] = useState<string>('10:30');
     const [weekendBreakLabel, setWeekendBreakLabel] = useState<string>('Tea & Refreshment Break');
     const [includeWeekendBreak, setIncludeWeekendBreak] = useState<boolean>(true);
-    const [saturdayBreakStartTime, setSaturdayBreakStartTime] = useState<string>('10:00');
-    const [saturdayBreakEndTime, setSaturdayBreakEndTime] = useState<string>('10:30');
-    const [saturdayBreakLabel, setSaturdayBreakLabel] = useState<string>('Saturday Refreshment Break');
-    const [includeSaturdayBreak, setIncludeSaturdayBreak] = useState<boolean>(true);
-    const [sundayBreakStartTime, setSundayBreakStartTime] = useState<string>('11:00');
-    const [sundayBreakEndTime, setSundayBreakEndTime] = useState<string>('11:30');
-    const [sundayBreakLabel, setSundayBreakLabel] = useState<string>('Sunday Recess Break');
-    const [includeSundayBreak, setIncludeSundayBreak] = useState<boolean>(true);
+    const [saturdayBreakStartTime, setSaturdayBreakStartTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_break_start_${institutionId}`)) || '10:00';
+    });
+    const [saturdayBreakEndTime, setSaturdayBreakEndTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_break_end_${institutionId}`)) || '10:30';
+    });
+    const [saturdayBreakLabel, setSaturdayBreakLabel] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sat_break_label_${institutionId}`)) || 'Saturday Refreshment Break';
+    });
+    const [includeSaturdayBreak, setIncludeSaturdayBreak] = useState<boolean>(() => {
+        const cached = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_inc_break_${institutionId}`) : null;
+        return cached !== null ? cached === 'true' : true;
+    });
+    const [sundayBreakStartTime, setSundayBreakStartTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sun_break_start_${institutionId}`)) || '11:00';
+    });
+    const [sundayBreakEndTime, setSundayBreakEndTime] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sun_break_end_${institutionId}`)) || '11:30';
+    });
+    const [sundayBreakLabel, setSundayBreakLabel] = useState<string>(() => {
+        return (institutionId && safeLocalStorage.getItem(`eduai_remedial_sun_break_label_${institutionId}`)) || 'Sunday Recess Break';
+    });
+    const [includeSundayBreak, setIncludeSundayBreak] = useState<boolean>(() => {
+        const cached = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_inc_break_${institutionId}`) : null;
+        return cached !== null ? cached === 'true' : true;
+    });
     const [teacherPreferences, setTeacherPreferences] = useState<Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>>({});
     const [isSavingTeacherPrefs, setIsSavingTeacherPrefs] = useState(false);
     const [lastSavedPrefsTime, setLastSavedPrefsTime] = useState<string | null>(null);
+    const [isSavingTimings, setIsSavingTimings] = useState(false);
+    const [lastSavedTimingsTime, setLastSavedTimingsTime] = useState<string | null>(null);
     const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
     const [cancellationCutoffHours, setCancellationCutoffHours] = useState<number>(3);
     const [confirmationTimeoutMinutes, setConfirmationTimeoutMinutes] = useState<number>(45);
@@ -322,18 +364,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
         setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
         setWeekdayDutyFlatRate(r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200);
-        setWeekdayStartTime(r.weekdayStartTime || r.weekday_start_time || '16:00');
-        setWeekdayEndTime(r.weekdayEndTime || r.weekday_end_time || '18:00');
-
         const cachedSatStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_start_${institutionId}`) : null;
         const cachedSatEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_end_${institutionId}`) : null;
         const cachedSunStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_start_${institutionId}`) : null;
         const cachedSunEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_end_${institutionId}`) : null;
+        const cachedSunPeriods = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_periods_${institutionId}`) : null;
+        const cachedSatPeriods = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_periods_${institutionId}`) : null;
+        const cachedWdStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_wd_start_${institutionId}`) : null;
+        const cachedWdEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_wd_end_${institutionId}`) : null;
 
-        const satStart = r.saturdayStartTime || r.saturday_start_time || meta.saturdayStartTime || meta.saturday_start_time || cachedSatStart || r.weekendStartTime || r.weekend_start_time || '08:00';
-        const satEnd = r.saturdayEndTime || r.saturday_end_time || meta.saturdayEndTime || meta.saturday_end_time || cachedSatEnd || r.weekendEndTime || r.weekend_end_time || '12:00';
-        const sunStart = r.sundayStartTime || r.sunday_start_time || meta.sundayStartTime || meta.sunday_start_time || cachedSunStart || '09:00';
-        const sunEnd = r.sundayEndTime || r.sunday_end_time || meta.sundayEndTime || meta.sunday_end_time || cachedSunEnd || '13:00';
+        const wdStart = cachedWdStart || r.weekdayStartTime || r.weekday_start_time || '16:00';
+        const wdEnd = cachedWdEnd || r.weekdayEndTime || r.weekday_end_time || '18:00';
+        setWeekdayStartTime(wdStart);
+        setWeekdayEndTime(wdEnd);
+
+        const satStart = cachedSatStart || r.saturdayStartTime || r.saturday_start_time || meta.saturdayStartTime || meta.saturday_start_time || r.weekendStartTime || r.weekend_start_time || '08:00';
+        const satEnd = cachedSatEnd || r.saturdayEndTime || r.saturday_end_time || meta.saturdayEndTime || meta.saturday_end_time || r.weekendEndTime || r.weekend_end_time || '12:00';
+        const sunStart = cachedSunStart || r.sundayStartTime || r.sunday_start_time || meta.sundayStartTime || meta.sunday_start_time || '09:00';
+        const sunEnd = cachedSunEnd || r.sundayEndTime || r.sunday_end_time || meta.sundayEndTime || meta.sunday_end_time || '13:00';
         setSaturdayStartTime(satStart);
         setSaturdayEndTime(satEnd);
         setSundayStartTime(sunStart);
@@ -357,8 +405,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const teacherSatLimit = r.maxSaturdayLessonsPerTeacherPerDay ?? r.max_saturday_lessons_per_teacher_per_day ?? r.metadata?.maxSaturdayLessonsPerTeacherPerDay ?? r.metadata?.max_saturday_lessons_per_teacher_per_day ?? teacherWeLimit ?? 3;
         const teacherSunLimit = r.maxSundayLessonsPerTeacherPerDay ?? r.max_sunday_lessons_per_teacher_per_day ?? r.metadata?.maxSundayLessonsPerTeacherPerDay ?? r.metadata?.max_sunday_lessons_per_teacher_per_day ?? teacherWeLimit ?? 2;
 
-        const satPeriods = r.saturdayPeriodsCount ?? r.saturday_periods_count ?? r.metadata?.saturdayPeriodsCount ?? r.metadata?.saturday_periods_count ?? 5;
-        const sunPeriods = r.sundayPeriodsCount ?? r.sunday_periods_count ?? r.metadata?.sundayPeriodsCount ?? r.metadata?.sunday_periods_count ?? 4;
+        const satPeriods = (cachedSatPeriods ? Number(cachedSatPeriods) : undefined) ?? r.saturdayPeriodsCount ?? r.saturday_periods_count ?? r.metadata?.saturdayPeriodsCount ?? r.metadata?.saturday_periods_count ?? 5;
+        const sunPeriods = (cachedSunPeriods ? Number(cachedSunPeriods) : undefined) ?? r.sundayPeriodsCount ?? r.sunday_periods_count ?? r.metadata?.sundayPeriodsCount ?? r.metadata?.sunday_periods_count ?? 4;
 
         setMaxLessonsPerClassPerDay(classWdLimit);
         setMaxWeekendLessonsPerClassPerDay(classWeLimit);
@@ -384,25 +432,44 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         setWeekendBreakLabel(legBreakLabel);
         setIncludeWeekendBreak(loadedIncludeBreak !== false);
 
-        const satBreakStart = r.saturdayBreakStartTime || r.saturday_break_start_time || r.metadata?.saturdayBreakStartTime || r.metadata?.saturday_break_start_time || legBreakStart;
-        const satBreakEnd = r.saturdayBreakEndTime || r.saturday_break_end_time || r.metadata?.saturdayBreakEndTime || r.metadata?.saturday_break_end_time || legBreakEnd;
-        const satBreakLabel = r.saturdayBreakLabel || r.saturday_break_label || r.metadata?.saturdayBreakLabel || r.metadata?.saturday_break_label || 'Saturday Refreshment Break';
-        const satIncBreak = r.includeSaturdayBreak ?? r.include_saturday_break ?? r.metadata?.includeSaturdayBreak ?? r.metadata?.include_saturday_break ?? loadedIncludeBreak;
+        const cachedSatBreakStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_break_start_${institutionId}`) : null;
+        const cachedSatBreakEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_break_end_${institutionId}`) : null;
+        const cachedSatBreakLabel = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_break_label_${institutionId}`) : null;
+        const cachedSatIncBreak = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_inc_break_${institutionId}`) : null;
+
+        const satBreakStart = cachedSatBreakStart || r.saturdayBreakStartTime || r.saturday_break_start_time || r.metadata?.saturdayBreakStartTime || r.metadata?.saturday_break_start_time || legBreakStart;
+        const satBreakEnd = cachedSatBreakEnd || r.saturdayBreakEndTime || r.saturday_break_end_time || r.metadata?.saturdayBreakEndTime || r.metadata?.saturday_break_end_time || legBreakEnd;
+        const satBreakLabel = cachedSatBreakLabel || r.saturdayBreakLabel || r.saturday_break_label || r.metadata?.saturdayBreakLabel || r.metadata?.saturday_break_label || 'Saturday Refreshment Break';
+        const satIncBreak = cachedSatIncBreak !== null ? (cachedSatIncBreak === 'true') : (r.includeSaturdayBreak ?? r.include_saturday_break ?? r.metadata?.includeSaturdayBreak ?? r.metadata?.include_saturday_break ?? loadedIncludeBreak);
 
         setSaturdayBreakStartTime(satBreakStart);
         setSaturdayBreakEndTime(satBreakEnd);
         setSaturdayBreakLabel(satBreakLabel);
         setIncludeSaturdayBreak(satIncBreak !== false);
 
-        const sunBreakStart = r.sundayBreakStartTime || r.sunday_break_start_time || r.metadata?.sundayBreakStartTime || r.metadata?.sunday_break_start_time || '11:00';
-        const sunBreakEnd = r.sundayBreakEndTime || r.sunday_break_end_time || r.metadata?.sundayBreakEndTime || r.metadata?.sunday_break_end_time || '11:30';
-        const sunBreakLabel = r.sundayBreakLabel || r.sunday_break_label || r.metadata?.sundayBreakLabel || r.metadata?.sunday_break_label || 'Sunday Recess Break';
-        const sunIncBreak = r.includeSundayBreak ?? r.include_sunday_break ?? r.metadata?.includeSundayBreak ?? r.metadata?.include_sunday_break ?? loadedIncludeBreak;
+        const cachedSunBreakStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_break_start_${institutionId}`) : null;
+        const cachedSunBreakEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_break_end_${institutionId}`) : null;
+        const cachedSunBreakLabel = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_break_label_${institutionId}`) : null;
+        const cachedSunIncBreak = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_inc_break_${institutionId}`) : null;
+
+        const sunBreakStart = cachedSunBreakStart || r.sundayBreakStartTime || r.sunday_break_start_time || r.metadata?.sundayBreakStartTime || r.metadata?.sunday_break_start_time || '11:00';
+        const sunBreakEnd = cachedSunBreakEnd || r.sundayBreakEndTime || r.sunday_break_end_time || r.metadata?.sundayBreakEndTime || r.metadata?.sunday_break_end_time || '11:30';
+        const sunBreakLabel = cachedSunBreakLabel || r.sundayBreakLabel || r.sunday_break_label || r.metadata?.sundayBreakLabel || r.metadata?.sunday_break_label || 'Sunday Recess Break';
+        const sunIncBreak = cachedSunIncBreak !== null ? (cachedSunIncBreak === 'true') : (r.includeSundayBreak ?? r.include_sunday_break ?? r.metadata?.includeSundayBreak ?? r.metadata?.include_sunday_break ?? loadedIncludeBreak);
 
         setSundayBreakStartTime(sunBreakStart);
         setSundayBreakEndTime(sunBreakEnd);
         setSundayBreakLabel(sunBreakLabel);
         setIncludeSundayBreak(sunIncBreak !== false);
+
+        if (institutionId) {
+            safeLocalStorage.setItem(`eduai_remedial_sat_start_${institutionId}`, satStart);
+            safeLocalStorage.setItem(`eduai_remedial_sat_end_${institutionId}`, satEnd);
+            safeLocalStorage.setItem(`eduai_remedial_sun_start_${institutionId}`, sunStart);
+            safeLocalStorage.setItem(`eduai_remedial_sun_end_${institutionId}`, sunEnd);
+            safeLocalStorage.setItem(`eduai_remedial_sat_periods_${institutionId}`, String(satPeriods));
+            safeLocalStorage.setItem(`eduai_remedial_sun_periods_${institutionId}`, String(sunPeriods));
+        }
         const loadedTeacherPrefs = r.teacherPreferences || r.teacher_preferences || r.metadata?.teacherPreferences || r.metadata?.teacher_preferences || {};
         if (loadedTeacherPrefs && typeof loadedTeacherPrefs === 'object' && Object.keys(loadedTeacherPrefs).length > 0) {
             setTeacherPreferences(prev => ({ ...prev, ...loadedTeacherPrefs }));
@@ -2377,23 +2444,55 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         saveTeacherPreferencesLive(nextPrefs);
     };
 
-    // Save Rate Settings (including teacher preferences)
-    const handleSaveRates = async () => {
+    const timingSaveTimerRef = useRef<any>(null);
+
+    // Save Rate Settings (internal implementation with optional silence & overrides)
+    const handleSaveRatesInternal = async (silent = false, overrides: Partial<any> = {}) => {
         try {
-            safeLocalStorage.setItem(`eduai_remedial_sat_start_${institutionId}`, saturdayStartTime);
-            safeLocalStorage.setItem(`eduai_remedial_sat_end_${institutionId}`, saturdayEndTime);
-            safeLocalStorage.setItem(`eduai_remedial_sun_start_${institutionId}`, sundayStartTime);
-            safeLocalStorage.setItem(`eduai_remedial_sun_end_${institutionId}`, sundayEndTime);
-            safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_class_wd_max_${institutionId}`, String(maxLessonsPerClassPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_class_we_max_${institutionId}`, String(maxWeekendLessonsPerClassPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_class_sat_max_${institutionId}`, String(maxSaturdayLessonsPerClassPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_class_sun_max_${institutionId}`, String(maxSundayLessonsPerClassPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_teacher_sat_max_${institutionId}`, String(maxSaturdayLessonsPerTeacherPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_teacher_sun_max_${institutionId}`, String(maxSundayLessonsPerTeacherPerDay));
-            safeLocalStorage.setItem(`eduai_remedial_sat_periods_${institutionId}`, String(saturdayPeriodsCount));
-            safeLocalStorage.setItem(`eduai_remedial_sun_periods_${institutionId}`, String(sundayPeriodsCount));
-            safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(teacherPreferences));
+            const effSatStart = overrides.saturdayStartTime ?? saturdayStartTime;
+            const effSatEnd = overrides.saturdayEndTime ?? saturdayEndTime;
+            const effSunStart = overrides.sundayStartTime ?? sundayStartTime;
+            const effSunEnd = overrides.sundayEndTime ?? sundayEndTime;
+            const effWdStart = overrides.weekdayStartTime ?? weekdayStartTime;
+            const effWdEnd = overrides.weekdayEndTime ?? weekdayEndTime;
+            const effSatPeriods = overrides.saturdayPeriodsCount ?? saturdayPeriodsCount;
+            const effSunPeriods = overrides.sundayPeriodsCount ?? sundayPeriodsCount;
+            const effSatBreakStart = overrides.saturdayBreakStartTime ?? saturdayBreakStartTime;
+            const effSatBreakEnd = overrides.saturdayBreakEndTime ?? saturdayBreakEndTime;
+            const effSatBreakLabel = overrides.saturdayBreakLabel ?? saturdayBreakLabel;
+            const effSatIncBreak = overrides.includeSaturdayBreak ?? includeSaturdayBreak;
+            const effSunBreakStart = overrides.sundayBreakStartTime ?? sundayBreakStartTime;
+            const effSunBreakEnd = overrides.sundayBreakEndTime ?? sundayBreakEndTime;
+            const effSunBreakLabel = overrides.sundayBreakLabel ?? sundayBreakLabel;
+            const effSunIncBreak = overrides.includeSundayBreak ?? includeSundayBreak;
+
+            if (institutionId) {
+                safeLocalStorage.setItem(`eduai_remedial_sat_start_${institutionId}`, effSatStart);
+                safeLocalStorage.setItem(`eduai_remedial_sat_end_${institutionId}`, effSatEnd);
+                safeLocalStorage.setItem(`eduai_remedial_sun_start_${institutionId}`, effSunStart);
+                safeLocalStorage.setItem(`eduai_remedial_sun_end_${institutionId}`, effSunEnd);
+                safeLocalStorage.setItem(`eduai_remedial_wd_start_${institutionId}`, effWdStart);
+                safeLocalStorage.setItem(`eduai_remedial_wd_end_${institutionId}`, effWdEnd);
+                safeLocalStorage.setItem(`eduai_remedial_sat_periods_${institutionId}`, String(effSatPeriods));
+                safeLocalStorage.setItem(`eduai_remedial_sun_periods_${institutionId}`, String(effSunPeriods));
+                safeLocalStorage.setItem(`eduai_remedial_sat_break_start_${institutionId}`, effSatBreakStart);
+                safeLocalStorage.setItem(`eduai_remedial_sat_break_end_${institutionId}`, effSatBreakEnd);
+                safeLocalStorage.setItem(`eduai_remedial_sat_break_label_${institutionId}`, effSatBreakLabel);
+                safeLocalStorage.setItem(`eduai_remedial_sat_inc_break_${institutionId}`, String(effSatIncBreak));
+                safeLocalStorage.setItem(`eduai_remedial_sun_break_start_${institutionId}`, effSunBreakStart);
+                safeLocalStorage.setItem(`eduai_remedial_sun_break_end_${institutionId}`, effSunBreakEnd);
+                safeLocalStorage.setItem(`eduai_remedial_sun_break_label_${institutionId}`, effSunBreakLabel);
+                safeLocalStorage.setItem(`eduai_remedial_sun_inc_break_${institutionId}`, String(effSunIncBreak));
+                safeLocalStorage.setItem(`eduai_remedial_weekend_max_${institutionId}`, String(maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay));
+                safeLocalStorage.setItem(`eduai_remedial_class_wd_max_${institutionId}`, String(maxLessonsPerClassPerDay));
+                safeLocalStorage.setItem(`eduai_remedial_class_we_max_${institutionId}`, String(maxWeekendLessonsPerClassPerDay));
+                safeLocalStorage.setItem(`eduai_remedial_class_sat_max_${institutionId}`, String(maxSaturdayLessonsPerClassPerDay));
+                safeLocalStorage.setItem(`eduai_remedial_class_sun_max_${institutionId}`, String(maxSundayLessonsPerClassPerDay));
+                safeLocalStorage.setItem(`eduai_remedial_teacher_sat_max_${institutionId}`, String(maxSaturdayLessonsPerTeacherPerDay));
+                safeLocalStorage.setItem(`eduai_remedial_teacher_sun_max_${institutionId}`, String(maxSundayLessonsPerTeacherPerDay));
+                safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(teacherPreferences));
+            }
+
             const stableId = rateSetting?.id || `rate_setting_${institutionId}`;
             const existingMeta = (rateSetting?.metadata && typeof rateSetting.metadata === 'object') 
                 ? rateSetting.metadata 
@@ -2408,22 +2507,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 weekend_hourly_rate: weekendHourlyRate,
                 weekdayDutyFlatRate,
                 weekday_duty_flat_rate: weekdayDutyFlatRate,
-                weekdayStartTime,
-                weekday_start_time: weekdayStartTime,
-                weekdayEndTime,
-                weekday_end_time: weekdayEndTime,
-                weekendStartTime: saturdayStartTime,
-                weekend_start_time: saturdayStartTime,
-                weekendEndTime: saturdayEndTime,
-                weekend_end_time: saturdayEndTime,
-                saturdayStartTime,
-                saturday_start_time: saturdayStartTime,
-                saturdayEndTime,
-                saturday_end_time: saturdayEndTime,
-                sundayStartTime,
-                sunday_start_time: sundayStartTime,
-                sundayEndTime,
-                sunday_end_time: sundayEndTime,
+                weekdayStartTime: effWdStart,
+                weekday_start_time: effWdStart,
+                weekdayEndTime: effWdEnd,
+                weekday_end_time: effWdEnd,
+                weekendStartTime: effSatStart,
+                weekend_start_time: effSatStart,
+                weekendEndTime: effSatEnd,
+                weekend_end_time: effSatEnd,
+                saturdayStartTime: effSatStart,
+                saturday_start_time: effSatStart,
+                saturdayEndTime: effSatEnd,
+                saturday_end_time: effSatEnd,
+                sundayStartTime: effSunStart,
+                sunday_start_time: effSunStart,
+                sundayEndTime: effSunEnd,
+                sunday_end_time: effSunEnd,
                 maxLessonsPerClassPerDay,
                 max_lessons_per_class_per_day: maxLessonsPerClassPerDay,
                 maxWeekendLessonsPerClassPerDay,
@@ -2440,10 +2539,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 max_saturday_lessons_per_teacher_per_day: maxSaturdayLessonsPerTeacherPerDay,
                 maxSundayLessonsPerTeacherPerDay,
                 max_sunday_lessons_per_teacher_per_day: maxSundayLessonsPerTeacherPerDay,
-                saturdayPeriodsCount,
-                saturday_periods_count: saturdayPeriodsCount,
-                sundayPeriodsCount,
-                sunday_periods_count: sundayPeriodsCount,
+                saturdayPeriodsCount: effSatPeriods,
+                saturday_periods_count: effSatPeriods,
+                sundayPeriodsCount: effSunPeriods,
+                sunday_periods_count: effSunPeriods,
                 maxLessonsPerDay: maxLessonsPerTeacherPerDay,
                 max_lessons_per_day: maxLessonsPerTeacherPerDay,
                 maxWeekendLessonsPerDay: maxWeekendLessonsPerTeacherPerDay,
@@ -2454,40 +2553,40 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 confirmation_timeout_minutes: confirmationTimeoutMinutes,
                 teacherPreferences,
                 teacher_preferences: teacherPreferences,
-                weekendBreakStartTime: saturdayBreakStartTime,
-                weekend_break_start_time: saturdayBreakStartTime,
-                weekendBreakEndTime: saturdayBreakEndTime,
-                weekend_break_end_time: saturdayBreakEndTime,
-                weekendBreakLabel: saturdayBreakLabel,
-                weekend_break_label: saturdayBreakLabel,
-                includeWeekendBreak: includeSaturdayBreak,
-                include_weekend_break: includeSaturdayBreak,
-                includeSaturdayBreak,
-                include_saturday_break: includeSaturdayBreak,
-                saturdayBreakStartTime,
-                saturday_break_start_time: saturdayBreakStartTime,
-                saturdayBreakEndTime,
-                saturday_break_end_time: saturdayBreakEndTime,
-                saturdayBreakLabel,
-                saturday_break_label: saturdayBreakLabel,
-                includeSundayBreak,
-                include_sunday_break: includeSundayBreak,
-                sundayBreakStartTime,
-                sunday_break_start_time: sundayBreakStartTime,
-                sundayBreakEndTime,
-                sunday_break_end_time: sundayBreakEndTime,
-                sundayBreakLabel,
-                sunday_break_label: sundayBreakLabel,
+                weekendBreakStartTime: effSatBreakStart,
+                weekend_break_start_time: effSatBreakStart,
+                weekendBreakEndTime: effSatBreakEnd,
+                weekend_break_end_time: effSatBreakEnd,
+                weekendBreakLabel: effSatBreakLabel,
+                weekend_break_label: effSatBreakLabel,
+                includeWeekendBreak: effSatIncBreak,
+                include_weekend_break: effSatIncBreak,
+                includeSaturdayBreak: effSatIncBreak,
+                include_saturday_break: effSatIncBreak,
+                saturdayBreakStartTime: effSatBreakStart,
+                saturday_break_start_time: effSatBreakStart,
+                saturdayBreakEndTime: effSatBreakEnd,
+                saturday_break_end_time: effSatBreakEnd,
+                saturdayBreakLabel: effSatBreakLabel,
+                saturday_break_label: effSatBreakLabel,
+                includeSundayBreak: effSunIncBreak,
+                include_sunday_break: effSunIncBreak,
+                sundayBreakStartTime: effSunBreakStart,
+                sunday_break_start_time: effSunBreakStart,
+                sundayBreakEndTime: effSunBreakEnd,
+                sunday_break_end_time: effSunBreakEnd,
+                sundayBreakLabel: effSunBreakLabel,
+                sunday_break_label: effSunBreakLabel,
                 metadata: {
                     ...existingMeta,
-                    saturdayStartTime,
-                    saturday_start_time: saturdayStartTime,
-                    saturdayEndTime,
-                    saturday_end_time: saturdayEndTime,
-                    sundayStartTime,
-                    sunday_start_time: sundayStartTime,
-                    sundayEndTime,
-                    sunday_end_time: sundayEndTime,
+                    saturdayStartTime: effSatStart,
+                    saturday_start_time: effSatStart,
+                    saturdayEndTime: effSatEnd,
+                    saturday_end_time: effSatEnd,
+                    sundayStartTime: effSunStart,
+                    sunday_start_time: effSunStart,
+                    sundayEndTime: effSunEnd,
+                    sunday_end_time: effSunEnd,
                     maxLessonsPerClassPerDay,
                     max_lessons_per_class_per_day: maxLessonsPerClassPerDay,
                     maxWeekendLessonsPerClassPerDay,
@@ -2504,10 +2603,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     max_saturday_lessons_per_teacher_per_day: maxSaturdayLessonsPerTeacherPerDay,
                     maxSundayLessonsPerTeacherPerDay,
                     max_sunday_lessons_per_teacher_per_day: maxSundayLessonsPerTeacherPerDay,
-                    saturdayPeriodsCount,
-                    saturday_periods_count: saturdayPeriodsCount,
-                    sundayPeriodsCount,
-                    sunday_periods_count: sundayPeriodsCount,
+                    saturdayPeriodsCount: effSatPeriods,
+                    saturday_periods_count: effSatPeriods,
+                    sundayPeriodsCount: effSunPeriods,
+                    sunday_periods_count: effSunPeriods,
                     maxLessonsPerDay: maxLessonsPerTeacherPerDay,
                     max_lessons_per_day: maxLessonsPerTeacherPerDay,
                     maxWeekendLessonsPerDay: maxWeekendLessonsPerTeacherPerDay,
@@ -2516,30 +2615,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     cancellation_cutoff_hours: cancellationCutoffHours,
                     confirmationTimeoutMinutes,
                     confirmation_timeout_minutes: confirmationTimeoutMinutes,
-                    weekendBreakStartTime: saturdayBreakStartTime,
-                    weekend_break_start_time: saturdayBreakStartTime,
-                    weekendBreakEndTime: saturdayBreakEndTime,
-                    weekend_break_end_time: saturdayBreakEndTime,
-                    weekendBreakLabel: saturdayBreakLabel,
-                    weekend_break_label: saturdayBreakLabel,
-                    includeWeekendBreak: includeSaturdayBreak,
-                    include_weekend_break: includeSaturdayBreak,
-                    includeSaturdayBreak,
-                    include_saturday_break: includeSaturdayBreak,
-                    saturdayBreakStartTime,
-                    saturday_break_start_time: saturdayBreakStartTime,
-                    saturdayBreakEndTime,
-                    saturday_break_end_time: saturdayBreakEndTime,
-                    saturdayBreakLabel,
-                    saturday_break_label: saturdayBreakLabel,
-                    includeSundayBreak,
-                    include_sunday_break: includeSundayBreak,
-                    sundayBreakStartTime,
-                    sunday_break_start_time: sundayBreakStartTime,
-                    sundayBreakEndTime,
-                    sunday_break_end_time: sundayBreakEndTime,
-                    sundayBreakLabel,
-                    sunday_break_label: sundayBreakLabel,
+                    weekendBreakStartTime: effSatBreakStart,
+                    weekend_break_start_time: effSatBreakStart,
+                    weekendBreakEndTime: effSatBreakEnd,
+                    weekend_break_end_time: effSatBreakEnd,
+                    weekendBreakLabel: effSatBreakLabel,
+                    weekend_break_label: effSatBreakLabel,
+                    includeWeekendBreak: effSatIncBreak,
+                    include_weekend_break: effSatIncBreak,
+                    includeSaturdayBreak: effSatIncBreak,
+                    include_saturday_break: effSatIncBreak,
+                    saturdayBreakStartTime: effSatBreakStart,
+                    saturday_break_start_time: effSatBreakStart,
+                    saturdayBreakEndTime: effSatBreakEnd,
+                    saturday_break_end_time: effSatBreakEnd,
+                    saturdayBreakLabel: effSatBreakLabel,
+                    saturday_break_label: effSatBreakLabel,
+                    includeSundayBreak: effSunIncBreak,
+                    include_sunday_break: effSunIncBreak,
+                    sundayBreakStartTime: effSunBreakStart,
+                    sunday_break_start_time: effSunBreakStart,
+                    sundayBreakEndTime: effSunBreakEnd,
+                    sunday_break_end_time: effSunBreakEnd,
+                    sundayBreakLabel: effSunBreakLabel,
+                    sunday_break_label: effSunBreakLabel,
                     teacherPreferences,
                     teacher_preferences: teacherPreferences,
                     teacherCodes,
@@ -2555,15 +2654,45 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institution_id: institutionId
             };
             setRateSetting(data);
-            safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify([data]));
+            if (institutionId) {
+                safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify([data]));
+            }
             await apiService.saveRemedialRateSetting(data);
-            setLastSavedPrefsTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-            onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Cutoff ${cancellationCutoffHours}h, Timeout ${confirmationTimeoutMinutes}m, Teacher Preferred Days configured`);
-            alert('Remedial rates, rules, substitution window, and teacher preferred days updated successfully!');
-            loadData();
+            const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            setLastSavedPrefsTime(timeStr);
+            setLastSavedTimingsTime(timeStr);
+            if (!silent) {
+                onLogAction?.(`Updated Remedial Rates & Rules: Weekday Rate KES ${weekdayHourlyRate}, Weekend Rate KES ${weekendHourlyRate}, Cutoff ${cancellationCutoffHours}h, Timeout ${confirmationTimeoutMinutes}m, Teacher Preferred Days configured`);
+                alert('Remedial rates, rules, substitution window, and timings updated successfully!');
+            }
         } catch (err: any) {
-            alert(err.message || 'Failed to update rates');
+            console.error('[RemedialLessons] Failed to save rates:', err);
+            if (!silent) {
+                alert(err.message || 'Failed to update rates');
+            }
         }
+    };
+
+    const handleSaveRates = () => handleSaveRatesInternal(false);
+
+    // Instant auto-persistence for timing and session period controls
+    const persistTimingField = (fieldKey: string, val: any, overrides: any = {}) => {
+        if (institutionId) {
+            safeLocalStorage.setItem(fieldKey, String(val));
+        }
+        if (timingSaveTimerRef.current) {
+            clearTimeout(timingSaveTimerRef.current);
+        }
+        setIsSavingTimings(true);
+        timingSaveTimerRef.current = setTimeout(async () => {
+            try {
+                await handleSaveRatesInternal(true, overrides);
+            } catch (err) {
+                console.warn('[RemedialTimings] Auto-save error:', err);
+            } finally {
+                setIsSavingTimings(false);
+            }
+        }, 600);
     };
 
     // DOS Administrative Actions for Substitution
@@ -11416,9 +11545,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                             {/* 2. Period Session Timing Windows */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5" /> Session Period Timing Windows
-                                </p>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5" /> Session Period Timing Windows
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        {isSavingTimings ? (
+                                            <span className="text-[10px] text-amber-500 font-bold flex items-center gap-1 animate-pulse">
+                                                <RefreshCw className="w-3 h-3 animate-spin" /> Saving...
+                                            </span>
+                                        ) : lastSavedTimingsTime ? (
+                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                                                <CheckCircle2 className="w-3 h-3" /> Auto-saved {lastSavedTimingsTime}
+                                            </span>
+                                        ) : null}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSaveRatesInternal(false)}
+                                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all shadow-sm shadow-indigo-500/20"
+                                            title="Save current timings and period quotas immediately"
+                                        >
+                                            <Check className="w-3 h-3" /> Save Timings
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="space-y-3">
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Weekday Remedial Window (Start – End)</label>
@@ -11426,13 +11576,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <input 
                                                 type="time"
                                                 value={weekdayStartTime}
-                                                onChange={e => setWeekdayStartTime(e.target.value)}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setWeekdayStartTime(val);
+                                                    persistTimingField(`eduai_remedial_wd_start_${institutionId}`, val, { weekdayStartTime: val });
+                                                }}
                                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                             />
                                             <input 
                                                 type="time"
                                                 value={weekdayEndTime}
-                                                onChange={e => setWeekdayEndTime(e.target.value)}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    setWeekdayEndTime(val);
+                                                    persistTimingField(`eduai_remedial_wd_end_${institutionId}`, val, { weekdayEndTime: val });
+                                                }}
                                                 className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                             />
                                         </div>
@@ -11449,8 +11607,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     type="time"
                                                     value={saturdayStartTime}
                                                     onChange={e => {
-                                                        setSaturdayStartTime(e.target.value);
-                                                        setWeekendStartTime(e.target.value);
+                                                        const val = e.target.value;
+                                                        setSaturdayStartTime(val);
+                                                        setWeekendStartTime(val);
+                                                        persistTimingField(`eduai_remedial_sat_start_${institutionId}`, val, { saturdayStartTime: val });
                                                     }}
                                                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                                 />
@@ -11458,8 +11618,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     type="time"
                                                     value={saturdayEndTime}
                                                     onChange={e => {
-                                                        setSaturdayEndTime(e.target.value);
-                                                        setWeekendEndTime(e.target.value);
+                                                        const val = e.target.value;
+                                                        setSaturdayEndTime(val);
+                                                        setWeekendEndTime(val);
+                                                        persistTimingField(`eduai_remedial_sat_end_${institutionId}`, val, { saturdayEndTime: val });
                                                     }}
                                                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                                 />
@@ -11472,7 +11634,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </label>
                                             <select
                                                 value={saturdayPeriodsCount}
-                                                onChange={e => setSaturdayPeriodsCount(Number(e.target.value))}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setSaturdayPeriodsCount(val);
+                                                    persistTimingField(`eduai_remedial_sat_periods_${institutionId}`, val, { saturdayPeriodsCount: val });
+                                                }}
                                                 className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/60 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
                                             >
                                                 <option value={1}>1 Period</option>
@@ -11498,13 +11664,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 <input 
                                                     type="time"
                                                     value={sundayStartTime}
-                                                    onChange={e => setSundayStartTime(e.target.value)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setSundayStartTime(val);
+                                                        persistTimingField(`eduai_remedial_sun_start_${institutionId}`, val, { sundayStartTime: val });
+                                                    }}
                                                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                                 />
                                                 <input 
                                                     type="time"
                                                     value={sundayEndTime}
-                                                    onChange={e => setSundayEndTime(e.target.value)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        setSundayEndTime(val);
+                                                        persistTimingField(`eduai_remedial_sun_end_${institutionId}`, val, { sundayEndTime: val });
+                                                    }}
                                                     className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
                                                 />
                                             </div>
@@ -11516,7 +11690,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </label>
                                             <select
                                                 value={sundayPeriodsCount}
-                                                onChange={e => setSundayPeriodsCount(Number(e.target.value))}
+                                                onChange={e => {
+                                                    const val = Number(e.target.value);
+                                                    setSundayPeriodsCount(val);
+                                                    persistTimingField(`eduai_remedial_sun_periods_${institutionId}`, val, { sundayPeriodsCount: val });
+                                                }}
                                                 className="w-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                             >
                                                 <option value={1}>1 Period</option>
@@ -11539,8 +11717,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     type="checkbox"
                                                     checked={includeSaturdayBreak}
                                                     onChange={e => {
-                                                        setIncludeSaturdayBreak(e.target.checked);
-                                                        setIncludeWeekendBreak(e.target.checked);
+                                                        const val = e.target.checked;
+                                                        setIncludeSaturdayBreak(val);
+                                                        setIncludeWeekendBreak(val);
+                                                        persistTimingField(`eduai_remedial_sat_inc_break_${institutionId}`, String(val), { includeSaturdayBreak: val, includeWeekendBreak: val });
                                                     }}
                                                     className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-700"
                                                 />
@@ -11568,8 +11748,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 type="time"
                                                                 value={saturdayBreakStartTime}
                                                                 onChange={e => {
-                                                                    setSaturdayBreakStartTime(e.target.value);
-                                                                    setWeekendBreakStartTime(e.target.value);
+                                                                    const val = e.target.value;
+                                                                    setSaturdayBreakStartTime(val);
+                                                                    setWeekendBreakStartTime(val);
+                                                                    persistTimingField(`eduai_remedial_sat_break_start_${institutionId}`, val, { saturdayBreakStartTime: val });
                                                                 }}
                                                                 className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
                                                             />
@@ -11577,8 +11759,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 type="time"
                                                                 value={saturdayBreakEndTime}
                                                                 onChange={e => {
-                                                                    setSaturdayBreakEndTime(e.target.value);
-                                                                    setWeekendBreakEndTime(e.target.value);
+                                                                    const val = e.target.value;
+                                                                    setSaturdayBreakEndTime(val);
+                                                                    setWeekendBreakEndTime(val);
+                                                                    persistTimingField(`eduai_remedial_sat_break_end_${institutionId}`, val, { saturdayBreakEndTime: val });
                                                                 }}
                                                                 className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
                                                             />
@@ -11590,8 +11774,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             type="text"
                                                             value={saturdayBreakLabel}
                                                             onChange={e => {
-                                                                setSaturdayBreakLabel(e.target.value);
-                                                                setWeekendBreakLabel(e.target.value);
+                                                                const val = e.target.value;
+                                                                setSaturdayBreakLabel(val);
+                                                                setWeekendBreakLabel(val);
+                                                                persistTimingField(`eduai_remedial_sat_break_label_${institutionId}`, val, { saturdayBreakLabel: val });
                                                             }}
                                                             placeholder="e.g. Saturday Refreshment Break"
                                                             className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
@@ -11612,7 +11798,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 <input 
                                                     type="checkbox"
                                                     checked={includeSundayBreak}
-                                                    onChange={e => setIncludeSundayBreak(e.target.checked)}
+                                                    onChange={e => {
+                                                        const val = e.target.checked;
+                                                        setIncludeSundayBreak(val);
+                                                        persistTimingField(`eduai_remedial_sun_inc_break_${institutionId}`, String(val), { includeSundayBreak: val });
+                                                    }}
                                                     className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-slate-300 dark:border-slate-700"
                                                 />
                                                 <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
@@ -11638,13 +11828,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             <input 
                                                                 type="time"
                                                                 value={sundayBreakStartTime}
-                                                                onChange={e => setSundayBreakStartTime(e.target.value)}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setSundayBreakStartTime(val);
+                                                                    persistTimingField(`eduai_remedial_sun_break_start_${institutionId}`, val, { sundayBreakStartTime: val });
+                                                                }}
                                                                 className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
                                                             />
                                                             <input 
                                                                 type="time"
                                                                 value={sundayBreakEndTime}
-                                                                onChange={e => setSundayBreakEndTime(e.target.value)}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setSundayBreakEndTime(val);
+                                                                    persistTimingField(`eduai_remedial_sun_break_end_${institutionId}`, val, { sundayBreakEndTime: val });
+                                                                }}
                                                                 className="bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white font-mono"
                                                             />
                                                         </div>
@@ -11654,7 +11852,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         <input 
                                                             type="text"
                                                             value={sundayBreakLabel}
-                                                            onChange={e => setSundayBreakLabel(e.target.value)}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                setSundayBreakLabel(val);
+                                                                persistTimingField(`eduai_remedial_sun_break_label_${institutionId}`, val, { sundayBreakLabel: val });
+                                                            }}
                                                             placeholder="e.g. Sunday Recess Break"
                                                             className="w-full bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
                                                         />

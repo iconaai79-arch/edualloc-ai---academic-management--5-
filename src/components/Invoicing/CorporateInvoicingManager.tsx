@@ -19,6 +19,7 @@ interface CorporateInvoicingManagerProps {
     currentInstitution: Institution;
     companyDetails?: CompanyDetails;
     onLogAction?: (action: string) => void;
+    availableInstitutions?: Institution[];
 }
 
 const INVOICE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -34,7 +35,8 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     currentUser,
     currentInstitution,
     companyDetails,
-    onLogAction
+    onLogAction,
+    availableInstitutions
 }) => {
     const institutionId = currentInstitution?.id || currentUser?.institutionId || 'GLOBAL';
 
@@ -94,6 +96,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [clientAddress, setClientAddress] = useState('');
     const [clientCity, setClientCity] = useState('');
     const [clientNotes, setClientNotes] = useState('');
+    const [isSyncingClients, setIsSyncingClients] = useState(false);
 
     // Statement State
     const [statementClientId, setStatementClientId] = useState<string>('');
@@ -577,6 +580,53 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         window.open(url, '_blank');
     };
 
+    // Batch Sync Tenant Institutions into Corporate Client Directory
+    const handleSyncTenantsAsClients = async () => {
+        if (!availableInstitutions || availableInstitutions.length === 0) return;
+        const existingNames = new Set(clients.map(c => c.clientName.toLowerCase().trim()));
+        const toImport = availableInstitutions.filter(inst => inst.name && !existingNames.has(inst.name.toLowerCase().trim()));
+        
+        if (toImport.length === 0) {
+            alert('All available tenant institutions are already present in your Clients Directory.');
+            return;
+        }
+
+        if (!window.confirm(`Import ${toImport.length} tenant institution(s) into your Corporate Clients Directory?`)) {
+            return;
+        }
+
+        setIsSyncingClients(true);
+        let importedCount = 0;
+        const newClientsList: InvoiceClient[] = [];
+
+        try {
+            for (const inst of toImport) {
+                const newClient: InvoiceClient = {
+                    id: `client_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    institutionId,
+                    clientName: inst.name,
+                    contactPerson: inst.category || inst.institutionType || 'Administrator',
+                    email: inst.email || '',
+                    phone: inst.phoneNumber || '',
+                    city: inst.county || '',
+                    address: inst.address || '',
+                    notes: `Imported from institution directory (Code: ${inst.code || inst.id})`
+                };
+                await apiService.saveInvoiceClient(newClient);
+                newClientsList.push(newClient);
+                importedCount++;
+            }
+            setClients(prev => [...prev, ...newClientsList]);
+            onLogAction?.(`Imported ${importedCount} tenant institutions into Corporate Client Directory.`);
+            alert(`Success: ${importedCount} tenant institution(s) imported into your Clients Directory!`);
+        } catch (err: any) {
+            console.error('Failed importing clients:', err);
+            alert(`Partial or complete failure importing clients: ${err.message}`);
+        } finally {
+            setIsSyncingClients(false);
+        }
+    };
+
     return (
         <div className="space-y-6 animate-fade-in p-2 md:p-6">
             {/* Top Executive Header */}
@@ -1010,12 +1060,23 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             </h4>
                             <p className="text-xs text-slate-500">Registered commercial clients, billing points of contact, and tax credentials</p>
                         </div>
-                        <button
-                            onClick={() => { setEditingClient(null); setShowClientModal(true); }}
-                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-2"
-                        >
-                            <PlusIcon className="w-4 h-4" /> Add New Client
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {availableInstitutions && availableInstitutions.length > 0 && (
+                                <button
+                                    onClick={handleSyncTenantsAsClients}
+                                    disabled={isSyncingClients}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                                >
+                                    <span>🔄</span> {isSyncingClients ? 'Syncing...' : `Import Tenants (${availableInstitutions.length})`}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => { setEditingClient(null); setShowClientModal(true); }}
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-2"
+                            >
+                                <PlusIcon className="w-4 h-4" /> Add New Client
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1089,12 +1150,23 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                 <BuildingOfficeIcon className="w-8 h-8 text-slate-400 mx-auto" />
                                 <h4 className="font-bold text-slate-800 dark:text-white">No Clients Registered</h4>
                                 <p className="text-xs text-slate-500 max-w-sm mx-auto">Register your corporate customers and companies to issue invoices, quotes, and account statements.</p>
-                                <button
-                                    onClick={() => { setEditingClient(null); setShowClientModal(true); }}
-                                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm"
-                                >
-                                    Add Your First Client
-                                </button>
+                                <div className="flex flex-wrap items-center justify-center gap-3">
+                                    {availableInstitutions && availableInstitutions.length > 0 && (
+                                        <button
+                                            onClick={handleSyncTenantsAsClients}
+                                            disabled={isSyncingClients}
+                                            className="px-5 py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-2"
+                                        >
+                                            <span>🔄</span> Import {availableInstitutions.length} Tenant Institutions
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => { setEditingClient(null); setShowClientModal(true); }}
+                                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm"
+                                    >
+                                        Add Your First Client
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

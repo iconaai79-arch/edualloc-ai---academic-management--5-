@@ -105,6 +105,7 @@ import { SuperAdminExpenseManager } from './SuperAdminExpenseManager';
 import { INITIAL_TIMETABLE_SETTINGS, INITIAL_EXAM_TIMETABLE_SETTINGS } from '../constants';
 import { WallPosterView } from './WallPosterView';
 import { TenantInvoiceManager } from './TenantInvoiceManager';
+import { CorporateInvoicingManager } from './Invoicing/CorporateInvoicingManager';
 import { DirectAssignModal } from './DirectAssignModal';
 import { ProfileModal } from './ProfileModal';
 import { PublicAppointmentView } from './PublicAppointmentView';
@@ -587,6 +588,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         return 'dashboard';
     });
     const [institutionsSubTab, setInstitutionsSubTab] = useState<'list' | 'grouped' | 'counties' | 'resellers' | 'business' | 'requests' | 'transactions' | 'withdrawals' | 'external_links' | 'registry' | 'scouting' | 'branding' | 'political' | 'medical' | 'business_profile' | 'invoices' | 'constituencies' | 'student_packages'>('list');
+    const [invoicingMode, setInvoicingMode] = useState<'corporate' | 'tenant_subscriptions'>('corporate');
     const [academicsSubTab, setAcademicsSubTab] = useState<'subjects' | 'courses' | 'registry' | 'calendar' | 'timetable' | 'discipline' | 'insights' | 'reports'>('subjects');
     const [schoolRegistry, setSchoolRegistry] = useState<SchoolRegistry[]>([]);
 
@@ -2510,16 +2512,51 @@ Please change it after login.`;
                         )}
 
                         {institutionsSubTab === 'invoices' && (
-                            <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700 animate-fade-in">
-                                <TenantInvoiceManager
-                                    invoices={invoices.filter(inv => !inv.studentId)}
-                                    institutions={institutions}
-                                    companyDetails={companyDetails}
-                                    logoUrl={logoUrl || null}
-                                    onCreateInvoice={props.onManualInvoice || (() => {})}
-                                    onUpdateInvoiceStatus={props.onUpdateInvoiceStatus}
-                                    onUpdateInvoice={props.onUpdateInvoice}
-                                />
+                            <div className="space-y-6 animate-fade-in">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/60 p-4 rounded-3xl border border-white/5 shadow-lg">
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-white">Billing &amp; Invoicing Console</h3>
+                                        <p className="text-xs text-slate-400">Switch between Enterprise Corporate Invoicing Engine and Tenant Subscription Manager</p>
+                                    </div>
+                                    <div className="flex bg-slate-800/80 p-1 rounded-2xl border border-slate-700/60">
+                                        <button
+                                            onClick={() => setInvoicingMode('corporate')}
+                                            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${invoicingMode === 'corporate' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            <span>🏢</span> Corporate Invoicing Engine
+                                        </button>
+                                        <button
+                                            onClick={() => setInvoicingMode('tenant_subscriptions')}
+                                            className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${invoicingMode === 'tenant_subscriptions' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'text-slate-400 hover:text-white'}`}
+                                        >
+                                            <span>🏫</span> Tenant Subscriptions
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {invoicingMode === 'corporate' ? (
+                                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
+                                        <CorporateInvoicingManager
+                                            currentUser={currentUser}
+                                            currentInstitution={{ id: 'GLOBAL', name: companyDetails?.name || 'EduAI Enterprise Global', code: 'HQ' } as any}
+                                            companyDetails={companyDetails}
+                                            availableInstitutions={institutions}
+                                            onLogAction={props.onLogAction}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
+                                        <TenantInvoiceManager
+                                            invoices={invoices.filter(inv => !inv.studentId)}
+                                            institutions={institutions}
+                                            companyDetails={companyDetails}
+                                            logoUrl={logoUrl || null}
+                                            onCreateInvoice={props.onManualInvoice || (() => {})}
+                                            onUpdateInvoiceStatus={props.onUpdateInvoiceStatus}
+                                            onUpdateInvoice={props.onUpdateInvoice}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
 

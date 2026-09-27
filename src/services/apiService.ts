@@ -6627,10 +6627,17 @@ export const apiService = {
             const meta = (typeof r.metadata === 'object' && r.metadata !== null) 
                 ? r.metadata 
                 : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
-            const satStart = r.saturdayStartTime ?? r.saturday_start_time ?? meta.saturdayStartTime ?? meta.saturday_start_time ?? r.weekendStartTime ?? r.weekend_start_time ?? '08:00';
-            const satEnd = r.saturdayEndTime ?? r.saturday_end_time ?? meta.saturdayEndTime ?? meta.saturday_end_time ?? r.weekendEndTime ?? r.weekend_end_time ?? '12:00';
-            const sunStart = r.sundayStartTime ?? r.sunday_start_time ?? meta.sundayStartTime ?? meta.sunday_start_time ?? '09:00';
-            const sunEnd = r.sundayEndTime ?? r.sunday_end_time ?? meta.sundayEndTime ?? meta.sunday_end_time ?? '13:00';
+            const cachedSunStart = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_start_${instId}`) : null;
+            const cachedSunEnd = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_end_${instId}`) : null;
+            const cachedSunPeriods = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_periods_${instId}`) : null;
+            const cachedSatStart = instId ? safeLocalStorage.getItem(`eduai_remedial_sat_start_${instId}`) : null;
+            const cachedSatEnd = instId ? safeLocalStorage.getItem(`eduai_remedial_sat_end_${instId}`) : null;
+            const cachedSatPeriods = instId ? safeLocalStorage.getItem(`eduai_remedial_sat_periods_${instId}`) : null;
+
+            const satStart = cachedSatStart || r.saturdayStartTime || r.saturday_start_time || meta.saturdayStartTime || meta.saturday_start_time || r.weekendStartTime || r.weekend_start_time || '08:00';
+            const satEnd = cachedSatEnd || r.saturdayEndTime || r.saturday_end_time || meta.saturdayEndTime || meta.saturday_end_time || r.weekendEndTime || r.weekend_end_time || '12:00';
+            const sunStart = cachedSunStart || r.sundayStartTime || r.sunday_start_time || meta.sundayStartTime || meta.sunday_start_time || '09:00';
+            const sunEnd = cachedSunEnd || r.sundayEndTime || r.sunday_end_time || meta.sundayEndTime || meta.sunday_end_time || '13:00';
             const satBreakStart = r.saturdayBreakStartTime ?? r.saturday_break_start_time ?? meta.saturdayBreakStartTime ?? meta.saturday_break_start_time ?? r.weekendBreakStartTime ?? r.weekend_break_start_time ?? '10:00';
             const satBreakEnd = r.saturdayBreakEndTime ?? r.saturday_break_end_time ?? meta.saturdayBreakEndTime ?? meta.saturday_break_end_time ?? r.weekendBreakEndTime ?? r.weekend_break_end_time ?? '10:30';
             const satBreakLabel = r.saturdayBreakLabel ?? r.saturday_break_label ?? meta.saturdayBreakLabel ?? meta.saturday_break_label ?? r.weekendBreakLabel ?? r.weekend_break_label ?? 'Saturday Refreshment Break';
@@ -6647,8 +6654,12 @@ export const apiService = {
             const maxTeacherWeekend = r.maxWeekendLessonsPerTeacherPerDay ?? r.max_weekend_lessons_per_teacher_per_day ?? meta.maxWeekendLessonsPerTeacherPerDay ?? meta.max_weekend_lessons_per_teacher_per_day ?? r.maxWeekendLessonsPerDay ?? r.max_weekend_lessons_per_day ?? 2;
             const maxTeacherSat = r.maxSaturdayLessonsPerTeacherPerDay ?? r.max_saturday_lessons_per_teacher_per_day ?? meta.maxSaturdayLessonsPerTeacherPerDay ?? meta.max_saturday_lessons_per_teacher_per_day ?? maxTeacherWeekend ?? 3;
             const maxTeacherSun = r.maxSundayLessonsPerTeacherPerDay ?? r.max_sunday_lessons_per_teacher_per_day ?? meta.maxSundayLessonsPerTeacherPerDay ?? meta.max_sunday_lessons_per_teacher_per_day ?? maxTeacherWeekend ?? 2;
-            const satPeriods = r.saturdayPeriodsCount ?? r.saturday_periods_count ?? meta.saturdayPeriodsCount ?? meta.saturday_periods_count ?? 5;
-            const sunPeriods = r.sundayPeriodsCount ?? r.sunday_periods_count ?? meta.sundayPeriodsCount ?? meta.sunday_periods_count ?? 4;
+            const satPeriods = (cachedSatPeriods && !isNaN(Number(cachedSatPeriods)))
+                ? Number(cachedSatPeriods)
+                : (r.saturdayPeriodsCount ?? r.saturday_periods_count ?? meta.saturdayPeriodsCount ?? meta.saturday_periods_count ?? 5);
+            const sunPeriods = (cachedSunPeriods && !isNaN(Number(cachedSunPeriods)))
+                ? Number(cachedSunPeriods)
+                : (r.sundayPeriodsCount ?? r.sunday_periods_count ?? meta.sundayPeriodsCount ?? meta.sunday_periods_count ?? 4);
             const wDutyRate = r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200;
             const tPrefs = r.teacherPreferences || r.teacher_preferences || meta.teacherPreferences || meta.teacher_preferences || {};
             const tCodes = r.teacherCodes || r.teacher_codes || meta.teacherCodes || meta.teacher_codes || {};
