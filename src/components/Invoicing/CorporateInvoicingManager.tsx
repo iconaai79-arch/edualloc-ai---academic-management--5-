@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Invoice, InvoiceItem, InvoiceClient, CompanyInvoiceSettings, Receipt, Institution, User, CompanyDetails, MpesaTransaction, LetterheadConfig } from '../../types';
+import type { Invoice, InvoiceItem, InvoiceClient, CompanyInvoiceSettings, Receipt, Institution, User, CompanyDetails, MpesaTransaction, LetterheadConfig, OfficialStampConfig } from '../../types';
 import { apiService } from '../../services/apiService';
 import { downloadInvoicePdf, downloadQuotePdf, downloadReceiptPdf } from '../../services/pdfService';
 import { sendEmailNotification } from '../../services/emailService';
+
+// Kenyan Stamp Components
+import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
+import { StampCustomizerModal } from '../common/StampCustomizerModal';
 
 // Icons
 import { PlusIcon } from '../icons/PlusIcon';
@@ -93,6 +97,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [paymentTargetInvoice, setPaymentTargetInvoice] = useState<Invoice | null>(null);
     const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
     const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
+    const [showStampCustomizer, setShowStampCustomizer] = useState(false);
 
     // New Invoice / Quote Form State
     const [invClientId, setInvClientId] = useState('');
@@ -895,12 +900,28 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     // Download PDF Invoice / Quote with Letterhead
     const handleDownloadDocument = async (doc: Invoice) => {
         try {
+            const effectiveStampConfig: OfficialStampConfig = currentInstitution?.letterheadConfig?.stampConfig || {
+                mode: (formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl) ? 'uploaded' : 'system_generated',
+                shape: 'circle',
+                inkColor: '#0047AB',
+                daterColor: '#DC2626',
+                department: doc.status === 'quote' ? 'ESTIMATES & QUOTES' : 'FINANCE & BILLING',
+                institutionName: currentInstitution?.name || companyDetails?.name || 'COMMERCIAL ENTERPRISE',
+                addressLine: currentInstitution?.address || companyDetails?.address || 'P.O. BOX 1341-00100 NAIROBI',
+                contactPhone: currentInstitution?.phoneNumber || companyDetails?.phone || '0700000000',
+                stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || null,
+                showStars: true,
+                showDate: true,
+                showSignatureLine: true
+            };
+
             const effectiveLetterheadConfig: LetterheadConfig = {
                 headerImageUrl: formHeaderImageUrl || currentInstitution?.letterheadConfig?.headerImageUrl || (currentInstitution as any)?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.headerImageUrl || null,
                 footerImageUrl: formFooterImageUrl || currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl || null,
                 stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || (currentInstitution as any)?.stampUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (companyDetails as any)?.stampUrl || null,
                 footerText: currentInstitution?.letterheadConfig?.footerText || letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || `${currentInstitution?.name || 'EduAI'} - Official Corporate Document`,
-                showStamp: true
+                showStamp: true,
+                stampConfig: effectiveStampConfig
             };
 
             const effectiveInstitution: Institution = {
@@ -946,12 +967,28 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             const targetInst = institutionMap.get(rec.institutionId || '') || currentInstitution;
             const matchingInv = invoices.find(i => i.id === rec.invoiceId);
             const client = clients.find(c => c.id === matchingInv?.clientId);
+            const effectiveReceiptStampConfig: OfficialStampConfig = targetInst?.letterheadConfig?.stampConfig || {
+                mode: (formStampUrl || targetInst?.letterheadConfig?.stampImageUrl) ? 'uploaded' : 'system_generated',
+                shape: 'circle',
+                inkColor: '#0047AB',
+                daterColor: '#DC2626',
+                department: 'OFFICIAL RECEIPT',
+                institutionName: targetInst?.name || companyDetails?.name || 'COMMERCIAL ENTERPRISE',
+                addressLine: targetInst?.address || companyDetails?.address || 'P.O. BOX 1341-00100 NAIROBI',
+                contactPhone: targetInst?.phoneNumber || companyDetails?.phone || '0700000000',
+                stampImageUrl: formStampUrl || targetInst?.letterheadConfig?.stampImageUrl || null,
+                showStars: true,
+                showDate: true,
+                showSignatureLine: true
+            };
+
             const effectiveLetterheadConfig: LetterheadConfig = {
                 headerImageUrl: formHeaderImageUrl || targetInst?.letterheadConfig?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (targetInst as any)?.headerImageUrl || null,
                 footerImageUrl: formFooterImageUrl || targetInst?.letterheadConfig?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || targetInst?.footerImageUrl || null,
                 stampImageUrl: formStampUrl || targetInst?.letterheadConfig?.stampImageUrl || letterheadConfig?.stampImageUrl || companyDetails?.letterheadConfig?.stampImageUrl || (targetInst as any)?.stampUrl || null,
                 footerText: targetInst?.letterheadConfig?.footerText || letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || `${targetInst?.name || 'EduAI'} - Official Receipt`,
-                showStamp: true
+                showStamp: true,
+                stampConfig: effectiveReceiptStampConfig
             };
 
             const targetInstWithLetterhead: Institution = {
@@ -2030,25 +2067,36 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
                                 <div className="space-y-1.5">
                                     <div className="flex justify-between items-center">
-                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Official Stamp / Seal</label>
-                                        <label className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer">
-                                            <span>Upload File</span>
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], setFormStampUrl)}
-                                            />
-                                        </label>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400">Official Kenyan Rubber Stamp / Seal</label>
+                                        <div className="flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowStampCustomizer(true)}
+                                                className="text-[10px] text-indigo-600 dark:text-indigo-400 font-black uppercase tracking-wider hover:underline flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800"
+                                            >
+                                                <span>🎨</span> Customize Kenyan Stamp
+                                            </button>
+                                            <label className="text-[10px] text-indigo-600 font-bold hover:underline cursor-pointer">
+                                                <span>Upload Custom Seal</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    className="hidden"
+                                                    onChange={e => e.target.files?.[0] && handleImageUpload(e.target.files[0], setFormStampUrl)}
+                                                />
+                                            </label>
+                                        </div>
                                     </div>
                                     <input
                                         type="text"
                                         value={formStampUrl}
                                         onChange={e => setFormStampUrl(e.target.value)}
-                                        placeholder="https://... or uploaded stamp data"
+                                        placeholder="https://... or leave empty to use automatic Kenyan Official Rubber Stamp"
                                         className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
                                     />
-                                    <p className="text-[10px] text-slate-400">Official seal applied above the signature block on approved invoices.</p>
+                                    <p className="text-[10px] text-slate-400">
+                                        Official Kenyan double-ring rubber stamp with red dater, postal box, and institutional verification seal.
+                                    </p>
                                 </div>
                             </div>
 
@@ -2077,9 +2125,19 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 <p className="text-[10px] text-slate-400">{currentInstitution?.address || 'Address'} • {currentInstitution?.phoneNumber || 'Phone'}</p>
                                             </div>
                                         </div>
-                                        {formStampUrl && (
-                                            <img src={formStampUrl} alt="Stamp Preview" className="h-10 w-auto object-contain opacity-75" />
-                                        )}
+                                        <div className="shrink-0 flex items-center">
+                                            <KenyanOfficialStamp
+                                                institution={currentInstitution}
+                                                config={currentInstitution?.letterheadConfig?.stampConfig || {
+                                                    mode: formStampUrl ? 'uploaded' : 'system_generated',
+                                                    stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || null,
+                                                    department: 'FINANCE & BILLING',
+                                                    daterColor: '#DC2626'
+                                                }}
+                                                size={85}
+                                                showDate={true}
+                                            />
+                                        </div>
                                     </div>
                                     {formFooterImageUrl ? (
                                         <img src={formFooterImageUrl} alt="Footer Preview" className="w-full object-contain max-h-12 bg-white" />
@@ -2812,21 +2870,33 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         </div>
                                     </div>
 
-                                    {/* Stamp & Authorized Signatory Block */}
+                                    {/* Stamp & Authorized Signatory Block with Kenyan Official Rubber Stamp */}
                                     <div className="pt-6 flex justify-between items-end border-t border-slate-100">
                                         <div className="space-y-1">
                                             <p className="text-[10px] font-black uppercase text-slate-400">Electronic Verification</p>
-                                            <p className="text-[11px] text-slate-500">Generated securely by EduAI Invoicing Engine. Valid without signature.</p>
+                                            <p className="text-[11px] text-slate-500">Official Kenyan Institutional Rubber Stamp &amp; Cryptographic Audit Verification.</p>
                                         </div>
-                                        <div className="text-center space-y-1">
-                                            {(formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl) && (
-                                                <img
-                                                    src={formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || ''}
-                                                    alt="Official Stamp"
-                                                    className="h-16 w-auto object-contain mx-auto opacity-80"
+                                        <div className="text-center space-y-1 flex flex-col items-center">
+                                            <div className="relative group">
+                                                <KenyanOfficialStamp
+                                                    institution={currentInstitution}
+                                                    config={currentInstitution?.letterheadConfig?.stampConfig || {
+                                                        mode: formStampUrl ? 'uploaded' : 'system_generated',
+                                                        shape: 'circle',
+                                                        inkColor: '#0047AB',
+                                                        daterColor: '#DC2626',
+                                                        stampImageUrl: formStampUrl || currentInstitution?.letterheadConfig?.stampImageUrl || null,
+                                                        department: previewInvoice.status === 'quote' ? 'ESTIMATES & QUOTES' : 'FINANCE & BILLING',
+                                                        showStars: true,
+                                                        showDate: true
+                                                    }}
+                                                    departmentOverride={previewInvoice.status === 'quote' ? 'ESTIMATES & QUOTES' : 'FINANCE & BILLING'}
+                                                    date={previewInvoice.issueDate}
+                                                    size={135}
+                                                    showDate={true}
                                                 />
-                                            )}
-                                            <div className="w-40 border-t border-slate-400 mt-2 pt-1">
+                                            </div>
+                                            <div className="w-40 border-t border-slate-400 mt-1 pt-1">
                                                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Authorized Signature</span>
                                             </div>
                                         </div>
@@ -3202,23 +3272,28 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 </div>
                                             </div>
 
-                                            {/* Stamp & Authorized Signatory */}
-                                            <div className="text-center space-y-1 self-center sm:self-end">
-                                                {(formStampUrl || receiptInst?.letterheadConfig?.stampImageUrl) ? (
-                                                    <img
-                                                        src={formStampUrl || receiptInst?.letterheadConfig?.stampImageUrl || ''}
-                                                        alt="Official Stamp"
-                                                        className="h-16 w-auto object-contain mx-auto opacity-85"
+                                            {/* Stamp & Authorized Signatory with Kenyan Official Rubber Stamp */}
+                                            <div className="text-center space-y-1 self-center sm:self-end flex flex-col items-center">
+                                                <div className="relative group">
+                                                    <KenyanOfficialStamp
+                                                        institution={receiptInst}
+                                                        config={receiptInst?.letterheadConfig?.stampConfig || {
+                                                            mode: formStampUrl ? 'uploaded' : 'system_generated',
+                                                            shape: 'circle',
+                                                            inkColor: '#0047AB',
+                                                            daterColor: '#DC2626',
+                                                            stampImageUrl: formStampUrl || receiptInst?.letterheadConfig?.stampImageUrl || null,
+                                                            department: 'OFFICIAL RECEIPT',
+                                                            showStars: true,
+                                                            showDate: true
+                                                        }}
+                                                        departmentOverride="OFFICIAL RECEIPT"
+                                                        date={previewReceipt.paymentDate}
+                                                        size={140}
+                                                        showDate={true}
                                                     />
-                                                ) : (
-                                                    /* Stylized Electronic Rubber Stamp Seal */
-                                                    <div className="w-28 h-28 mx-auto border-2 border-dashed border-emerald-600/70 rounded-full flex flex-col items-center justify-center p-2 text-emerald-700 bg-emerald-50/40 rotate-[-8deg] shadow-inner">
-                                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-800">EduAI Official</span>
-                                                        <span className="text-[12px] font-black uppercase tracking-tighter text-emerald-600 my-0.5">CLEARED</span>
-                                                        <span className="text-[7px] font-bold uppercase tracking-wider text-emerald-700">{previewReceipt.paymentDate}</span>
-                                                    </div>
-                                                )}
-                                                <div className="w-44 border-t border-slate-400 mt-2 pt-1 mx-auto">
+                                                </div>
+                                                <div className="w-44 border-t border-slate-400 mt-1 pt-1 mx-auto">
                                                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
                                                         Authorized Finance Officer
                                                     </span>
@@ -3247,6 +3322,37 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                     </div>
                 );
             })()}
+
+            {/* Stamp Customizer Modal for Kenyan Official Rubber Stamp */}
+            {showStampCustomizer && (
+                <StampCustomizerModal
+                    isOpen={showStampCustomizer}
+                    onClose={() => setShowStampCustomizer(false)}
+                    currentInstitution={currentInstitution}
+                    letterheadConfig={currentInstitution?.letterheadConfig || {
+                        headerImageUrl: formHeaderImageUrl,
+                        footerImageUrl: formFooterImageUrl,
+                        stampImageUrl: formStampUrl,
+                        stampConfig: currentInstitution?.letterheadConfig?.stampConfig
+                    }}
+                    onSaveConfig={async (updatedConfig) => {
+                        if (currentInstitution) {
+                            currentInstitution.letterheadConfig = updatedConfig;
+                        }
+                        if (updatedConfig.stampImageUrl) {
+                            setFormStampUrl(updatedConfig.stampImageUrl);
+                        }
+                        if (settings) {
+                            await apiService.saveCompanyInvoiceSettings({
+                                ...settings,
+                                stampUrl: updatedConfig.stampImageUrl || formStampUrl
+                            }).catch(() => {});
+                        }
+                        setShowStampCustomizer(false);
+                        onLogAction?.('Updated Kenyan Official Rubber Stamp configuration for corporate invoicing.');
+                    }}
+                />
+            )}
         </div>
     );
 };

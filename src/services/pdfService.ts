@@ -336,7 +336,18 @@ export const generateInvoicePdfDataUri = async (
 
     const headerImg = headerImgUrl ? await loadImage(headerImgUrl) : null;
     const footerImg = footerImgUrl ? await loadImage(footerImgUrl) : null;
-    const stampImg = stampImgUrl ? await loadImage(stampImgUrl) : null;
+    
+    // Dynamic Kenyan Stamp generation matching physical rubber dater stamp
+    let stampImg: HTMLImageElement | null = null;
+    if (letterConfig?.showStamp !== false && letterConfig?.stampConfig?.mode !== 'none') {
+        const dateToStamp = (invoice as any)?.issueDate || new Date();
+        const stampDataUri = await generateStampDataUri(letterConfig?.stampConfig, dateToStamp, institution);
+        if (stampDataUri) {
+            stampImg = await loadImage(stampDataUri);
+        }
+    } else if (stampImgUrl) {
+        stampImg = await loadImage(stampImgUrl);
+    }
     const logoImg = logoImgUrl ? await loadImage(logoImgUrl) : null;
 
     // Create Page Header with Letterhead Cascade
@@ -1448,7 +1459,18 @@ export const generateQuotePdfDataUri = async (
 
     const headerImg = headerImgUrl ? await loadImage(headerImgUrl) : null;
     const footerImg = footerImgUrl ? await loadImage(footerImgUrl) : null;
-    const stampImg = stampImgUrl ? await loadImage(stampImgUrl) : null;
+    
+    // Dynamic Kenyan Stamp generation matching physical rubber dater stamp
+    let stampImg: HTMLImageElement | null = null;
+    if (letterConfig?.showStamp !== false && letterConfig?.stampConfig?.mode !== 'none') {
+        const dateToStamp = (quote as any)?.issueDate || new Date();
+        const stampDataUri = await generateStampDataUri(letterConfig?.stampConfig, dateToStamp, institution);
+        if (stampDataUri) {
+            stampImg = await loadImage(stampDataUri);
+        }
+    } else if (stampImgUrl) {
+        stampImg = await loadImage(stampImgUrl);
+    }
     const logoImg = logoImgUrl ? await loadImage(logoImgUrl) : null;
 
     // Create Page Header with Letterhead Cascade
