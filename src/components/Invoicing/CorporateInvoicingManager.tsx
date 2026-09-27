@@ -170,21 +170,60 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             ]);
 
             if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {
-                const fetched = invRes.value;
+                let fetched = invRes.value;
+                if (isGlobal) {
+                    fetched = fetched.filter(i => {
+                        const id = i.institutionId || (i as any).institution_id;
+                        const isStudent = !!(i.studentId || (i as any).student_id);
+                        return (!id || id === 'GLOBAL') && !isStudent;
+                    });
+                } else if (institutionId) {
+                    fetched = fetched.filter(i => (i.institutionId || (i as any).institution_id) === institutionId);
+                }
                 const mapById = new Map<string, Invoice>();
-                (initialInvoices || []).forEach(i => mapById.set(i.id, i));
+                (initialInvoices || []).forEach(i => {
+                    const id = i.institutionId || (i as any).institution_id;
+                    const isStudent = !!(i.studentId || (i as any).student_id);
+                    if (isGlobal ? ((!id || id === 'GLOBAL') && !isStudent) : (id === institutionId)) {
+                        mapById.set(i.id, i);
+                    }
+                });
                 fetched.forEach(i => mapById.set(i.id, i));
                 setInvoices(Array.from(mapById.values()));
             }
             if (recRes.status === 'fulfilled' && Array.isArray(recRes.value)) {
-                const fetched = recRes.value;
+                let fetched = recRes.value;
+                if (isGlobal) {
+                    fetched = fetched.filter(r => {
+                        const id = r.institutionId || (r as any).institution_id;
+                        const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                        return (!id || id === 'GLOBAL') && !isStudent;
+                    });
+                } else if (institutionId) {
+                    fetched = fetched.filter(r => (r.institutionId || (r as any).institution_id) === institutionId);
+                }
                 const mapById = new Map<string, Receipt>();
-                (initialReceipts || []).forEach(r => mapById.set(r.id, r));
+                (initialReceipts || []).forEach(r => {
+                    const id = r.institutionId || (r as any).institution_id;
+                    const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                    if (isGlobal ? ((!id || id === 'GLOBAL') && !isStudent) : (id === institutionId)) {
+                        mapById.set(r.id, r);
+                    }
+                });
                 fetched.forEach(r => mapById.set(r.id, r));
                 setReceipts(Array.from(mapById.values()));
             }
             if (clientRes.status === 'fulfilled' && Array.isArray(clientRes.value)) {
-                setClients(clientRes.value);
+                let fetched = clientRes.value;
+                if (isGlobal) {
+                    fetched = fetched.filter(c => {
+                        const id = c.institutionId || (c as any).institution_id;
+                        return !id || id === 'GLOBAL';
+                    });
+                } else if (institutionId) {
+                    fetched = fetched.filter(c => (c.institutionId || (c as any).institution_id) === institutionId);
+                }
+                setClients(fetched);
             }
 
             // Sync configured Document Numbering from finance_numbering_configs
@@ -262,31 +301,67 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
     useEffect(() => {
         if (initialInvoices && initialInvoices.length > 0) {
+            const isGlobal = !institutionId || institutionId === 'GLOBAL';
+            const clean = isGlobal
+                ? initialInvoices.filter(i => {
+                    const id = i.institutionId || (i as any).institution_id;
+                    const isStudent = !!(i.studentId || (i as any).student_id);
+                    return (!id || id === 'GLOBAL') && !isStudent;
+                })
+                : initialInvoices.filter(i => (i.institutionId || (i as any).institution_id) === institutionId);
+
             setInvoices(prev => {
                 const mapById = new Map<string, Invoice>();
                 prev.forEach(i => mapById.set(i.id, i));
-                initialInvoices.forEach(i => mapById.set(i.id, i));
+                clean.forEach(i => mapById.set(i.id, i));
                 return Array.from(mapById.values());
             });
         }
-    }, [initialInvoices]);
+    }, [initialInvoices, institutionId]);
 
     useEffect(() => {
         if (initialReceipts && initialReceipts.length > 0) {
+            const isGlobal = !institutionId || institutionId === 'GLOBAL';
+            const clean = isGlobal
+                ? initialReceipts.filter(r => {
+                    const id = r.institutionId || (r as any).institution_id;
+                    const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                    return (!id || id === 'GLOBAL') && !isStudent;
+                })
+                : initialReceipts.filter(r => (r.institutionId || (r as any).institution_id) === institutionId);
+
             setReceipts(prev => {
                 const mapById = new Map<string, Receipt>();
                 prev.forEach(r => mapById.set(r.id, r));
-                initialReceipts.forEach(r => mapById.set(r.id, r));
+                clean.forEach(r => mapById.set(r.id, r));
                 return Array.from(mapById.values());
             });
         }
-    }, [initialReceipts]);
+    }, [initialReceipts, institutionId]);
 
     // Financial Metrics Calculations
     const metrics = useMemo(() => {
-        const activeInvoices = invoices.filter(i => i.status !== 'quote' && i.status !== 'cancelled');
+        const isGlobal = !institutionId || institutionId === 'GLOBAL';
+        const relevantInvoices = invoices.filter(i => {
+            if (isGlobal) {
+                const id = i.institutionId || (i as any).institution_id;
+                const isStudent = !!(i.studentId || (i as any).student_id);
+                return (!id || id === 'GLOBAL') && !isStudent;
+            }
+            return (i.institutionId || (i as any).institution_id) === institutionId;
+        });
+        const relevantReceipts = receipts.filter(r => {
+            if (isGlobal) {
+                const id = r.institutionId || (r as any).institution_id;
+                const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                return (!id || id === 'GLOBAL') && !isStudent;
+            }
+            return (r.institutionId || (r as any).institution_id) === institutionId;
+        });
+
+        const activeInvoices = relevantInvoices.filter(i => i.status !== 'quote' && i.status !== 'cancelled');
         const totalBilled = activeInvoices.reduce((sum, i) => sum + (Number(i.totalAmount) || 0), 0);
-        const totalPaid = receipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
+        const totalPaid = relevantReceipts.reduce((sum, r) => sum + (Number(r.amountPaid) || 0), 0);
         const totalReceivables = Math.max(0, totalBilled - totalPaid);
 
         const now = new Date();
@@ -301,7 +376,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             return sum + Math.max(0, Number(i.totalAmount) - paid);
         }, 0);
 
-        const quoteCount = invoices.filter(i => i.status === 'quote').length;
+        const quoteCount = relevantInvoices.filter(i => i.status === 'quote').length;
 
         return {
             totalBilled,
@@ -312,7 +387,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             quoteCount,
             activeCount: activeInvoices.length
         };
-    }, [invoices, receipts]);
+    }, [invoices, receipts, institutionId]);
 
     // Aging Buckets Analysis
     const agingData = useMemo(() => {
@@ -342,7 +417,17 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
     // Filtered Invoices List
     const filteredInvoices = useMemo(() => {
+        const isGlobal = !institutionId || institutionId === 'GLOBAL';
         return invoices.filter(inv => {
+            if (isGlobal) {
+                const id = inv.institutionId || (inv as any).institution_id;
+                const isStudent = !!(inv.studentId || (inv as any).student_id);
+                if ((id && id !== 'GLOBAL') || isStudent) return false;
+            } else if (institutionId) {
+                const id = inv.institutionId || (inv as any).institution_id;
+                if (id && id !== institutionId) return false;
+            }
+
             if (activeTab === 'quotes') {
                 if (inv.status !== 'quote') return false;
             } else if (activeTab === 'invoices') {
@@ -363,7 +448,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
             return true;
         });
-    }, [invoices, activeTab, statusFilter, clientFilter, searchQuery, institutionMap]);
+    }, [invoices, activeTab, statusFilter, clientFilter, searchQuery, institutionMap, institutionId]);
 
     // Receipts Search & Filter States
     const [receiptSearchQuery, setReceiptSearchQuery] = useState('');
@@ -371,7 +456,17 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
     // Filtered Receipts List
     const filteredReceipts = useMemo(() => {
+        const isGlobal = !institutionId || institutionId === 'GLOBAL';
         return receipts.filter(rec => {
+            if (isGlobal) {
+                const id = rec.institutionId || (rec as any).institution_id;
+                const isStudent = !!(rec.studentId || (rec as any).student_id || (rec as any).studentName || (rec as any).student_name || (rec as any).feeStructureId);
+                if ((id && id !== 'GLOBAL') || isStudent) return false;
+            } else if (institutionId) {
+                const id = rec.institutionId || (rec as any).institution_id;
+                if (id && id !== institutionId) return false;
+            }
+
             if (receiptMethodFilter !== 'all' && (rec.paymentMethod || '').toLowerCase() !== receiptMethodFilter.toLowerCase()) {
                 return false;
             }

@@ -2546,19 +2546,29 @@ Please change it after login.`;
                                             onLogAction={props.onLogAction}
                                             initialInvoices={invoices.filter(inv => {
                                                 const id = inv.institutionId || (inv as any).institution_id;
-                                                return !id || id === 'GLOBAL'; // null/undefined = corporate; 'GLOBAL' = legacy
+                                                const isStudent = !!(inv.studentId || (inv as any).student_id);
+                                                return (!id || id === 'GLOBAL') && !isStudent;
                                             })}
                                             initialReceipts={receipts.filter(r => {
                                                 const id = r.institutionId || (r as any).institution_id;
-                                                return !id || id === 'GLOBAL';
+                                                const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                                                return (!id || id === 'GLOBAL') && !isStudent;
                                             })}
                                         />
                                     </div>
                                 ) : (
                                     <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                         <TenantInvoiceManager
-                                            invoices={invoices.filter(inv => !inv.studentId)}
-                                            receipts={receipts}
+                                            invoices={invoices.filter(inv => {
+                                                const id = inv.institutionId || (inv as any).institution_id;
+                                                const isStudent = !!(inv.studentId || (inv as any).student_id);
+                                                return id && id !== 'GLOBAL' && !isStudent;
+                                            })}
+                                            receipts={receipts.filter(r => {
+                                                const id = r.institutionId || (r as any).institution_id;
+                                                const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                                                return id && id !== 'GLOBAL' && !isStudent;
+                                            })}
                                             institutions={institutions}
                                             companyDetails={companyDetails}
                                             logoUrl={logoUrl || null}

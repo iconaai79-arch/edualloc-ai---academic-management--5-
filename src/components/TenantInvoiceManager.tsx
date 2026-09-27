@@ -116,11 +116,25 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
         try {
             const records = await apiService.fetchModuleRecords<Receipt>('receipts');
             if (records && records.length > 0) {
+                const invoiceIds = new Set(invoices.map(i => i.id));
+                const subscriptionReceipts = records.filter(r => {
+                    const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                    if (isStudent) return false;
+                    const id = r.institutionId || (r as any).institution_id;
+                    if (!id || id === 'GLOBAL') return false;
+                    // Either linked to a known subscription invoice or is an institution subscription payment
+                    return invoiceIds.has(r.invoiceId || '') || !!id;
+                });
+
                 setReceipts(prev => {
                     const mapById = new Map<string, Receipt>();
-                    (propReceipts || []).forEach(r => mapById.set(r.id, r));
+                    (propReceipts || []).filter(r => {
+                        const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                        const id = r.institutionId || (r as any).institution_id;
+                        return !isStudent && id && id !== 'GLOBAL';
+                    }).forEach(r => mapById.set(r.id, r));
                     prev.forEach(r => mapById.set(r.id, r));
-                    records.forEach(r => mapById.set(r.id, r));
+                    subscriptionReceipts.forEach(r => mapById.set(r.id, r));
                     return Array.from(mapById.values());
                 });
             }
@@ -131,10 +145,15 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
 
     useEffect(() => {
         if (propReceipts && propReceipts.length > 0) {
+            const clean = propReceipts.filter(r => {
+                const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
+                const id = r.institutionId || (r as any).institution_id;
+                return !isStudent && id && id !== 'GLOBAL';
+            });
             setReceipts(prev => {
                 const mapById = new Map<string, Receipt>();
                 prev.forEach(r => mapById.set(r.id, r));
-                propReceipts.forEach(r => mapById.set(r.id, r));
+                clean.forEach(r => mapById.set(r.id, r));
                 return Array.from(mapById.values());
             });
         }
@@ -217,6 +236,11 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
 
     const filteredReceipts = useMemo(() => {
         return receipts.filter(rec => {
+            const isStudent = !!(rec.studentId || (rec as any).student_id || (rec as any).studentName || (rec as any).student_name || (rec as any).feeStructureId);
+            if (isStudent) return false;
+            const id = rec.institutionId || (rec as any).institution_id;
+            if (!id || id === 'GLOBAL') return false;
+
             if (receiptMethodFilter !== 'all' && (rec.paymentMethod || '').toLowerCase() !== receiptMethodFilter.toLowerCase()) {
                 return false;
             }
