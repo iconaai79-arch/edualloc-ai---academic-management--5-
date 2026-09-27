@@ -1064,6 +1064,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 return allowed.includes(tab.id);
             }
 
+            // In Remedial Manager, hide extraneous global tabs (Invoicing & Billing, WiFi & Devices, etc.)
+            if (activeScope === 'remedials' || activeTab === 'remedials') {
+                return false;
+            }
+
             if (tab.id === 'network_devices') {
                 return isEdu || isSchool || isSuperAdminUser(props.currentUser?.role);
             }
@@ -1373,7 +1378,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            {(!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && (isDos || activeScope !== 'academics') && tabs.length > 0 && (
+            {(!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && (isDos || activeScope !== 'academics') && (tabs.length > 0 || ((isEdu || isSchool || isDS) && activeScope !== 'console_hub')) && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar-horizontal pb-2 no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
                     {(isEdu || isSchool || isDS) && (activeScope !== 'console_hub' || activeTab === 'network_devices') && (
                         <button
@@ -1381,7 +1386,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 setActiveScope('console_hub');
                                 setActiveTab('dashboard');
                             }}
-                            className="flex items-center gap-2 py-4 px-6 border-b-2 border-transparent font-black text-xs uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all whitespace-nowrap bg-indigo-50/50 dark:bg-indigo-950/20 rounded-l-2xl border-r border-slate-200 dark:border-slate-700 mr-2 cursor-pointer"
+                            className={`flex items-center gap-2 py-4 px-6 border-b-2 border-transparent font-black text-xs uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all whitespace-nowrap bg-indigo-50/50 dark:bg-indigo-950/20 ${tabs.length > 0 ? 'rounded-l-2xl border-r border-slate-200 dark:border-slate-700 mr-2' : 'rounded-2xl border border-slate-200 dark:border-slate-700'} cursor-pointer`}
                         >
                             <svg className="w-5 h-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                             <span>Portal Hub</span>
