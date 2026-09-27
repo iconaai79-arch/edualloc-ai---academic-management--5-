@@ -2542,12 +2542,15 @@ Please change it after login.`;
                                             companyDetails={companyDetails}
                                             availableInstitutions={institutions}
                                             onLogAction={props.onLogAction}
+                                            initialInvoices={invoices}
+                                            initialReceipts={receipts}
                                         />
                                     </div>
                                 ) : (
                                     <div className="bg-white dark:bg-slate-800 p-12 rounded-[3rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                         <TenantInvoiceManager
                                             invoices={invoices.filter(inv => !inv.studentId)}
+                                            receipts={receipts}
                                             institutions={institutions}
                                             companyDetails={companyDetails}
                                             logoUrl={logoUrl || null}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { Invoice, InvoiceItem, InvoiceClient, CompanyInvoiceSettings, Receipt, Institution, User, CompanyDetails } from '../../types';
+import type { Invoice, InvoiceItem, InvoiceClient, CompanyInvoiceSettings, Receipt, Institution, User, CompanyDetails, MpesaTransaction } from '../../types';
 import { apiService } from '../../services/apiService';
-import { downloadInvoicePdf, downloadQuotePdf } from '../../services/pdfService';
+import { downloadInvoicePdf, downloadQuotePdf, downloadReceiptPdf } from '../../services/pdfService';
 import { sendEmailNotification } from '../../services/emailService';
 
 // Icons
@@ -20,6 +20,8 @@ interface CorporateInvoicingManagerProps {
     companyDetails?: CompanyDetails;
     onLogAction?: (action: string) => void;
     availableInstitutions?: Institution[];
+    initialInvoices?: Invoice[];
+    initialReceipts?: Receipt[];
 }
 
 const INVOICE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -36,7 +38,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     currentInstitution,
     companyDetails,
     onLogAction,
-    availableInstitutions
+    availableInstitutions,
+    initialInvoices,
+    initialReceipts
 }) => {
     const institutionId = currentInstitution?.id || currentUser?.institutionId || 'GLOBAL';
 
@@ -44,8 +48,8 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'quotes' | 'payments' | 'clients' | 'statements' | 'settings'>('dashboard');
 
     // Core Data States
-    const [invoices, setInvoices] = useState<Invoice[]>([]);
-    const [receipts, setReceipts] = useState<Receipt[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices || []);
+    const [receipts, setReceipts] = useState<Receipt[]>(initialReceipts || []);
     const [clients, setClients] = useState<InvoiceClient[]>([]);
     const [settings, setSettings] = useState<CompanyInvoiceSettings | null>(null);
     const [loading, setLoading] = useState(true);
@@ -125,22 +129,41 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [formStampUrl, setFormStampUrl] = useState('');
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
+    const institutionMap = useMemo(() => {
+        const map = new Map<string, Institution>();
+        (availableInstitutions || []).forEach(inst => {
+            if (inst.id) map.set(inst.id, inst);
+        });
+        return map;
+    }, [availableInstitutions]);
+
     // Initial Load Data
     const loadAllInvoicingData = async () => {
         setLoading(true);
         try {
+            const isSuperAdmin = currentUser?.role === 'super_admin' || institutionId === 'GLOBAL' || !institutionId;
+            const targetInstId = isSuperAdmin ? undefined : institutionId;
+
             const [invRes, recRes, clientRes, setRes] = await Promise.allSettled([
-                apiService.fetchInvoices(institutionId),
-                apiService.fetchModuleRecords<Receipt>('receipts', institutionId),
-                apiService.fetchInvoiceClients(institutionId),
+                apiService.fetchInvoices(targetInstId),
+                apiService.fetchModuleRecords<Receipt>('receipts', targetInstId),
+                apiService.fetchInvoiceClients(targetInstId),
                 apiService.fetchCompanyInvoiceSettings(institutionId)
             ]);
 
             if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {
-                setInvoices(invRes.value);
+                const fetched = invRes.value;
+                const mapById = new Map<string, Invoice>();
+                (initialInvoices || []).forEach(i => mapById.set(i.id, i));
+                fetched.forEach(i => mapById.set(i.id, i));
+                setInvoices(Array.from(mapById.values()));
             }
             if (recRes.status === 'fulfilled' && Array.isArray(recRes.value)) {
-                setReceipts(recRes.value);
+                const fetched = recRes.value;
+                const mapById = new Map<string, Receipt>();
+                (initialReceipts || []).forEach(r => mapById.set(r.id, r));
+                fetched.forEach(r => mapById.set(r.id, r));
+                setReceipts(Array.from(mapById.values()));
             }
             if (clientRes.status === 'fulfilled' && Array.isArray(clientRes.value)) {
                 setClients(clientRes.value);
@@ -174,6 +197,28 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     useEffect(() => {
         loadAllInvoicingData();
     }, [institutionId]);
+
+    useEffect(() => {
+        if (initialInvoices && initialInvoices.length > 0) {
+            setInvoices(prev => {
+                const mapById = new Map<string, Invoice>();
+                prev.forEach(i => mapById.set(i.id, i));
+                initialInvoices.forEach(i => mapById.set(i.id, i));
+                return Array.from(mapById.values());
+            });
+        }
+    }, [initialInvoices]);
+
+    useEffect(() => {
+        if (initialReceipts && initialReceipts.length > 0) {
+            setReceipts(prev => {
+                const mapById = new Map<string, Receipt>();
+                prev.forEach(r => mapById.set(r.id, r));
+                initialReceipts.forEach(r => mapById.set(r.id, r));
+                return Array.from(mapById.values());
+            });
+        }
+    }, [initialReceipts]);
 
     // Financial Metrics Calculations
     const metrics = useMemo(() => {
@@ -249,13 +294,42 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 const q = searchQuery.toLowerCase();
                 const num = (inv.invoiceNumber || '').toLowerCase();
                 const cName = (inv.clientName || '').toLowerCase();
+                const instName = (institutionMap.get(inv.institutionId || '')?.name || '').toLowerCase();
                 const itemMatch = inv.items?.some(it => it.description.toLowerCase().includes(q));
-                if (!num.includes(q) && !cName.includes(q) && !itemMatch) return false;
+                if (!num.includes(q) && !cName.includes(q) && !instName.includes(q) && !itemMatch) return false;
             }
 
             return true;
         });
-    }, [invoices, activeTab, statusFilter, clientFilter, searchQuery]);
+    }, [invoices, activeTab, statusFilter, clientFilter, searchQuery, institutionMap]);
+
+    // Receipts Search & Filter States
+    const [receiptSearchQuery, setReceiptSearchQuery] = useState('');
+    const [receiptMethodFilter, setReceiptMethodFilter] = useState('all');
+
+    // Filtered Receipts List
+    const filteredReceipts = useMemo(() => {
+        return receipts.filter(rec => {
+            if (receiptMethodFilter !== 'all' && (rec.paymentMethod || '').toLowerCase() !== receiptMethodFilter.toLowerCase()) {
+                return false;
+            }
+
+            if (receiptSearchQuery) {
+                const q = receiptSearchQuery.toLowerCase();
+                const recNum = (rec.receiptNumber || '').toLowerCase();
+                const txId = (rec.relatedTransactionId || '').toLowerCase();
+                const paidFor = (rec.paidFor || '').toLowerCase();
+                const instName = (institutionMap.get(rec.institutionId || '')?.name || '').toLowerCase();
+                const matchingInv = invoices.find(i => i.id === rec.invoiceId);
+                const cName = (matchingInv?.clientName || '').toLowerCase();
+                if (!recNum.includes(q) && !txId.includes(q) && !paidFor.includes(q) && !instName.includes(q) && !cName.includes(q)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [receipts, receiptMethodFilter, receiptSearchQuery, invoices, institutionMap]);
 
     // Client Statement Ledger
     const statementLedger = useMemo(() => {
@@ -572,6 +646,45 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         }
     };
 
+    // Download PDF Receipt
+    const handleDownloadReceiptPdf = async (rec: Receipt) => {
+        try {
+            const targetInst = institutionMap.get(rec.institutionId || '') || currentInstitution;
+            const effectiveCompanyDetails: CompanyDetails = {
+                name: companyDetails?.name || targetInst?.name || 'Corporate Invoicing Hub',
+                address: companyDetails?.address || targetInst?.address || 'P.O. Box 100, City',
+                phone: companyDetails?.phone || targetInst?.phoneNumber || '0700000000',
+                email: companyDetails?.email || targetInst?.email || 'billing@company.com',
+                website: companyDetails?.website || '',
+                taxPin: formBankName ? undefined : undefined
+            };
+
+            const fallbackTx: MpesaTransaction = {
+                id: rec.relatedTransactionId || rec.id,
+                transactionId: rec.relatedTransactionId || rec.receiptNumber || 'TXN-CLEARED',
+                receiptNumber: rec.receiptNumber,
+                amount: rec.amountPaid,
+                phoneNumber: '',
+                institutionId: rec.institutionId || targetInst?.id || '',
+                timestamp: rec.paymentDate || new Date().toISOString(),
+                status: 'Completed',
+                type: 'Paybill',
+                description: rec.paidFor || 'Official Payment Receipt'
+            };
+
+            await downloadReceiptPdf(
+                rec,
+                fallbackTx,
+                targetInst,
+                effectiveCompanyDetails,
+                formLogoUrl || targetInst?.logoUrl || null
+            );
+        } catch (err: any) {
+            console.error("Failed to generate receipt PDF:", err);
+            alert("Failed to generate receipt PDF: " + (err.message || err));
+        }
+    };
+
     // WhatsApp Dispatch
     const handleShareViaWhatsApp = (doc: Invoice) => {
         const phone = (doc.clientPhone || '').replace(/\D/g, '');
@@ -802,7 +915,12 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         return (
                                             <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
                                                 <td className="p-3 font-mono font-black text-indigo-600 dark:text-indigo-400">{inv.invoiceNumber}</td>
-                                                <td className="p-3 font-bold text-slate-900 dark:text-white">{inv.clientName || 'Client'}</td>
+                                                <td className="p-3">
+                                                    <p className="font-bold text-slate-900 dark:text-white">{inv.clientName || institutionMap.get(inv.institutionId || '')?.name || 'Client'}</p>
+                                                    {institutionMap.get(inv.institutionId || '')?.name && inv.clientName && inv.clientName !== institutionMap.get(inv.institutionId || '')?.name && (
+                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{institutionMap.get(inv.institutionId || '')?.name}</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-3 text-slate-500">{inv.issueDate}</td>
                                                 <td className="p-3 text-slate-500">{inv.dueDate}</td>
                                                 <td className="p-3 text-right font-mono font-bold">{formCurrency} {Number(inv.totalAmount).toLocaleString()}</td>
@@ -918,7 +1036,10 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors">
                                                 <td className="p-4 font-mono font-black text-indigo-600 dark:text-indigo-400">{doc.invoiceNumber}</td>
                                                 <td className="p-4">
-                                                    <p className="font-bold text-slate-900 dark:text-white">{doc.clientName || 'Client'}</p>
+                                                    <p className="font-bold text-slate-900 dark:text-white">{doc.clientName || institutionMap.get(doc.institutionId || '')?.name || 'Client'}</p>
+                                                    {institutionMap.get(doc.institutionId || '')?.name && doc.clientName && doc.clientName !== institutionMap.get(doc.institutionId || '')?.name && (
+                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{institutionMap.get(doc.institutionId || '')?.name}</span>
+                                                    )}
                                                     {doc.clientTaxPin && <span className="text-[10px] text-slate-400 font-mono">PIN: {doc.clientTaxPin}</span>}
                                                 </td>
                                                 <td className="p-4 text-slate-500">{doc.issueDate}</td>
@@ -998,7 +1119,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             {/* TAB 4: PAYMENTS & RECEIPTS */}
             {activeTab === 'payments' && (
                 <div className="space-y-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-center">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
                             <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                                 Customer Receipts &amp; Payment Ledger
@@ -1010,6 +1131,34 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                         </span>
                     </div>
 
+                    {/* Filter & Search Bar */}
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <input
+                                type="text"
+                                placeholder="Search by receipt #, ref, customer, or purpose..."
+                                value={receiptSearchQuery}
+                                onChange={e => setReceiptSearchQuery(e.target.value)}
+                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white w-full md:w-80"
+                            />
+                            <select
+                                value={receiptMethodFilter}
+                                onChange={e => setReceiptMethodFilter(e.target.value)}
+                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white"
+                            >
+                                <option value="all">All Channels</option>
+                                <option value="M-Pesa">M-Pesa</option>
+                                <option value="Bank">Bank Transfer</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Card">Card</option>
+                                <option value="Cheque">Cheque</option>
+                            </select>
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium">
+                            Showing <span className="font-bold text-slate-900 dark:text-white">{filteredReceipts.length}</span> of {receipts.length} verified receipts
+                        </div>
+                    </div>
+
                     <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs">
@@ -1017,29 +1166,55 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     <tr>
                                         <th className="p-4">Receipt #</th>
                                         <th className="p-4">Payment Date</th>
+                                        <th className="p-4">Customer / Institution</th>
                                         <th className="p-4">Channel / Method</th>
                                         <th className="p-4">Reference / Code</th>
                                         <th className="p-4">Allocated Invoice / Purpose</th>
                                         <th className="p-4 text-right">Amount Cleared</th>
+                                        <th className="p-4 text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {receipts.map(rec => (
-                                        <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
-                                            <td className="p-4 font-mono font-black text-emerald-600 dark:text-emerald-400">{rec.receiptNumber}</td>
-                                            <td className="p-4 text-slate-500">{rec.paymentDate}</td>
-                                            <td className="p-4 font-bold text-slate-700 dark:text-slate-300">{rec.paymentMethod}</td>
-                                            <td className="p-4 font-mono text-slate-500">{rec.relatedTransactionId || '—'}</td>
-                                            <td className="p-4 text-slate-600 dark:text-slate-400">{rec.paidFor || 'Invoice Settlement'}</td>
-                                            <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
-                                                {formCurrency} {Number(rec.amountPaid).toLocaleString()}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {receipts.length === 0 && (
+                                    {filteredReceipts.map(rec => {
+                                        const matchingInv = invoices.find(i => i.id === rec.invoiceId);
+                                        const instName = institutionMap.get(rec.institutionId || matchingInv?.institutionId || '')?.name;
+                                        const customerName = matchingInv?.clientName || instName || 'Commercial Client';
+
+                                        return (
+                                            <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
+                                                <td className="p-4 font-mono font-black text-emerald-600 dark:text-emerald-400">{rec.receiptNumber}</td>
+                                                <td className="p-4 text-slate-500">{rec.paymentDate}</td>
+                                                <td className="p-4">
+                                                    <p className="font-bold text-slate-900 dark:text-white">{customerName}</p>
+                                                    {instName && instName !== customerName && (
+                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{instName}</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-300">{rec.paymentMethod}</td>
+                                                <td className="p-4 font-mono text-slate-500">{rec.relatedTransactionId || '—'}</td>
+                                                <td className="p-4 text-slate-600 dark:text-slate-400">{rec.paidFor || 'Invoice Settlement'}</td>
+                                                <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                                    {formCurrency} {Number(rec.amountPaid).toLocaleString()}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <button
+                                                        onClick={() => handleDownloadReceiptPdf(rec)}
+                                                        className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1"
+                                                        title="Download Official PDF Receipt"
+                                                    >
+                                                        <DocumentArrowDownIcon className="w-4 h-4 text-emerald-600" />
+                                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">PDF</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {filteredReceipts.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="p-8 text-center text-slate-400">
-                                                No customer payments recorded yet. Click "Record Pay" on any pending invoice.
+                                            <td colSpan={8} className="p-8 text-center text-slate-400">
+                                                {receipts.length === 0
+                                                    ? 'No customer payments recorded yet. Click "Record Pay" on any pending invoice.'
+                                                    : 'No receipts match your search filters.'}
                                             </td>
                                         </tr>
                                     )}
