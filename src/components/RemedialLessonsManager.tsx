@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty, RemedialTeacherOpeningBalance } from '../types';
+import { RemedialOpeningBalancesModal } from './RemedialOpeningBalancesModal';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
@@ -26,6 +27,8 @@ import {
     getClassShortCode,
     getDistinctTimetableClasses,
     matchAllocationStream,
+    cleanStreamName,
+    extractIndividualStreams,
     getAscSubjectColor
 } from '../utils/remedialReportGenerator';
 
@@ -55,6 +58,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [rateSetting, setRateSetting] = useState<RemedialRateSetting | null>(null);
     const [payouts, setPayouts] = useState<RemedialPayout[]>([]);
     const [allocations, setAllocations] = useState<RemedialAllocation[]>([]);
+    const [openingBalances, setOpeningBalances] = useState<RemedialTeacherOpeningBalance[]>([]);
+    const [isOpeningBalancesModalOpen, setIsOpeningBalancesModalOpen] = useState(false);
     const [remedialSubjects, setRemedialSubjects] = useState<RemedialSubject[]>([]);
     const [fetchedSchoolSubjects, setFetchedSchoolSubjects] = useState<Subject[]>([]);
     const [fetchedTenantUsers, setFetchedTenantUsers] = useState<User[]>([]);
@@ -156,15 +161,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const allSchoolClasses = useMemo(() => {
         const classMap = new Map<string, { id: string; name: string; streams: Set<string>; allocCount: number }>();
 
+        const normalizeClassName = (cn: string): string => {
+            return (cn || '').trim().replace(/^(grade|class|form|year|std|standard)\s+/i, '').toLowerCase();
+        };
+
         const ensureClass = (rawName: string, idHint?: string) => {
             if (!rawName) return null;
             const name = String(rawName).trim();
             if (!name || name === 'Class' || name === 'All') return null;
-            const key = name.toLowerCase();
+
+            // Resolve canonical course name if possible
+            const matchingCourse = (tenantCourses || []).find(c => {
+                const cName = (c.name || (c as any).level || '').toLowerCase();
+                const aName = name.toLowerCase();
+                if (c.id === idHint || c.id === name || cName === aName || c.code?.toLowerCase() === aName) return true;
+                const cNorm = normalizeClassName(cName);
+                const aNorm = normalizeClassName(aName);
+                return !!(cNorm && aNorm && cNorm === aNorm);
+            });
+
+            const canonicalName = matchingCourse?.name || (matchingCourse as any)?.level || name;
+            const canonicalId = matchingCourse?.id || idHint || canonicalName;
+            const key = canonicalName.toLowerCase();
+
             if (!classMap.has(key)) {
                 classMap.set(key, {
-                    id: idHint || name,
-                    name,
+                    id: canonicalId,
+                    name: canonicalName,
                     streams: new Set<string>(),
                     allocCount: 0
                 });
@@ -174,13 +197,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         const addStreamToEntry = (entry: { streams: Set<string> }, raw: any) => {
             if (!raw) return;
-            const str = (typeof raw === 'string' ? raw : (raw?.name ? String(raw.name) : '')).trim();
-            if (!str || str === 'All Streams' || str === 'All') return;
-            const parts = str.split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
-            if (parts.length > 1) {
-                parts.forEach(p => entry.streams.add(p));
-            }
-            entry.streams.add(str.replace(/[()]/g, '').trim());
+            const streams = extractIndividualStreams(raw);
+            streams.forEach(st => {
+                if (st && st !== 'All Streams' && st !== 'All') {
+                    entry.streams.add(st);
+                }
+            });
         };
 
         // 1. From courses prop (strictly scoped to tenant)
@@ -243,14 +265,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const globalStreams = new Set<string>();
         if (Array.isArray(instStreams)) {
             instStreams.forEach(s => {
-                const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
-                if (sName && sName !== 'All Streams' && sName !== 'All') {
-                    const parts = sName.split(/[,/&+]|\band\b/i).map(p => p.trim().replace(/[()]/g, '')).filter(Boolean);
-                    if (parts.length > 1) {
-                        parts.forEach(p => globalStreams.add(p));
-                    }
-                    globalStreams.add(sName.replace(/[()]/g, '').trim());
-                }
+                extractIndividualStreams(s).forEach(st => globalStreams.add(st));
             });
         }
 
@@ -746,7 +761,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             // 2. Fetch primary remedial operations in parallel (ultra-fast, ~100ms)
-            const [sessResult, ratesResult, payResult, allocResult, remSubResult, dutyResult] = await Promise.allSettled([
+            const [sessResult, ratesResult, payResult, allocResult, remSubResult, dutyResult, openBalResult] = await Promise.allSettled([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
@@ -756,7 +771,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 typeof (apiService as any).fetchRemedialSubjects === 'function'
                     ? (apiService as any).fetchRemedialSubjects(institutionId)
                     : apiService.fetchModuleRecords<RemedialSubject>('school_remedial_subjects', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<RemedialWeekendDuty>('school_remedial_duty_roster', institutionId).catch(() => [])
+                apiService.fetchModuleRecords<RemedialWeekendDuty>('school_remedial_duty_roster', institutionId).catch(() => []),
+                apiService.fetchRemedialOpeningBalances(institutionId).catch(() => [])
             ]);
 
             const sessList = sessResult.status === 'fulfilled' && Array.isArray(sessResult.value) ? sessResult.value : [];
@@ -765,9 +781,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const allocList = allocResult.status === 'fulfilled' && Array.isArray(allocResult.value) ? allocResult.value : [];
             const remSubList = remSubResult.status === 'fulfilled' && Array.isArray(remSubResult.value) ? remSubResult.value : [];
             const dutyList = dutyResult.status === 'fulfilled' && Array.isArray(dutyResult.value) ? dutyResult.value : [];
+            const openBalList = openBalResult.status === 'fulfilled' && Array.isArray(openBalResult.value) ? openBalResult.value : [];
 
             setSessions(sessList);
             setPayouts(payList);
+            setOpeningBalances(openBalList);
             // Only overwrite in-memory allocations if the API returned data.
             // If the fetch failed or returned empty, fall back to the cached value
             // so we never wipe manually added allocations due to a transient fetch error.
@@ -2328,17 +2346,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         if ((selectedCourse as any)?.streams && Array.isArray((selectedCourse as any).streams)) {
             (selectedCourse as any).streams.forEach((s: any) => {
-                const name = String(s.name || s || '').trim();
-                if (name && name !== 'All Streams' && name !== 'All') streamSet.add(name);
+                extractIndividualStreams(s).forEach(st => streamSet.add(st));
             });
         }
 
         allocations.forEach(a => {
             if (a.courseId === manualCourseId || a.className === manualCourseId || (selectedCourse && a.className === selectedCourse.name)) {
-                if (a.stream && a.stream !== 'All Streams' && a.stream !== 'All') streamSet.add(a.stream.trim());
+                if (a.stream) {
+                    extractIndividualStreams(a.stream).forEach(st => streamSet.add(st));
+                }
                 if (Array.isArray(a.jointStreams)) {
                     a.jointStreams.forEach(s => {
-                        if (s && s !== 'All Streams' && s !== 'All') streamSet.add(String(s).trim());
+                        extractIndividualStreams(s).forEach(st => streamSet.add(st));
                     });
                 }
             }
@@ -2348,8 +2367,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         tenantUsers.forEach(u => {
             if (u.role === 'student' && (u.courseId === manualCourseId || (u as any).class === selectedCourse?.name || (u as any).className === selectedCourse?.name)) {
                 const sName = (u as any).stream || (u as any).streamName || (u as any).metadata?.stream || '';
-                if (sName && typeof sName === 'string' && sName.trim() && sName !== 'All Streams') {
-                    streamSet.add(sName.trim());
+                if (sName) {
+                    extractIndividualStreams(sName).forEach(st => streamSet.add(st));
                 }
             }
         });
@@ -2357,8 +2376,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const instStreams = (currentInstitution?.streamDefinitions || currentInstitution?.streams || []) as any[];
         if (Array.isArray(instStreams)) {
             instStreams.forEach(s => {
-                const sName = typeof s === 'string' ? s.trim() : (s?.name ? String(s.name).trim() : '');
-                if (sName && sName !== 'All Streams' && sName !== 'All') streamSet.add(sName);
+                extractIndividualStreams(s).forEach(st => streamSet.add(st));
             });
         }
 
@@ -2371,14 +2389,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         const addStreamName = (raw: any) => {
             if (!raw) return;
-            const str = (typeof raw === 'string' ? raw : (raw?.name ? String(raw.name) : '')).trim();
-            if (!str || str === 'All Streams' || str === 'All') return;
-            // If composite stream string (e.g. "East, West" or "East / West"), add individual parts as well
-            const parts = str.split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
-            if (parts.length > 1) {
-                parts.forEach(p => streamSet.add(p));
-            }
-            streamSet.add(str.replace(/[()]/g, '').trim());
+            extractIndividualStreams(raw).forEach(st => streamSet.add(st));
         };
 
         const targetCourse = combinedCourses.find(c => c.id === selectedTimetableClass || c.name === selectedTimetableClass);
@@ -5662,15 +5673,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             grouped[s.teacherId].sessionIds.push(s.id);
         });
 
-        return Object.entries(grouped).map(([teacherId, data]) => ({
-            teacherId,
-            teacherName: data.teacherName,
-            totalHours: data.totalHours,
-            sessionIds: data.sessionIds,
-            rate: Math.round(data.totalAmount / (data.totalHours || 1)),
-            totalAmount: data.totalAmount
-        }));
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout]);
+        return Object.entries(grouped).map(([teacherId, data]) => {
+            const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
+            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? openBal.amount : -openBal.amount) : 0;
+            return {
+                teacherId,
+                teacherName: data.teacherName,
+                totalHours: data.totalHours,
+                sessionIds: data.sessionIds,
+                rate: Math.round(data.totalAmount / (data.totalHours || 1)),
+                earnedAmount: data.totalAmount,
+                openingBalanceAmount: openBalAmount,
+                totalAmount: Math.max(0, data.totalAmount + openBalAmount)
+            };
+        });
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
 
     // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (Pending Operations Payout)
     const pendingOpsHandoverBatches = useMemo(() => {
@@ -5691,15 +5708,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             grouped[s.teacherId].totalAmount += sessionAmount;
             grouped[s.teacherId].sessionIds.push(s.id);
         });
-        return Object.entries(grouped).map(([teacherId, data]) => ({
-            teacherId,
-            teacherName: data.teacherName,
-            totalHours: data.totalHours,
-            sessionIds: data.sessionIds,
-            rate: Math.round(data.totalAmount / (data.totalHours || 1)),
-            totalAmount: data.totalAmount
-        }));
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout]);
+        return Object.entries(grouped).map(([teacherId, data]) => {
+            const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
+            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? openBal.amount : -openBal.amount) : 0;
+            return {
+                teacherId,
+                teacherName: data.teacherName,
+                totalHours: data.totalHours,
+                sessionIds: data.sessionIds,
+                rate: Math.round(data.totalAmount / (data.totalHours || 1)),
+                earnedAmount: data.totalAmount,
+                openingBalanceAmount: openBalAmount,
+                totalAmount: Math.max(0, data.totalAmount + openBalAmount)
+            };
+        });
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
 
     // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
     const cashIssuedToDosBatches = useMemo(() => {
@@ -5724,17 +5747,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (s.cashVoucherRef) grouped[s.teacherId].cashVoucherRef = s.cashVoucherRef;
             if (s.operationsDisbursedBy) grouped[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
         });
-        return Object.entries(grouped).map(([teacherId, data]) => ({
-            teacherId,
-            teacherName: data.teacherName,
-            totalHours: data.totalHours,
-            sessionIds: data.sessionIds,
-            rate: Math.round(data.totalAmount / (data.totalHours || 1)),
-            totalAmount: data.totalAmount,
-            cashVoucherRef: data.cashVoucherRef,
-            operationsManagerName: data.operationsManagerName
-        }));
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout]);
+        return Object.entries(grouped).map(([teacherId, data]) => {
+            const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
+            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? openBal.amount : -openBal.amount) : 0;
+            return {
+                teacherId,
+                teacherName: data.teacherName,
+                totalHours: data.totalHours,
+                sessionIds: data.sessionIds,
+                rate: Math.round(data.totalAmount / (data.totalHours || 1)),
+                earnedAmount: data.totalAmount,
+                openingBalanceAmount: openBalAmount,
+                totalAmount: Math.max(0, data.totalAmount + openBalAmount),
+                cashVoucherRef: data.cashVoucherRef,
+                operationsManagerName: data.operationsManagerName
+            };
+        });
+    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
 
     // Issue Payout Voucher
     const handleIssuePayout = async (accrued: any) => {
@@ -7988,7 +8017,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
 
                     {/* Stats Overview Grid */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                         <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-1">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Teachers</span>
@@ -8036,6 +8065,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{allocations.length}</p>
                             <p className="text-[10px] text-slate-400 font-bold">Total scheduled lessons / week</p>
                         </div>
+
+                        {/* Opening Balances (B/F) KPI Card */}
+                        <div 
+                            onClick={() => setIsOpeningBalancesModalOpen(true)}
+                            className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-emerald-200 dark:border-emerald-800/80 shadow-sm space-y-1 cursor-pointer hover:border-emerald-500 transition-all group col-span-2 sm:col-span-1"
+                            title="Click to view or upload opening balances"
+                        >
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-teal-600 dark:text-teal-400">Opening Arrears (B/F)</span>
+                                <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 group-hover:scale-110 transition-transform">
+                                    <Banknote className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300 tracking-tight font-mono">
+                                KES {openingBalances.filter(b => b.balanceType === 'payable').reduce((sum, b) => sum + b.amount, 0).toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-teal-600 dark:text-teal-400 font-bold flex items-center gap-1">
+                                {openingBalances.length} recorded • Click to manage <ArrowRight className="w-3 h-3" />
+                            </p>
+                        </div>
                     </div>
 
                     {/* Search & Filter Bar */}
@@ -8068,6 +8117,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     {tabKey === 'weekend' && 'Weekend Staff'}
                                 </button>
                             ))}
+
+                            <button
+                                type="button"
+                                onClick={() => setIsOpeningBalancesModalOpen(true)}
+                                className="px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-sm transition-all cursor-pointer ml-auto"
+                            >
+                                <Banknote className="w-3.5 h-3.5" /> Opening Balances ({openingBalances.length})
+                            </button>
                         </div>
                     </div>
 
@@ -8243,6 +8300,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </button>
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* Opening Balance (B/F) & Financial Status */}
+                                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                                        {(() => {
+                                            const teacherOpenBal = openingBalances.find(b => b.teacherId === teacher.id && b.status !== 'cleared');
+                                            return (
+                                                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-700/80">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Opening B/F:</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {teacherOpenBal ? (
+                                                            <span className={`font-mono font-black text-xs ${teacherOpenBal.balanceType === 'payable' ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                                                                KES {teacherOpenBal.amount.toLocaleString()} ({teacherOpenBal.balanceType === 'payable' ? 'Arrears' : 'Advance'})
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold text-slate-400 font-mono">KES 0</span>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsOpeningBalancesModalOpen(true)}
+                                                            className="p-1 rounded text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                                                            title="Update Opening Balance"
+                                                        >
+                                                            <Pencil className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* Card Footer: Teaching Load & Quick Actions */}
@@ -16543,6 +16632,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             </div>,
             document.body
         )}
+
+        {/* Remedial Teacher Opening Balances Modal (Excel Upload & Management) */}
+        <RemedialOpeningBalancesModal
+            isOpen={isOpeningBalancesModalOpen}
+            onClose={() => setIsOpeningBalancesModalOpen(false)}
+            institutionId={institutionId || ''}
+            currentUser={currentUser}
+            teachersList={teachersList}
+            teacherCodes={teacherCodes}
+            existingBalances={openingBalances}
+            onBalancesUpdated={(updated) => setOpeningBalances(updated)}
+            currentTerm="Term 1"
+            currentYear={new Date().getFullYear().toString()}
+        />
         </>
     );
 };

@@ -770,26 +770,68 @@ export const getClassShortCode = (className?: string, stream?: string): string =
     return streamPart ? `${classPart} ${streamPart}` : classPart;
 };
 
+// Clean stream strings by stripping out annotations such as (Joint), Joint, Combined, and parentheses
+export const cleanStreamName = (rawStr: string): string => {
+    return (rawStr || '')
+        .replace(/\(joint\)/gi, '')
+        .replace(/\bjoint\b/gi, '')
+        .replace(/\bcombined\b/gi, '')
+        .replace(/[()]/g, '')
+        .trim();
+};
+
+// Decompose any composite or annotated stream string into clean, distinct individual stream names
+export const extractIndividualStreams = (raw: any): string[] => {
+    if (!raw) return [];
+    const str = (typeof raw === 'object' ? raw?.name || '' : String(raw ?? '')).trim();
+    if (!str || str === 'All Streams' || str === 'All') return [];
+
+    const cleaned = cleanStreamName(str);
+    if (!cleaned || cleaned.toLowerCase() === 'all streams' || cleaned.toLowerCase() === 'all') return [];
+
+    // Split on delimiters (e.g. "Central + East", "Central / East", "Central & East", "Central, East", "Central and East")
+    const parts = cleaned.split(/[,/&+]|\band\b/i).map(p => cleanStreamName(p)).filter(Boolean);
+    const result: string[] = [];
+    const seen = new Set<string>();
+
+    parts.forEach(p => {
+        if (!p) return;
+        const low = p.toLowerCase();
+        if (low === 'all streams' || low === 'all' || low === 'joint' || low === 'combined') return;
+        // Standardize capitalization (e.g. "central" -> "Central")
+        const formatted = p.charAt(0).toUpperCase() + p.slice(1);
+        if (!seen.has(low)) {
+            seen.add(low);
+            result.push(formatted);
+        }
+    });
+
+    return result;
+};
+
 // Check whether an allocation matches a requested stream, taking into account joint classes
 export const matchAllocationStream = (allocation: any, targetStream?: string): boolean => {
     if (!targetStream || targetStream === 'All Streams' || targetStream === 'All') return true;
     if (!allocation) return false;
-    if (!allocation.stream || allocation.stream === 'All Streams') return true;
+    if (!allocation.stream || allocation.stream === 'All Streams' || allocation.stream === 'All') return true;
 
-    const target = targetStream.toLowerCase().trim();
-    const allocStream = String(allocation.stream || '').toLowerCase().trim();
+    const cleanStr = (s: string) => cleanStreamName(s).toLowerCase();
+    const target = cleanStr(targetStream);
+    if (!target) return true;
+
+    const allocStream = cleanStr(String(allocation.stream || ''));
     if (allocStream === target) return true;
 
-    // Check delimited streams (e.g. "East, West" or "East / West" or "East & West")
-    const parts = allocStream.split(/[,/&+]|\band\b/i).map(s => s.trim().replace(/[()]/g, '')).filter(Boolean);
-    if (parts.includes(target) || parts.some(p => p === target || target.includes(p))) return true;
+    // Check delimited streams (e.g. "Central + East" or "Central, East" or "Central & East")
+    const parts = allocStream.split(/[,/&+]|\band\b/i).map(s => cleanStr(s)).filter(Boolean);
+    if (parts.includes(target) || parts.some(p => p === target)) return true;
 
     const isJoint = !!(allocation.isJoint || allocation.is_joint || (allocation.jointStreams && allocation.jointStreams.length > 0));
     if (isJoint) {
         const jointStreams = Array.isArray(allocation.jointStreams)
             ? allocation.jointStreams
             : (Array.isArray(allocation.joint_streams) ? allocation.joint_streams : []);
-        if (jointStreams.some((s: string) => String(s).toLowerCase().trim() === target)) {
+        if (jointStreams.some((s: string) => cleanStr(String(s)) === target)) {
             return true;
         }
         if (allocStream && allocStream.includes(target)) {
@@ -799,15 +841,9 @@ export const matchAllocationStream = (allocation: any, targetStream?: string): b
     return false;
 };
 
-// Extract distinct sorted classes and streams
+// Extract distinct sorted classes and streams without duplicates or compound joint rows
 export const getDistinctTimetableClasses = (allocations: any[], courses: any[], onlyWithAllocations: boolean = false) => {
     const classMap = new Map<string, { className: string; stream: string; shortCode: string; sortKey: string }>();
-
-    // Normalize 'All Streams' / 'All' / blank to '' so they all share the same representation
-    const normalizeStream = (s: any): string => {
-        const raw = (typeof s === 'object' ? s?.name || '' : String(s ?? '')).trim();
-        return (raw === 'All Streams' || raw === 'All') ? '' : raw;
-    };
 
     // Course ID / Name lookup to ensure consistent canonical class names
     const courseById = new Map<string, string>();
@@ -816,24 +852,46 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[], 
         if (c.id) courseById.set(c.id, cName);
     });
 
+    const normalizeClassName = (cn: string): string => {
+        return (cn || '').trim().replace(/^(grade|class|form|year|std|standard)\s+/i, '').toLowerCase();
+    };
+
     const getCanonicalClassName = (a: any): string => {
         if (a.courseId && courseById.has(a.courseId)) {
             return courseById.get(a.courseId)!;
         }
         if (a.className) {
-            const match = courses.find(c => 
-                (c.name || '').toLowerCase() === a.className.toLowerCase() ||
-                (c.code || '').toLowerCase() === a.className.toLowerCase() ||
-                c.id === a.className
-            );
+            const match = courses.find(c => {
+                const cName = (c.name || c.level || '').toLowerCase();
+                const aName = (a.className || '').toLowerCase();
+                if (cName === aName || c.code?.toLowerCase() === aName || c.id === a.className) return true;
+                const cNorm = normalizeClassName(cName);
+                const aNorm = normalizeClassName(aName);
+                return !!(cNorm && aNorm && cNorm === aNorm);
+            });
             if (match) return match.name || match.level || a.className;
             return a.className;
         }
         return 'Class';
     };
 
-    // Map canonical className -> Set of valid stream names
-    const classStreamsMap = new Map<string, Set<string>>();
+    // Map canonical className -> Map<lowercaseStream, originalStreamName>
+    const classStreamsMap = new Map<string, Map<string, string>>();
+
+    const addStreamToClass = (cName: string, rawStream: any) => {
+        if (!cName) return;
+        if (!classStreamsMap.has(cName)) {
+            classStreamsMap.set(cName, new Map<string, string>());
+        }
+        const sMap = classStreamsMap.get(cName)!;
+        const streams = extractIndividualStreams(rawStream);
+        streams.forEach(st => {
+            const low = st.toLowerCase();
+            if (!sMap.has(low)) {
+                sMap.set(low, st);
+            }
+        });
+    };
 
     const activeAllocs = (allocations || []).filter(a => !a.isUnallocated && a.dayOfWeek !== 'Unallocated');
     const hasActiveAllocs = activeAllocs.length > 0;
@@ -842,24 +900,13 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[], 
     if (!onlyWithAllocations || !hasActiveAllocs) {
         courses.forEach(c => {
             const cName = c.name || c.level || 'Class';
-            if (!classStreamsMap.has(cName)) {
-                classStreamsMap.set(cName, new Set<string>());
-            }
-            const sSet = classStreamsMap.get(cName)!;
-
             // Streams from c.streams
             if (Array.isArray(c.streams)) {
-                c.streams.forEach((st: any) => {
-                    const sName = normalizeStream(st);
-                    if (sName) sSet.add(sName);
-                });
+                c.streams.forEach((st: any) => addStreamToClass(cName, st));
             }
             // Streams from c.levels (standard in EduAI)
             if (Array.isArray(c.levels)) {
-                c.levels.forEach((lvl: any) => {
-                    const sName = normalizeStream(lvl?.name || lvl);
-                    if (sName) sSet.add(sName);
-                });
+                c.levels.forEach((lvl: any) => addStreamToClass(cName, lvl));
             }
         });
     }
@@ -867,33 +914,25 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[], 
     // 2. Also collect any streams from allocations
     activeAllocs.forEach(a => {
         const cName = getCanonicalClassName(a);
-        if (!classStreamsMap.has(cName)) {
-            classStreamsMap.set(cName, new Set<string>());
-        }
-        const sSet = classStreamsMap.get(cName)!;
-
         const isJoint = !!(a.isJoint || a.is_joint || (a.jointStreams && a.jointStreams.length > 0));
         if (isJoint) {
             const jointStreams = Array.isArray(a.jointStreams) ? a.jointStreams : (Array.isArray(a.joint_streams) ? a.joint_streams : []);
-            jointStreams.forEach((st: any) => {
-                const sName = normalizeStream(st);
-                if (sName) sSet.add(sName);
-            });
-        } else {
-            const sName = normalizeStream(a.stream);
-            if (sName) sSet.add(sName);
+            jointStreams.forEach((st: any) => addStreamToClass(cName, st));
+        }
+        if (a.stream) {
+            addStreamToClass(cName, a.stream);
         }
     });
 
-    // 3. Build classMap: if a class has streams, ONLY include those available streams.
+    // 3. Build classMap: if a class has streams, ONLY include those available distinct streams.
     // If a class has no streams at all, include a single streamless class row.
-    classStreamsMap.forEach((streamSet, cName) => {
-        if (streamSet.size > 0) {
-            const sortedStreams = Array.from(streamSet).sort((a, b) => 
+    classStreamsMap.forEach((streamMap, cName) => {
+        if (streamMap.size > 0) {
+            const sortedStreams = Array.from(streamMap.values()).sort((a, b) => 
                 a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
             );
             sortedStreams.forEach(sName => {
-                const key = `${cName}_${sName}`;
+                const key = `${cName}_${sName.toLowerCase()}`;
                 if (!classMap.has(key)) {
                     const code = getClassShortCode(cName, sName);
                     classMap.set(key, { className: cName, stream: sName, shortCode: code, sortKey: key });

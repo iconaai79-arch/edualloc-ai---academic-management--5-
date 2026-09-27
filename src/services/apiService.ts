@@ -18,7 +18,7 @@ import type {
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
-    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise,
+    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise, RemedialTeacherOpeningBalance,
     InvoiceClient, CompanyInvoiceSettings,
     SchoolAuthorizedDevice, SchoolRouterProfile
 } from '../types';
@@ -6772,6 +6772,15 @@ export const apiService = {
     },
     async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { return apiService.fetchModuleRecords('school_remedial_payouts', instId); },
     async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { await apiService.saveModuleRecord('school_remedial_payouts', data); },
+    async fetchRemedialOpeningBalances(instId?: string): Promise<RemedialTeacherOpeningBalance[]> {
+        return apiService.fetchModuleRecords('school_remedial_opening_balances', instId);
+    },
+    async saveRemedialOpeningBalance(data: Partial<RemedialTeacherOpeningBalance>): Promise<void> {
+        await apiService.saveModuleRecord('school_remedial_opening_balances', data);
+    },
+    async deleteRemedialOpeningBalance(id: string): Promise<void> {
+        await apiService.deleteModuleRecord('school_remedial_opening_balances', id);
+    },
     async fetchRemedialAllocations(instId?: string): Promise<RemedialAllocation[]> {
         const records = await apiService.fetchModuleRecords('school_remedial_allocations', instId);
         return (records || []).map((r: any) => {

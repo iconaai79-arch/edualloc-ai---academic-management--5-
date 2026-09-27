@@ -6758,6 +6758,28 @@ export interface RemedialPayout {
     paidAt?: string;
     teacherSignatureDataUrl?: string;
     notes?: string;
+    openingBalanceIncluded?: number;
+    earnedAmount?: number;
+}
+
+export interface RemedialTeacherOpeningBalance {
+    id: string;
+    institutionId: string;
+    teacherId: string;
+    teacherName: string;
+    teacherCode?: string;
+    academicYear?: string;
+    term?: string;
+    amount: number; // Positive = Arrears (owed to teacher), Negative = Advance (owed to school)
+    balanceType: 'payable' | 'advance';
+    asOfDate?: string;
+    reference?: string;
+    notes?: string;
+    status?: 'active' | 'cleared' | 'partially_paid';
+    clearedAmount?: number;
+    uploadedBy?: string;
+    uploadedAt?: string;
+    updatedAt?: string;
 }
 
 export interface BuildingFloor {
