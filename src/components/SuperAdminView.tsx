@@ -2544,8 +2544,8 @@ Please change it after login.`;
                                             logoUrl={companyDetails?.logoUrl}
                                             availableInstitutions={institutions}
                                             onLogAction={props.onLogAction}
-                                            initialInvoices={invoices}
-                                            initialReceipts={receipts}
+                                            initialInvoices={invoices.filter(inv => (inv.institutionId === 'GLOBAL' || (inv as any).institution_id === 'GLOBAL'))}
+                                            initialReceipts={receipts.filter(r => (r.institutionId === 'GLOBAL' || (r as any).institution_id === 'GLOBAL'))}
                                         />
                                     </div>
                                 ) : (

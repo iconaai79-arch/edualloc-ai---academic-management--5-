@@ -152,8 +152,11 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const loadAllInvoicingData = async () => {
         setLoading(true);
         try {
-            const isSuperAdmin = currentUser?.role === 'super_admin' || institutionId === 'GLOBAL' || !institutionId;
-            const targetInstId = isSuperAdmin ? undefined : institutionId;
+            // Always scope queries to the current institution.
+            // When institutionId is 'GLOBAL' this loads only EduAI's own corporate invoices.
+            // Only pass undefined (fetch ALL) if there truly is no institution context — which
+            // should never happen in normal usage; this prevents cross-tenant data leakage.
+            const targetInstId = institutionId && institutionId !== '' ? institutionId : undefined;
 
             const [invRes, recRes, clientRes, setRes, numConfigsRes] = await Promise.allSettled([
                 apiService.fetchInvoices(targetInstId),
