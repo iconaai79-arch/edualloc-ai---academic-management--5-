@@ -2544,8 +2544,14 @@ Please change it after login.`;
                                             logoUrl={companyDetails?.logoUrl}
                                             availableInstitutions={institutions}
                                             onLogAction={props.onLogAction}
-                                            initialInvoices={invoices.filter(inv => (inv.institutionId === 'GLOBAL' || (inv as any).institution_id === 'GLOBAL'))}
-                                            initialReceipts={receipts.filter(r => (r.institutionId === 'GLOBAL' || (r as any).institution_id === 'GLOBAL'))}
+                                            initialInvoices={invoices.filter(inv => {
+                                                const id = inv.institutionId || (inv as any).institution_id;
+                                                return !id || id === 'GLOBAL'; // null/undefined = corporate; 'GLOBAL' = legacy
+                                            })}
+                                            initialReceipts={receipts.filter(r => {
+                                                const id = r.institutionId || (r as any).institution_id;
+                                                return !id || id === 'GLOBAL';
+                                            })}
                                         />
                                     </div>
                                 ) : (

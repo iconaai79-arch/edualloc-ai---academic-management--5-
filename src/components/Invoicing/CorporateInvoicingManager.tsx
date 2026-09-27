@@ -152,18 +152,21 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const loadAllInvoicingData = async () => {
         setLoading(true);
         try {
-            // Always scope queries to the current institution.
-            // When institutionId is 'GLOBAL' this loads only EduAI's own corporate invoices.
-            // Only pass undefined (fetch ALL) if there truly is no institution context — which
-            // should never happen in normal usage; this prevents cross-tenant data leakage.
-            const targetInstId = institutionId && institutionId !== '' ? institutionId : undefined;
+            // Determine the DB query scope:
+            // - 'GLOBAL' = super admin corporate billing. Records are stored with institution_id = null
+            //   (apiService.saveModuleRecord converts 'GLOBAL' → null to avoid FK violations).
+            //   We pass undefined here so fetchModuleRecords returns all null-institution_id records.
+            // - Any real tenant id = scope to that tenant only.
+            // - No id at all = also undefined (safe fallback, should not normally happen).
+            const isGlobal = !institutionId || institutionId === 'GLOBAL';
+            const targetInstId = isGlobal ? undefined : institutionId;
 
             const [invRes, recRes, clientRes, setRes, numConfigsRes] = await Promise.allSettled([
                 apiService.fetchInvoices(targetInstId),
                 apiService.fetchModuleRecords<Receipt>('receipts', targetInstId),
                 apiService.fetchInvoiceClients(targetInstId),
-                apiService.fetchCompanyInvoiceSettings(institutionId),
-                apiService.fetchModuleRecords<any>('finance_numbering_configs', institutionId).catch(() => [])
+                apiService.fetchCompanyInvoiceSettings(isGlobal ? undefined : institutionId),
+                apiService.fetchModuleRecords<any>('finance_numbering_configs', isGlobal ? undefined : institutionId).catch(() => [])
             ]);
 
             if (invRes.status === 'fulfilled' && Array.isArray(invRes.value)) {

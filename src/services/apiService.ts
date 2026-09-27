@@ -3617,6 +3617,19 @@ export const apiService = {
             payload.branch_id = null;
         }
 
+        // Guard: 'GLOBAL' is not a real institution row — it represents the super-admin's
+        // own corporate billing entity. Sending it as institution_id to the DB violates any
+        // FK constraint on invoices/receipts/invoice_clients that references the institutions
+        // table. Convert to null so the insert always succeeds; tenant isolation is enforced
+        // at the application query layer (fetchModuleRecords always filters by institution_id).
+        const BILLING_TABLES_WITH_FK = new Set([
+            'invoices', 'receipts', 'invoice_clients',
+            'company_invoice_settings', 'finance_numbering_configs'
+        ]);
+        if (BILLING_TABLES_WITH_FK.has(module) && payload && payload.institution_id === 'GLOBAL') {
+            payload.institution_id = null;
+        }
+
         // Immediate write-through cache
         ls.upsert(module, payload);
         try { localDb.upsert(module, payload).catch(() => {}); } catch (_) {}
