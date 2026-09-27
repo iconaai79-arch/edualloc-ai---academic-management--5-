@@ -14,6 +14,7 @@ import { EyeIcon } from '../icons/EyeIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
+import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 
 interface CorporateInvoicingManagerProps {
     currentUser: User;
@@ -34,6 +35,25 @@ const INVOICE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: 
     overdue: { label: 'Overdue', color: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800' },
     quote: { label: 'Estimate / Quote', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-50 dark:bg-purple-950/50 border-purple-200 dark:border-purple-800' },
     cancelled: { label: 'Cancelled', color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700' }
+};
+
+const amountToWords = (num: number, currency: string = 'KES'): string => {
+    if (!num || isNaN(num) || num <= 0) return 'Zero';
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const inWords = (n: number): string => {
+        if (n < 20) return a[n];
+        if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : '');
+        if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + inWords(n % 100) : '');
+        if (n < 1000000) return inWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 !== 0 ? ' ' + inWords(n % 1000) : '');
+        if (n < 1000000000) return inWords(Math.floor(n / 1000000)) + ' Million' + (n % 1000000 !== 0 ? ' ' + inWords(n % 1000000) : '');
+        return String(n);
+    };
+    const whole = Math.floor(num);
+    const cents = Math.round((num - whole) * 100);
+    let str = inWords(whole) + (currency === 'KES' ? ' Kenya Shillings' : ` ${currency}`);
+    if (cents > 0) str += ` and ${cents}/100 Cents`;
+    return str + ' Only';
 };
 
 export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps> = ({
@@ -72,6 +92,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentTargetInvoice, setPaymentTargetInvoice] = useState<Invoice | null>(null);
     const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+    const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
 
     // New Invoice / Quote Form State
     const [invClientId, setInvClientId] = useState('');
@@ -923,6 +944,8 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const handleDownloadReceiptPdf = async (rec: Receipt) => {
         try {
             const targetInst = institutionMap.get(rec.institutionId || '') || currentInstitution;
+            const matchingInv = invoices.find(i => i.id === rec.invoiceId);
+            const client = clients.find(c => c.id === matchingInv?.clientId);
             const effectiveLetterheadConfig: LetterheadConfig = {
                 headerImageUrl: formHeaderImageUrl || targetInst?.letterheadConfig?.headerImageUrl || letterheadConfig?.headerImageUrl || companyDetails?.letterheadConfig?.headerImageUrl || (targetInst as any)?.headerImageUrl || null,
                 footerImageUrl: formFooterImageUrl || targetInst?.letterheadConfig?.footerImageUrl || letterheadConfig?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || targetInst?.footerImageUrl || null,
@@ -949,32 +972,60 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 logoUrl: targetInstWithLetterhead.logoUrl ?? null
             } as CompanyDetails;
 
+            const customerName = matchingInv?.clientName || client?.clientName || (rec as any).receivedFrom || 'Commercial Client';
+            const customerPhone = client?.phone || matchingInv?.clientPhone || '';
+
             const fallbackTx: MpesaTransaction = {
                 id: rec.relatedTransactionId || rec.id,
                 transactionId: rec.relatedTransactionId || rec.receiptNumber || 'TXN-CLEARED',
                 amount: rec.amountPaid,
-                phoneNumber: '',
-                payerName: (rec as any).receivedFrom || 'Client',
+                phoneNumber: customerPhone,
+                payerName: customerName,
                 institutionId: rec.institutionId || targetInst?.id || '',
                 timestamp: rec.paymentDate || new Date().toISOString(),
                 status: 'completed',
-                provider: 'mpesa',
-                paymentMethod: 'paybill',
-                description: rec.paidFor || 'Official Payment Receipt',
+                provider: (rec.paymentMethod || '').toLowerCase().includes('mpesa') ? 'mpesa' : 'bank',
+                paymentMethod: (rec.paymentMethod || 'electronic') as any,
+                description: rec.paidFor || `Payment for Invoice ${matchingInv?.invoiceNumber || ''}`,
                 referenceId: rec.receiptNumber
             };
+
+            const invoiceBalance = matchingInv ? Math.max(0, Number(matchingInv.totalAmount) - Number(matchingInv.amountPaid || 0)) : undefined;
 
             await downloadReceiptPdf(
                 rec,
                 fallbackTx,
                 targetInstWithLetterhead,
                 effectiveCompanyDetails,
-                formLogoUrl || targetInst?.logoUrl || logoUrl || null
+                formLogoUrl || targetInst?.logoUrl || logoUrl || null,
+                invoiceBalance,
+                currentUser?.name || 'Finance Officer'
             );
         } catch (err: any) {
             console.error("Failed to generate receipt PDF:", err);
             alert("Failed to generate receipt PDF: " + (err.message || err));
         }
+    };
+
+    // Share Receipt via WhatsApp
+    const handleShareReceiptViaWhatsApp = (rec: Receipt) => {
+        const matchingInv = invoices.find(i => i.id === rec.invoiceId);
+        const client = clients.find(c => c.id === matchingInv?.clientId);
+        const customerName = matchingInv?.clientName || client?.clientName || 'Valued Client';
+        const phone = (client?.phone || matchingInv?.clientPhone || '').replace(/\D/g, '');
+        const message = `*OFFICIAL PAYMENT RECEIPT*\n` +
+            `Receipt No: *${rec.receiptNumber}*\n` +
+            `Date: ${rec.paymentDate}\n` +
+            `Customer: *${customerName}*\n` +
+            `Amount Cleared: *${formCurrency} ${Number(rec.amountPaid).toLocaleString()}*\n` +
+            `Payment Method: ${rec.paymentMethod || 'Electronic Settlement'}\n` +
+            `Reference: ${rec.relatedTransactionId || rec.receiptNumber}\n` +
+            `Purpose: ${rec.paidFor || 'Official Corporate Services Settlement'}\n\n` +
+            `Thank you for your business.\n` +
+            `_${currentInstitution?.name || companyDetails?.name || 'EduAI Enterprise Global'}_`;
+
+        const url = `https://wa.me/${phone ? phone : ''}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
     };
 
     // WhatsApp Dispatch
@@ -1502,14 +1553,31 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                     {formCurrency} {Number(rec.amountPaid).toLocaleString()}
                                                 </td>
                                                 <td className="p-4 text-center">
-                                                    <button
-                                                        onClick={() => handleDownloadReceiptPdf(rec)}
-                                                        className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1"
-                                                        title="Download Official PDF Receipt"
-                                                    >
-                                                        <DocumentArrowDownIcon className="w-4 h-4 text-emerald-600" />
-                                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">PDF</span>
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <button
+                                                            onClick={() => setPreviewReceipt(rec)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1"
+                                                            title="Preview Modern Corporate Receipt"
+                                                        >
+                                                            <EyeIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">View</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadReceiptPdf(rec)}
+                                                            className="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1"
+                                                            title="Download Official PDF Receipt"
+                                                        >
+                                                            <DocumentArrowDownIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">PDF</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleShareReceiptViaWhatsApp(rec)}
+                                                            className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors inline-flex items-center"
+                                                            title="Share Receipt on WhatsApp"
+                                                        >
+                                                            💬
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -2780,6 +2848,405 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                     </div>
                 </div>
             )}
+
+            {/* ===== MODAL: MODERN ATTRACTIVE CORPORATE RECEIPT PREVIEW ===== */}
+            {previewReceipt && (() => {
+                const matchingInv = invoices.find(i => i.id === previewReceipt.invoiceId);
+                const client = clients.find(c => c.id === matchingInv?.clientId);
+                const receiptInst = institutionMap.get(previewReceipt.institutionId || '') || currentInstitution;
+                const docCurrency = matchingInv?.currency || formCurrency || 'KES';
+                const invoiceTotal = Number(matchingInv?.totalAmount || previewReceipt.amountPaid);
+                const invoicePaidTotal = Number(matchingInv?.amountPaid || previewReceipt.amountPaid);
+                const invoiceRemaining = matchingInv ? Math.max(0, invoiceTotal - invoicePaidTotal) : 0;
+                const isFullySettled = invoiceRemaining <= 0;
+                const customerName = matchingInv?.clientName || client?.clientName || (previewReceipt as any).receivedFrom || 'Commercial Client';
+                const customerPhone = client?.phone || matchingInv?.clientPhone || '—';
+                const customerEmail = client?.email || matchingInv?.clientEmail || '—';
+                const customerAddress = client?.address || matchingInv?.clientAddress || '—';
+                const customerTaxPin = client?.taxPin || matchingInv?.clientTaxPin || '—';
+                const authHash = `REC-${previewReceipt.receiptNumber}-${(previewReceipt.id || '').slice(-6).toUpperCase()}-${(previewReceipt.relatedTransactionId || 'TXN').slice(-6).toUpperCase()}`;
+
+                return (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-fade-in">
+                        <div className="bg-slate-100 dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-4xl border border-slate-200 dark:border-slate-800 overflow-hidden my-6 flex flex-col max-h-[94vh]">
+                            {/* Modal Action Bar */}
+                            <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                        <ShieldCheckIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Official Settlement Receipt</span>
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                Cleared &amp; Settled
+                                            </span>
+                                        </div>
+                                        <p className="font-mono font-black text-slate-900 dark:text-white text-sm">
+                                            {previewReceipt.receiptNumber}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleDownloadReceiptPdf(previewReceipt)}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition-all"
+                                    >
+                                        <DocumentArrowDownIcon className="w-4 h-4" /> Download PDF
+                                    </button>
+                                    <button
+                                        onClick={() => handleShareReceiptViaWhatsApp(previewReceipt)}
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition-all"
+                                        title="Share Receipt via WhatsApp"
+                                    >
+                                        <span>💬</span> WhatsApp
+                                    </button>
+                                    <button
+                                        onClick={() => window.print()}
+                                        className="px-3.5 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all"
+                                    >
+                                        <PrinterIcon className="w-4 h-4" /> Print
+                                    </button>
+                                    <button
+                                        onClick={() => setPreviewReceipt(null)}
+                                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800"
+                                        title="Close"
+                                    >
+                                        <XIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Document Sheet Body */}
+                            <div className="p-4 sm:p-8 overflow-y-auto flex-grow bg-slate-100 dark:bg-slate-900">
+                                <div className="bg-white text-slate-900 rounded-2xl shadow-xl max-w-3xl mx-auto overflow-hidden border border-slate-200 print:border-none print:shadow-none print:m-0">
+                                    {/* Letterhead Header Banner */}
+                                    {formHeaderImageUrl ? (
+                                        <div className="w-full bg-slate-50 border-b border-slate-200 overflow-hidden">
+                                            <img src={formHeaderImageUrl} alt="Official Letterhead Banner" className="w-full object-contain max-h-36 block" />
+                                        </div>
+                                    ) : (
+                                        <div className="p-6 sm:p-8 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start gap-4 bg-gradient-to-br from-slate-50 via-white to-emerald-50/20">
+                                            <div className="flex items-center gap-4">
+                                                {(formLogoUrl || receiptInst?.logoUrl || logoUrl) && (
+                                                    <img
+                                                        src={formLogoUrl || receiptInst?.logoUrl || logoUrl || ''}
+                                                        alt="Institution Logo"
+                                                        className="h-16 w-auto object-contain max-w-[120px] rounded-lg p-1 bg-white border border-slate-200 shadow-sm"
+                                                    />
+                                                )}
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Enterprise Commercial Billing</span>
+                                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{receiptInst?.name || 'Corporate Invoicing Hub'}</h2>
+                                                    <p className="text-xs text-slate-500">{receiptInst?.address || 'P.O. Box 100, City, Kenya'}</p>
+                                                    <p className="text-xs text-slate-500">{receiptInst?.phoneNumber || '0700000000'} | {receiptInst?.email || 'billing@company.com'}</p>
+                                                    {(receiptInst as any)?.taxPin && (
+                                                        <p className="text-xs font-mono font-bold text-slate-600">TAX PIN / KRA: {(receiptInst as any).taxPin}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right self-stretch sm:self-auto sm:min-w-[200px]">
+                                                <div className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-black uppercase tracking-widest mb-1">
+                                                    Official Corporate Receipt
+                                                </div>
+                                                <p className="font-mono font-black text-lg text-slate-900">{previewReceipt.receiptNumber}</p>
+                                                <p className="text-xs text-slate-500">Date: <span className="font-bold text-slate-700">{previewReceipt.paymentDate}</span></p>
+                                                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm">
+                                                    <span>✓</span> Payment Cleared
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Key Transaction Metrics Ribbon */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-200 bg-slate-50 border-b border-slate-200 text-xs">
+                                        <div className="p-3.5">
+                                            <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Payment Date</span>
+                                            <span className="font-bold text-slate-800">{previewReceipt.paymentDate}</span>
+                                        </div>
+                                        <div className="p-3.5">
+                                            <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Settlement Method</span>
+                                            <span className="font-bold text-slate-800">{previewReceipt.paymentMethod || 'Electronic Transfer'}</span>
+                                        </div>
+                                        <div className="p-3.5">
+                                            <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Channel / Bank Ref</span>
+                                            <span className="font-mono font-bold text-indigo-700 truncate block">
+                                                {previewReceipt.relatedTransactionId || previewReceipt.receiptNumber}
+                                            </span>
+                                        </div>
+                                        <div className="p-3.5">
+                                            <span className="block text-[9px] font-black uppercase tracking-wider text-slate-400">Audit Status</span>
+                                            <span className="font-black text-emerald-600 flex items-center gap-1">
+                                                <CheckCircleIcon className="w-3.5 h-3.5" /> Cleared &amp; Verified
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Body Container */}
+                                    <div className="p-6 sm:p-8 space-y-6">
+                                        {/* Received From Client Card */}
+                                        <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100/60 border border-slate-200/80">
+                                            <div className="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                                                    <BuildingOfficeIcon className="w-3.5 h-3.5 text-slate-400" />
+                                                    Received With Thanks From (Client / Payer)
+                                                </span>
+                                                <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                                                    Client ID: {client?.id || matchingInv?.clientId || 'COMMERCIAL'}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                                <div>
+                                                    <h3 className="text-base font-black text-slate-900 tracking-tight">{customerName}</h3>
+                                                    {client?.contactPerson && (
+                                                        <p className="text-slate-600 text-xs mt-0.5">
+                                                            <strong className="text-slate-500 font-semibold">Attn:</strong> {client.contactPerson}
+                                                        </p>
+                                                    )}
+                                                    <p className="text-slate-600 mt-1">
+                                                        <strong className="text-slate-500 font-semibold">Address:</strong> {customerAddress}
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-1 sm:text-right">
+                                                    <p className="text-slate-600">
+                                                        <strong className="text-slate-500 font-semibold">Tax PIN / KRA:</strong> <span className="font-mono font-bold text-slate-800">{customerTaxPin}</span>
+                                                    </p>
+                                                    <p className="text-slate-600">
+                                                        <strong className="text-slate-500 font-semibold">Email:</strong> {customerEmail}
+                                                    </p>
+                                                    <p className="text-slate-600">
+                                                        <strong className="text-slate-500 font-semibold">Phone:</strong> {customerPhone}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Payment Particulars Table */}
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                    Settlement Details &amp; Accounting Breakdown
+                                                </h4>
+                                                {matchingInv && (
+                                                    <span className="text-[10px] text-slate-500">
+                                                        Linked Tax Invoice: <strong className="font-mono text-indigo-700 font-bold">{matchingInv.invoiceNumber}</strong>
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                                                <table className="w-full text-left text-xs">
+                                                    <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase font-black tracking-wider border-b border-slate-200">
+                                                        <tr>
+                                                            <th className="p-3">Payment Narration / Description</th>
+                                                            <th className="p-3 text-center">Invoice Ref</th>
+                                                            <th className="p-3 text-right">Invoiced Total</th>
+                                                            <th className="p-3 text-right">Amount Cleared</th>
+                                                            <th className="p-3 text-right">Invoice Balance</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-100 bg-white">
+                                                        <tr>
+                                                            <td className="p-3.5">
+                                                                <p className="font-bold text-slate-800">
+                                                                    {previewReceipt.paidFor || 'Official Corporate Services Settlement'}
+                                                                </p>
+                                                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                                                    Processed via {previewReceipt.paymentMethod || 'Electronic Settlement'} • Ref: {previewReceipt.relatedTransactionId || previewReceipt.receiptNumber}
+                                                                </p>
+                                                            </td>
+                                                            <td className="p-3.5 text-center font-mono font-bold text-indigo-600">
+                                                                {matchingInv?.invoiceNumber || 'Direct Payment'}
+                                                            </td>
+                                                            <td className="p-3.5 text-right font-mono text-slate-600">
+                                                                {docCurrency} {invoiceTotal.toLocaleString()}
+                                                            </td>
+                                                            <td className="p-3.5 text-right font-mono font-black text-emerald-600 text-sm">
+                                                                {docCurrency} {Number(previewReceipt.amountPaid).toLocaleString()}
+                                                            </td>
+                                                            <td className="p-3.5 text-right font-mono font-bold text-slate-700">
+                                                                {docCurrency} {invoiceRemaining.toLocaleString()}
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {/* Highlight Box: Total Amount Cleared & Amount in Words */}
+                                        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-2xl p-6 shadow-lg relative overflow-hidden">
+                                            {/* Decorative watermark */}
+                                            <div className="absolute right-0 bottom-0 translate-x-6 translate-y-6 opacity-10 pointer-events-none">
+                                                <ShieldCheckIcon className="w-48 h-48 text-white" />
+                                            </div>
+                                            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100 block mb-1">
+                                                        Total Amount Received &amp; Cleared
+                                                    </span>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-white">
+                                                            {docCurrency} {Number(previewReceipt.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </span>
+                                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-400/30 text-white border border-emerald-300/40">
+                                                            Full Value
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="md:text-right max-w-md">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-100 block mb-0.5">
+                                                        Amount in Words
+                                                    </span>
+                                                    <p className="text-xs font-semibold text-emerald-50 italic leading-relaxed">
+                                                        "{amountToWords(Number(previewReceipt.amountPaid), docCurrency)}"
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Invoice Clearance Status Notice Card */}
+                                        <div className={`p-4 rounded-xl border flex items-center justify-between gap-4 text-xs ${
+                                            isFullySettled
+                                                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                                : 'bg-amber-50 border-amber-200 text-amber-900'
+                                        }`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                                                    isFullySettled ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                                }`}>
+                                                    <CheckCircleIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <h5 className="font-bold text-xs uppercase tracking-wide">
+                                                        {isFullySettled
+                                                            ? 'Invoice Paid in Full — Account Fully Settled'
+                                                            : 'Partial Payment Cleared — Outstanding Balance Pending'}
+                                                    </h5>
+                                                    <p className="text-[11px] opacity-80 mt-0.5">
+                                                        {isFullySettled
+                                                            ? `All obligations for Tax Invoice ${matchingInv?.invoiceNumber || ''} have been satisfied in full.`
+                                                            : `Remaining balance of ${docCurrency} ${invoiceRemaining.toLocaleString()} remains due per corporate terms.`}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <span className="text-[9px] font-black uppercase tracking-wider block opacity-70">Remaining Balance</span>
+                                                <span className="font-mono font-black text-sm">
+                                                    {docCurrency} {invoiceRemaining.toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* Security, Verification QR & Authorized Stamp */}
+                                        <div className="pt-4 flex flex-col sm:flex-row justify-between items-end gap-6 border-t border-slate-200">
+                                            {/* Cryptographic QR & Audit Info */}
+                                            <div className="flex items-center gap-4">
+                                                {/* Visual SVG QR Code */}
+                                                <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm shrink-0">
+                                                    <svg className="w-20 h-20 text-slate-850" viewBox="0 0 100 100" fill="currentColor">
+                                                        {/* Top-left corner finder pattern */}
+                                                        <rect x="5" y="5" width="28" height="28" fill="currentColor" rx="4" />
+                                                        <rect x="9" y="9" width="20" height="20" fill="white" rx="2" />
+                                                        <rect x="13" y="13" width="12" height="12" fill="currentColor" rx="1" />
+
+                                                        {/* Top-right corner finder pattern */}
+                                                        <rect x="67" y="5" width="28" height="28" fill="currentColor" rx="4" />
+                                                        <rect x="71" y="9" width="20" height="20" fill="white" rx="2" />
+                                                        <rect x="75" y="13" width="12" height="12" fill="currentColor" rx="1" />
+
+                                                        {/* Bottom-left corner finder pattern */}
+                                                        <rect x="5" y="67" width="28" height="28" fill="currentColor" rx="4" />
+                                                        <rect x="9" y="71" width="20" height="20" fill="white" rx="2" />
+                                                        <rect x="13" y="75" width="12" height="12" fill="currentColor" rx="1" />
+
+                                                        {/* Timing and alignment patterns */}
+                                                        <rect x="38" y="10" width="5" height="5" />
+                                                        <rect x="48" y="10" width="5" height="5" />
+                                                        <rect x="58" y="10" width="5" height="5" />
+                                                        <rect x="10" y="38" width="5" height="5" />
+                                                        <rect x="10" y="48" width="5" height="5" />
+                                                        <rect x="10" y="58" width="5" height="5" />
+
+                                                        {/* Data matrix dots */}
+                                                        <rect x="40" y="40" width="6" height="6" rx="1" />
+                                                        <rect x="50" y="38" width="8" height="5" />
+                                                        <rect x="62" y="42" width="6" height="6" />
+                                                        <rect x="42" y="52" width="6" height="6" />
+                                                        <rect x="52" y="50" width="6" height="8" rx="1" />
+                                                        <rect x="62" y="52" width="6" height="6" />
+                                                        <rect x="72" y="42" width="5" height="6" />
+                                                        <rect x="80" y="50" width="6" height="6" />
+                                                        <rect x="72" y="60" width="6" height="6" />
+                                                        <rect x="82" y="70" width="5" height="5" />
+                                                        <rect x="68" y="75" width="8" height="5" />
+                                                        <rect x="80" y="80" width="6" height="8" />
+                                                        <rect x="40" y="70" width="6" height="6" />
+                                                        <rect x="50" y="72" width="8" height="6" />
+                                                        <rect x="40" y="82" width="6" height="6" />
+                                                        <rect x="52" y="82" width="6" height="6" />
+                                                    </svg>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <ShieldCheckIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                                                            Cryptographic Verification
+                                                        </p>
+                                                    </div>
+                                                    <p className="font-mono text-[9px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                        {authHash}
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 max-w-xs leading-tight">
+                                                        Scan QR code or use the authentication hash to verify payment settlement validity on the audit portal.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Stamp & Authorized Signatory */}
+                                            <div className="text-center space-y-1 self-center sm:self-end">
+                                                {(formStampUrl || receiptInst?.letterheadConfig?.stampImageUrl) ? (
+                                                    <img
+                                                        src={formStampUrl || receiptInst?.letterheadConfig?.stampImageUrl || ''}
+                                                        alt="Official Stamp"
+                                                        className="h-16 w-auto object-contain mx-auto opacity-85"
+                                                    />
+                                                ) : (
+                                                    /* Stylized Electronic Rubber Stamp Seal */
+                                                    <div className="w-28 h-28 mx-auto border-2 border-dashed border-emerald-600/70 rounded-full flex flex-col items-center justify-center p-2 text-emerald-700 bg-emerald-50/40 rotate-[-8deg] shadow-inner">
+                                                        <span className="text-[8px] font-black uppercase tracking-widest text-emerald-800">EduAI Official</span>
+                                                        <span className="text-[12px] font-black uppercase tracking-tighter text-emerald-600 my-0.5">CLEARED</span>
+                                                        <span className="text-[7px] font-bold uppercase tracking-wider text-emerald-700">{previewReceipt.paymentDate}</span>
+                                                    </div>
+                                                )}
+                                                <div className="w-44 border-t border-slate-400 mt-2 pt-1 mx-auto">
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                                                        Authorized Finance Officer
+                                                    </span>
+                                                    <span className="text-[9px] text-slate-400 block">
+                                                        {currentUser?.name || 'Accounts Department'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Letterhead Footer Banner */}
+                                    {formFooterImageUrl ? (
+                                        <div className="w-full bg-slate-50 border-t border-slate-200 overflow-hidden">
+                                            <img src={formFooterImageUrl} alt="Official Letterhead Footer" className="w-full object-contain max-h-24 block" />
+                                        </div>
+                                    ) : (
+                                        <div className="p-4 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-400 flex flex-col sm:flex-row items-center justify-between px-8">
+                                            <span>{receiptInst?.name || 'EduAI Enterprise'} • Official Corporate Settlement Document</span>
+                                            <span>Issued via Secure Invoicing Gateway • Page 1 of 1</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
