@@ -2277,20 +2277,25 @@ export const apiService = {
                     }
                     let finalRecords = result;
                     if (result.length > 0 && localData.length > 0) {
-                        const combined = new Map<string, any>();
-                        localData.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
-                        result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
-                        finalRecords = Array.from(combined.values());
+                        // Only preserve genuinely pending local/offline creations (items created offline waiting to sync)
+                        const pendingLocal = localData.filter((item: any) => 
+                            item && (item._is_pending_sync || item._isLocalOnly || item._offlineCreated || (item.id && String(item.id).startsWith('temp_')))
+                        );
+                        if (pendingLocal.length > 0) {
+                            const combined = new Map<string, any>();
+                            result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                            pendingLocal.forEach((item: any) => { if (item && item.id && !combined.has(item.id)) combined.set(item.id, item); });
+                            finalRecords = Array.from(combined.values());
+                        } else {
+                            finalRecords = result;
+                        }
                     }
                     const isPartialLimit = options?.limit && typeof options.limit === 'number' && options.limit < 50;
                     if (finalRecords.length > 0 && !options?.offset && !options?.filter && !isPartialLimit) {
                         try {
                             const modToCache = (module === 'v_house_statistics' || module === 'v_bed_occupancy') ? 'boarding_houses' : module;
-                            const existing = ls.get(modToCache);
-                            if (!Array.isArray(existing) || finalRecords.length >= existing.length || finalRecords.length >= 10) {
-                                ls.set(modToCache, finalRecords);
-                            }
-                            localDb.bulkPut(modToCache, finalRecords).catch(() => {});
+                            ls.set(modToCache, finalRecords);
+                            localDb.replaceAll(modToCache, finalRecords).catch(() => {});
                         } catch (_) {}
                     }
                     return finalRecords;
@@ -4848,12 +4853,29 @@ export const apiService = {
             visitorArrivalSmsTemplate: visitorArrivalSmsTemplate
         }); 
     },
-    async fetchUsers(institutionId?: string): Promise<User[]> { 
+    async fetchUsers(institutionId?: string, options?: { limit?: number; offset?: number; filter?: Record<string, any>; order?: string }): Promise<User[]> { 
         const session = apiService.getSession();
         const effectiveInstId = institutionId || (session && session.role !== 'super_admin' && !session.role?.startsWith('county_') && session.role !== 'reseller' ? session.institutionId : undefined);
-        return apiService.fetchModuleRecords('users', effectiveInstId); 
+        return apiService.fetchModuleRecords('users', effectiveInstId, undefined, { limit: 100000, ...options }); 
+    },
+    async clearLocalCache(module?: string): Promise<void> {
+        try {
+            if (module) {
+                _moduleMemoryCache.clear();
+                _tableMemoryCache.delete(module);
+                ls.remove(module);
+                await localDb.clear(module).catch(() => {});
+            } else {
+                _moduleMemoryCache.clear();
+                _tableMemoryCache.clear();
+                await localDb.clearAll().catch(() => {});
+            }
+        } catch (e) {
+            console.warn('[apiService] clearLocalCache error:', e);
+        }
     },
     async saveUser(user: Partial<User>): Promise<void> { 
+
         const { countyId, ...rest } = user;
         await apiService.saveModuleRecord('users', { ...rest, county_id: countyId }); 
     },

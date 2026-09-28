@@ -3405,6 +3405,14 @@ CREATE INDEX IF NOT EXISTS idx_absence_requests_institution_id ON public.absence
 CREATE INDEX IF NOT EXISTS idx_time_off_requests_inst_id_composite ON public.time_off_requests(institution_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_time_off_requests_institution_id ON public.time_off_requests(institution_id);
 
+-- Performance Indexes for student consistency and institutional filtering
+CREATE INDEX IF NOT EXISTS idx_users_inst_role ON public.users(institution_id, role);
+CREATE INDEX IF NOT EXISTS idx_users_inst_role_status ON public.users(institution_id, role, status);
+CREATE INDEX IF NOT EXISTS idx_users_inst_branch ON public.users(institution_id, branch_id);
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id ON public.student_enrollments(institution_id);
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_status ON public.student_enrollments(institution_id, status);
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_branch ON public.student_enrollments(institution_id, branch_id);
+
 `;
 
     sql += `\n\n-- PM Tenant SMS Bonus Trigger\n`;

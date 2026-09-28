@@ -1188,6 +1188,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                     if (moduleName === 'branches') {
                         q = q.eq('id', user.branchId);
+                    } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                        q = q.or(`branch_id.eq.${user.branchId},branch_id.is.null,branch_id.eq.`);
                     } else {
                         q = q.eq('branch_id', user.branchId);
                     }
@@ -1326,6 +1328,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                     if (moduleName === 'branches') {
                         q = q.eq('id', user.branchId);
+                    } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                        q = q.or(`branch_id.eq.${user.branchId},branch_id.is.null,branch_id.eq.`);
                     } else {
                         q = q.eq('branch_id', user.branchId);
                     }
@@ -1420,6 +1424,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                 if (moduleName === 'branches') {
                     sqlConditions.push({ sql: `id::text = $VAL`, val: user.branchId });
+                } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                    sqlConditions.push({ sql: `(branch_id::text = $VAL OR branch_id IS NULL OR branch_id = '')`, val: user.branchId });
                 } else {
                     sqlConditions.push({ sql: `branch_id::text = $VAL`, val: user.branchId });
                 }

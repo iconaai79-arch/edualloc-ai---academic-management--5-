@@ -1123,12 +1123,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
             });
 
-            setUsers(prev => {
-                prev.forEach(u => {
-                    if (!combinedUserMap.has(u.id)) combinedUserMap.set(u.id, u);
-                });
-                return Array.from(combinedUserMap.values());
-            });
+            setUsers(allUsers);
 
             const hydrated = (enrollmentsData || []).map(e => {
                 const eAdm = (e.admissionNumber || (e as any).admission_number || (e as any).admNo || e.metadata?.admissionNumber || '').trim().toLowerCase();

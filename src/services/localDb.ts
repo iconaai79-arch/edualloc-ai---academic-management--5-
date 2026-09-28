@@ -280,6 +280,37 @@ class LocalDb {
         } catch {}
     }
 
+    async replaceAll(storeName: string, items: any[]): Promise<void> {
+        try {
+            const db = await this.getDB();
+            if (!db || !db.objectStoreNames.contains(storeName)) return;
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    store.clear();
+                    for (const item of items) {
+                        if (!item) continue;
+                        const key = item.id;
+                        const payload = key ? { ...item, id: key } : item;
+                        store.put(payload);
+                    }
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => {
+                        console.warn(`[LocalDb] replaceAll failed on ${storeName}:`, tx.error);
+                        resolve();
+                    };
+                } catch (e) {
+                    console.warn(`[LocalDb] replaceAll error on ${storeName}:`, e);
+                    resolve();
+                }
+            });
+        } catch (err) {
+            console.warn(`[LocalDb] replaceAll exception on ${storeName}:`, err);
+        }
+    }
+
+
     async clearAll(): Promise<void> {
         for (const store of STORE_NAMES) {
             await this.clear(store);
