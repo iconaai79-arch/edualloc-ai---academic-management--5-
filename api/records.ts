@@ -1498,6 +1498,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Finance reference tables — small but queried on every finance page load
                     'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions',
                     'finance_numbering_configs', 'bursary_disbursements',
+                    // Absence & request modules
+                    'student_absence_requests', 'absence_requests', 'time_off_requests',
                 ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
@@ -1692,9 +1694,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn('[API GET] DB query failed on institutions with no memory cache. Returning empty list fallback to prevent crash.');
                             return res.status(200).json([]);
                         }
-                        // Non-critical driving school & prospect modules: return empty array fallback on statement timeout to keep UI operational
+                        // Non-critical modules: return empty array fallback on statement timeout to keep UI operational
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
-                        if (isTimeoutError && (moduleName.startsWith('ds_') || ['marketing_prospects', 'campaign_leads'].includes(moduleName))) {
+                        if (isTimeoutError && (
+                            moduleName.startsWith('ds_') || 
+                            ['marketing_prospects', 'campaign_leads', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests'].includes(moduleName)
+                        )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
                         }

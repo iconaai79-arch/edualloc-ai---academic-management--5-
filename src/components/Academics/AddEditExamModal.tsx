@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { ExamUnitRecord, TestedPaperConfig } from './ExamUnitsManager';
+import { isDemoClassName } from '../../utils/academicUtils';
 import { XIcon } from '../icons/XIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
@@ -126,7 +127,10 @@ export const AddEditExamModal: React.FC<AddEditExamModalProps> = React.memo(({
                     ? 'Inter-school'
                     : 'CAT'
             );
-            setSelectedClasses(activeExam.classes && activeExam.classes.length > 0 ? activeExam.classes : (initialClasses || registeredClasses));
+            const cleanExamClasses = (activeExam.classes || []).filter(c => !isDemoClassName(c));
+            const cleanInitial = (initialClasses || []).filter(c => !isDemoClassName(c));
+            const cleanReg = registeredClasses.filter(c => !isDemoClassName(c));
+            setSelectedClasses(cleanExamClasses.length > 0 ? cleanExamClasses : (cleanInitial.length > 0 ? cleanInitial : cleanReg));
             if (activeExam.gradingSystem) setNewGradingSystem(activeExam.gradingSystem);
 
             if (activeExam.rankingCriteria) {
@@ -143,7 +147,9 @@ export const AddEditExamModal: React.FC<AddEditExamModalProps> = React.memo(({
             setNewTerm('Term 2');
             setNewAcademicYear('2026');
             setNewExamTypeRadio('CAT');
-            setSelectedClasses(initialClasses && initialClasses.length > 0 ? initialClasses : (registeredClasses.length > 0 ? [registeredClasses[0]] : []));
+            const cleanInitial = (initialClasses || []).filter(c => !isDemoClassName(c));
+            const cleanReg = registeredClasses.filter(c => !isDemoClassName(c));
+            setSelectedClasses(cleanInitial.length > 0 ? cleanInitial : (cleanReg.length > 0 ? [cleanReg[0]] : []));
             setUseCustomRanking(false);
             setCreationMethod('raw_marks');
         }
@@ -436,7 +442,7 @@ export const AddEditExamModal: React.FC<AddEditExamModalProps> = React.memo(({
                                     <div className="flex gap-2 text-xs">
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedClasses(registeredClasses)}
+                                            onClick={() => setSelectedClasses(registeredClasses.filter(c => !isDemoClassName(c)))}
                                             className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
                                         >
                                             Select All
@@ -498,9 +504,9 @@ export const AddEditExamModal: React.FC<AddEditExamModalProps> = React.memo(({
                                                 }
                                             });
                                         }
-                                        let visibleClasses = q
+                                        let visibleClasses = (q
                                             ? registeredClasses.filter(c => c.toLowerCase().includes(q) || studentMatchedClasses.has(c))
-                                            : registeredClasses;
+                                            : registeredClasses).filter(c => !isDemoClassName(c));
                                         if (addExamGradeFilter && addExamGradeFilter !== 'all') {
                                             const normG = extractGradeLabel(addExamGradeFilter).toLowerCase();
                                             visibleClasses = visibleClasses.filter(c => extractGradeLabel(c).toLowerCase() === normG);

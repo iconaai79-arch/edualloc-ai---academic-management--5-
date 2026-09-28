@@ -8,8 +8,159 @@ import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { CameraIcon } from './icons/CameraIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
 import { apiService } from '../services/apiService';
 import { calculateDistance } from '../utils/locationUtils';
+
+export const printGateQrSignboard = (institutionName: string, institutionId: string) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=900');
+    if (!printWindow) {
+        alert('Please allow popups to print the Gate QR Signboard.');
+        return;
+    }
+    const token = `school_gate_id:${institutionId}`;
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(token)}`;
+
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8" />
+            <title>${institutionName} - Gate Attendance QR Signboard</title>
+            <style>
+                @page { size: A4 portrait; margin: 15mm; }
+                * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    margin: 0;
+                    padding: 24px;
+                    background: #ffffff;
+                    color: #0f172a;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 90vh;
+                }
+                .sign-card {
+                    border: 4px solid #1e293b;
+                    border-radius: 28px;
+                    padding: 40px 32px;
+                    text-align: center;
+                    max-width: 520px;
+                    width: 100%;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+                }
+                .school-title {
+                    font-size: 14px;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    color: #64748b;
+                    letter-spacing: 1.5px;
+                    margin-bottom: 6px;
+                }
+                .main-heading {
+                    font-size: 22px;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    color: #0f172a;
+                    letter-spacing: 0.5px;
+                    border-bottom: 2px solid #e2e8f0;
+                    padding-bottom: 12px;
+                    margin-bottom: 16px;
+                }
+                .badge {
+                    display: inline-block;
+                    background: #eef2ff;
+                    color: #4338ca;
+                    border: 1px solid #c7d2fe;
+                    padding: 6px 16px;
+                    border-radius: 9999px;
+                    font-size: 11px;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    margin-bottom: 20px;
+                }
+                .qr-frame {
+                    background: #ffffff;
+                    border: 3px solid #cbd5e1;
+                    border-radius: 20px;
+                    padding: 16px;
+                    display: inline-block;
+                    margin-bottom: 20px;
+                }
+                .instructions {
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 16px;
+                    padding: 14px 18px;
+                    text-align: left;
+                    font-size: 12px;
+                    color: #334155;
+                    line-height: 1.6;
+                    margin-bottom: 16px;
+                }
+                .instructions ol {
+                    margin: 4px 0 0 18px;
+                    padding: 0;
+                }
+                .instructions li {
+                    margin-bottom: 4px;
+                    font-weight: 600;
+                }
+                .token-tag {
+                    font-family: monospace;
+                    font-size: 10px;
+                    font-weight: bold;
+                    color: #64748b;
+                    background: #f1f5f9;
+                    padding: 4px 10px;
+                    border-radius: 6px;
+                    display: inline-block;
+                }
+                @media print {
+                    body { padding: 0; }
+                    .no-print { display: none !important; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="sign-card">
+                <div class="school-title">${institutionName}</div>
+                <div class="main-heading">STAFF & TEACHER CHECK-IN</div>
+                <div class="badge">OFFICIAL SCHOOL GATE ENTRANCE SIGNBOARD</div>
+                
+                <div class="qr-frame">
+                    <img src="${qrSrc}" width="260" height="260" alt="Gate Attendance QR" style="display:block;" />
+                </div>
+
+                <div class="instructions">
+                    <div style="font-weight:900;text-transform:uppercase;color:#0f172a;font-size:11px;margin-bottom:4px;letter-spacing:0.5px;">HOW TO CHECK IN:</div>
+                    <ol>
+                        <li>Open the EDUAI Portal or Mobile App on your device.</li>
+                        <li>Navigate to <strong>Teacher Check-In</strong>.</li>
+                        <li>Tap <strong>Scan Gate QR</strong> and point camera at this code.</li>
+                    </ol>
+                </div>
+
+                <div>
+                    <span class="token-tag">${token}</span>
+                </div>
+            </div>
+            <div style="margin-top:20px;" class="no-print">
+                <button onclick="window.print()" style="padding:10px 24px;background:#4338ca;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer;font-size:14px;">Print Signboard Now</button>
+            </div>
+            <script>
+                window.onload = function() {
+                    setTimeout(function() { window.print(); }, 400);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+};
 
 
 interface TeacherCheckInViewProps {
@@ -299,13 +450,23 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                     </p>
                     <p className="text-lg font-semibold text-blue-600 mt-1">{getCurrentTime()}</p>
                 </div>
-                <button
-                    onClick={() => setScanningGateQr(true)}
-                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-lg hover:shadow-indigo-150 transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
-                >
-                    <QrCodeIcon className="w-5 h-5 text-white" />
-                    Scan Gate QR
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', institutionId)}
+                        className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-2xl shadow-sm transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
+                        title="Print Gate Attendance Signboard"
+                    >
+                        <PrinterIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        Print Gate QR
+                    </button>
+                    <button
+                        onClick={() => setScanningGateQr(true)}
+                        className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-lg hover:shadow-indigo-150 transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                        <QrCodeIcon className="w-5 h-5 text-white" />
+                        Scan Gate QR
+                    </button>
+                </div>
             </div>
 
             {/* Check-In Cards */}

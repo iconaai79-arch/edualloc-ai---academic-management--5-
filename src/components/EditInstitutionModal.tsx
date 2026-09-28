@@ -58,6 +58,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     billingModel: 'fixed',
     ratePerStudent: '0',
     resellerId: '',
+    status: 'active' as 'active' | 'trial' | 'suspended' | 'expired',
+    subscriptionEndsAt: '',
+    isSuspendedForBilling: false,
   });
 
   const [activeTab, setActiveTab] = useState<'identity' | 'financials' | 'modules'>(initialTab);
@@ -82,6 +85,14 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
 
   useEffect(() => {
     if (institution) {
+      const rawSubEnd = institution.subscriptionEndsAt || (institution as any).subscription_ends_at;
+      let formattedSubEnd = '';
+      if (rawSubEnd) {
+        try {
+          formattedSubEnd = new Date(rawSubEnd).toISOString().split('T')[0];
+        } catch (_) {}
+      }
+
       setFormData({
         name: institution.name,
         email: institution.email,
@@ -100,6 +111,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         billingModel: institution.billingModel || (institution as any).billing_model || 'fixed',
         ratePerStudent: (institution.ratePerStudent ?? (institution as any).rate_per_student ?? 0).toString(),
         resellerId: institution.resellerId || (institution as any).reseller_id || '',
+        status: (institution.status as any) || 'active',
+        subscriptionEndsAt: formattedSubEnd,
+        isSuspendedForBilling: institution.isSuspendedForBilling ?? (institution as any).is_suspended_for_billing ?? false,
       });
       fetchLatestModuleStates();
     }
@@ -153,10 +167,12 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       phoneNumber: formData.phoneNumber,
       institutionType: formData.institutionType as Institution['institutionType'],
       countyId: formData.countyId || undefined,
-      status: isReseller ? 'active' : institution.status,
+      status: isReseller ? 'active' : (formData.status as any),
       trialEndsAt: isReseller ? undefined : institution.trialEndsAt,
-      subscriptionEndsAt: isReseller ? undefined : institution.subscriptionEndsAt,
-      isSuspendedForBilling: isReseller ? false : institution.isSuspendedForBilling,
+      subscriptionEndsAt: isReseller 
+        ? undefined 
+        : (formData.subscriptionEndsAt ? new Date(`${formData.subscriptionEndsAt}T23:59:59.999Z`).toISOString() : undefined),
+      isSuspendedForBilling: isReseller ? false : formData.isSuspendedForBilling,
       customSubscriptionPrice: isReseller ? undefined : {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         quarterly: formData.customSubscriptionPrice.quarterly ? parseFloat(formData.customSubscriptionPrice.quarterly) : undefined,
@@ -438,6 +454,118 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
 
             {activeTab === 'financials' && (
               <div className="space-y-6 animate-fade-in-up">
+                {/* ── Account Status & Expiry Date Controls ── */}
+                <div className="bg-indigo-50/60 dark:bg-indigo-950/30 p-6 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/50 shadow-inner">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-md shadow-indigo-200 dark:shadow-none">
+                        📅
+                      </div>
+                      <div>
+                        <h4 className="text-[11px] font-black uppercase text-indigo-950 dark:text-indigo-200 tracking-wider">Account Status &amp; Subscription Expiry</h4>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Manage access validity and manual expiry date</p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                      formData.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                      formData.status === 'suspended' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' :
+                      formData.status === 'trial' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                      'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}>
+                      {formData.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase mb-1.5 ml-1 tracking-wider">Account Status</label>
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleChange}
+                        className="form-select font-bold text-xs"
+                      >
+                        <option value="active">Active (Full Access Granted)</option>
+                        <option value="trial">Trial Period</option>
+                        <option value="suspended">Suspended (Locked Out)</option>
+                        <option value="expired">Expired (Pending Payment)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5 ml-1">
+                        <label className="block text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                          Expiry Date (Calendar Picker)
+                        </label>
+                        {formData.subscriptionEndsAt && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, subscriptionEndsAt: '' }))}
+                            className="text-[9px] font-bold text-rose-500 hover:underline uppercase"
+                          >
+                            Set Lifetime (No Expiry)
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="date"
+                        name="subscriptionEndsAt"
+                        value={formData.subscriptionEndsAt}
+                        onChange={handleChange}
+                        className="form-input font-bold text-sm text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-900"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="mt-4 pt-4 border-t border-indigo-100 dark:border-indigo-900/50 flex flex-wrap items-center gap-2">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider mr-1">Quick Set:</span>
+                    {[
+                      { label: '+30 Days', days: 30 },
+                      { label: '+90 Days (Quarter)', days: 90 },
+                      { label: '+6 Months', days: 180 },
+                      { label: '+1 Year', days: 365 },
+                      { label: '+2 Years', days: 730 },
+                    ].map(preset => (
+                      <button
+                        key={preset.days}
+                        type="button"
+                        onClick={() => {
+                          const base = formData.subscriptionEndsAt ? new Date(formData.subscriptionEndsAt) : new Date();
+                          const baseTime = Math.max(base.getTime(), Date.now());
+                          const target = new Date(baseTime + preset.days * 24 * 60 * 60 * 1000);
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            subscriptionEndsAt: target.toISOString().split('T')[0], 
+                            status: 'active', 
+                            isSuspendedForBilling: false 
+                          }));
+                        }}
+                        className="px-2.5 py-1 text-[9px] font-black uppercase rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 hover:bg-indigo-600 hover:text-white transition-all text-indigo-700 dark:text-indigo-300 shadow-sm"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Overdue billing suspension toggle */}
+                  <div className="mt-4 pt-3 border-t border-indigo-100 dark:border-indigo-900/50 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Overdue Billing Suspension Lock</span>
+                      <p className="text-[9px] text-slate-400">Turn OFF to clear overdue invoice locks (e.g. driving school postpaid billing lock).</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.isSuspendedForBilling}
+                        onChange={e => setFormData(prev => ({ ...prev, isSuspendedForBilling: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="bg-slate-50 dark:bg-slate-950 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-inner">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-xl flex items-center justify-center">

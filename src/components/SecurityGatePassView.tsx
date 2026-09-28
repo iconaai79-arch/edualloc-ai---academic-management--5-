@@ -17,6 +17,7 @@ import { apiService } from '../services/apiService';
 import { phonesMatch, phoneContains } from '../utils/stringUtils';
 import { printService, getPrinterConfig, savePrinterConfig, getBluetoothPrinters, PrinterConfig } from '../services/printService';
 import { Capacitor } from '@capacitor/core';
+import { printGateQrSignboard } from './TeacherCheckInView';
 
 export const printEposGatePass = (pin: any, parent: any, event: any, institution: any, securityOfficerName?: string) => {
     printService.printEventPass({ pin, parent, event, institution, securityOfficerName }).catch(err => {
@@ -1901,6 +1902,21 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                             </div>
                         ) : (
                             <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-xl border border-slate-200/80 dark:border-slate-850">
+                                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                                    <div>
+                                        <h4 className="text-base font-black uppercase text-slate-850 dark:text-white tracking-tight">Staff Gate Attendance</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Scan staff ID cards or mount entrance QR signboard</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', currentInstitution?.id || '')}
+                                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
+                                        title="Print Official Gate Attendance Signboard Poster"
+                                    >
+                                        <PrinterIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                        Print Gate QR Signboard
+                                    </button>
+                                </div>
                                 <div className="relative mb-6">
                                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                                     <input

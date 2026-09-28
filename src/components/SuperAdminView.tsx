@@ -678,6 +678,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [showScanToPayModal, setShowScanToPayModal] = useState(false);
     const [extendingInstitution, setExtendingInstitution] = useState<Institution | null>(null);
     const [extensionDays, setExtensionDays] = useState(30);
+    const [customExpiryDate, setCustomExpiryDate] = useState<string>('');
     const [managingGatewayFor, setManagingGatewayFor] = useState<Institution | null>(null);
     const [managingMpesaFor, setManagingMpesaFor] = useState<Institution | null>(null);
     const [managingPlansFor, setManagingPlansFor] = useState<Institution | null>(null);
@@ -1577,31 +1578,50 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (tTabSub) setTimetableSubTab(tTabSub);
     };
 
+    const handleOpenExtendModal = (inst: Institution) => {
+        setExtendingInstitution(inst);
+        const currentEnd = (inst as any).subscriptionEndsAt || (inst as any).subscription_ends_at;
+        const base = currentEnd ? new Date(currentEnd) : new Date();
+        const baseDate = Math.max(base.getTime(), Date.now());
+        const defaultTarget = new Date(baseDate + 30 * 24 * 60 * 60 * 1000);
+        setCustomExpiryDate(defaultTarget.toISOString().split('T')[0]);
+        setExtensionDays(30);
+    };
+
     const handleExtendSubscription = async () => {
         if (!extendingInstitution) return;
 
         const ext = extendingInstitution as any;
         const isConstituency = !('institutionType' in ext);
+
+        let newEndDate: Date;
+        if (customExpiryDate) {
+            newEndDate = new Date(`${customExpiryDate}T23:59:59.999Z`);
+        } else {
+            const currentEnd = ext.subscriptionEndsAt || ext.subscription_ends_at
+                ? new Date(ext.subscriptionEndsAt || ext.subscription_ends_at)
+                : new Date();
+            const baseDate = Math.max(currentEnd.getTime(), Date.now());
+            newEndDate = new Date(baseDate + (extensionDays * 24 * 60 * 60 * 1000));
+        }
+
         if (isConstituency) {
             if (!props.onUpdateConstituency) return;
             try {
-                const currentEnd = ext.subscriptionEndsAt
-                    ? new Date(ext.subscriptionEndsAt)
-                    : new Date();
-
-                const baseDate = Math.max(currentEnd.getTime(), Date.now());
-                const newEndDate = new Date(baseDate + (extensionDays * 24 * 60 * 60 * 1000));
-
                 await props.onUpdateConstituency(ext.id, {
                     subscriptionEndsAt: newEndDate.toISOString(),
-                    status: 'active'
+                    subscription_ends_at: newEndDate.toISOString(),
+                    status: 'active',
+                    isSuspendedForBilling: false,
+                    is_suspended_for_billing: false
                 });
 
-                if (props.onLogAction) await props.onLogAction(`Manually extended subscription for constituency ${ext.name} by ${extensionDays} days`);
+                if (props.onLogAction) await props.onLogAction(`Manually extended subscription for constituency ${ext.name} to ${newEndDate.toLocaleDateString()}`);
 
                 alert(`Subscription for constituency ${ext.name} extended until ${newEndDate.toLocaleDateString()}`);
                 setExtendingInstitution(null);
                 setExtensionDays(30);
+                setCustomExpiryDate('');
                 await fetchConstituenciesData();
             } catch (e) {
                 alert("Failed to extend constituency subscription.");
@@ -1612,25 +1632,23 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         if (!props.onUpdateInstitution) return;
 
         try {
-            const currentEnd = extendingInstitution.subscriptionEndsAt
-                ? new Date(extendingInstitution.subscriptionEndsAt)
-                : new Date();
-
-            const baseDate = Math.max(currentEnd.getTime(), Date.now());
-            const newEndDate = new Date(baseDate + (extensionDays * 24 * 60 * 60 * 1000));
-
             await props.onUpdateInstitution(extendingInstitution.id, {
                 subscriptionEndsAt: newEndDate.toISOString(),
-                status: 'active'
+                subscription_ends_at: newEndDate.toISOString(),
+                status: 'active',
+                isSuspendedForBilling: false,
+                is_suspended_for_billing: false
             });
 
-            await apiService.extendModuleSubscription(extendingInstitution.id, 'all', extensionDays, 'active').catch(() => null);
+            const daysFromNow = Math.max(1, Math.ceil((newEndDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+            await apiService.extendModuleSubscription(extendingInstitution.id, 'all', daysFromNow, 'active').catch(() => null);
 
-            if (props.onLogAction) await props.onLogAction(`Manually extended subscription for ${extendingInstitution.name} by ${extensionDays} days`);
+            if (props.onLogAction) await props.onLogAction(`Manually extended subscription for ${extendingInstitution.name} to ${newEndDate.toLocaleDateString()}`);
 
             alert(`Subscription for ${extendingInstitution.name} extended until ${newEndDate.toLocaleDateString()}`);
             setExtendingInstitution(null);
             setExtensionDays(30);
+            setCustomExpiryDate('');
         } catch (e) {
             alert("Failed to extend subscription.");
         }
@@ -3057,7 +3075,7 @@ Please change it after login.`;
                                                                 <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                 Portal
                                                             </button>
-                                                            <button onClick={() => setExtendingInstitution(inst)} className="flex items-center gap-1 text-emerald-600 hover:text-emerald-900 font-black text-[10px] uppercase tracking-tighter bg-emerald-50 px-2 py-1 rounded-lg">
+                                                            <button onClick={() => handleOpenExtendModal(inst)} className="flex items-center gap-1 text-emerald-600 hover:text-emerald-900 font-black text-[10px] uppercase tracking-tighter bg-emerald-50 px-2 py-1 rounded-lg">
                                                                 <ClockIcon className="w-3 h-3" />
                                                                 Extend
                                                             </button>
@@ -3850,7 +3868,7 @@ Please change it after login.`;
                                                                                 View Users
                                                                             </button>
                                                                             <button 
-                                                                                onClick={() => setExtendingInstitution(c as any)} 
+                                                                                onClick={() => handleOpenExtendModal(c as any)} 
                                                                                 className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                                                                             >
                                                                                 Extend
@@ -7188,54 +7206,172 @@ Please change it after login.`;
                 </div>
             )}
 
-            {extendingInstitution && (
-                <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setExtendingInstitution(null)}>
-                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                            <div>
-                                <h3 className="text-lg font-black uppercase tracking-tight">Manual Extension</h3>
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{extendingInstitution.name}</p>
+            {extendingInstitution && (() => {
+                const currentExpiryRaw = (extendingInstitution as any)?.subscriptionEndsAt || (extendingInstitution as any)?.subscription_ends_at;
+                const currentExpiryDate = currentExpiryRaw ? new Date(currentExpiryRaw) : null;
+                const isCurrentExpired = !currentExpiryDate || currentExpiryDate.getTime() < Date.now();
+                const isBillingSuspended = Boolean((extendingInstitution as any)?.isSuspendedForBilling || (extendingInstitution as any)?.is_suspended_for_billing);
+
+                const getBaseDate = () => (currentExpiryDate && currentExpiryDate.getTime() > Date.now() ? currentExpiryDate.getTime() : Date.now());
+
+                const handlePresetClick = (days: number) => {
+                    const target = new Date(getBaseDate() + days * 24 * 60 * 60 * 1000);
+                    setExtensionDays(days);
+                    setCustomExpiryDate(target.toISOString().split('T')[0]);
+                };
+
+                const handleDaysChange = (days: number) => {
+                    setExtensionDays(days);
+                    if (days > 0) {
+                        const target = new Date(getBaseDate() + days * 24 * 60 * 60 * 1000);
+                        setCustomExpiryDate(target.toISOString().split('T')[0]);
+                    }
+                };
+
+                const handleDateChange = (dateStr: string) => {
+                    setCustomExpiryDate(dateStr);
+                    if (dateStr) {
+                        const target = new Date(`${dateStr}T23:59:59.999Z`);
+                        const diffDays = Math.round((target.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                        setExtensionDays(Math.max(1, diffDays));
+                    }
+                };
+
+                const formattedPreviewDate = customExpiryDate
+                    ? new Date(`${customExpiryDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+                    : 'Not specified';
+
+                return (
+                    <div className="fixed inset-0 bg-slate-900/60 z-[300] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => { setExtendingInstitution(null); setCustomExpiryDate(''); }}>
+                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-800 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/40">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Tenant Expiry & Subscription</h3>
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${extendingInstitution.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                            {extendingInstitution.status}
+                                        </span>
+                                    </div>
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{extendingInstitution.name}</p>
+                                </div>
+                                <button onClick={() => { setExtendingInstitution(null); setCustomExpiryDate(''); }} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><XIcon className="w-5 h-5" /></button>
                             </div>
-                            <button onClick={() => setExtendingInstitution(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><XIcon className="w-5 h-5" /></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Extension Period (Days)</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[30, 90, 365].map(days => (
+
+                            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                                {/* Current Expiry Banner */}
+                                <div className="p-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Expiration Date</div>
+                                        <div className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                                            {currentExpiryDate ? currentExpiryDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Never Set / Lifetime'}
+                                        </div>
+                                    </div>
+                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-tight ${isCurrentExpired ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                        {isCurrentExpired ? 'Expired' : 'Active'}
+                                    </span>
+                                </div>
+
+                                {isBillingSuspended && (
+                                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl text-xs text-amber-800 dark:text-amber-300 font-medium">
+                                        Account is currently flagged for billing arrears. Saving will unlock access immediately.
+                                    </div>
+                                )}
+
+                                {/* Exact Calendar Date Picker */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5 ml-1">
+                                        <label className="text-[10px] font-black uppercase text-slate-600 dark:text-slate-400 tracking-widest flex items-center gap-1.5">
+                                            <CalendarIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                            Select Exact Expiry Date
+                                        </label>
                                         <button
-                                            key={days}
-                                            onClick={() => setExtensionDays(days)}
-                                            className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${extensionDays === days ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 text-slate-500 hover:border-slate-200'}`}
+                                            type="button"
+                                            onClick={() => handleDateChange('2099-12-31')}
+                                            className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest hover:underline"
                                         >
-                                            {days === 365 ? '1 Year' : days === 90 ? 'Quarter' : 'Month'}
+                                            Set Lifetime (2099)
                                         </button>
-                                    ))}
+                                    </div>
+                                    <input
+                                        type="date"
+                                        value={customExpiryDate}
+                                        onChange={e => handleDateChange(e.target.value)}
+                                        className="form-input text-base font-bold w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                                    />
+                                </div>
+
+                                {/* Quick Presets */}
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Quick Presets</label>
+                                    <div className="grid grid-cols-5 gap-1.5">
+                                        {[
+                                            { label: '+30 D', days: 30 },
+                                            { label: '+90 D', days: 90 },
+                                            { label: '+6 Mo', days: 180 },
+                                            { label: '+1 Yr', days: 365 },
+                                            { label: '+2 Yrs', days: 730 },
+                                        ].map(preset => (
+                                            <button
+                                                key={preset.days}
+                                                type="button"
+                                                onClick={() => handlePresetClick(preset.days)}
+                                                className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-tight border-2 transition-all ${
+                                                    extensionDays === preset.days
+                                                        ? 'border-indigo-600 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                                                        : 'border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-200 dark:hover:border-slate-700'
+                                                }`}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Custom Days Counter */}
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Or Days From Current / Today</label>
+                                    <input
+                                        type="number"
+                                        value={extensionDays}
+                                        onChange={e => handleDaysChange(Number(e.target.value))}
+                                        className="form-input text-base font-bold w-full rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                                        min="1"
+                                    />
+                                </div>
+
+                                {/* Calculated Preview */}
+                                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                                    <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                                        <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                                        <span>New Expiration Date:</span>
+                                    </div>
+                                    <div className="mt-1 text-sm font-black text-emerald-950 dark:text-emerald-100 ml-6">
+                                        {formattedPreviewDate}
+                                    </div>
+                                    <p className="mt-1.5 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium ml-6 leading-relaxed">
+                                        Saving will activate the account and extend access through end of day.
+                                    </p>
                                 </div>
                             </div>
-                            <div>
-                                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">Custom Days</label>
-                                <input
-                                    type="number"
-                                    value={extensionDays}
-                                    onChange={e => setExtensionDays(Number(e.target.value))}
-                                    className="form-input text-lg font-black"
-                                    min="1"
-                                />
+
+                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    onClick={() => { setExtendingInstitution(null); setCustomExpiryDate(''); }}
+                                    className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleExtendSubscription}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 transition-all"
+                                >
+                                    Save & Grant Access
+                                </button>
                             </div>
-                            <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800">
-                                <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium leading-relaxed">
-                                    The new expiry date will be set to <strong>{extensionDays} days</strong> after the current expiry or today (whichever is later).
-                                </p>
-                            </div>
-                        </div>
-                        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3">
-                            <button onClick={() => setExtendingInstitution(null)} className="px-6 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-700">Cancel</button>
-                            <button onClick={handleExtendSubscription} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100">Grant Extension</button>
                         </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {/* ── Sender Gateway Modal ── */}
             {managingGatewayFor && (

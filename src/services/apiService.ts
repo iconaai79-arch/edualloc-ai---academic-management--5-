@@ -3007,6 +3007,12 @@ export const apiService = {
             if (module === 'institutions') {
                 if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;
                 if (item.reseller_id && !item.resellerId) item.resellerId = item.reseller_id;
+                if (item.subscriptionEndsAt && !item.subscription_ends_at) item.subscription_ends_at = item.subscriptionEndsAt;
+                if (item.subscription_ends_at && !item.subscriptionEndsAt) item.subscriptionEndsAt = item.subscription_ends_at;
+                if (item.trialEndsAt && !item.trial_ends_at) item.trial_ends_at = item.trialEndsAt;
+                if (item.trial_ends_at && !item.trialEndsAt) item.trialEndsAt = item.trial_ends_at;
+                if (item.isSuspendedForBilling !== undefined && item.is_suspended_for_billing === undefined) item.is_suspended_for_billing = item.isSuspendedForBilling;
+                if (item.is_suspended_for_billing !== undefined && item.isSuspendedForBilling === undefined) item.isSuspendedForBilling = item.is_suspended_for_billing;
             }
 
             // Commission withdrawal requests normalization

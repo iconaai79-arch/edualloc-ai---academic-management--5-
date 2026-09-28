@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
-import { extractClassAndStream, resolveRealStudentStream, resolveRealStudentClass, normalizeStreamName, naturalClassSort, extractStreamOnly } from '../../utils/academicUtils';
+import { extractClassAndStream, resolveRealStudentStream, resolveRealStudentClass, normalizeStreamName, naturalClassSort, extractStreamOnly, isDemoClassName } from '../../utils/academicUtils';
 import { PlusIcon } from '../icons/PlusIcon';
 import { ChevronDownIcon } from '../icons/ChevronDownIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
@@ -411,7 +411,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 if (Array.isArray(parsed)) {
                     // Filter out legacy dummy sample exams that may have been seeded during development
                     const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
-                    return parsed.filter(e => e && e.id && !dummyIds.has(e.id));
+                    return parsed
+                        .filter(e => e && e.id && !dummyIds.has(e.id))
+                        .map(e => {
+                            const rawCls = e.classes || (e as any).targetClasses || (e as any).target_classes || (e as any).assignedClasses;
+                            const cleanCls = Array.isArray(rawCls) ? rawCls.filter((c: string) => !isDemoClassName(c)) : undefined;
+                            return { ...e, classes: cleanCls };
+                        });
                 }
             }
         } catch (e) { }
@@ -425,7 +431,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .then(records => {
                     if (records && Array.isArray(records)) {
                         const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
-                        const cleanRecords = records.filter(r => r && r.id && !dummyIds.has(r.id));
+                        const cleanRecords = records
+                            .filter(r => r && r.id && !dummyIds.has(r.id))
+                            .map(r => {
+                                const rawCls = r.classes || (r as any).targetClasses || (r as any).target_classes || (r as any).assignedClasses;
+                                const cleanCls = Array.isArray(rawCls) ? rawCls.filter((c: string) => !isDemoClassName(c)) : undefined;
+                                return { ...r, classes: cleanCls };
+                            });
                         setExams(prev => {
                             const map = new Map<string, ExamUnitRecord>();
                             prev.filter(e => !dummyIds.has(e.id)).forEach(e => map.set(e.id, e));
@@ -623,83 +635,64 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const [showAllSubjectsProgress, setShowAllSubjectsProgress] = useState(false);
 
     // Dynamically compute current registered classes/grades and class+stream combinations
+    // Strictly derives authentic school classes and permanently purges mock/demo data
     const registeredClasses = useMemo(() => {
         const classSet = new Set<string>();
 
-        // 1. From courses prop
-        if (courses && Array.isArray(courses) && courses.length > 0) {
-            courses.forEach(c => {
-                if (!c) return;
-                const name = c?.name || (c as any)?.title || c?.code;
-                if (name && typeof name === 'string') classSet.add(name);
-            });
-        }
-
-        // 2. From academicLevels prop
-        if (academicLevels && Array.isArray(academicLevels) && academicLevels.length > 0) {
-            academicLevels.forEach(l => {
-                if (!l) return;
-                const name = typeof l === 'string' ? l : (l?.name || (l as any)?.title || (l as any)?.code);
-                if (name && typeof name === 'string') classSet.add(name);
-            });
-        }
-
-        // 3. From registered student users (includes base classes and class+stream)
+        // 1. PRIMARY SOURCE: Real students enrolled in users prop
         if (users && users.length > 0) {
-            users.forEach(u => {
-                if (!u) return;
+            users.filter(isStudentUser).forEach(u => {
                 const cl = (u as any).studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class;
-                if (cl && typeof cl === 'string' && cl.trim()) {
-                    classSet.add(cl.trim());
-                }
                 const stream = (u as any).stream || (u as any).streamName || (u as any).stream_name;
-                if (cl && typeof cl === 'string' && stream && typeof stream === 'string' && stream.trim()) {
-                    classSet.add(`${cl.trim()} ${stream.trim()}`);
-                }
-            });
-        }
-
-        // 4. From local enrollments & students cache (only if classSet is still empty)
-        if (classSet.size === 0) {
-            try {
-                const cachedEnrRaw = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
-                                     localStorage.getItem('eduai_student_enrollments');
-                if (cachedEnrRaw) {
-                    const parsedEnr = JSON.parse(cachedEnrRaw);
-                    if (Array.isArray(parsedEnr)) {
-                        parsedEnr.slice(0, 100).forEach(enr => {
-                            if (!enr) return;
-                            const gLvl = enr.metadata?.gradeLevel || enr.gradeLevel || enr.studentClass || enr.className || (enr as any).class;
-                            const strm = enr.metadata?.stream || enr.stream || enr.streamName || (enr as any).classStream;
-                            if (gLvl && typeof gLvl === 'string' && gLvl.trim()) {
-                                const cleanG = gLvl.trim();
-                                if (strm && typeof strm === 'string' && strm.trim() && !cleanG.toLowerCase().includes(strm.trim().toLowerCase())) {
-                                    classSet.add(`${cleanG} ${strm.trim()}`);
-                                } else {
-                                    classSet.add(cleanG);
-                                }
-                            }
-                        });
+                if (cl && typeof cl === 'string' && cl.trim() && !isDemoClassName(cl)) {
+                    if (stream && typeof stream === 'string' && stream.trim() && !cl.toLowerCase().includes(stream.toLowerCase())) {
+                        classSet.add(`${cl.trim()} ${stream.trim()}`);
+                    } else {
+                        classSet.add(cl.trim());
                     }
                 }
-            } catch (e) {}
+            });
         }
 
-        // 5. From currentInstitution object (classes, streamDefinitions, streams)
+        // 2. PRIMARY SOURCE: Real student enrollments cache (always merged, never conditionally skipped)
+        try {
+            const cachedEnrRaw = localStorage.getItem(`eduai_student_enrollments_${instId}`) ||
+                                 localStorage.getItem('eduai_student_enrollments_default') ||
+                                 localStorage.getItem('eduai_student_enrollments') ||
+                                 (instId ? localStorage.getItem(`eduai_students_${instId}`) : null) ||
+                                 localStorage.getItem('eduai_students');
+            if (cachedEnrRaw) {
+                const parsedEnr = JSON.parse(cachedEnrRaw);
+                if (Array.isArray(parsedEnr)) {
+                    parsedEnr.forEach(enr => {
+                        if (!enr || isNonStudentUser(enr)) return;
+                        const gLvl = enr.metadata?.gradeLevel || enr.gradeLevel || enr.studentClass || enr.className || (enr as any).class;
+                        const strm = enr.metadata?.stream || enr.stream || enr.streamName || (enr as any).classStream;
+                        if (gLvl && typeof gLvl === 'string' && gLvl.trim() && !isDemoClassName(gLvl)) {
+                            const cleanG = gLvl.trim();
+                            if (strm && typeof strm === 'string' && strm.trim() && !cleanG.toLowerCase().includes(strm.trim().toLowerCase())) {
+                                classSet.add(`${cleanG} ${strm.trim()}`);
+                            } else {
+                                classSet.add(cleanG);
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (e) {}
+
+        // 3. From currentInstitution object (classes, streamDefinitions, streams)
         if (currentInstitution) {
             const instClasses = (currentInstitution as any).classes || (currentInstitution as any).courses;
             if (Array.isArray(instClasses)) {
                 instClasses.forEach((c: any) => {
                     if (!c) return;
                     const name = typeof c === 'string' ? c : (c?.name || c?.title);
-                    if (name && typeof name === 'string') classSet.add(name);
+                    if (name && typeof name === 'string' && !isDemoClassName(name)) classSet.add(name);
                 });
             }
 
             const streamDefs: string[] = (currentInstitution as any).streamDefinitions || (currentInstitution as any).streams || [];
-
-            // Only generate stream variants if the institution EXPLICITLY defines streams.
-            // Do NOT fall back to a hardcoded list — that would create fake classes.
             if (streamDefs.length > 0) {
                 const baseList = Array.from(classSet);
                 baseList.forEach(base => {
@@ -716,12 +709,41 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         }
 
-        // 6. Fallback defaults if empty
-        if (classSet.size === 0) {
-            ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central', 'Grade 1 Central'].forEach(c => classSet.add(c));
+        // 4. From courses prop: ONLY genuine course levels, NEVER demo courses
+        if (courses && Array.isArray(courses) && courses.length > 0) {
+            courses.forEach(c => {
+                if (!c) return;
+                if (c.id && (c.id.startsWith('c_844') || c.id.startsWith('c_cbe'))) return;
+                const cName = c?.name || (c as any)?.title || c?.code;
+                if (cName && isDemoClassName(cName)) return;
+
+                if (Array.isArray(c.levels) && c.levels.length > 0) {
+                    c.levels.forEach(lvl => {
+                        if (lvl && lvl.name && !isDemoClassName(lvl.name)) {
+                            classSet.add(lvl.name.trim());
+                        }
+                    });
+                } else if (cName && typeof cName === 'string') {
+                    classSet.add(cName.trim());
+                }
+            });
         }
 
-        return Array.from(classSet);
+        // 5. From academicLevels prop
+        if (academicLevels && Array.isArray(academicLevels) && academicLevels.length > 0) {
+            academicLevels.forEach(l => {
+                if (!l) return;
+                const name = typeof l === 'string' ? l : (l?.name || (l as any)?.title || (l as any)?.code);
+                if (name && typeof name === 'string' && !isDemoClassName(name)) classSet.add(name);
+            });
+        }
+
+        // 6. Fallback defaults ONLY if classSet is completely empty
+        if (classSet.size === 0) {
+            ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'].forEach(c => classSet.add(c));
+        }
+
+        return Array.from(classSet).filter(c => !isDemoClassName(c));
     }, [courses, academicLevels, users, currentInstitution, instId]);
 
     // Step 2 Wizard States:
@@ -1357,17 +1379,33 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     }, [KENYAN_STUDENT_NAMES]);
 
     // Resolved Active Exam Classes
+    // Strictly shows authentic school classes assigned to the active exam without any demo pollution
     const activeExamClasses = useMemo(() => {
         const raw = (() => {
-            if (activeExam?.classes && activeExam.classes.length > 0) return activeExam.classes;
-            if (selectedClasses && selectedClasses.length > 0) return selectedClasses;
-            return registeredClasses.length > 0 ? registeredClasses : ['Grade 1', 'Grade 2', 'Grade 3', 'Form 1', 'Form 2', 'Form 3'];
+            const assigned = (activeExam?.classes && activeExam.classes.length > 0) ? activeExam.classes
+                : ((activeExam as any)?.targetClasses && (activeExam as any).targetClasses.length > 0) ? (activeExam as any).targetClasses
+                : ((activeExam as any)?.target_classes && (activeExam as any).target_classes.length > 0) ? (activeExam as any).target_classes
+                : ((activeExam as any)?.assignedClasses && (activeExam as any).assignedClasses.length > 0) ? (activeExam as any).assignedClasses
+                : null;
+
+            if (assigned && Array.isArray(assigned) && assigned.length > 0) {
+                const cleanAssigned = assigned.filter((c: string) => !isDemoClassName(c));
+                if (cleanAssigned.length > 0) return cleanAssigned;
+            }
+
+            if (selectedClasses && selectedClasses.length > 0) {
+                const cleanSelected = selectedClasses.filter(c => !isDemoClassName(c));
+                if (cleanSelected.length > 0) return cleanSelected;
+            }
+
+            const cleanReg = registeredClasses.filter(c => !isDemoClassName(c));
+            return cleanReg.length > 0 ? cleanReg : ['Form 1 Central', 'Form 2 Central', 'Form 3 Central', 'Form 4 Central'];
         })();
         // Deduplicate (case-insensitive) to prevent duplicate rows in the exam dashboard
         const seen = new Set<string>();
         return raw.filter(c => {
             const key = (c || '').trim().toLowerCase();
-            if (!key || seen.has(key)) return false;
+            if (!key || seen.has(key) || isDemoClassName(key)) return false;
             seen.add(key);
             return true;
         });
@@ -2413,24 +2451,24 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const cleanedSet = new Set<string>();
 
         baseClasses.forEach(c => {
-            if (!c || typeof c !== 'string') return;
+            if (!c || typeof c !== 'string' || isDemoClassName(c)) return;
             const clean = c.replace(/\s+\d{4}$/, '').trim();
-            if (clean && clean.toLowerCase() !== 'all' && clean.toLowerCase() !== 'all classes') {
+            if (clean && clean.toLowerCase() !== 'all' && clean.toLowerCase() !== 'all classes' && !isDemoClassName(clean)) {
                 cleanedSet.add(clean);
             }
         });
 
         allRealStudents.forEach(st => {
             const cl = getStudentClass(st);
-            if (cl && typeof cl === 'string') {
+            if (cl && typeof cl === 'string' && !isDemoClassName(cl)) {
                 const clean = cl.replace(/\s+\d{4}$/, '').trim();
-                if (clean && clean.toLowerCase() !== 'all' && clean.toLowerCase() !== 'all classes') {
+                if (clean && clean.toLowerCase() !== 'all' && clean.toLowerCase() !== 'all classes' && !isDemoClassName(clean)) {
                     cleanedSet.add(clean);
                 }
             }
         });
 
-        const list = Array.from(cleanedSet);
+        const list = Array.from(cleanedSet).filter(c => !isDemoClassName(c));
 
         if (selectedGradeFilter && selectedGradeFilter !== 'all') {
             const normSelectedGrade = extractGradeLabel(selectedGradeFilter).toLowerCase();

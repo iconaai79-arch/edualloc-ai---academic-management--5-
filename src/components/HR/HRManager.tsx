@@ -23,7 +23,10 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
+import { QrCodeIcon } from '../icons/QrCodeIcon';
+import { PrinterIcon } from '../icons/PrinterIcon';
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
+import { printGateQrSignboard } from '../TeacherCheckInView';
 import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
 import { SmartHRPayrollImporterModal } from './SmartHRPayrollImporterModal';
 import { 
@@ -262,6 +265,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const [rosterViewMode, setRosterViewMode] = useState<'list' | 'grid'>('list');
     const [rosterCurrentPage, setRosterCurrentPage] = useState(1);
     const [rosterItemsPerPage, setRosterItemsPerPage] = useState(10);
+    const [showGateQrModal, setShowGateQrModal] = useState(false);
 
     const getStaffSalary = (member: User) => {
         let m = member.metadata || {};
@@ -1996,6 +2000,55 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
                 {activeTab === 'attendance' && (
                     <div className="animate-in fade-in space-y-8">
+                        {/* Official Gate QR Code Station Banner */}
+                        <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 rounded-[3rem] p-8 text-white shadow-xl relative overflow-hidden border border-indigo-700/40">
+                            {/* Decorative background glow */}
+                            <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+                            <div className="absolute bottom-0 left-1/3 -mb-20 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+                            <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                                <div className="space-y-3 max-w-2xl">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/30 text-indigo-300 rounded-full border border-indigo-400/30 text-[10px] font-black uppercase tracking-widest">
+                                        <QrCodeIcon className="w-3.5 h-3.5" />
+                                        <span>Official School Gate Attendance Station</span>
+                                    </div>
+                                    <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                                        Gate QR Code Signboard
+                                    </h3>
+                                    <p className="text-xs sm:text-sm text-indigo-200/80 leading-relaxed font-medium">
+                                        Generate and print the official Entrance / Exit QR Signboard for <strong className="text-white">{institution?.name || 'the Institution'}</strong>. Teachers and staff scan this code using their phone camera or EduAI app to record automatic morning check-ins and evening checkout with GPS geofencing verification.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] text-indigo-300 font-bold">
+                                        <span className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                            Active Station: <code className="bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800 text-indigo-200">school_gate_id:{institution?.id || ''}</code>
+                                        </span>
+                                        <span className="text-indigo-400">•</span>
+                                        <span>Check-In & Check-Out Dual Action</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full lg:w-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowGateQrModal(true)}
+                                        className="flex-1 sm:flex-none px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all backdrop-blur-md border border-white/20 flex items-center justify-center gap-2 active:scale-95"
+                                    >
+                                        <QrCodeIcon className="w-4 h-4 text-indigo-300" />
+                                        <span>Preview Gate QR</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => printGateQrSignboard(institution?.name || 'School Gate', institution?.id || '')}
+                                        className="flex-1 sm:flex-none px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2.5 active:scale-95"
+                                    >
+                                        <PrinterIcon className="w-4 h-4" />
+                                        <span>Print Gate QR Signboard</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <BiometricAttendanceDashboard
                             staff={staff}
                             institution={institution}
@@ -2003,9 +2056,19 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
                         {/* Existing Teacher Check-In System */}
                         <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-                            <div className="p-8 border-b border-slate-50 dark:border-slate-700">
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Manual Check-In System</h3>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Legacy teacher attendance tracker (non-biometric)</p>
+                            <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Staff Self-Checkin & Logs</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Mobile QR Scanner & GPS Attendance Registry</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => printGateQrSignboard(institution?.name || 'School Gate', institution?.id || '')}
+                                    className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800 flex items-center gap-2 self-start sm:self-auto active:scale-95"
+                                >
+                                    <PrinterIcon className="w-3.5 h-3.5" />
+                                    <span>Print Gate QR Sign</span>
+                                </button>
                             </div>
                             <div className="p-4">
                                 <TeacherCheckInAdminView
@@ -2019,6 +2082,74 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Gate QR Code Signboard Preview Modal */}
+            {showGateQrModal && (
+                <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-in zoom-in-95 duration-200">
+                        {/* Modal Header */}
+                        <div className="px-6 py-5 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                                    <QrCodeIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Gate QR Signboard Preview</h3>
+                                    <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">{institution?.name || 'Institution'}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowGateQrModal(false)}
+                                className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 text-slate-500 rounded-xl transition-all"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6 flex flex-col items-center text-center space-y-4">
+                            <div className="bg-white p-4 rounded-2xl border-4 border-slate-900 shadow-md">
+                                <img
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(`school_gate_id:${institution?.id || ''}`)}`}
+                                    alt="Gate QR Code"
+                                    className="w-56 h-56 block"
+                                />
+                            </div>
+
+                            <div className="w-full bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-left space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Gate Station Token</p>
+                                <code className="block bg-white dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-mono text-indigo-600 dark:text-indigo-400 break-all select-all font-bold">
+                                    school_gate_id:{institution?.id || ''}
+                                </code>
+                                <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1 pt-1 font-medium">
+                                    <p>• <strong>Entrance & Exit Station:</strong> Print in full A4 and mount at the security desk or main gate entrance.</p>
+                                    <p>• <strong>Check-In & Check-Out:</strong> Staff point their camera/scanner at this QR code. The app automatically recognizes morning entry vs evening checkout.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                            <button
+                                onClick={() => setShowGateQrModal(false)}
+                                className="px-4 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                            >
+                                Close
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowGateQrModal(false);
+                                    printGateQrSignboard(institution?.name || 'School Gate', institution?.id || '');
+                                }}
+                                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md flex items-center gap-2"
+                            >
+                                <PrinterIcon className="w-4 h-4" />
+                                <span>Print Signboard (A4)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Premium PDF Preview Modal */}
             {selectedReportUrl && (

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
 import { apiService } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
+import { isDemoClassName } from '../../utils/academicUtils';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -590,9 +591,9 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             const exClasses = (selectedExamObj as any).classes || (selectedExamObj as any).targetClasses || [(selectedExamObj as any).class];
             if (Array.isArray(exClasses)) {
                 exClasses.forEach((c: any) => {
-                    if (c && typeof c === 'string' && c.trim()) {
+                    if (c && typeof c === 'string' && c.trim() && !isDemoClassName(c)) {
                         const clean = extractGradeOnly(c);
-                        if (clean) set.add(clean);
+                        if (clean && !isDemoClassName(clean)) set.add(clean);
                     }
                 });
             }
@@ -601,10 +602,13 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
         // 2. Registered Classes in Institution / Courses
         if (courses && courses.length > 0) {
             courses.forEach(c => {
+                if (c && typeof c === 'object' && ((c.id && (c.id.startsWith('c_844_') || c.id.startsWith('c_cbe_'))) || isDemoClassName(c.name || ''))) {
+                    return;
+                }
                 const name = typeof c === 'string' ? c : (c.name || (c as any).title || c.code);
-                if (name) {
+                if (name && !isDemoClassName(name)) {
                     const clean = extractGradeOnly(name);
-                    if (clean) set.add(clean);
+                    if (clean && !isDemoClassName(clean)) set.add(clean);
                 }
             });
         }
@@ -786,11 +790,14 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
     // Auto-sync selectedYearGroup when active exam changes
     useEffect(() => {
         if (selectedExamObj) {
-            const exClasses = (selectedExamObj as any).classes || (selectedExamObj as any).targetClasses || [(selectedExamObj as any).class];
-            if (Array.isArray(exClasses) && exClasses.length > 0 && exClasses[0]) {
+            const rawClasses = (selectedExamObj as any).classes || (selectedExamObj as any).targetClasses || [(selectedExamObj as any).class];
+            const exClasses = Array.isArray(rawClasses)
+                ? rawClasses.filter((c: any) => c && typeof c === 'string' && c.trim() && !isDemoClassName(c))
+                : [];
+            if (exClasses.length > 0 && exClasses[0]) {
                 const firstCl = String(exClasses[0]).trim();
                 const cleanCl = extractGradeOnly(firstCl);
-                if (cleanCl) {
+                if (cleanCl && !isDemoClassName(cleanCl)) {
                     setSelectedYearGroup(cleanCl);
                     return;
                 }

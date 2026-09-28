@@ -9,6 +9,8 @@ import { UsersIcon } from './icons/UsersIcon';
 import { apiService } from '../services/apiService';
 import * as XLSX from 'xlsx';
 import { downloadTeacherAttendanceReportPdf } from '../services/pdfService';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { printGateQrSignboard } from './TeacherCheckInView';
 
 interface TeacherCheckInAdminViewProps {
     currentUser: User;
@@ -400,28 +402,40 @@ const TeacherCheckInAdminView: React.FC<TeacherCheckInAdminViewProps> = ({
                     <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Admin oversight portal for teacher self-checkin, geofencing rules, and reports.</p>
                 </div>
                 
-                {/* Dual Sub-Tabs selectors */}
-                <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-800">
+                {/* Actions & Dual Sub-Tabs selectors */}
+                <div className="flex flex-wrap items-center gap-3">
                     <button
-                        onClick={() => setActiveSubTab('monitor')}
-                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                            activeSubTab === 'monitor'
-                                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
+                        type="button"
+                        onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', currentInstitution?.id || '')}
+                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2"
+                        title="Print official Entrance QR code for staff phone check-in and checkout"
                     >
-                        Real-Time Monitor
+                        <QrCodeIcon className="w-4 h-4" />
+                        <span>Print Gate QR</span>
                     </button>
-                    <button
-                        onClick={() => setActiveSubTab('reports')}
-                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                            activeSubTab === 'reports'
-                                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
-                    >
-                        Reports & Analysis
-                    </button>
+
+                    <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl w-fit border border-slate-200 dark:border-slate-800">
+                        <button
+                            onClick={() => setActiveSubTab('monitor')}
+                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                activeSubTab === 'monitor'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Real-Time Monitor
+                        </button>
+                        <button
+                            onClick={() => setActiveSubTab('reports')}
+                            className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                activeSubTab === 'reports'
+                                    ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                            }`}
+                        >
+                            Reports & Analysis
+                        </button>
+                    </div>
                 </div>
             </div>
 

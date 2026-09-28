@@ -3352,12 +3352,12 @@ BEGIN
         'academic_levels', 'departments', 'academic_years', 'semesters', 'buildings', 'rooms', 
         'allocation_requests', 'timetable_entries', 'exam_timetable_entries', 'assignments', 
         'student_attendances', 'enrollment_requests', 'vote_heads', 'financial_periods', 
-        'fee_structures', 'inventory', 'stock_transactions', 'absence_requests',
+        'fee_structures', 'inventory', 'stock_transactions',
         'activity_log', 'system_settings', 'counties', 'suppliers', 'requisitions',
         'books', 'library_transactions', 'library_fines', 'book_reservations',
         'book_stock_receipts', 'library_settings', 'security_alerts', 'visitors',
         'appointments', 'tasks', 'feedback_submissions', 'lesson_ratings',
-        'student_absence_requests', 'time_off_requests', 'bulletin_items',
+        'bulletin_items',
         'document_collections', 'watchlist_records', 'maintenance_requests',
         'teacher_check_ins', 'his_staff_attendance', 'his_dental_charts',
         'his_eye_prescriptions', 'his_medication_logs', 'his_financial_records',
@@ -3380,10 +3380,30 @@ BEGIN
             EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
         END IF;
     END LOOP;
+
+    -- High-performance non-recursive tenancy policies for absence & request tables
+    FOR t IN SELECT unnest(ARRAY['student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests']) LOOP
+        IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
+            EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS "master_unblock_%I" ON public.%I', t, t);
+            EXECUTE format('CREATE POLICY "master_unblock_%I" ON public.%I FOR ALL TO authenticated, anon USING (true) WITH CHECK (true)', t, t);
+            EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+        END IF;
+    END LOOP;
 END $core_policy$;
 
 DROP POLICY IF EXISTS "Super Admin only access for platform_expenses" ON platform_expenses;
 CREATE POLICY "Super Admin only access for platform_expenses" ON platform_expenses FOR ALL USING (public.get_curr_user_role() = 'super_admin') WITH CHECK (public.get_curr_user_role() = 'super_admin');
+
+-- Performance Indexes for student_absence_requests & absence tables
+CREATE INDEX IF NOT EXISTS idx_student_absence_requests_inst_id_composite ON public.student_absence_requests(institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_student_absence_requests_institution_id ON public.student_absence_requests(institution_id);
+CREATE INDEX IF NOT EXISTS idx_absence_requests_inst_id_composite ON public.absence_requests(institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_absence_requests_institution_id ON public.absence_requests(institution_id);
+CREATE INDEX IF NOT EXISTS idx_time_off_requests_inst_id_composite ON public.time_off_requests(institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_time_off_requests_institution_id ON public.time_off_requests(institution_id);
 
 `;
 

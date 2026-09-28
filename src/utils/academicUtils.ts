@@ -845,3 +845,15 @@ export const extractStreamOnly = (rawName: string, activeYearGroup?: string): st
 
     return val;
 };
+
+/**
+ * Pure helper: Check if a class or course name is a demo/mock artifact
+ * (e.g. "Grade 10 (8-4-4)", "Grade 10 (CBE)", "c_844_...", "c_cbe_...")
+ */
+export const isDemoClassName = (name: string): boolean => {
+    if (!name || typeof name !== 'string') return false;
+    const trimmed = name.trim();
+    if (/^Grade\s*10\s*\((?:8-4-4|cbe|cbc)\)/i.test(trimmed)) return true;
+    if (/^c_(?:844|cbe)_/i.test(trimmed)) return true;
+    return false;
+};
