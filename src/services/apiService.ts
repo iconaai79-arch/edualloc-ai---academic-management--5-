@@ -4863,7 +4863,7 @@ export const apiService = {
             if (module) {
                 _moduleMemoryCache.clear();
                 _tableMemoryCache.delete(module);
-                ls.remove(module);
+                safeLocalStorage.removeItem(`eduai_${module}`);
                 await localDb.clear(module).catch(() => {});
             } else {
                 _moduleMemoryCache.clear();

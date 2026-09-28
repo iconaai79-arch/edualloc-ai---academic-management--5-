@@ -5459,6 +5459,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const updatedAllocs: RemedialAllocation[] = [];
             let placedCount = 0;
 
+            const effSunPeriods = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2));
+
             const candidateSlots: { day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'; startTime: string; endTime: string; isWeekend: boolean }[] = [
                 // STRICT RULE: Only 1 period per weekday, using the configured evening window.
                 { day: 'Tuesday', startTime: weekdayStartTime || '16:00', endTime: weekdayEndTime || '18:00', isWeekend: false },
@@ -5475,7 +5477,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 { day: 'Saturday', startTime: '12:30', endTime: saturdayEndTime || '13:30', isWeekend: true },
 
                 // Sunday slots (strictly capped)
-                ...((effSunPeriods = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2))) <= 2
+                ...(effSunPeriods <= 2
                     ? (includeSundayBreak && effSunPeriods === 2
                         ? [
                             { day: 'Sunday' as const, startTime: sundayStartTime || '09:00', endTime: sundayBreakStartTime || '11:00', isWeekend: true },
