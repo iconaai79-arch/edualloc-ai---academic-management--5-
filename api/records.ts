@@ -1506,6 +1506,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'finance_numbering_configs', 'bursary_disbursements',
                     // Absence & request modules
                     'student_absence_requests', 'absence_requests', 'time_off_requests',
+                    // Logging & diagnostic modules
+                    'integration_logs', 'sms_gateway_logs', 'sms_logs',
                 ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
@@ -1704,9 +1706,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['marketing_prospects', 'campaign_leads', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests'].includes(moduleName)
+                            ['marketing_prospects', 'campaign_leads', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
+                            return res.status(200).json([]);
+                        }
+                        if (['integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)) {
+                            console.warn(`[API GET] Diagnostic/telemetry module '${moduleName}' query failed (${error.message || error.code}). Returning empty list fallback.`);
                             return res.status(200).json([]);
                         }
                         console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
