@@ -254,7 +254,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         setIsCameraActive(false);
     }, [cameraStream]);
 
-    const startCamera = useCallback(async (facing: 'environment' | 'user' = cameraFacingMode) => {
+    const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
         setCameraError(null);
         if (cameraStream) {
             cameraStream.getTracks().forEach(track => {
@@ -265,14 +265,87 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             if (!navigator?.mediaDevices?.getUserMedia) {
                 throw new Error("Camera API not supported in this browser. Please use HTTPS or localhost.");
             }
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: facing,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                },
-                audio: false
-            });
+
+            let stream: MediaStream | null = null;
+
+            if (facing === 'environment') {
+                // 1. Try explicit rear/back camera deviceId if devices are already enumerated
+                if (navigator.mediaDevices.enumerateDevices) {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                        const rearDevice = videoDevices.find(d => 
+                            /back|rear|environment|main|facing\s*back/i.test(d.label)
+                        );
+                        if (rearDevice && rearDevice.deviceId) {
+                            stream = await navigator.mediaDevices.getUserMedia({
+                                video: {
+                                    deviceId: { exact: rearDevice.deviceId },
+                                    width: { ideal: 1280 },
+                                    height: { ideal: 720 }
+                                },
+                                audio: false
+                            });
+                        }
+                    } catch (_) {}
+                }
+
+                // 2. Exact 'environment' constraint - forces rear camera on mobile (Chrome / Safari / Edge)
+                if (!stream) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: {
+                                facingMode: { exact: 'environment' },
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            },
+                            audio: false
+                        });
+                    } catch (_) {
+                        // Thrown on laptops or devices with only one front camera
+                    }
+                }
+
+                // 3. Fallback to ideal 'environment'
+                if (!stream) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: {
+                                facingMode: { ideal: 'environment' },
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            },
+                            audio: false
+                        });
+                    } catch (_) {}
+                }
+
+                // 4. Ultimate fallback to standard video stream
+                if (!stream) {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                }
+            } else {
+                // Front / User camera requested
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    });
+                } catch (_) {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                }
+            }
+
             setCameraStream(stream);
             setIsCameraActive(true);
             if (scannerVideoRef.current) {
@@ -292,7 +365,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             setCameraError(friendly);
             setIsCameraActive(false);
         }
-    }, [cameraFacingMode, cameraStream]);
+    }, [cameraStream]);
 
     const toggleCameraFacing = useCallback(() => {
         const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
@@ -307,7 +380,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
         if (isScannerModalOpen) {
             setScannedBadgeSuccess(false);
-            startCamera(cameraFacingMode);
+            setCameraFacingMode('environment'); // Always default to rear camera on open
+            startCamera('environment'); // Always launch with rear camera first
 
             if ('BarcodeDetector' in window) {
                 try {
@@ -2164,10 +2238,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     <div className="flex items-center gap-2">
                                                         <button
                                                             onClick={toggleCameraFacing}
-                                                            title="Flip Camera (Front/Back)"
-                                                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors"
+                                                            title={cameraFacingMode === 'environment' ? 'Switch to Front Camera' : 'Switch to Rear Camera'}
+                                                            className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold border border-slate-700/60"
                                                         >
-                                                            <SwitchCamera className="w-5 h-5" />
+                                                            <SwitchCamera className="w-4 h-4 text-indigo-400" />
+                                                            <span className="text-[10px] uppercase font-black text-slate-300">
+                                                                {cameraFacingMode === 'environment' ? 'Rear Cam' : 'Front Cam'}
+                                                            </span>
                                                         </button>
                                                         <button
                                                             onClick={() => setIsScannerModalOpen(false)}
@@ -2262,9 +2339,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                                                     {/* Camera Active Status Pill */}
                                                     {isCameraActive && (
-                                                        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-slate-950/80 border border-slate-700/80 rounded-full flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 backdrop-blur-xs pointer-events-none">
+                                                        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-slate-950/85 border border-slate-700/80 rounded-full flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 backdrop-blur-xs pointer-events-none shadow-lg">
                                                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                                                            Camera Active
+                                                            {cameraFacingMode === 'environment' ? 'Rear Camera (Default)' : 'Front Camera'} Active
                                                         </div>
                                                     )}
                                                 </div>
@@ -2314,8 +2391,12 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 remedialSessions.map(s => (
                                                     <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
                                                         <div>
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">{s.subjectName}</p>
-                                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{s.className} • pref. {s.prefectName}</p>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">
+                                                                {s.subjectName || subjects?.find(sub => sub.id === s.subjectId)?.name || 'Remedial Subject'}
+                                                            </p>
+                                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                                                {(s.className || courses?.find(c => c.id === s.courseId)?.name || 'Class')} • pref. {s.prefectName || 'Verified'}
+                                                            </p>
                                                             <p className="text-[9px] text-slate-400 font-medium">{new Date(s.startTime).toLocaleDateString()}</p>
                                                         </div>
                                                         <div className="text-right">
