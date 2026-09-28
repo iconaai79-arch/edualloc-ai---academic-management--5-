@@ -2780,7 +2780,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         const apt = (appointments || []).find(a => a.id === id);
         if (apt) {
             await apiService.saveModuleRecord('appointments', { ...apt, status });
-            await handleLogAction(`Updated appointment status for ${apt.visitorName || (apt as any).guestName || 'guest'} to ${status}`);
+            await handleLogAction(`Updated appointment status for ${(apt as any).visitorName || (apt as any).guestName || 'guest'} to ${status}`);
         }
         loadData();
     }, [appointments, loadData, handleLogAction]);
@@ -7285,7 +7285,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             if (inst && !isReseller && (isSuspended || isSubscriptionExpired || hasOverdueBill)) {
                 return (
                     <Suspense fallback={<SystemPulseLoader message="Verifying Account Access..." />}>
-                        <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason) => {
+                        <SuspendedAccountView user={currentUser} institution={inst} companyDetails={companyDetails} onLogout={handleLogout} onAddTransaction={apiService.onAddTransaction.bind(apiService)} onAddExtensionRequest={async (reason: string) => {
                             await apiService.saveModuleRecord('institution_extension_requests', {
                                 id: `ext_${Date.now()}`,
                                 institutionId: inst.id,
@@ -7309,7 +7309,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             institution={inst}
                             companyDetails={companyDetails}
                             onLogout={handleLogout}
-                            onPay={async (paymentData, items) => {
+                            onPay={async (paymentData: any, items: any) => {
                                 const status = await apiService.onAddTransaction({
                                     ...paymentData,
                                     institutionId: inst.id,
@@ -7319,7 +7319,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 if (status === 'completed') loadData();
                                 return status;
                             }}
-                            onRequestExtension={async (reason) => {
+                            onRequestExtension={async (reason: string) => {
                                 await apiService.saveModuleRecord('institution_extension_requests', {
                                     id: `ext_${Date.now()}`,
                                     institutionId: inst.id,
@@ -7340,7 +7340,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 <Suspense fallback={<SystemPulseLoader message="Security Handshake..." />}>
                     <MandatoryUpdateView 
                         user={currentUser} 
-                        onUpdate={async (pData, passData) => {
+                        onUpdate={async (pData: any, passData: any) => {
                             try {
                                 const updated = { ...currentUser, ...pData, password: passData.newPassword, passwordLastUpdated: new Date().toISOString() };
                                 await apiService.saveUser(updated);
@@ -7397,7 +7397,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             onBookDemo={() => setShowBookDemo(true)}
                             onOpenStore={() => { setShowMarketing(false); setShowMarketplace(true); }}
                             onLaunchSimulator={handleLaunchSimulator}
-                            onRegister={(modId) => {
+                            onRegister={(modId: any) => {
                                 setRegistrationModuleId(modId);
                                 setLoginInitialView('register');
                                 setShowMarketing(false);
@@ -8650,7 +8650,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             <AlumnaeRegistrationView 
                                 registry={schoolRegistry}
                                 initialSchool={selectedRegistrySchool}
-                                onCheckAdmission={async (admNo, schoolId) => {
+                                onCheckAdmission={async (admNo: string, schoolId: string) => {
                                     // Discovery check scoped to the specific school to allow duplicate IDs across different institutions
                                     const filters: any = { 
                                         admission_number: admNo,
@@ -8674,7 +8674,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                       true) !== false) &&
                                     Number(companyDetails?.alumnaeJoiningFee ?? (companyDetails as any)?.alumnae_joining_fee ?? 0) > 0
                                 }
-                                onInitiatePayment={async (amount, phone, reference, schoolId) => {
+                                onInitiatePayment={async (amount: number, phone: string, reference: string, schoolId: string) => {
                                     try {
                                         const school = schoolRegistry.find(s => s.id === schoolId);
                                         const instId = school?.institutionId || 'GLOBAL';
@@ -8704,10 +8704,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         return { success: false, message: e.message };
                                     }
                                 }}
-                                onCheckPaymentStatus={async (checkoutRequestId) => {
+                                onCheckPaymentStatus={async (checkoutRequestId: string) => {
                                     return apiService.checkPaymentStatus('ncba', checkoutRequestId, companyDetails?.ncbaConfig);
                                 }}
-                                onComplete={async (data) => {
+                                onComplete={async (data: any) => {
                                     try {
                                         const school = schoolRegistry.find(s => s.id === data.schoolId);
                                         let profilePhotoUrl = '';
@@ -8839,7 +8839,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             />
                         ) : (showAlumnaeLogin || (showAlumnaePortal && !activeAlumna)) ? (
                             <AlumnaeLoginView 
-                                onLoginSuccess={(alumna) => {
+                                onLoginSuccess={(alumna: any) => {
                                     setActiveAlumna(alumna);
                                     localStorage.setItem('eduai_alumna_session', JSON.stringify(alumna));
                                     setShowAlumnaeLogin(false);
@@ -8906,14 +8906,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 timetableSettings={timetableSettings || INITIAL_TIMETABLE_SETTINGS}
                                 onClose={() => setShowGuestPortal(false)}
                                 institutions={institutions}
-                                onBookAppointment={async (apt) => {
+                                onBookAppointment={async (apt: any) => {
                                     await apiService.saveModuleRecord('appointments', { ...apt, id: `apt_${Date.now()}`, status: 'pending', createdAt: new Date().toISOString() });
                                     loadData();
                                 }}
                             />
                         ) : showGuestFeedback ? (
                             <GuestFeedbackView 
-                                onSubmit={async (f) => { 
+                                onSubmit={async (f: any) => { 
                                     await apiService.saveModuleRecord('feedback_submissions', { 
                                         ...f, 
                                         id: `fdb_${Date.now()}`,
@@ -8934,7 +8934,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 onBookDemo={() => setShowBookDemo(true)}
                                 onOpenStore={() => setShowMarketplace(true)}
                                 onLaunchSimulator={handleLaunchSimulator}
-                                onRegister={(modId) => {
+                                onRegister={(modId: any) => {
                                     setRegistrationModuleId(modId);
                                     setLoginInitialView('register');
                                     setShowMarketing(false);
@@ -8944,7 +8944,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             <LoginView
                             initialView={loginInitialView}
                             prefillModuleId={registrationModuleId || undefined}
-                            onLogin={async (e, p) => {
+                            onLogin={async (e: any, p: any) => {
                                 const normalizePhoneForCheck = (phone: string | null | undefined): string => {
                                     if (!phone) return '';
                                     let cleaned = phone.replace(/\D/g, '');
@@ -9312,12 +9312,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             currentUser={currentUser}
                             currentInstitution={activeInstitution}
                             onClose={() => setIsProfileModalOpen(false)}
-                            onSave={async (id, data) => {
+                            onSave={async (id: string, data: any) => {
                                 await onEditUser(id, data);
                                 setIsProfileModalOpen(false);
                                 await handleLogAction(`Updated personal profile`);
                             }}
-                            onChangePassword={async (id, data) => {
+                            onChangePassword={async (id: string, data: any) => {
                                 try {
                                     await apiService.updateModuleRecord('users', currentUser.id, { password: data.newPassword });
                                     return { success: true, message: 'Password updated successfully' };
