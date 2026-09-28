@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, lazy, Suspense, useEffect, useRef } from 'react';
 import type {
     Subject, User, AllocationRequest, Department, Priority,
     TimetableEntry, AcademicYear, Semester, TimetableSettings,
@@ -12,7 +12,7 @@ import {
     Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock, 
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
     Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
-    SlidersHorizontal, ChevronDown, ChevronUp, Scan
+    SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
@@ -232,6 +232,118 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
     const [scannerManualToken, setScannerManualToken] = useState('');
     const [showManualOverride, setShowManualOverride] = useState(false);
+
+    // Live Hardware Camera States for Prefect Scanner
+    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
+    const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
+    const [scannedBadgeSuccess, setScannedBadgeSuccess] = useState<boolean>(false);
+    const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+
+    const stopCamera = useCallback(() => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => {
+                try { track.stop(); } catch (_) {}
+            });
+            setCameraStream(null);
+        }
+        if (scannerVideoRef.current) {
+            scannerVideoRef.current.srcObject = null;
+        }
+        setIsCameraActive(false);
+    }, [cameraStream]);
+
+    const startCamera = useCallback(async (facing: 'environment' | 'user' = cameraFacingMode) => {
+        setCameraError(null);
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => {
+                try { track.stop(); } catch (_) {}
+            });
+        }
+        try {
+            if (!navigator?.mediaDevices?.getUserMedia) {
+                throw new Error("Camera API not supported in this browser. Please use HTTPS or localhost.");
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: facing,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            });
+            setCameraStream(stream);
+            setIsCameraActive(true);
+            if (scannerVideoRef.current) {
+                scannerVideoRef.current.srcObject = stream;
+                scannerVideoRef.current.play().catch(e => console.warn('Video play warning:', e));
+            }
+        } catch (err: any) {
+            console.error("Camera access failed:", err);
+            let friendly = "Could not activate camera.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                friendly = "Camera access denied. Please click the lock/camera icon in your browser URL bar and allow Camera permission.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                friendly = "No camera hardware detected on this device.";
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                friendly = "Camera is in use by another tab or application.";
+            }
+            setCameraError(friendly);
+            setIsCameraActive(false);
+        }
+    }, [cameraFacingMode, cameraStream]);
+
+    const toggleCameraFacing = useCallback(() => {
+        const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
+        setCameraFacingMode(nextFacing);
+        startCamera(nextFacing);
+    }, [cameraFacingMode, startCamera]);
+
+    // Manage camera lifecycle and automated barcode/QR detection loop
+    useEffect(() => {
+        let scanInterval: any = null;
+        let detector: any = null;
+
+        if (isScannerModalOpen) {
+            setScannedBadgeSuccess(false);
+            startCamera(cameraFacingMode);
+
+            if ('BarcodeDetector' in window) {
+                try {
+                    detector = new (window as any).BarcodeDetector({
+                        formats: ['qr_code', 'code_128', 'ean_13', 'data_matrix']
+                    });
+                } catch (e) {
+                    console.warn('BarcodeDetector setup warning:', e);
+                }
+            }
+
+            scanInterval = setInterval(async () => {
+                if (detector && scannerVideoRef.current && scannerVideoRef.current.readyState >= 2) {
+                    try {
+                        const barcodes = await detector.detect(scannerVideoRef.current);
+                        if (barcodes && barcodes.length > 0) {
+                            const raw = barcodes[0].rawValue;
+                            setScannedBadgeSuccess(true);
+                            setScannerManualToken(raw);
+                            setTimeout(() => {
+                                const btn = document.getElementById('btn-verify-prefect-start');
+                                if (btn) (btn as HTMLButtonElement).click();
+                            }, 500);
+                        }
+                    } catch (_) {}
+                }
+            }, 300);
+        } else {
+            stopCamera();
+        }
+
+        return () => {
+            if (scanInterval) clearInterval(scanInterval);
+            stopCamera();
+        };
+    }, [isScannerModalOpen]);
 
     // Student Clearance Requests for Teacher Sign-off
     const [teacherClearances, setTeacherClearances] = useState<any[]>([]);
@@ -2035,7 +2147,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         </div>
                                     )}
 
-                                    {/* Prefect Card Scanner Modal Viewfinder */}
+                                    {/* Prefect Card Scanner Modal Viewfinder with Real Camera Hardware */}
                                     {isScannerModalOpen && (
                                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
                                             <div className="bg-slate-900 text-white w-full max-w-lg rounded-[2.5rem] border border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6 animate-scale-up">
@@ -2049,12 +2161,21 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Remedial Lesson Attendance Verification</p>
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        onClick={() => setIsScannerModalOpen(false)}
-                                                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors"
-                                                    >
-                                                        <X className="w-5 h-5" />
-                                                    </button>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={toggleCameraFacing}
+                                                            title="Flip Camera (Front/Back)"
+                                                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors"
+                                                        >
+                                                            <SwitchCamera className="w-5 h-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setIsScannerModalOpen(false)}
+                                                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors"
+                                                        >
+                                                            <X className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 {/* Target Lesson Summary */}
@@ -2071,25 +2192,87 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     </div>
                                                 </div>
 
-                                                {/* Viewfinder Mockup with Laser Scanner */}
-                                                <div className="relative aspect-video bg-black/70 rounded-3xl border-2 border-dashed border-indigo-500/50 flex flex-col items-center justify-center overflow-hidden p-6 text-center">
-                                                    {/* 4 Corner Reticles */}
-                                                    <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-indigo-400 rounded-tl-lg" />
-                                                    <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-indigo-400 rounded-tr-lg" />
-                                                    <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-indigo-400 rounded-bl-lg" />
-                                                    <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-indigo-400 rounded-br-lg" />
+                                                {/* Live Camera Viewfinder with Laser Scanner */}
+                                                <div className="relative aspect-video bg-black rounded-3xl border-2 border-indigo-500/50 flex flex-col items-center justify-center overflow-hidden text-center shadow-2xl">
+                                                    {/* Live Video Stream from Device Camera */}
+                                                    <video
+                                                        ref={(el) => {
+                                                            scannerVideoRef.current = el;
+                                                            if (el && cameraStream && el.srcObject !== cameraStream) {
+                                                                el.srcObject = cameraStream;
+                                                                el.play().catch(() => {});
+                                                            }
+                                                        }}
+                                                        autoPlay
+                                                        playsInline
+                                                        muted
+                                                        className={`w-full h-full object-cover transition-opacity duration-300 ${isCameraActive ? 'opacity-100' : 'opacity-0'}`}
+                                                    />
 
-                                                    {/* Laser Scan line animation */}
-                                                    <div className="absolute inset-x-8 h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_12px_#f43f5e] animate-bounce" style={{ animationDuration: '2s' }} />
+                                                    {/* Camera Standby or Permission Denied Notification */}
+                                                    {!isCameraActive && (
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950 text-center space-y-3">
+                                                            {cameraError ? (
+                                                                <>
+                                                                    <AlertCircle className="w-10 h-10 text-rose-500 animate-pulse" />
+                                                                    <p className="text-xs font-bold text-rose-400 max-w-xs">{cameraError}</p>
+                                                                    <button
+                                                                        onClick={() => startCamera(cameraFacingMode)}
+                                                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all"
+                                                                    >
+                                                                        Grant Camera Access / Retry
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Camera className="w-10 h-10 text-indigo-400 animate-pulse" />
+                                                                    <p className="text-xs font-bold text-slate-200">Opening Camera Hardware...</p>
+                                                                    <p className="text-[10px] text-slate-400">Please tap "Allow" if your browser asks for camera permission.</p>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    )}
 
-                                                    <QrCode className="w-16 h-16 text-indigo-400/80 mb-3 animate-pulse" />
-                                                    <p className="text-xs font-bold text-slate-200">Point Camera at Prefect QR Badge</p>
-                                                    <p className="text-[10px] text-slate-400 font-mono mt-1">prefect_remedial_token_class_{effectiveCourseId || 'general'}</p>
+                                                    {/* Reticle Viewfinder Corners */}
+                                                    <div className="absolute top-3 left-3 w-7 h-7 border-t-2 border-l-2 border-indigo-400 rounded-tl-xl pointer-events-none" />
+                                                    <div className="absolute top-3 right-3 w-7 h-7 border-t-2 border-r-2 border-indigo-400 rounded-tr-xl pointer-events-none" />
+                                                    <div className="absolute bottom-3 left-3 w-7 h-7 border-b-2 border-l-2 border-indigo-400 rounded-bl-xl pointer-events-none" />
+                                                    <div className="absolute bottom-3 right-3 w-7 h-7 border-b-2 border-r-2 border-indigo-400 rounded-br-xl pointer-events-none" />
+
+                                                    {/* Laser Scan line animation across the camera view */}
+                                                    {isCameraActive && (
+                                                        <div 
+                                                            className={`absolute inset-x-8 h-0.5 pointer-events-none ${
+                                                                scannedBadgeSuccess 
+                                                                    ? 'bg-emerald-400 shadow-[0_0_16px_#10b981]' 
+                                                                    : 'bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_12px_#f43f5e] animate-bounce'
+                                                            }`} 
+                                                            style={{ animationDuration: '2s' }} 
+                                                        />
+                                                    )}
+
+                                                    {/* Success Popup when badge is detected */}
+                                                    {scannedBadgeSuccess && (
+                                                        <div className="absolute inset-0 bg-emerald-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center animate-fade-in z-20">
+                                                            <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-scale-up mb-2" />
+                                                            <h4 className="text-sm font-black text-white uppercase tracking-wider">Prefect Card Verified!</h4>
+                                                            <p className="text-xs text-emerald-300 mt-1">Starting remedial lesson...</p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Camera Active Status Pill */}
+                                                    {isCameraActive && (
+                                                        <div className="absolute top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 bg-slate-950/80 border border-slate-700/80 rounded-full flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 backdrop-blur-xs pointer-events-none">
+                                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                                                            Camera Active
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Trigger Buttons */}
                                                 <div className="space-y-3">
                                                     <button
+                                                        id="btn-verify-prefect-start"
                                                         onClick={() => handleStartRemedial()}
                                                         className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
                                                     >

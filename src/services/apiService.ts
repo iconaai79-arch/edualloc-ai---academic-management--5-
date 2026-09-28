@@ -7334,6 +7334,74 @@ export const apiService = {
             throw error;
         }
     },
+    async generateMpesaDynamicQr(params: {
+        merchantName?: string;
+        refNo: string;
+        amount: number;
+        trxCode?: 'PB' | 'BG' | 'WA' | 'SM' | 'SB';
+        cpi?: string;
+        size?: string | number;
+        institutionId?: string;
+        config?: any;
+    }): Promise<{
+        success: boolean;
+        QRCode?: string;
+        qrImageUrl?: string;
+        ResponseCode?: string;
+        ResponseDescription?: string;
+        RequestID?: string;
+        message?: string;
+        details?: any;
+    }> {
+        try {
+            const token = await apiService.getAuthToken();
+            const payload = {
+                action: 'generateMpesaQr',
+                merchantName: params.merchantName,
+                MerchantName: params.merchantName,
+                refNo: params.refNo,
+                RefNo: params.refNo,
+                amount: params.amount,
+                Amount: params.amount,
+                trxCode: params.trxCode || 'PB',
+                TrxCode: params.trxCode || 'PB',
+                cpi: params.cpi,
+                CPI: params.cpi,
+                size: params.size ? String(params.size) : '300',
+                Size: params.size ? String(params.size) : '300',
+                config: params.config,
+                metadata: { institutionId: params.institutionId }
+            };
+
+            const response = await fetch('/api/integrations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? `Bearer ${token}` : ''
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data;
+            }
+
+            // Fallback to /api/payments?path=generate-qr
+            const fallbackRes = await fetch('/api/payments?path=generate-qr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return await fallbackRes.json();
+        } catch (error: any) {
+            console.error('generateMpesaDynamicQr error:', error);
+            return {
+                success: false,
+                message: error?.message || 'Failed to generate dynamic M-Pesa QR code.'
+            };
+        }
+    },
     async fetchChurchSacraments(institutionId?: string): Promise<ChurchSacrament[]> {
         return apiService.fetchModuleRecords('church_sacraments', institutionId);
     },

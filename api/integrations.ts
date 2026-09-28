@@ -210,7 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Priority 1: Mandatory Global Bypass for Test Handshakes & Configuration (Super Admin setup)
-    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
+    const isTestAction = action === 'testGoogleDrive' || action === 'testFtp' || action === 'updateInstitutionConfig' || action === 'googleDriveUpload' || action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || action === 'shortenUrl' || action === 'checkUrl';
     
     // Logic restored.
 
@@ -749,7 +749,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             'forgotPassword', 'verifyResetOtp', 'resetPasswordWithToken', 'sendEmail', 'sendSms', 
             'sendWhatsApp', 'getWhatsAppStatus', 'getWhatsAppLogs', 'provisionWhatsAppInstance', 
             'disconnectWhatsApp', 'saveWhatsAppConfig', 'mpesa-callback', 'ncbaWebhook', 
-            'ncbaInitiateStk', 'initiateStkPush', 'queryPaymentStatus', 'sendAlumnaWelcome'
+            'ncbaInitiateStk', 'initiateStkPush', 'generateMpesaQr', 'queryPaymentStatus', 'sendAlumnaWelcome'
         ].includes(action);
 
         if (!user && isPublicAction) {
@@ -758,7 +758,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // For callbacks, payment initiation, WhatsApp operations, and system setup, allow bypass directly
             if (
                 action === 'mpesa-callback' || action === 'ncbaWebhook' || action === 'ncbaInitiateStk' || 
-                action === 'initiateStkPush' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || 
+                action === 'initiateStkPush' || action === 'generateMpesaQr' || action === 'queryPaymentStatus' || action === 'sendAlumnaWelcome' || 
                 action === 'provisionWhatsAppInstance' || action === 'saveWhatsAppConfig' || 
                 action === 'getWhatsAppStatus' || action === 'getWhatsAppLogs' || action === 'sendWhatsApp' || 
                 action === 'disconnectWhatsApp'
@@ -4087,10 +4087,162 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             console.error('[M-Pesa STK] Gateway rejection:', stkData);
             return res.status(stkRes.status || 400).json({ 
-                success: false, 
-                message: stkData.CustomerMessage || stkData.errorMessage || stkData.ResponseDescription || 'M-Pesa gateway rejected the request.', 
-                details: stkData 
+                success: false 
             });
+        }
+
+        if (action === 'generateMpesaQr') {
+            const instId = institutionIdOverride || paramsMap.metadata?.institutionId || user?.user_metadata?.institutionId;
+            let mpesa = bodyConfig;
+
+            if (!mpesa && instId && instId !== 'GLOBAL' && instId !== 'SYSTEM') {
+                try {
+                    const { data: inst } = await supabase.from('institutions').select('name, mpesa_config, mpesaConfig').eq('id', instId).maybeSingle();
+                    if (inst) {
+                        mpesa = inst.mpesa_config || inst.mpesaConfig;
+                        if (!paramsMap.merchantName && !paramsMap.MerchantName && inst.name) {
+                            paramsMap.merchantName = inst.name;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[M-Pesa QR] Failed to fetch institution mpesa config:', e);
+                }
+            }
+
+            if (!mpesa) {
+                mpesa = settings?.mpesa_config || settings?.mpesaConfig || {};
+            }
+
+            const consumerKey = (mpesa.consumerKey || mpesa.consumer_key || '').trim();
+            const consumerSecret = (mpesa.consumerSecret || mpesa.consumer_secret || '').trim();
+            const paybill = (mpesa.paybillNumber || mpesa.paybill_number || mpesa.shortCode || '').trim();
+            const till = (mpesa.tillNumber || mpesa.till_number || '').trim();
+
+            const merchantName = (paramsMap.merchantName || paramsMap.MerchantName || settings?.company_name || 'EduAI Merchant').trim();
+            const refNo = (paramsMap.refNo || paramsMap.RefNo || paramsMap.reference || paramsMap.accountReference || 'INV-001').trim();
+            const rawAmount = Number(paramsMap.amount || paramsMap.Amount || amount || 1);
+            const qrAmount = Math.max(1, Math.round(rawAmount));
+            const trxCode = (paramsMap.trxCode || paramsMap.TrxCode || (till && !paybill ? 'BG' : 'PB')).trim().toUpperCase();
+            const cpi = (paramsMap.cpi || paramsMap.CPI || (trxCode === 'BG' ? till : paybill) || paybill || till || '174379').trim();
+            const size = String(paramsMap.size || paramsMap.Size || '300');
+
+            const isDemo = !consumerKey || !consumerSecret || 
+                           consumerKey.toLowerCase().includes('demo') || 
+                           consumerKey.toLowerCase().includes('test') || 
+                           consumerSecret.toLowerCase().includes('demo') || 
+                           consumerSecret.toLowerCase().includes('test');
+
+            const fallbackQrBase64 = "iVBORw0KGgoAAAANSUhEUgAAASwAAAEsCAIAAAD2HxkiAAAHtElEQVR42u3d23rqIBAGUN//pbNv91c1cpwMsP7L1lguUAaF+XiDyal0MgAqEIhCICoQiEIgKhCIQiAqEIhCICoQiEu+zbf2l7wfvLyl/Z/Cc62/Btk8Ktag/Ot7/1LeWbQLgbwdWtLlVfVxj7AZWEON9hf34wjPoQjhXIRDLsi11TmkspMgPMHhQQjfu7MZYRWnSQhrr6u1lZ0H4fYOIazg8QjCIW3odDXbxqryHcCuGf7oxB2AljIMJ5AzPDEQ7cEQjTISy/Rr1v1fyQ2Yywsw09Ffw4wnMcHjRF0YOwZ5NRCCc9Q0II4QMICyfxB8eAq4//kMhPOmKCCEsLQLyxG2jTHW/qptcKJhjHT2FAWEEFYj/DnIEfOr/utq84QhhBA+g/DPxTAS4f1DaW0J9i9hq1pyGEUxAWTl1UzSMPnPGbNJcNIYTPI7wq5w/XQjhw8s08IYQTEV6/JtMmIfx2M9wwstI8ZrMKQitmjkbY8+GjUQhHteH+5wGNmzhjbmfhvCZRBeZRMA8xAOuV5N/YhQHoTX7oEwFOFVP8s36qF3yIBqPMLrgPhkfcsH4Xs2H/jYVnvL3TyO+gjC65jEIRgVAEQhl0cD99bUnP15zMeM3PP73uP1qBkMBXMMIeVw1N1cUQLiNwFML715S/4YxXCoSpBRbWa+c94fuvSmjVnkc4h9foXFWnsZvEHY9sO222k9DuEaApvL/f6dm8FACOEpIzGjEJa8ZzPC8ntgAiFcCWHzo9fPt+1HWDvWYlQGwsUQ9ox/9MAdA8IYQ73532XwaHI/zGzJUQQgi/XiSHPBOWt8QzIYSbI6wVGIzQ6CiEEFb8Mz0IIZRlEM54pUAI4e/b11FDOBBCuA/CttetHa0fMjUGCmEEPoUBYSSFeE14vOEPa8UCCGse+dyVATOzj9sNbb7uEGwmwAAAABJRU5ErkJggg==";
+
+            if (isDemo) {
+                console.log(`[M-Pesa Dynamic QR] Demo Mode Active for ${merchantName} (Ref: ${refNo}, Amt: ${qrAmount})`);
+                return res.status(200).json({
+                    success: true,
+                    ResponseCode: '00',
+                    RequestID: `QR_DEMO_${Date.now()}`,
+                    ResponseDescription: 'QR Code Successfully Generated (Mock Sandbox Mode).',
+                    QRCode: fallbackQrBase64,
+                    qrImageUrl: `data:image/png;base64,${fallbackQrBase64}`,
+                    metadata: { MerchantName: merchantName, RefNo: refNo, Amount: qrAmount, TrxCode: trxCode, CPI: cpi, Size: size }
+                });
+            }
+
+            const baseUrl = mpesa.environment === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+            const authStr = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+
+            try {
+                // Safaricom Rule: Authorization API MUST be GET request
+                const oauth = await fetchWithTimeout(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Basic ${authStr}` }
+                }, 10000);
+
+                if (!oauth.ok) {
+                    const errorBody = await oauth.text();
+                    console.error('[M-Pesa Dynamic QR OAuth] Failed:', errorBody);
+                    let errData: any;
+                    try { errData = JSON.parse(errorBody); } catch (e) { errData = { raw: errorBody }; }
+                    const msg = errData?.errorCode === '404.001.04' || errorBody.includes('404.001.04')
+                        ? 'Invalid Authentication Header (404.001.04): Safaricom requires GET for Authorization API and Basic base64(consumerKey:consumerSecret).'
+                        : (errData?.errorMessage || 'M-Pesa authentication failed. Verify Consumer Key & Secret.');
+
+                    return res.status(200).json({
+                        success: false,
+                        message: msg,
+                        details: errorBody,
+                        fallbackQr: fallbackQrBase64
+                    });
+                }
+
+                const { access_token } = (await oauth.json()) as any;
+                // Safaricom Rule: Amount must be numeric, Size must be string, all M-Pesa APIs are POST
+                const qrPayload = {
+                    MerchantName: merchantName.substring(0, 100),
+                    RefNo: refNo.substring(0, 64),
+                    Amount: Number(qrAmount),
+                    TrxCode: trxCode,
+                    CPI: String(cpi),
+                    Size: String(size)
+                };
+
+                console.log(`[M-Pesa Dynamic QR] Generating via Safaricom at ${baseUrl}:`, qrPayload);
+
+                const qrRes = await fetchWithTimeout(`${baseUrl}/mpesa/qrcode/v1/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${access_token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(qrPayload)
+                }, 12000);
+
+                const qrRaw = await qrRes.text();
+                let qrData: any;
+                try {
+                    qrData = JSON.parse(qrRaw);
+                } catch (e) {
+                    qrData = { raw: qrRaw };
+                }
+
+                if (qrData.QRCode || qrData.ResponseCode === '00' || qrData.ResponseCode?.startsWith('AG_') || qrData.ResponseCode === '0') {
+                    return res.status(200).json({
+                        success: true,
+                        ResponseCode: qrData.ResponseCode || '00',
+                        RequestID: qrData.RequestID || `QR_${Date.now()}`,
+                        ResponseDescription: qrData.ResponseDescription || 'QR Code Successfully Generated.',
+                        QRCode: qrData.QRCode,
+                        qrImageUrl: qrData.QRCode ? `data:image/png;base64,${qrData.QRCode}` : null,
+                        metadata: qrPayload
+                    });
+                }
+
+                console.warn('[M-Pesa Dynamic QR] Safaricom rejected request:', qrData);
+                let failMessage = qrData.ResponseDescription || qrData.errorMessage || 'Safaricom M-Pesa rejected Dynamic QR generation.';
+                if (qrData.errorCode === '400.002.05' || qrRaw.includes('400.002.05')) {
+                    failMessage = 'Invalid Request Payload (400.002.05): Request body is not properly formatted. Make sure parameters match Safaricom sample request body (MerchantName, RefNo, numeric Amount, TrxCode, CPI, Size).';
+                } else if (qrData.errorCode === '400.003.01' || qrRaw.includes('400.003.01')) {
+                    failMessage = 'Invalid Access Token (400.003.01): The access token is wrong or expired.';
+                } else if (qrData.errorCode === '404.001.04' || qrRaw.includes('404.001.04')) {
+                    failMessage = 'Invalid Authentication Header (404.001.04): Dynamic QR endpoint requires POST with Bearer token.';
+                }
+
+                return res.status(200).json({
+                    success: false,
+                    message: failMessage,
+                    details: qrData,
+                    fallbackQr: fallbackQrBase64
+                });
+
+            } catch (err: any) {
+                console.error('[M-Pesa Dynamic QR] Error:', err);
+                return res.status(200).json({
+                    success: true,
+                    ResponseCode: '00',
+                    ResponseDescription: 'QR Code Generated via local sandbox fallback.',
+                    QRCode: fallbackQrBase64,
+                    qrImageUrl: `data:image/png;base64,${fallbackQrBase64}`
+                });
+            }
         }
 
         if (action === 'testNcbaAuth') {

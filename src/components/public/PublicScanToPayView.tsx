@@ -57,6 +57,42 @@ export const PublicScanToPayView: React.FC<PublicScanToPayViewProps> = ({
     const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
     const [showManualInstructions, setShowManualInstructions] = useState<boolean>(false);
 
+    // M-Pesa Dynamic QR States (Safaricom Daraja)
+    const [activeTab, setActiveTab] = useState<'stk' | 'mpesa-qr'>('stk');
+    const [mpesaDynamicQr, setMpesaDynamicQr] = useState<string>('');
+    const [isGeneratingDynamicQr, setIsGeneratingDynamicQr] = useState<boolean>(false);
+
+    const loadMpesaDynamicQr = async () => {
+        setIsGeneratingDynamicQr(true);
+        try {
+            const numericAmt = Math.max(1, Math.round(Number(amount) || 1));
+            const tillNumber = (mpesaConfig as any)?.tillNumber;
+            const res = await apiService.generateMpesaDynamicQr({
+                merchantName: businessName,
+                refNo: accountRef.trim() || 'EDUAI-PAY',
+                amount: numericAmt,
+                trxCode: tillNumber && !mpesaConfig.paybillNumber ? 'BG' : 'PB',
+                cpi: tillNumber || paybillNumber,
+                size: '300',
+                institutionId: initialInstId || undefined,
+                config: mpesaConfig
+            });
+            if (res.success && (res.qrImageUrl || res.QRCode)) {
+                setMpesaDynamicQr(res.qrImageUrl || `data:image/png;base64,${res.QRCode}`);
+            }
+        } catch (e) {
+            console.error('Failed to load M-Pesa dynamic QR:', e);
+        } finally {
+            setIsGeneratingDynamicQr(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'mpesa-qr') {
+            loadMpesaDynamicQr();
+        }
+    }, [activeTab, amount, accountRef]);
+
     // Generate Shareable QR on mount
     useEffect(() => {
         const QRCodeLib = (window as any).QRCode;
@@ -99,7 +135,7 @@ export const PublicScanToPayView: React.FC<PublicScanToPayViewProps> = ({
             pollCount++;
             if (pollCount >= maxPolls || countdown <= 0) {
                 clearInterval(pollInterval);
-                if (paymentStatus !== 'completed') {
+                if ((paymentStatus as string) !== 'completed') {
                     setPaymentStatus('failed');
                     setStatusMessage('Verification timed out. If you entered your M-Pesa PIN, your payment was received and will be reflected shortly.');
                     setIsProcessing(false);
@@ -385,7 +421,7 @@ export const PublicScanToPayView: React.FC<PublicScanToPayViewProps> = ({
                                 </div>
                             </div>
 
-                            {paymentStatus === 'failed' && (
+                            {(paymentStatus as string) === 'failed' && (
                                 <div className="p-4 bg-rose-950/40 border border-rose-500/30 rounded-2xl text-rose-300 text-xs flex items-center gap-2">
                                     <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0 text-rose-400" />
                                     <span>{statusMessage}</span>
@@ -405,8 +441,121 @@ export const PublicScanToPayView: React.FC<PublicScanToPayViewProps> = ({
                             </div>
                         </div>
                     ) : (
-                        /* State: Interactive Payment Form */
-                        <form onSubmit={handleInitiateStkPush} className="space-y-5">
+                        <div className="space-y-5">
+                            {/* Payment Method Switcher */}
+                            <div className="flex bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('stk')}
+                                    className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                                        activeTab === 'stk'
+                                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                            : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <SmartphoneIcon className="w-4 h-4" />
+                                    M-Pesa STK Prompt
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('mpesa-qr')}
+                                    className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all ${
+                                        activeTab === 'mpesa-qr'
+                                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                            : 'text-slate-400 hover:text-white'
+                                    }`}
+                                >
+                                    <QrCodeIcon className="w-4 h-4" />
+                                    Scan with M-PESA App
+                                </button>
+                            </div>
+
+                            {activeTab === 'mpesa-qr' ? (
+                                /* Dynamic M-PESA App QR Code Display */
+                                <div className="text-center space-y-5 animate-fade-in p-2">
+                                    <div className="p-4 bg-gradient-to-r from-emerald-950/40 to-slate-950/60 rounded-2xl border border-emerald-500/20 text-left">
+                                        <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                                            <SparklesIcon className="w-4 h-4" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Safaricom Daraja Dynamic QR</span>
+                                        </div>
+                                        <p className="text-sm font-black text-white tracking-tight">{initialTitle}</p>
+                                        <p className="text-xs text-slate-400 mt-0.5">Scan using M-PESA App or MySafaricom App for instant payment.</p>
+                                    </div>
+
+                                    {/* QR Code Container */}
+                                    <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl border-4 border-emerald-500/30 relative mx-auto">
+                                        {isGeneratingDynamicQr ? (
+                                            <div className="w-52 h-52 flex flex-col items-center justify-center text-slate-700">
+                                                <ArrowPathIcon className="w-8 h-8 text-emerald-600 animate-spin mb-2" />
+                                                <span className="text-xs font-black uppercase tracking-wider text-emerald-700">Loading Safaricom QR...</span>
+                                            </div>
+                                        ) : mpesaDynamicQr || qrCodeDataUrl ? (
+                                            <img
+                                                src={mpesaDynamicQr || qrCodeDataUrl}
+                                                alt="M-Pesa Dynamic QR"
+                                                className="w-52 h-52 object-contain rounded-xl"
+                                            />
+                                        ) : (
+                                            <div className="w-52 h-52 flex items-center justify-center text-slate-400">
+                                                <QrCodeIcon className="w-16 h-16 animate-pulse" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Payment Details Pill */}
+                                    <div className="flex items-center justify-center gap-4 text-xs font-mono font-bold text-slate-300">
+                                        <div>
+                                            <span className="text-[9px] uppercase text-slate-500 block font-sans">Paybill / Till</span>
+                                            <span className="text-emerald-400 font-black">{paybillNumber}</span>
+                                        </div>
+                                        <div className="h-6 w-px bg-slate-800"></div>
+                                        <div>
+                                            <span className="text-[9px] uppercase text-slate-500 block font-sans">Account Ref</span>
+                                            <span className="text-emerald-400 font-black">{accountRef}</span>
+                                        </div>
+                                        <div className="h-6 w-px bg-slate-800"></div>
+                                        <div>
+                                            <span className="text-[9px] uppercase text-slate-500 block font-sans">Amount</span>
+                                            <span className="text-emerald-400 font-black">KES {parseFloat(amount || '0').toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Instructions Box */}
+                                    <div className="p-4 bg-emerald-950/30 rounded-2xl border border-emerald-800/40 text-left text-xs space-y-1.5 text-slate-300">
+                                        <p className="font-bold text-emerald-400 uppercase text-[10px] tracking-widest flex items-center gap-1.5">
+                                            <CheckBadgeIcon className="w-4 h-4 text-emerald-500" />
+                                            How to scan and pay:
+                                        </p>
+                                        <ol className="list-decimal list-inside space-y-1 text-slate-400 text-[11px] font-medium">
+                                            <li>Open the <strong className="text-white">M-PESA App</strong> or <strong className="text-white">MySafaricom App</strong> on your phone</li>
+                                            <li>Tap the <strong className="text-emerald-400">Scan QR</strong> button on the home screen</li>
+                                            <li>Point your camera at this QR code &mdash; details fill automatically</li>
+                                            <li>Enter your <strong className="text-white">M-PESA PIN</strong> to confirm payment</li>
+                                        </ol>
+                                    </div>
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={loadMpesaDynamicQr}
+                                            disabled={isGeneratingDynamicQr}
+                                            className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-black uppercase tracking-wider text-slate-300 flex items-center justify-center gap-2 transition-all"
+                                        >
+                                            <ArrowPathIcon className={`w-4 h-4 ${isGeneratingDynamicQr ? 'animate-spin' : ''}`} />
+                                            Refresh QR
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setActiveTab('stk')}
+                                            className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-emerald-600/20"
+                                        >
+                                            Switch to STK Prompt
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* State: Interactive STK Push Form */
+                                <form onSubmit={handleInitiateStkPush} className="space-y-5">
                             {/* Service / Purpose Title Banner */}
                             <div className="p-4 bg-gradient-to-r from-emerald-950/40 to-slate-950/60 rounded-2xl border border-emerald-500/20">
                                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
@@ -566,6 +715,8 @@ export const PublicScanToPayView: React.FC<PublicScanToPayViewProps> = ({
                             )}
                         </form>
                     )}
+                </div>
+            )}
                 </div>
             </main>
 
