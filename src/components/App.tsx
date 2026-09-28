@@ -865,9 +865,10 @@ export const App: React.FC = () => {
             if (currentUser.institutionId) {
                 return mergeModules({
                     id: currentUser.institutionId,
-                    name: (currentUser as any).institutionName || (currentUser as any).schoolName || 'Institutional Workspace',
+                    name: (currentUser as any).institutionName || (currentUser as any).schoolName || (currentUser.role === 'reseller' ? 'Reseller Agency' : 'Institutional Workspace'),
                     institutionType: (currentUser.role === 'pharmacist' || currentUser.role === 'pharmacy_admin') ? 'Pharmacy' : 
-                                     (currentUser.role?.includes('his') || currentUser.role === 'nurse' || (currentUser as any).role === 'doctor') ? 'HIS' : 'Education',
+                                     (currentUser.role?.includes('his') || currentUser.role === 'nurse' || (currentUser as any).role === 'doctor') ? 'HIS' : 
+                                     (currentUser.role === 'reseller') ? 'Reseller' : 'Education',
                     status: 'active'
                 } as any);
             }
@@ -1410,7 +1411,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                 } else {
                     localDb.bulkPut('institutions', insts).catch(() => {});
-                    try { localStorage.setItem('institutions', JSON.stringify(insts)); } catch (_) {}
+                    try {
+                        const existingLs = (() => { try { return JSON.parse(localStorage.getItem('institutions') || 'null'); } catch { return null; } })();
+                        if (Array.isArray(existingLs) && existingLs.length > insts.length) {
+                            const map = new Map<string, Institution>();
+                            existingLs.forEach((i: any) => i && i.id && map.set(i.id, i));
+                            insts.forEach((i: any) => i && i.id && map.set(i.id, i));
+                            const merged = Array.from(map.values());
+                            localStorage.setItem('institutions', JSON.stringify(merged));
+                        } else {
+                            localStorage.setItem('institutions', JSON.stringify(insts));
+                        }
+                    } catch (_) {}
                 }
                 if (!u || u.length === 0) {
                     const localU = await localDb.getAll<User>('users').catch(() => []);
@@ -4259,14 +4271,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 // lands on PropertyManagementView rather than LandlordPortalView
                 const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
                 const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || ((targetInst?.institutionType as string) === 'County') || (admin.role === 'county_admin' || admin.role?.startsWith('county_'));
+                const isResellerInst = targetInst?.institutionType === 'Reseller' || targetInst?.category === 'Reseller' || (targetInst as any)?.businessSubType === 'Reseller';
 
                 const resolvedRole = (initialRole && initialRole !== 'super_admin')
                     ? initialRole
-                    : isCountyTarget
-                        ? 'county_admin'
-                        : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
-                            ? 'property_admin'
-                            : admin.role === 'super_admin' ? 'admin' : admin.role;
+                    : isResellerInst
+                        ? 'reseller'
+                        : isCountyTarget
+                            ? 'county_admin'
+                            : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
+                                ? 'property_admin'
+                                : admin.role === 'super_admin' ? 'admin' : admin.role;
 
                 const isBranchInst = (branches || []).some((b: any) => b.id === institutionId || b.id === `br_${institutionId}` || b.linked_institution_id === institutionId);
 
@@ -8434,6 +8449,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         companyDetails={companyDetails}
                                         transactions={transactions}
                                         invoices={invoices}
+                                        institutions={institutions}
                                     />
                                 ) : (activeRole === 'agrovet_admin' || (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('agrovet'))) ? (
                                     <AgrovetView

@@ -1058,6 +1058,183 @@ CREATE TABLE IF NOT EXISTS procurement_invoices (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ─────────────────────────────────────────────────────────────
+-- DRIVING SCHOOL AUTOMATION MODULE (DS)
+-- ─────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS ds_leads (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    email TEXT,
+    license_type_interested TEXT,
+    license_category TEXT,
+    source TEXT DEFAULT 'Walk-in',
+    status TEXT DEFAULT 'New Enquiry',
+    quoted_amount DECIMAL(12, 2) DEFAULT 0,
+    fee_structure_id TEXT,
+    broadcast_id TEXT,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_leads_institution_id ON public.ds_leads(institution_id);
+CREATE INDEX IF NOT EXISTS idx_ds_leads_inst_id_composite ON public.ds_leads(institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_ds_leads_inst_created ON public.ds_leads(institution_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ds_instructors (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    email TEXT,
+    license_number TEXT,
+    specialization TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_instructors_institution_id ON public.ds_instructors(institution_id);
+
+CREATE TABLE IF NOT EXISTS ds_vehicles (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    registration_number TEXT NOT NULL,
+    model TEXT,
+    transmission TEXT DEFAULT 'Manual',
+    status TEXT DEFAULT 'Active',
+    assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_vehicles_institution_id ON public.ds_vehicles(institution_id);
+
+CREATE TABLE IF NOT EXISTS ds_students (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL,
+    admission_number TEXT,
+    phone TEXT NOT NULL,
+    email TEXT,
+    national_id TEXT,
+    course_type TEXT,
+    assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
+    assigned_vehicle_id TEXT REFERENCES ds_vehicles(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'active',
+    total_fee DECIMAL(12, 2) DEFAULT 0,
+    paid_fee DECIMAL(12, 2) DEFAULT 0,
+    balance DECIMAL(12, 2) DEFAULT 0,
+    enrollment_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_students_institution_id ON public.ds_students(institution_id);
+CREATE INDEX IF NOT EXISTS idx_ds_students_inst_id_composite ON public.ds_students(institution_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS ds_lessons (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
+    instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
+    vehicle_id TEXT REFERENCES ds_vehicles(id) ON DELETE SET NULL,
+    lesson_date DATE NOT NULL,
+    start_time TEXT,
+    end_time TEXT,
+    lesson_type TEXT DEFAULT 'Practical',
+    status TEXT DEFAULT 'Scheduled',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_lessons_institution_id ON public.ds_lessons(institution_id);
+CREATE INDEX IF NOT EXISTS idx_ds_lessons_inst_id_composite ON public.ds_lessons(institution_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS ds_invoices (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
+    invoice_number TEXT NOT NULL,
+    amount DECIMAL(12, 2) DEFAULT 0,
+    amount_paid DECIMAL(12, 2) DEFAULT 0,
+    balance DECIMAL(12, 2) DEFAULT 0,
+    status TEXT DEFAULT 'Unpaid',
+    due_date DATE,
+    items JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_invoices_institution_id ON public.ds_invoices(institution_id);
+CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_id_composite ON public.ds_invoices(institution_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS ds_payments (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES ds_students(id) ON DELETE CASCADE,
+    invoice_id TEXT REFERENCES ds_invoices(id) ON DELETE SET NULL,
+    amount DECIMAL(12, 2) NOT NULL,
+    payment_method TEXT DEFAULT 'M-Pesa',
+    transaction_reference TEXT,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    receipt_number TEXT,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_payments_institution_id ON public.ds_payments(institution_id);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_composite ON public.ds_payments(institution_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS ds_expenditures (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    category TEXT NOT NULL,
+    description TEXT,
+    amount DECIMAL(12, 2) NOT NULL,
+    expense_date DATE DEFAULT CURRENT_DATE,
+    recorded_by TEXT,
+    payment_method TEXT DEFAULT 'Cash',
+    receipt_reference TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ds_expenditures_institution_id ON public.ds_expenditures(institution_id);
+CREATE INDEX IF NOT EXISTS idx_ds_expenditures_inst_id_composite ON public.ds_expenditures(institution_id, id DESC);
+
+CREATE TABLE IF NOT EXISTS ds_settings (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    settings JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_votes (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    vote_name TEXT NOT NULL,
+    default_amount DECIMAL(12, 2) DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ds_license_categories (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    category_code TEXT NOT NULL,
+    category_name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS books (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

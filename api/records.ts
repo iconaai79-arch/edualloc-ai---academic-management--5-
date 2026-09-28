@@ -455,7 +455,7 @@ const isTableWithoutInstitutionId = (module: string) => {
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
     'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
-    'app_notifications'
+    'app_notifications', 'commission_withdrawal_requests'
   ].includes(module);
 };
 
@@ -989,14 +989,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
           'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
           'stock_transactions', 'appointments',
-          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
+          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
+          'commission_withdrawal_requests'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
           'system_settings', 'institution_module_states', 'building_visitor_logs',
           'stock_transactions', 'appointments',
-          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
+          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
+          'commission_withdrawal_requests'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1071,6 +1073,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
                     const reqId = getStrParam(id) || targetInstParam || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
                     if (reqId && moduleName === 'institutions') {
+                        if (user?.role === 'reseller' && !getStrParam(id)) {
+                            const resellerId = user.institutionId;
+                            const cleanR = (val?: string) => val ? String(val).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+                            const normR = cleanR(resellerId);
+                            const matched = cached.data.filter((i: any) => {
+                                if (!i) return false;
+                                const rId = i.resellerId || i.reseller_id || i.metadata?.resellerId || i.metadata?.reseller_id;
+                                return i.id === resellerId || rId === resellerId || (normR && (cleanR(i.id) === normR || cleanR(rId) === normR));
+                            });
+                            return res.status(200).json(matched);
+                        }
                         const matched = cached.data.filter((i: any) => i && i.id === reqId);
                         if (matched.length > 0) {
                             return res.status(200).json(matched);
@@ -1148,6 +1161,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } else if (!isTableWithoutInstitutionId(moduleName)) {
                             q = q.eq('institution_id', user.institutionId);
                         }
+                    } else if (user?.role === 'reseller') {
+                        if (moduleName === 'institutions') {
+                            q = q.or(`id.eq.${user.institutionId},reseller_id.eq.${user.institutionId}`);
+                        } else if (moduleName === 'commission_withdrawal_requests') {
+                            q = q.or(`reseller_id.eq.${user.institutionId},institution_id.eq.${user.institutionId}`);
+                        } else if (moduleName === 'users') {
+                            if (targetInstParam && targetInstParam !== 'ALL') {
+                                q = q.eq('institution_id', targetInstParam);
+                            }
+                        } else if (!isTableWithoutInstitutionId(moduleName)) {
+                            q = q.or(`institution_id.eq.${user.institutionId},reseller_id.eq.${user.institutionId}`);
+                        }
                     } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
                         q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', effectiveTenantInstId);
                     }
@@ -1217,7 +1242,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('payment_date', { ascending: false });
                 } else if (['invoices'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false });
-                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)) {
+                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
@@ -1270,8 +1295,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 6s for others
-            const queryTimeout = moduleName === 'institutions' ? 3500 : 6000;
+            // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 10s for heavy/bulk modules; 6s for standard
+            const queryTimeout = moduleName === 'institutions' 
+                ? 3500 
+                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments'].includes(moduleName) ? 10000 : 6000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -1312,7 +1339,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 if (['receipts', 'invoices'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)) {
+                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id))) {
                     q = q.order('id', { ascending: true });
@@ -1356,6 +1383,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Social feed
                     } else if (!isTableWithoutInstitutionId(moduleName)) {
                         sqlConditions.push({ sql: `institution_id::text = $VAL`, val: user.institutionId });
+                    }
+                } else if (user?.role === 'reseller') {
+                    if (moduleName === 'institutions') {
+                        sqlConditions.push({ sql: `(id::text = $VAL OR reseller_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
+                    } else if (moduleName === 'commission_withdrawal_requests') {
+                        sqlConditions.push({ sql: `(reseller_id::text = $VAL OR institution_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
+                    } else if (moduleName === 'users') {
+                        if (targetInstParam && targetInstParam !== 'ALL') {
+                            sqlConditions.push({ sql: `institution_id::text = $VAL`, val: targetInstParam });
+                        }
+                    } else if (!isTableWithoutInstitutionId(moduleName)) {
+                        sqlConditions.push({ sql: `(institution_id::text = $VAL OR reseller_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
                     }
                 } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
                     sqlConditions.push({ sql: `"${moduleName === 'institutions' ? 'id' : 'institution_id'}"::text = $VAL`, val: effectiveTenantInstId });
@@ -1430,7 +1469,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'payment_date.desc';
             } else if (['invoices'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
-            } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)) {
+            } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
@@ -1452,7 +1491,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isBulkModule = [
                     'users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory', 'retail_inventory_items',
                     'books', 'library_transactions', 'library_fines',
-                    'ds_students', 'mpesa_transactions',
+                    'ds_students', 'ds_leads', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'mpesa_transactions',
                     // Academic lookup tables — frequently large, benefit most from direct PG
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
                     'academic_years', 'semesters', 'allocation_requests',
@@ -1514,8 +1553,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                                 const fastBatch = Math.max(100, Math.floor(batchSize / 2));
                                 effectiveBatchSize = fastBatch;
-                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 4000)
+                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 6000)
                                     .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
+
+                                // If half-batch still timed out at offset 0, try a lightweight single-batch limit query
+                                if (res?.error && currentOffset === 0) {
+                                    console.warn(`[API GET] Retrying '${moduleName}' with single unpaginated limit query...`);
+                                    res = await executeWithTimeout(buildFastBaseQuery().limit(Math.min(finalLimit, 500)), 6000)
+                                        .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
+                                }
                             }
 
                             if (res?.error) {
@@ -1644,6 +1690,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 return res.status(200).json(fallbackCache.data);
                             }
                             console.warn('[API GET] DB query failed on institutions with no memory cache. Returning empty list fallback to prevent crash.');
+                            return res.status(200).json([]);
+                        }
+                        // Non-critical driving school & prospect modules: return empty array fallback on statement timeout to keep UI operational
+                        const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
+                        if (isTimeoutError && (moduleName.startsWith('ds_') || ['marketing_prospects', 'campaign_leads'].includes(moduleName))) {
+                            console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
                         }
                         console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
@@ -2538,6 +2590,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.users;
                     delete copy.updated_at;
                     delete copy.updatedAt;
+                    if (copy.resellerId && !copy.reseller_id) copy.reseller_id = copy.resellerId;
+                    if (copy.reseller_id && !copy.resellerId) copy.resellerId = copy.reseller_id;
+                    if (copy.reseller_id === '' || copy.reseller_id === 'null' || copy.reseller_id === 'undefined') copy.reseller_id = null;
+                    if (copy.resellerId === '' || copy.resellerId === 'null' || copy.resellerId === 'undefined') copy.resellerId = null;
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanInstitution) : cleanInstitution(currentPayload);
@@ -4245,6 +4301,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     if (!returned.visitorArrivalSmsTemplate) {
                         returned.visitorArrivalSmsTemplate = returned.visitor_arrival_sms_template;
+                    }
+                    if (returned.reseller_id && !returned.resellerId) {
+                        returned.resellerId = returned.reseller_id;
+                    }
+                    if (returned.resellerId && !returned.reseller_id) {
+                        returned.reseller_id = returned.resellerId;
                     }
                 }
                 return res.status(200).json(returned);

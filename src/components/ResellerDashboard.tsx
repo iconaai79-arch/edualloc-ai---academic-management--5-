@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest } from '../types';
 import { apiService } from '../services/apiService';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
@@ -38,10 +38,45 @@ interface ResellerDashboardProps {
     companyDetails: CompanyDetails;
     transactions: MpesaTransaction[];
     invoices: Invoice[];
+    institutions?: Institution[];
 }
 
-const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, currentInstitution, onImpersonate, companyDetails, transactions, invoices }) => {
-    const [tenants, setTenants] = useState<Institution[]>([]);
+const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ 
+    currentUser, 
+    currentInstitution, 
+    onImpersonate, 
+    companyDetails, 
+    transactions, 
+    invoices,
+    institutions: propInstitutions = []
+}) => {
+    const targetResellerId = currentInstitution?.id || currentUser?.institutionId || '';
+    const cleanId = (id?: string) => id ? String(id).replace(/^(inst_|br_)/gi, '').toLowerCase() : '';
+    const normTarget = cleanId(targetResellerId);
+
+    const isClientOfThisReseller = useCallback((inst: any) => {
+        if (!inst || !targetResellerId) return false;
+        // The reseller agency cannot be its own client
+        if (inst.id === targetResellerId || (normTarget && cleanId(inst.id) === normTarget)) return false;
+        const rId = inst.resellerId || inst.reseller_id || inst.metadata?.resellerId || inst.metadata?.reseller_id;
+        if (!rId) return false;
+        return rId === targetResellerId || (normTarget && cleanId(rId) === normTarget);
+    }, [targetResellerId, normTarget]);
+
+    const [tenants, setTenants] = useState<Institution[]>(() => {
+        const initial = (propInstitutions || []).filter(isClientOfThisReseller);
+        if (initial.length > 0) return initial;
+        try {
+            const raw = localStorage.getItem('institutions') || localStorage.getItem('eduai_institutions');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.filter(isClientOfThisReseller);
+                }
+            }
+        } catch (_) {}
+        return [];
+    });
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -79,17 +114,42 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
         const loadData = async () => {
             setIsLoading(true);
             try {
-                const fetchedInstitutions = await apiService.fetchInstitutions();
-                const myTenants = fetchedInstitutions.filter(inst => inst.resellerId === currentInstitution.id);
+                const fetchedInstitutions = await apiService.fetchInstitutions().catch(() => []);
+                
+                // Aggregate all known sources so clients never disappear
+                const pool: Institution[] = [];
+                const seenIds = new Set<string>();
+                const addInst = (inst: any) => {
+                    if (inst && inst.id && !seenIds.has(inst.id)) {
+                        seenIds.add(inst.id);
+                        pool.push(inst);
+                    }
+                };
+
+                (fetchedInstitutions || []).forEach(addInst);
+                (propInstitutions || []).forEach(addInst);
+                
+                try {
+                    const rawLs = localStorage.getItem('institutions') || localStorage.getItem('eduai_institutions');
+                    if (rawLs) {
+                        const parsed = JSON.parse(rawLs);
+                        if (Array.isArray(parsed)) parsed.forEach(addInst);
+                    }
+                } catch (_) {}
+
+                const myTenants = pool.filter(isClientOfThisReseller);
                 setTenants(myTenants);
 
                 // Fetch users for our tenants to get metrics
-                const fetchedUsers = await apiService.fetchUsers();
-                const tenantUserIds = myTenants.map(t => t.id);
-                const usersInMyTenants = fetchedUsers.filter(u => tenantUserIds.includes(u.institutionId));
+                const fetchedUsers = await apiService.fetchUsers('ALL').catch(() => []);
+                const tenantUserIds = new Set(myTenants.map(t => t.id));
+                const usersInMyTenants = (fetchedUsers || []).filter(u => {
+                    const uInst = u.institutionId || (u as any).institution_id;
+                    return tenantUserIds.has(uInst);
+                });
                 setAllUsers(usersInMyTenants);
 
-                const fetchedRequests = await apiService.fetchModuleRecords<CommissionWithdrawalRequest>('commission_withdrawal_requests');
+                const fetchedRequests = await apiService.fetchModuleRecords<CommissionWithdrawalRequest>('commission_withdrawal_requests').catch(() => []);
                 const normalized = (fetchedRequests || []).map(r => ({
                     ...r,
                     resellerId: r.resellerId || (r as any).reseller_id,
@@ -98,7 +158,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                     processedAt: r.processedAt || (r as any).processed_at,
                     accountDetails: r.accountDetails || (r as any).account_details,
                 }));
-                setWithdrawalRequests(normalized.filter(r => r.resellerId === currentInstitution.id));
+                setWithdrawalRequests(normalized.filter(r => r.resellerId === targetResellerId || (normTarget && cleanId(r.resellerId) === normTarget)));
             } catch (error) {
                 console.error("Error loading reseller data:", error);
             } finally {
@@ -106,7 +166,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
             }
         };
         loadData();
-    }, [currentInstitution.id]);
+    }, [targetResellerId, isClientOfThisReseller, propInstitutions]);
 
     const handleCreateTenant = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -128,7 +188,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
                 status: 'trial',
                 trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
                 institutionCode: generateAlphanumericCode(6),
-                resellerId: currentInstitution.id,
+                resellerId: targetResellerId,
                 isOtpEnabled: false,
                 useAllocationRequests: true,
                 customSubscriptionPrice: {
@@ -257,8 +317,8 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
         try {
             const request: CommissionWithdrawalRequest = {
                 id: generateId('wireq'),
-                resellerId: currentInstitution.id,
-                resellerName: currentInstitution.name,
+                resellerId: targetResellerId,
+                resellerName: currentInstitution?.name || currentUser?.name || 'Reseller Agency',
                 amount: withdrawAmount,
                 status: 'pending',
                 requestedAt: new Date().toISOString(),
@@ -318,7 +378,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({ currentUser, curr
 
     const totalCommissions = commissionTransactions.reduce((acc, tx) => acc + calculateCommission(tx), 0);
     // We assume any transaction with "Payout" in metadata or role specific is a disbursed amount
-    const disbursedCommissions = transactions.filter(tx => tx.institutionId === currentInstitution.id && tx.metadata?.type === 'commission_payout').reduce((acc, tx) => acc + tx.amount, 0);
+    const disbursedCommissions = transactions.filter(tx => (tx.institutionId === targetResellerId || (normTarget && cleanId(tx.institutionId) === normTarget)) && tx.metadata?.type === 'commission_payout').reduce((acc, tx) => acc + tx.amount, 0);
     const pendingPayout = Math.max(0, totalCommissions - disbursedCommissions);
 
     if (isLoading) {

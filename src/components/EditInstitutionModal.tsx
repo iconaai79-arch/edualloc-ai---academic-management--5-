@@ -169,6 +169,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       billingModel: isReseller ? 'fixed' : (formData.billingModel as any),
       ratePerStudent: isReseller ? 0 : (parseFloat(formData.ratePerStudent) || 0),
       resellerId: isReseller ? undefined : (formData.resellerId || null as any),
+      reseller_id: isReseller ? undefined : (formData.resellerId || null as any),
     };
     onSave(institution.id, saveData);
   };

@@ -29,15 +29,15 @@ export const LEAVING_CERTIFICATE_TEMPLATES: Record<LeavingCertificateTemplateTyp
     },
     primary: {
         id: 'primary',
-        label: 'Primary School (KPSEA / KCPE)',
-        description: 'Standard Primary School Leaving Certificate with Academic Industry, Games, and Character evaluation.',
-        ministryHeader: 'REPUBLIC OF KENYA — MINISTRY OF EDUCATION',
-        assessmentTitle: 'KENYA PRIMARY EDUCATION ASSESSMENT',
-        certificateTitle: 'PRIMARY SCHOOL LEAVING CERTIFICATE',
-        idBoxLabel: 'ASS. / INDEX NO.',
-        defaultCourse: 'PRIMARY SCHOOL EDUCATION (CBC/8-4-4)',
-        defaultEntryGrade: 'GRADE 1',
-        defaultExitGrade: 'GRADE 6'
+        label: 'Primary School (Kenya Primary Certificate)',
+        description: 'Official Kenya Primary School Leaving Certificate with Ability, Industry, Conduct & Co-Curricular reports.',
+        ministryHeader: 'REPUBLIC OF KENYA',
+        assessmentTitle: 'MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY',
+        certificateTitle: 'Kenya Primary School Leaving Certificate',
+        idBoxLabel: 'Admission No.',
+        defaultCourse: 'CLASS 8',
+        defaultEntryGrade: 'CLASS 1',
+        defaultExitGrade: 'CLASS 8'
     },
     secondary: {
         id: 'secondary',
@@ -131,3 +131,24 @@ export const SECONDARY_SPORTS_CLUBS_PRESETS = {
         "Class Secretary and Library Assistant; carried out duties punctually and effectively."
     ]
 };
+
+/**
+ * Primary School Ability, Industry & Conduct Presets (Kenya Primary Certificate)
+ */
+export const PRIMARY_REPORT_PRESETS = [
+    "A diligent, industrious and well-mannered pupil who demonstrated high academic ability, keen attention in class lessons, and exemplary conduct at all times.",
+    "Shows commendable intellectual ability and perseverance. Maintained high moral discipline, respected school authority, and was cooperative with fellow peers.",
+    "Hardworking, honest, and reliable. Displayed steady academic industry, a pleasant disposition, and admirable leadership qualities.",
+    "Consistently demonstrated sound academic ability and positive effort. Upheld high standards of school discipline, integrity, and courteous conduct."
+];
+
+/**
+ * Primary School Co-Curricular Presets (Kenya Primary Certificate)
+ */
+export const PRIMARY_CO_CURRICULAR_PRESETS = [
+    "Participated actively in Athletics and School Football; dedicated member of the Music & Drama Club and Scouts Movement.",
+    "Active member of the School Choir, Environmental Green Club, and Volleyball team; exhibited great team spirit and sportsmanship.",
+    "Competed enthusiastically in Netball, Inter-House Track events, and the Young Farmers Agriculture Club.",
+    "Represented the school in Zonal Athletics competitions, Table Tennis, and the St. John Ambulance Brigade."
+];
+

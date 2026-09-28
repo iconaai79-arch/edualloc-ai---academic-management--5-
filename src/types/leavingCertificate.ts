@@ -22,6 +22,8 @@ export interface LeavingCertificateFormData {
     // Primary & Secondary Traditional Reports
     academicAbility?: string;
     characterConduct?: string;
+    primaryAbilityIndustryConduct?: string; // Kenya Primary: HEADTEACHER'S REPORT ON THE PUPIL'S ABILITY, INDUSTRY AND CONDUCT
+    coCurricularActivities?: string; // Kenya Primary: PUPIL'S PARTICIPATION IN CO-CURRICULAR ACTIVITIES
     gamesAndSports?: string;
     clubsAndSocieties?: string;
     responsibilitiesHeld?: string; // Prefect, House Captain, etc.

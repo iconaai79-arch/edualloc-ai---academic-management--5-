@@ -1765,6 +1765,7 @@ Please change it after login.`;
                         businessSubType: newInstData.category, // Mirror for legacy support
                         countyId: newInstData.countyId || undefined,
                         resellerId: isReseller ? undefined : (newInstData.resellerId || undefined),
+                        reseller_id: isReseller ? undefined : (newInstData.resellerId || undefined),
                         status: 'active',
                         trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
                         subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3023,10 +3024,10 @@ Please change it after login.`;
                                                             <div>
                                                                 <div className="flex items-center gap-2 flex-wrap">
                                                                     <span className="text-sm font-black text-slate-900 dark:text-white">{inst.name}</span>
-                                                                    {inst.resellerId && (
+                                                                    {(inst.resellerId || (inst as any).reseller_id) && (
                                                                         <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50">
                                                                             <UserGroupIcon className="w-2.5 h-2.5" />
-                                                                            Reseller: {institutions.find(r => r.id === inst.resellerId)?.name || inst.resellerId}
+                                                                            Reseller: {institutions.find(r => r.id === (inst.resellerId || (inst as any).reseller_id))?.name || (inst.resellerId || (inst as any).reseller_id)}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -3239,7 +3240,11 @@ Please change it after login.`;
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                             {institutions.filter(i => i.institutionType === 'Reseller').map((inst: Institution) => {
-                                                const subTenantsCount = institutions.filter(i => i.resellerId === inst.id).length;
+                                                const cleanId = (id?: string) => id ? String(id).replace(/^(inst_|br_)/gi, '').toLowerCase() : '';
+                                                const subTenantsCount = institutions.filter(i => {
+                                                    const rId = i.resellerId || (i as any).reseller_id || (i as any).metadata?.resellerId || (i as any).metadata?.reseller_id;
+                                                    return rId === inst.id || (rId && cleanId(rId) === cleanId(inst.id));
+                                                }).length;
                                                 return (
                                                     <tr key={inst.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
                                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
@@ -3261,7 +3266,7 @@ Please change it after login.`;
                                                         </td>
                                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                             <div className="flex justify-end gap-2">
-                                                                <button onClick={() => onLoginAsAdmin?.(inst.id)} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
+                                                                <button onClick={() => onLoginAsAdmin?.(inst.id, 'reseller')} className="flex items-center gap-1 text-indigo-600 hover:text-indigo-900 font-black text-[10px] uppercase tracking-tighter bg-indigo-50 px-2 py-1 rounded-lg">
                                                                     <ArrowRightOnRectangleIcon className="w-3 h-3" />
                                                                     Portal
                                                                 </button>
@@ -7161,7 +7166,10 @@ Please change it after login.`;
                                     onClick={async () => {
                                         if (props.onUpdateInstitution) {
                                             try {
-                                                await props.onUpdateInstitution(assigningResellerFor.id, { resellerId: selectedResellerId || null as any });
+                                                await props.onUpdateInstitution(assigningResellerFor.id, { 
+                                                    resellerId: selectedResellerId || null as any,
+                                                    reseller_id: selectedResellerId || null as any
+                                                });
                                                 success(`Reseller assignment updated for ${assigningResellerFor.name}`);
                                                 setAssigningResellerFor(null);
                                                 if (onRefreshData) await onRefreshData();
@@ -8362,7 +8370,7 @@ Please change it after login.`;
                                         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
                                             <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Total Tenants</p>
                                             <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-                                                {institutions.filter(i => i.resellerId === disburseReseller.id).length}
+                                                {institutions.filter(i => (i.resellerId === disburseReseller.id || (i as any).reseller_id === disburseReseller.id)).length}
                                             </p>
                                         </div>
                                         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">

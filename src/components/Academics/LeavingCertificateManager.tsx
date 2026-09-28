@@ -9,7 +9,9 @@ import {
     CBC_COMPETENCY_PRESETS,
     SOCIAL_BEHAVIOUR_PRESETS,
     CSL_PARTICIPATION_PRESETS,
-    SECONDARY_SPORTS_CLUBS_PRESETS
+    SECONDARY_SPORTS_CLUBS_PRESETS,
+    PRIMARY_REPORT_PRESETS,
+    PRIMARY_CO_CURRICULAR_PRESETS
 } from '../../utils/leavingCertificateTemplates';
 import { LeavingCertificateSheet } from './LeavingCertificateSheet';
 import { StudentClearanceManager } from './StudentClearanceManager';
@@ -112,6 +114,8 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
             cslParticipation: CSL_PARTICIPATION_PRESETS[0],
             academicAbility: 'Hardworking, intellectually inquisitive, and demonstrates high academic industry.',
             characterConduct: 'Exemplary character, obedient to school authorities, and trustworthy.',
+            primaryAbilityIndustryConduct: PRIMARY_REPORT_PRESETS[0],
+            coCurricularActivities: PRIMARY_CO_CURRICULAR_PRESETS[0],
             gamesAndSports: 'Participated actively in track athletics, football, and team competitions.',
             clubsAndSocieties: 'Science & Robotics Club, Scouts Movement, Environmental Conservation Society.',
             responsibilitiesHeld: 'Class Prefect, Library Assistant, Team Captain.',
@@ -141,7 +145,9 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
             ...prev,
             entryGrade: meta.defaultEntryGrade,
             exitGrade: meta.defaultExitGrade,
-            approvedCourse: meta.defaultCourse
+            approvedCourse: meta.defaultCourse,
+            primaryAbilityIndustryConduct: prev.primaryAbilityIndustryConduct || PRIMARY_REPORT_PRESETS[0],
+            coCurricularActivities: prev.coCurricularActivities || PRIMARY_CO_CURRICULAR_PRESETS[0]
         }));
     };
 
@@ -805,12 +811,30 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setFormData(prev => ({
-                                            ...prev,
-                                            coreCompetenciesAchieved: CBC_COMPETENCY_PRESETS[Math.floor(Math.random() * CBC_COMPETENCY_PRESETS.length)],
-                                            socialBehaviourReport: SOCIAL_BEHAVIOUR_PRESETS[Math.floor(Math.random() * SOCIAL_BEHAVIOUR_PRESETS.length)],
-                                            cslParticipation: CSL_PARTICIPATION_PRESETS[Math.floor(Math.random() * CSL_PARTICIPATION_PRESETS.length)]
-                                        }));
+                                        if (templateType === 'primary') {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                primaryAbilityIndustryConduct: PRIMARY_REPORT_PRESETS[Math.floor(Math.random() * PRIMARY_REPORT_PRESETS.length)],
+                                                coCurricularActivities: PRIMARY_CO_CURRICULAR_PRESETS[Math.floor(Math.random() * PRIMARY_CO_CURRICULAR_PRESETS.length)]
+                                            }));
+                                        } else if (templateType === 'jss') {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                coreCompetenciesAchieved: CBC_COMPETENCY_PRESETS[Math.floor(Math.random() * CBC_COMPETENCY_PRESETS.length)],
+                                                socialBehaviourReport: SOCIAL_BEHAVIOUR_PRESETS[Math.floor(Math.random() * SOCIAL_BEHAVIOUR_PRESETS.length)],
+                                                cslParticipation: CSL_PARTICIPATION_PRESETS[Math.floor(Math.random() * CSL_PARTICIPATION_PRESETS.length)]
+                                            }));
+                                        } else {
+                                            const sports = SECONDARY_SPORTS_CLUBS_PRESETS.sports;
+                                            const clubs = SECONDARY_SPORTS_CLUBS_PRESETS.clubs;
+                                            const resp = SECONDARY_SPORTS_CLUBS_PRESETS.responsibilities;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                gamesAndSports: sports[Math.floor(Math.random() * sports.length)],
+                                                clubsAndSocieties: clubs[Math.floor(Math.random() * clubs.length)],
+                                                responsibilitiesHeld: resp[Math.floor(Math.random() * resp.length)]
+                                            }));
+                                        }
                                     }}
                                     className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 hover:text-amber-700 cursor-pointer"
                                 >
@@ -905,42 +929,62 @@ export const LeavingCertificateManager: React.FC<LeavingCertificateManagerProps>
                                 </div>
                             )}
 
-                            {/* PRIMARY SPECIFIC FIELDS */}
+                            {/* PRIMARY SPECIFIC FIELDS (Kenya Primary School Leaving Certificate) */}
                             {templateType === 'primary' && (
                                 <div className="space-y-4">
                                     <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                                            Head Teacher&apos;s Report on Academic Ability & Industry
-                                        </label>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Headteacher&apos;s Report on the Pupil&apos;s Ability, Industry and Conduct
+                                            </label>
+                                            <div className="flex gap-1">
+                                                {PRIMARY_REPORT_PRESETS.map((p, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, primaryAbilityIndustryConduct: p })}
+                                                        className="px-2 py-0.5 text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-950"
+                                                        title={p}
+                                                    >
+                                                        Preset {idx + 1}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                         <textarea
-                                            rows={2}
-                                            value={formData.academicAbility}
-                                            onChange={(e) => setFormData({ ...formData, academicAbility: e.target.value })}
-                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium"
+                                            rows={3}
+                                            value={formData.primaryAbilityIndustryConduct ?? (formData.academicAbility ? `${formData.academicAbility} ${formData.characterConduct || ''}`.trim() : '')}
+                                            onChange={(e) => setFormData({ ...formData, primaryAbilityIndustryConduct: e.target.value })}
+                                            placeholder="Pupil's ability, industry, scholastic effort and moral conduct report..."
+                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500"
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                                            Character & Conduct
-                                        </label>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                Pupil&apos;s Participation in Co-Curricular Activities
+                                            </label>
+                                            <div className="flex gap-1">
+                                                {PRIMARY_CO_CURRICULAR_PRESETS.map((p, idx) => (
+                                                    <button
+                                                        key={idx}
+                                                        type="button"
+                                                        onClick={() => setFormData({ ...formData, coCurricularActivities: p })}
+                                                        className="px-2 py-0.5 text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-950"
+                                                        title={p}
+                                                    >
+                                                        Preset {idx + 1}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                         <textarea
                                             rows={2}
-                                            value={formData.characterConduct}
-                                            onChange={(e) => setFormData({ ...formData, characterConduct: e.target.value })}
-                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                                            Games, Athletics & Special Responsibilities
-                                        </label>
-                                        <textarea
-                                            rows={2}
-                                            value={formData.gamesAndSports}
-                                            onChange={(e) => setFormData({ ...formData, gamesAndSports: e.target.value })}
-                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium"
+                                            value={formData.coCurricularActivities ?? (formData.gamesAndSports || '')}
+                                            onChange={(e) => setFormData({ ...formData, coCurricularActivities: e.target.value })}
+                                            placeholder="Games, athletics, societies, music & drama festival, scouts..."
+                                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium focus:ring-2 focus:ring-amber-500"
                                         />
                                     </div>
                                 </div>

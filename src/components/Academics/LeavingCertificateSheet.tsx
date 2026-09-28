@@ -17,11 +17,44 @@ export interface LeavingCertificateSheetProps {
 }
 
 /**
- * Printable Official Kenyan School Leaving Certificate Sheet (A4 Standard)
- * Supports JSS (CBC Transition), Primary School, and Secondary School templates.
+ * Split narrative text across fixed-capacity dotted lines
  */
-export const LeavingCertificateSheet: React.FC<LeavingCertificateSheetProps> = ({
-    templateType,
+const splitIntoLines = (text: string, maxCharsPerLine: number[]): string[] => {
+    if (!text || !text.trim()) {
+        return maxCharsPerLine.map(() => '');
+    }
+    const words = text.trim().split(/\s+/);
+    const lines: string[] = [];
+
+    for (let i = 0; i < maxCharsPerLine.length; i++) {
+        const limit = maxCharsPerLine[i];
+        let currentLine = '';
+
+        while (words.length > 0) {
+            const nextWord = words[0];
+            const candidate = currentLine ? `${currentLine} ${nextWord}` : nextWord;
+            if (candidate.length <= limit) {
+                currentLine = candidate;
+                words.shift();
+            } else {
+                break;
+            }
+        }
+        lines.push(currentLine);
+    }
+
+    if (words.length > 0 && lines.length > 0) {
+        lines[lines.length - 1] = `${lines[lines.length - 1]} ${words.join(' ')}`.trim();
+    }
+
+    return lines;
+};
+
+/**
+ * Authentic Kenya Primary School Leaving Certificate (MOEST Template)
+ * Directly matching official Ministry of Education, Science and Technology layout.
+ */
+export const PrimaryLeavingCertificateSheet: React.FC<LeavingCertificateSheetProps> = ({
     data,
     institution,
     scale = 1,
@@ -29,6 +62,310 @@ export const LeavingCertificateSheet: React.FC<LeavingCertificateSheetProps> = (
     className = '',
     id = 'leaving-certificate-sheet'
 }) => {
+    const effectiveSchoolName = (data.schoolName || institution?.name || '').toUpperCase().trim();
+
+    const reportText = (
+        data.primaryAbilityIndustryConduct ||
+        [data.academicAbility, data.characterConduct].filter(Boolean).join(' ') ||
+        data.headteacherGeneralRemarks ||
+        ''
+    ).trim();
+
+    const coCurricularText = (
+        data.coCurricularActivities ||
+        [data.gamesAndSports, data.clubsAndSocieties].filter(Boolean).join(' ') ||
+        ''
+    ).trim();
+
+    // 5 lines for report: line 1 has prompt label (~28 chars limit), lines 2-5 have full width (~88 chars)
+    const reportLines = splitIntoLines(reportText, [28, 88, 88, 88, 88]);
+
+    // 2 lines for co-curricular: line 1 has prompt label (~40 chars limit), line 2 has full width (~88 chars)
+    const coCurricularLines = splitIntoLines(coCurricularText, [40, 88]);
+
+    return (
+        <div
+            id={id}
+            className={`relative bg-white text-slate-900 border border-slate-300 shadow-xl overflow-hidden print:border-none print:shadow-none print:m-0 print:p-0 mx-auto select-none ${className}`}
+            style={{
+                width: `${Math.round(794 * scale)}px`,
+                minHeight: `${Math.round(1123 * scale)}px`,
+                fontSize: `${14 * scale}px`,
+                lineHeight: 1.5,
+                fontFamily: '"Times New Roman", Times, Georgia, serif',
+                boxSizing: 'border-box'
+            }}
+        >
+            <div className="relative z-10 px-12 pt-9 pb-8 flex flex-col justify-between min-h-[1110px] h-full">
+                
+                {/* --- TOP: COAT OF ARMS & HEADERS --- */}
+                <div>
+                    {/* Centered Coat of Arms */}
+                    <div className="flex justify-center mb-4">
+                        <KenyaCoatOfArms width={110 * scale} height={98 * scale} />
+                    </div>
+
+                    {/* Centered Official Titles */}
+                    <div className="text-center space-y-1">
+                        <h1
+                            className="font-serif font-bold tracking-wider text-slate-950 uppercase"
+                            style={{ fontSize: `${18.5 * scale}px` }}
+                        >
+                            REPUBLIC OF KENYA
+                        </h1>
+
+                        <h2
+                            className="font-serif font-bold tracking-wide text-slate-950 uppercase"
+                            style={{ fontSize: `${15.5 * scale}px` }}
+                        >
+                            MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY
+                        </h2>
+
+                        <h3
+                            className="font-serif font-normal text-slate-900 pt-0.5"
+                            style={{ fontSize: `${17.5 * scale}px` }}
+                        >
+                            Kenya Primary School Leaving Certificate
+                        </h3>
+                    </div>
+
+                    {/* School Name & Admission No */}
+                    <div className="mt-8 space-y-3 px-1">
+                        <div className="flex items-baseline w-full max-w-[480px]">
+                            <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[14.5px]">
+                                School Name
+                            </span>
+                            <div className="grow border-b border-dotted border-slate-800 min-h-[20px] px-2 font-serif font-bold uppercase text-slate-950 text-[14.5px]">
+                                {effectiveSchoolName}
+                            </div>
+                        </div>
+
+                        <div className="flex items-baseline w-full max-w-[480px]">
+                            <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[14.5px]">
+                                Admission No.
+                            </span>
+                            <div className="grow border-b border-dotted border-slate-800 min-h-[20px] px-2 font-serif font-bold text-slate-950 text-[14.5px]">
+                                {data.admissionNumber || ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- BODY CERTIFICATION STATEMENTS --- */}
+                <div className="mt-6 space-y-3.5 px-1 text-[14.5px]">
+                    {/* Line 1: THIS IS TO CERTIFY THAT */}
+                    <div className="flex items-baseline w-full">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-2 text-[14.5px]">
+                            THIS IS TO CERTIFY THAT
+                        </span>
+                        <div className="grow border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold uppercase text-slate-950 tracking-wider text-[15px]">
+                            {data.studentName || ''}
+                        </div>
+                    </div>
+
+                    {/* Line 2: ENTERED THIS SCHOOL ON ... AND WAS ENROLLED IN CLASS ... AND LEFT ON */}
+                    <div className="flex items-baseline w-full flex-wrap gap-y-2">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[14px]">
+                            ENTERED THIS SCHOOL ON
+                        </span>
+                        <div className="grow-[2] border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold text-slate-950 text-[14px]">
+                            {data.enrollmentDate || ''}
+                        </div>
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mx-1.5 text-[14px]">
+                            AND WAS ENROLLED IN CLASS
+                        </span>
+                        <div className="grow-[1] border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold uppercase text-slate-950 text-[14px]">
+                            {data.entryGrade || 'CLASS 1'}
+                        </div>
+                        <span className="shrink-0 font-serif font-normal text-slate-900 ml-1.5 text-[14px]">
+                            AND LEFT ON
+                        </span>
+                    </div>
+
+                    {/* Line 3: ... FROM CLASS ... */}
+                    <div className="flex items-baseline w-full flex-wrap gap-y-2">
+                        <div className="grow-[2] border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold text-slate-950 text-[14px]">
+                            {data.leavingDate || ''}
+                        </div>
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mx-2 text-[14px]">
+                            FROM CLASS
+                        </span>
+                        <div className="grow-[3] border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold uppercase text-slate-950 text-[14px]">
+                            {data.exitGrade || 'CLASS 8'}
+                        </div>
+                    </div>
+
+                    {/* Line 4: HAVING SATISFACTORILY COMPLETED THE APPROVED COURSE FOR CLASS */}
+                    <div className="flex items-baseline w-full">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[14px]">
+                            HAVING SATISFACTORILY COMPLETED THE APPROVED COURSE FOR CLASS
+                        </span>
+                        <div className="grow border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold uppercase text-slate-950 text-[14px]">
+                            {data.approvedCourse || 'CLASS 8'}
+                        </div>
+                    </div>
+
+                    {/* Line 5: DATE OF BIRTH (In Admission Register) */}
+                    <div className="flex items-baseline w-full">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[14px]">
+                            DATE OF BIRTH (In Admission Register)
+                        </span>
+                        <div className="grow border-b border-dotted border-slate-800 min-h-[22px] px-2 text-center font-serif font-bold text-slate-950 text-[14px]">
+                            {data.dateOfBirth || ''}
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- HEADTEACHER'S REPORT ON ABILITY, INDUSTRY AND CONDUCT (5 LINES) --- */}
+                <div className="mt-4 px-1 space-y-1.5 text-[14px]">
+                    {/* Line 1 with Header */}
+                    <div className="flex items-baseline w-full">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[13.5px]">
+                            HEADTEACHER&apos;S REPORT ON THE PUPIL&apos;S ABILITY, INDUSTRY AND CONDUCT
+                        </span>
+                        <div className="grow border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                            {reportLines[0] || ''}
+                        </div>
+                    </div>
+
+                    {/* Line 2 */}
+                    <div className="w-full border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                        {reportLines[1] || ''}
+                    </div>
+
+                    {/* Line 3 */}
+                    <div className="w-full border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                        {reportLines[2] || ''}
+                    </div>
+
+                    {/* Line 4 */}
+                    <div className="w-full border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                        {reportLines[3] || ''}
+                    </div>
+
+                    {/* Line 5 */}
+                    <div className="w-full border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                        {reportLines[4] || ''}
+                    </div>
+                </div>
+
+                {/* --- PUPIL'S PARTICIPATION IN CO-CURRICULAR ACTIVITIES (2 LINES) --- */}
+                <div className="mt-3 px-1 space-y-1.5 text-[14px]">
+                    {/* Line 1 with Header */}
+                    <div className="flex items-baseline w-full">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[13.5px]">
+                            PUPIL&apos;S PARTICIPATION IN CO-CURRICULAR ACTIVITIES
+                        </span>
+                        <div className="grow border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                            {coCurricularLines[0] || ''}
+                        </div>
+                    </div>
+
+                    {/* Line 2 */}
+                    <div className="w-full border-b border-dotted border-slate-800 min-h-[22px] px-2 font-serif font-medium text-slate-950 italic text-[13.5px]">
+                        {coCurricularLines[1] || ''}
+                    </div>
+                </div>
+
+                {/* --- PUPIL SIGNATURE, DATE & HEADTEACHER SIGNATURE & RUBBER STAMP --- */}
+                <div className="mt-5 px-1 space-y-3 text-[14px]">
+                    {/* Pupil's Signature */}
+                    <div className="flex items-baseline w-full max-w-[340px]">
+                        <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[13.5px]">
+                            PUPIL&apos;S SIGNATURE
+                        </span>
+                        <div className="grow border-b border-dotted border-slate-800 min-h-[20px]" />
+                    </div>
+
+                    {/* Date of Issue & Head Teachers Name */}
+                    <div className="flex items-baseline justify-between gap-6">
+                        <div className="flex items-baseline w-[280px]">
+                            <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[13.5px]">
+                                DATE OF ISSUE
+                            </span>
+                            <div className="grow border-b border-dotted border-slate-800 min-h-[20px] px-2 text-center font-serif font-bold text-slate-950 text-[13.5px]">
+                                {data.issueDate || ''}
+                            </div>
+                        </div>
+
+                        <div className="flex items-baseline grow max-w-[380px]">
+                            <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[13.5px]">
+                                HEAD TEACHERS NAME
+                            </span>
+                            <div className="grow border-b border-dotted border-slate-800 min-h-[20px] px-2 font-serif font-bold uppercase text-slate-950 text-[13.5px]">
+                                {data.headteacherName || ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Headteacher Signature Line + Title */}
+                    <div className="flex justify-end pt-1">
+                        <div className="w-[320px] flex flex-col items-center">
+                            <div className="flex items-baseline w-full">
+                                <span className="shrink-0 font-serif font-normal text-slate-900 mr-1.5 text-[13.5px]">
+                                    SIGNATURE
+                                </span>
+                                <div className="grow border-b border-dotted border-slate-800 min-h-[20px]" />
+                            </div>
+                            <span className="font-serif font-normal text-slate-900 text-[13.5px] mt-1 underline">
+                                Head teacher
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Official School Rubber Stamp Area */}
+                    <div className="flex justify-end pt-2 pb-2">
+                        <div className="relative w-[300px] flex flex-col items-center">
+                            <div className="w-[240px] border-b border-dotted border-slate-800 min-h-[16px]" />
+                            <span className="font-serif font-bold uppercase tracking-wider text-slate-950 text-[12.5px] mt-1 text-center">
+                                OFFICIAL SCHOOL RUBBER STAMP
+                            </span>
+                            {showStamp && data.includeOfficialStamp && (
+                                <div className="absolute -top-7 pointer-events-none transform -rotate-6 transition-transform">
+                                    <KenyanOfficialStamp
+                                        institution={institution}
+                                        date={data.issueDate}
+                                        size={105 * scale}
+                                        departmentOverride={data.stampDepartment || 'PRIMARY SCHOOL LEAVING'}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- FOOTER STATEMENT --- */}
+                <div className="text-center pt-3 pb-1 border-t border-slate-200/60">
+                    <p className="font-serif italic text-slate-800 text-[12px]">
+                        This Certificate Was Issued Without Any Erasure or Alteration Whatsoever
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    );
+};
+
+/**
+ * Printable Official Kenyan School Leaving Certificate Sheet (A4 Standard)
+ * Supports JSS (CBC Transition), Primary School, and Secondary School templates.
+ */
+export const LeavingCertificateSheet: React.FC<LeavingCertificateSheetProps> = (props) => {
+    // If Primary, render the official MOEST Kenya Primary School Leaving Certificate
+    if (props.templateType === 'primary') {
+        return <PrimaryLeavingCertificateSheet {...props} />;
+    }
+
+    const {
+        templateType,
+        data,
+        institution,
+        scale = 1,
+        showStamp = true,
+        className = '',
+        id = 'leaving-certificate-sheet'
+    } = props;
+
     const template = LEAVING_CERTIFICATE_TEMPLATES[templateType] || LEAVING_CERTIFICATE_TEMPLATES.jss;
     const effectiveSchoolName = (data.schoolName || institution?.name || 'ACADEMIC INSTITUTION').toUpperCase().trim();
 

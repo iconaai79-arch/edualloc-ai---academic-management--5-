@@ -1643,6 +1643,12 @@ export const apiService = {
                         if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
                             inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
                         }
+                        if (inst.reseller_id && !inst.resellerId) {
+                            inst.resellerId = inst.reseller_id;
+                        }
+                        if (inst.resellerId && !inst.reseller_id) {
+                            inst.reseller_id = inst.resellerId;
+                        }
 
                         const cachedInsts = ls.get('institutions') || [];
                         const cached = Array.isArray(cachedInsts) ? cachedInsts.find((ci: any) => ci.id === inst.id) : null;
@@ -2157,6 +2163,12 @@ export const apiService = {
                         }
                         if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
                             inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
+                        }
+                        if (inst.reseller_id && !inst.resellerId) {
+                            inst.resellerId = inst.reseller_id;
+                        }
+                        if (inst.resellerId && !inst.reseller_id) {
+                            inst.reseller_id = inst.resellerId;
                         }
 
                         const cachedInsts = ls.get('institutions') || [];
@@ -2989,6 +3001,12 @@ export const apiService = {
                         delete item[key];
                     }
                 });
+            }
+
+            // Institutions normalization
+            if (module === 'institutions') {
+                if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;
+                if (item.reseller_id && !item.resellerId) item.resellerId = item.reseller_id;
             }
 
             // Commission withdrawal requests normalization
@@ -4715,6 +4733,12 @@ export const apiService = {
                         inst.visitorArrivalSmsTemplate = d.visitorArrivalSmsTemplate || d.visitor_arrival_sms_template;
                     }
                 }
+                if ((inst as any).reseller_id && !inst.resellerId) {
+                    inst.resellerId = (inst as any).reseller_id;
+                }
+                if (inst.resellerId && !(inst as any).reseller_id) {
+                    (inst as any).reseller_id = inst.resellerId;
+                }
             });
         } catch (_) {}
         return insts;
@@ -4790,8 +4814,11 @@ export const apiService = {
             }).catch(() => {});
         }
 
+        const resId = inst.resellerId || (inst as any).reseller_id || null;
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
+            reseller_id: resId,
+            resellerId: resId,
             coop_settings,
             tree_grading_nodes: finalTreeNodes,
             treeGradingNodes: finalTreeNodes,
@@ -4817,7 +4844,7 @@ export const apiService = {
     },
     async fetchUsers(institutionId?: string): Promise<User[]> { 
         const session = apiService.getSession();
-        const effectiveInstId = institutionId || (session && session.role !== 'super_admin' && !session.role?.startsWith('county_') ? session.institutionId : undefined);
+        const effectiveInstId = institutionId || (session && session.role !== 'super_admin' && !session.role?.startsWith('county_') && session.role !== 'reseller' ? session.institutionId : undefined);
         return apiService.fetchModuleRecords('users', effectiveInstId); 
     },
     async saveUser(user: Partial<User>): Promise<void> { 

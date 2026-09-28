@@ -678,6 +678,7 @@ export interface Institution {
     constituency?: string;
     ward?: string;
     resellerId?: string;
+    reseller_id?: string;
     isOtpEnabled?: boolean;
     sessionExpiryMinutes?: number;
     smsBalance?: number;
