@@ -11,7 +11,8 @@ import { SynergyHub } from './SynergyHub';
 import { 
     Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock, 
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
-    Hourglass, Lock, HelpCircle, Check, X, Shield, Flame
+    Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
+    SlidersHorizontal, ChevronDown, ChevronUp, Scan
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
@@ -228,6 +229,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [selectedPrefectId, setSelectedPrefectId] = useState('');
     const [signingPayout, setSigningPayout] = useState<RemedialPayout | null>(null);
     const [anonymousToken, setAnonymousToken] = useState('');
+    const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
+    const [scannerManualToken, setScannerManualToken] = useState('');
+    const [showManualOverride, setShowManualOverride] = useState(false);
 
     // Student Clearance Requests for Teacher Sign-off
     const [teacherClearances, setTeacherClearances] = useState<any[]>([]);
@@ -1276,13 +1280,85 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                     {((activeTab === 'remedials') || (activeTab === 'my_timetable' && timetableSubTab === 'remedials')) && (() => {
                         const activeSession = remedialSessions.find(s => s.status === 'In Progress');
-                        const coursePrefects = props.users?.filter(
-                            u => u.role === 'student' && u.courseId === selectedCourseId
-                        ) || [];
 
-                        const handleStartRemedial = async () => {
-                            if (!selectedSubjectId || !selectedCourseId || !selectedPrefectId) {
-                                return alert('Please select subject, class stream, and prefect.');
+                        // Today's Day Name
+                        const todayDayName = (() => {
+                            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            return days[new Date().getDay()];
+                        })();
+
+                        // Active or upcoming lesson for this teacher today from myRemedialAllocations
+                        const todaysScheduledRemedial = (() => {
+                            const todayAllocs = myRemedialAllocations.filter(a => 
+                                a.dayOfWeek?.toLowerCase() === todayDayName.toLowerCase() && 
+                                a.status !== 'Substitute Pending' && a.status !== 'Cancelled'
+                            );
+                            if (todayAllocs.length === 0) return null;
+
+                            const now = new Date();
+                            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+                            // 1. Check if within current slot window (-30min early to +30min after end)
+                            const currentMatch = todayAllocs.find(a => {
+                                const [sh, sm] = (a.startTime || '00:00').split(':').map(Number);
+                                const [eh, em] = (a.endTime || '23:59').split(':').map(Number);
+                                const startMin = (sh || 0) * 60 + (sm || 0) - 30;
+                                const endMin = (eh || 0) * 60 + (em || 0) + 30;
+                                return currentMinutes >= startMin && currentMinutes <= endMin;
+                            });
+
+                            if (currentMatch) return currentMatch;
+
+                            // 2. Next upcoming today
+                            const upcoming = todayAllocs.filter(a => {
+                                const [sh, sm] = (a.startTime || '00:00').split(':').map(Number);
+                                return ((sh || 0) * 60 + (sm || 0)) >= currentMinutes;
+                            });
+                            if (upcoming.length > 0) return upcoming[0];
+
+                            // 3. Fallback to first allocation today
+                            return todayAllocs[0];
+                        })();
+
+                        // Effective Course ID and Subject ID (auto-selected from schedule if not manually picked)
+                        const effectiveCourseId = selectedCourseId || todaysScheduledRemedial?.courseId || '';
+                        const effectiveSubjectId = selectedSubjectId || todaysScheduledRemedial?.subjectId || '';
+
+                        // Eligible prefects for effective course
+                        const targetCourse = courses?.find(c => c.id === effectiveCourseId);
+                        const targetCourseName = targetCourse?.name?.toLowerCase().trim() || '';
+
+                        const coursePrefects = (props.users || []).filter(u => {
+                            const isStudentOrPrefect = u.role === 'student' || (u.role as string) === 'prefect';
+                            if (!isStudentOrPrefect) return false;
+                            const classMatch = u.courseId === effectiveCourseId || 
+                                ((u as any).studentClass && targetCourseName && (u as any).studentClass.toLowerCase().trim() === targetCourseName);
+                            return classMatch;
+                        });
+
+                        // Priority prefect (appointed leader or class secretary)
+                        const primaryPrefect = (() => {
+                            if (selectedPrefectId) {
+                                const matched = coursePrefects.find(p => p.id === selectedPrefectId);
+                                if (matched) return matched;
+                            }
+                            if (coursePrefects.length === 0) return null;
+                            const leader = coursePrefects.find(u => {
+                                const pos = ((u.metadata as any)?.leadershipPosition || (u as any).leadershipPosition || u.role || '').toLowerCase();
+                                return pos.includes('prefect') || pos.includes('secretary') || pos.includes('captain') || pos.includes('leader');
+                            });
+                            return leader || coursePrefects[0];
+                        })();
+
+                        const effectivePrefectId = selectedPrefectId || primaryPrefect?.id || '';
+
+                        const handleStartRemedial = async (override?: { courseId?: string; subjectId?: string; prefectId?: string }) => {
+                            const courseId = override?.courseId || effectiveCourseId;
+                            const subjectId = override?.subjectId || effectiveSubjectId;
+                            const prefectId = override?.prefectId || effectivePrefectId;
+
+                            if (!subjectId || !courseId) {
+                                return alert('Please select subject and class stream before starting.');
                             }
 
                             // Check daily max limit configuration
@@ -1313,21 +1389,28 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     return alert(`Daily Remedial Limit Reached: You have already conducted the maximum ${limitLabel} limit of ${maxLimit} remedial lesson(s) allowed per day.`);
                                 }
 
-                                const prefect = props.users?.find(u => u.id === selectedPrefectId);
-                                const course = courses?.find(c => c.id === selectedCourseId);
-                                const subject = subjects?.find(s => s.id === selectedSubjectId);
+                                const prefect = props.users?.find(u => u.id === prefectId) || primaryPrefect;
+                                const course = courses?.find(c => c.id === courseId);
+                                const subject = subjects?.find(s => s.id === subjectId);
+
+                                const courseName = course?.name || todaysScheduledRemedial?.className || 'Class';
+                                const subjectName = subject?.name || todaysScheduledRemedial?.subjectName || 'Subject';
+                                const stream = todaysScheduledRemedial?.stream || '';
+                                const displayClassName = stream && stream !== 'All Streams' && !courseName.includes(stream) 
+                                    ? `${courseName} (${stream})` 
+                                    : courseName;
 
                                 const newSession: RemedialSession = {
                                     id: `rem_${Date.now()}`,
                                     teacherId: user?.id || '',
                                     teacherName: user?.name || 'Teacher',
-                                    subjectId: selectedSubjectId,
-                                    subjectName: subject?.name || 'Subject',
-                                    courseId: selectedCourseId,
-                                    className: course?.name || 'Class',
-                                    prefectId: selectedPrefectId,
-                                    prefectName: prefect?.name || 'Prefect',
-                                    prefectToken: `prefect_remedial_token_class_${selectedCourseId}`,
+                                    subjectId: subjectId,
+                                    subjectName: subjectName,
+                                    courseId: courseId,
+                                    className: displayClassName,
+                                    prefectId: prefect?.id || 'prefect_verified',
+                                    prefectName: prefect?.name || 'Class Leader / Secretary',
+                                    prefectToken: `prefect_remedial_token_class_${courseId}`,
                                     startTime: new Date().toISOString(),
                                     status: 'In Progress',
                                     createdAt: new Date().toISOString(),
@@ -1335,8 +1418,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 };
 
                                 await apiService.saveRemedialSession(newSession);
-                                props.onLogAction?.(`Started remedial lesson: ${subject?.name} for ${course?.name}`);
-                                alert('Remedial lesson started! Prefect card token verified.');
+                                props.onLogAction?.(`Started remedial lesson: ${subjectName} for ${displayClassName}`);
+                                setIsScannerModalOpen(false);
+                                alert(`⚡ Remedial Lesson Started!\n\n• Class: ${displayClassName}\n• Subject: ${subjectName}\n• Prefect Sign-off: ${newSession.prefectName}\n• Started: ${new Date().toLocaleTimeString()}\n\nThe session timer is now running.`);
                                 loadRemedialData();
                             } catch (err: any) {
                                 alert(err.message || 'Failed to start remedial session');
@@ -1771,80 +1855,265 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 </div>
 
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-6">
-                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                                        <QrCode className="w-5 h-5 text-indigo-500" /> Prefect Card Scanner Control Panel
-                                    </h3>
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700 pb-4">
+                                        <div className="flex items-center gap-2">
+                                            <QrCode className="w-5 h-5 text-indigo-500" />
+                                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                Prefect Card Scanner Control Panel
+                                            </h3>
+                                        </div>
+                                        {todaysScheduledRemedial && !activeSession && (
+                                            <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm">
+                                                <Zap className="w-3 h-3 text-emerald-500" /> Today's Scheduled Lesson Linked
+                                            </span>
+                                        )}
+                                    </div>
                                     
                                     {activeSession ? (
-                                        <div className="bg-indigo-50/50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/40 space-y-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                                                <h4 className="text-sm font-black text-indigo-950 dark:text-indigo-300 uppercase tracking-wider">Lesson Currently In Progress</h4>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4 text-xs font-bold text-slate-600 dark:text-slate-400">
-                                                <div>Subject: <span className="text-slate-900 dark:text-white font-black">{activeSession.subjectName}</span></div>
-                                                <div>Stream: <span className="text-slate-900 dark:text-white font-black">{activeSession.className}</span></div>
-                                                <div>Prefect: <span className="text-slate-900 dark:text-white font-black">{activeSession.prefectName}</span></div>
-                                                <div>Started: <span className="text-slate-900 dark:text-white font-black">{new Date(activeSession.startTime).toLocaleTimeString()}</span></div>
+                                        <div className="bg-gradient-to-br from-indigo-50/80 via-white to-violet-50/50 dark:from-indigo-950/30 dark:via-slate-800 dark:to-violet-950/20 p-6 rounded-3xl border border-indigo-200 dark:border-indigo-900/50 space-y-4 shadow-sm">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                                                    <h4 className="text-sm font-black text-indigo-950 dark:text-indigo-300 uppercase tracking-wider">Lesson Currently In Progress</h4>
+                                                </div>
+                                                <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm">
+                                                    Active Session
+                                                </span>
                                             </div>
 
-                                            <div className="pt-4 border-t border-indigo-100 dark:border-indigo-900/40 space-y-3">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">End Session Scan simulation</p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-bold text-slate-600 dark:text-slate-400 bg-white/70 dark:bg-slate-900/40 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black">Subject</p>
+                                                    <p className="text-slate-900 dark:text-white font-black text-sm mt-0.5">{activeSession.subjectName}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black">Class Stream</p>
+                                                    <p className="text-slate-900 dark:text-white font-black text-sm mt-0.5">{activeSession.className}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black">Prefect Verified</p>
+                                                    <p className="text-slate-900 dark:text-white font-black text-sm mt-0.5">{activeSession.prefectName}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-black">Started At</p>
+                                                    <p className="text-slate-900 dark:text-white font-black text-sm mt-0.5">{new Date(activeSession.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-indigo-100 dark:border-indigo-900/40">
+                                                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                                                    Ready to conclude? Scan the prefect's badge or click below to calculate payable hours.
+                                                </p>
                                                 <button 
                                                     onClick={() => handleEndRemedial(activeSession)}
-                                                    className="px-5 py-3 bg-rose-650 hover:bg-rose-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                                                    className="px-6 py-3.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all flex items-center gap-2 active:scale-95 shrink-0"
                                                 >
-                                                    <Square className="w-4 h-4" /> Scan Prefect Card & End Lesson
+                                                    <Square className="w-4 h-4" /> Scan Prefect Card &amp; End Lesson
                                                 </button>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Subject</label>
-                                                <select 
-                                                    value={selectedSubjectId}
-                                                    onChange={e => setSelectedSubjectId(e.target.value)}
-                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
-                                                >
-                                                    <option value="">-- Subject --</option>
-                                                    {subjects?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                                </select>
-                                            </div>
+                                        <div className="space-y-5">
+                                            {/* Auto-Detected Schedule Card */}
+                                            {todaysScheduledRemedial && (
+                                                <div className="bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/60 dark:from-slate-900/70 dark:via-slate-800 dark:to-indigo-950/30 p-6 sm:p-7 rounded-[2rem] border-2 border-indigo-200/80 dark:border-indigo-900/50 shadow-md space-y-5 animate-fade-in">
+                                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-indigo-100 dark:border-indigo-900/40 pb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-600/30">
+                                                                <Zap className="w-6 h-6 animate-pulse" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                                                        ⚡ Auto-Selected from Timetable
+                                                                    </span>
+                                                                    <span className="text-xs font-black text-slate-500 dark:text-slate-400">
+                                                                        {todaysScheduledRemedial.startTime} – {todaysScheduledRemedial.endTime}
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight mt-0.5">
+                                                                    {todaysScheduledRemedial.subjectName} &bull; {todaysScheduledRemedial.className}
+                                                                    {todaysScheduledRemedial.stream && todaysScheduledRemedial.stream !== 'All Streams' && !(todaysScheduledRemedial.className || '').includes(todaysScheduledRemedial.stream) ? ` (${todaysScheduledRemedial.stream})` : ''}
+                                                                </h4>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-left sm:text-right">
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Class Prefect / Secretary</p>
+                                                            <p className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                                                                {primaryPrefect?.name || 'Class Leader'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
 
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Class Stream</label>
-                                                <select 
-                                                    value={selectedCourseId}
-                                                    onChange={e => { setSelectedCourseId(e.target.value); setSelectedPrefectId(''); }}
-                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
-                                                >
-                                                    <option value="">-- Stream --</option>
-                                                    {courses?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                                </select>
-                                            </div>
+                                                    {/* 1-Tap Action Bar */}
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <button
+                                                            onClick={() => setIsScannerModalOpen(true)}
+                                                            className="flex-1 sm:flex-initial px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                        >
+                                                            <Camera className="w-4 h-4" /> Launch Prefect Scanner to Start
+                                                        </button>
 
-                                            <div>
-                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Prefect Present</label>
-                                                <select 
-                                                    value={selectedPrefectId}
-                                                    onChange={e => setSelectedPrefectId(e.target.value)}
-                                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
-                                                    disabled={!selectedCourseId}
-                                                >
-                                                    <option value="">-- Prefect --</option>
-                                                    {coursePrefects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                                </select>
-                                            </div>
+                                                        <button
+                                                            onClick={() => handleStartRemedial()}
+                                                            className="flex-1 sm:flex-initial px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                            title="Immediately start lesson with auto-detected class and prefect"
+                                                        >
+                                                            <Play className="w-4 h-4 text-emerald-400 dark:text-emerald-600" /> 1-Tap Quick Start
+                                                        </button>
 
-                                            <div className="md:col-span-3 pt-4 flex justify-start">
-                                                <button 
-                                                    onClick={handleStartRemedial}
-                                                    disabled={!selectedSubjectId || !selectedCourseId || !selectedPrefectId}
-                                                    className="px-6 py-3.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    <Play className="w-4 h-4" /> Scan Prefect Card to Start
-                                                </button>
+                                                        <button
+                                                            onClick={() => setShowManualOverride(prev => !prev)}
+                                                            className="px-4 py-3.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                                        >
+                                                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                                                            <span>{showManualOverride ? 'Hide Override' : 'Change Class / Subject'}</span>
+                                                            {showManualOverride ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Manual Override Dropdowns (Always available when toggled or when no scheduled lesson exists today) */}
+                                            {(showManualOverride || !todaysScheduledRemedial) && (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 animate-fade-in">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Subject</label>
+                                                        <select 
+                                                            value={selectedSubjectId || effectiveSubjectId}
+                                                            onChange={e => setSelectedSubjectId(e.target.value)}
+                                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                        >
+                                                            <option value="">-- Subject --</option>
+                                                            {subjects?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Class Stream</label>
+                                                        <select 
+                                                            value={selectedCourseId || effectiveCourseId}
+                                                            onChange={e => { setSelectedCourseId(e.target.value); setSelectedPrefectId(''); }}
+                                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                        >
+                                                            <option value="">-- Stream --</option>
+                                                            {courses?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Prefect Present</label>
+                                                        <select 
+                                                            value={selectedPrefectId || effectivePrefectId}
+                                                            onChange={e => setSelectedPrefectId(e.target.value)}
+                                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                            disabled={!effectiveCourseId}
+                                                        >
+                                                            <option value="">-- Prefect --</option>
+                                                            {coursePrefects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    <div className="md:col-span-3 pt-3 flex items-center gap-3">
+                                                        <button 
+                                                            onClick={() => setIsScannerModalOpen(true)}
+                                                            disabled={!effectiveSubjectId || !effectiveCourseId}
+                                                            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            <Camera className="w-4 h-4" /> Launch Scanner
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleStartRemedial()}
+                                                            disabled={!effectiveSubjectId || !effectiveCourseId}
+                                                            className="px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
+                                                            <Play className="w-4 h-4 text-emerald-400 dark:text-emerald-600" /> Start Selected Lesson
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Prefect Card Scanner Modal Viewfinder */}
+                                    {isScannerModalOpen && (
+                                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+                                            <div className="bg-slate-900 text-white w-full max-w-lg rounded-[2.5rem] border border-slate-800 shadow-2xl p-6 sm:p-8 space-y-6 animate-scale-up">
+                                                <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl">
+                                                            <Scan className="w-5 h-5 animate-pulse" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-base font-black uppercase tracking-wider text-white">Prefect Card Scanner</h3>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Remedial Lesson Attendance Verification</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setIsScannerModalOpen(false)}
+                                                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors"
+                                                    >
+                                                        <X className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+
+                                                {/* Target Lesson Summary */}
+                                                <div className="p-4 bg-slate-800/60 rounded-2xl border border-slate-700/60 flex items-center justify-between text-xs font-bold">
+                                                    <div>
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Class &amp; Subject</span>
+                                                        <span className="text-white text-sm font-black">
+                                                            {(courses?.find(c => c.id === effectiveCourseId)?.name || todaysScheduledRemedial?.className || 'Class')} &bull; {(subjects?.find(s => s.id === effectiveSubjectId)?.name || todaysScheduledRemedial?.subjectName || 'Subject')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Prefect Sign-Off</span>
+                                                        <span className="text-indigo-400 font-black">{primaryPrefect?.name || 'Class Leader'}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Viewfinder Mockup with Laser Scanner */}
+                                                <div className="relative aspect-video bg-black/70 rounded-3xl border-2 border-dashed border-indigo-500/50 flex flex-col items-center justify-center overflow-hidden p-6 text-center">
+                                                    {/* 4 Corner Reticles */}
+                                                    <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-indigo-400 rounded-tl-lg" />
+                                                    <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-indigo-400 rounded-tr-lg" />
+                                                    <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-indigo-400 rounded-bl-lg" />
+                                                    <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-indigo-400 rounded-br-lg" />
+
+                                                    {/* Laser Scan line animation */}
+                                                    <div className="absolute inset-x-8 h-0.5 bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_12px_#f43f5e] animate-bounce" style={{ animationDuration: '2s' }} />
+
+                                                    <QrCode className="w-16 h-16 text-indigo-400/80 mb-3 animate-pulse" />
+                                                    <p className="text-xs font-bold text-slate-200">Point Camera at Prefect QR Badge</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono mt-1">prefect_remedial_token_class_{effectiveCourseId || 'general'}</p>
+                                                </div>
+
+                                                {/* Trigger Buttons */}
+                                                <div className="space-y-3">
+                                                    <button
+                                                        onClick={() => handleStartRemedial()}
+                                                        className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                    >
+                                                        <CheckCircle2 className="w-4 h-4" /> Verify Prefect Badge &amp; Start Lesson
+                                                    </button>
+
+                                                    <div className="flex items-center gap-2 pt-1">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Or paste / scan card token manually..."
+                                                            value={scannerManualToken}
+                                                            onChange={e => setScannerManualToken(e.target.value)}
+                                                            className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500"
+                                                        />
+                                                        {scannerManualToken && (
+                                                            <button
+                                                                onClick={() => handleStartRemedial()}
+                                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+                                                            >
+                                                                Confirm
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     )}

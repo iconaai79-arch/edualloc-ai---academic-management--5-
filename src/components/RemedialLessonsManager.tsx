@@ -579,10 +579,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Helper to safely apply loaded or cached rate settings
     const applyRateSettings = (r: any) => {
         if (!r) return;
-        setRateSetting(r);
         const meta = (typeof r.metadata === 'object' && r.metadata !== null) 
-            ? r.metadata 
+            ? { ...r.metadata } 
             : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
+
+        // Preserve non-draft timetableApproval from cache if incoming has draft or missing
+        if (institutionId) {
+            try {
+                const cachedApprovalStr = safeLocalStorage.getItem(`remedial_timetable_approval_${institutionId}`);
+                if (cachedApprovalStr) {
+                    const cachedApp = JSON.parse(cachedApprovalStr);
+                    if (cachedApp && cachedApp.status && cachedApp.status !== 'draft') {
+                        if (!meta.timetableApproval || !meta.timetableApproval.status || meta.timetableApproval.status === 'draft') {
+                            meta.timetableApproval = cachedApp;
+                        }
+                    }
+                }
+            } catch (_) {}
+        }
+
+        const normalizedR = { ...r, metadata: meta };
+        setRateSetting(normalizedR);
 
         setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
         setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
@@ -808,6 +825,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (rates && rates.length > 0) {
                 applyRateSettings(rates[0]);
                 safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify(rates));
+                if (rates[0].metadata?.timetableApproval) {
+                    safeLocalStorage.setItem(`remedial_timetable_approval_${institutionId}`, JSON.stringify(rates[0].metadata.timetableApproval));
+                }
             }
             if (sessList.length > 0) {
                 safeLocalStorage.setItem(`remedial_sessions_${institutionId}`, JSON.stringify(sessList));
@@ -1455,14 +1475,36 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
     }, [tenantUsers]);
 
-    // Current Timetable Approval State from rateSetting.metadata.timetableApproval
+    // Current Timetable Approval State from rateSetting.metadata.timetableApproval with local fallback
     const timetableApproval: RemedialTimetableApproval = useMemo(() => {
+        let cachedApp: RemedialTimetableApproval | null = null;
+        if (institutionId) {
+            try {
+                const cachedApprovalStr = safeLocalStorage.getItem(`remedial_timetable_approval_${institutionId}`);
+                if (cachedApprovalStr) {
+                    const parsed = JSON.parse(cachedApprovalStr);
+                    if (parsed && parsed.status) {
+                        cachedApp = parsed;
+                    }
+                }
+            } catch (_) {}
+        }
+
         const existing = (rateSetting?.metadata as any)?.timetableApproval;
+        if (existing && existing.status && existing.status !== 'draft') {
+            return existing;
+        }
+        if (cachedApp && cachedApp.status && cachedApp.status !== 'draft') {
+            return cachedApp;
+        }
         if (existing && existing.status) {
             return existing;
         }
+        if (cachedApp && cachedApp.status) {
+            return cachedApp;
+        }
         return {
-            status: allocations.length > 0 ? 'draft' : 'draft',
+            status: 'draft',
             forwardedBy: '',
             forwardedAt: '',
             approvedBy: '',
@@ -1471,7 +1513,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             revisionNotes: '',
             forwardingNotes: ''
         };
-    }, [rateSetting, allocations.length]);
+    }, [rateSetting, institutionId]);
 
     // Distinct teachers in allocations for dispersal & stats
     const distinctTeachersInAllocations = useMemo(() => {
@@ -1497,10 +1539,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }));
     }, [allocations]);
 
-    // Helper to persist updated timetable approval status in rateSetting.metadata
+    // Helper to persist updated timetable approval status in rateSetting.metadata and institution_module_states
     const updateTimetableApproval = async (approvalData: Partial<RemedialTimetableApproval>) => {
         try {
-            const currentApproval = (rateSetting?.metadata as any)?.timetableApproval || {};
+            const currentApproval = (rateSetting?.metadata as any)?.timetableApproval || timetableApproval || {};
             const updatedApproval: RemedialTimetableApproval = {
                 ...currentApproval,
                 ...approvalData
@@ -1513,6 +1555,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 ...(rateSetting || {}),
                 id: rateSetting?.id || `rates_${institutionId}`,
                 institutionId,
+                institution_id: institutionId,
                 hourlyRate: rateSetting?.hourlyRate || hourlyRate,
                 weekdayHourlyRate: rateSetting?.weekdayHourlyRate || weekdayHourlyRate,
                 weekendHourlyRate: rateSetting?.weekendHourlyRate || weekendHourlyRate,
@@ -1527,11 +1570,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 feePerStudent: rateSetting?.feePerStudent || feePerStudent,
                 termFee: rateSetting?.termFee || termFee,
                 metadata: updatedMetadata,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             };
 
-            await apiService.saveModuleRecord('school_remedial_rate_settings', updatedRateSetting);
+            // 1. Immediately cache in localStorage for instant UI persistence on refresh
+            if (institutionId) {
+                safeLocalStorage.setItem(`remedial_timetable_approval_${institutionId}`, JSON.stringify(updatedApproval));
+                safeLocalStorage.setItem(`remedial_rates_${institutionId}`, JSON.stringify([updatedRateSetting]));
+            }
+
+            // 2. Optimistically update local component state
             setRateSetting(updatedRateSetting as any);
+
+            // 3. Save to school_remedial_rate_settings and simultaneously to institution_module_states
+            await Promise.allSettled([
+                apiService.saveModuleRecord('school_remedial_rate_settings', updatedRateSetting),
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `${institutionId}_remedial_timetable_approval`,
+                    institution_id: institutionId,
+                    module_id: 'remedial_timetable_approval',
+                    status: updatedApproval.status || 'active',
+                    data: updatedApproval,
+                    updated_at: new Date().toISOString()
+                })
+            ]);
+
             return updatedApproval;
         } catch (err: any) {
             console.error('Failed to update timetable approval status:', err);

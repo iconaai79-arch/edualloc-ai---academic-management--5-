@@ -1469,8 +1469,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'timestamp.desc';
             } else if (['teacher_check_ins'].includes(moduleName)) {
                 defaultOrderBy = 'check_in_date.desc';
-            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
-                defaultOrderBy = 'created_at.desc';
+            } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records', 'school_remedial_rate_settings'].includes(moduleName)) {
+                defaultOrderBy = 'updated_at.desc';
             } else if (['receipts'].includes(moduleName)) {
                 defaultOrderBy = 'payment_date.desc';
             } else if (['invoices'].includes(moduleName)) {
@@ -1731,12 +1731,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (moduleName === 'school_remedial_rate_settings') {
                 let records = Array.isArray(data) ? data : [];
                 const targetInst = targetInstParam || user?.institutionId;
+
+                // Sort descending by updated_at if multiple rate setting rows exist
+                if (records.length > 1) {
+                    records.sort((a, b) => {
+                        const timeA = new Date(a.updated_at || a.updatedAt || a.created_at || 0).getTime();
+                        const timeB = new Date(b.updated_at || b.updatedAt || b.created_at || 0).getTime();
+                        return timeB - timeA;
+                    });
+                }
+
                 if (records.length === 0 && targetInst) {
                     try {
                         const { data: imsData } = await supabase
                             .from('institution_module_states')
                             .select('data')
-                            .eq('id', `${targetInst}_school_remedial_rate_settings`)
+                            .or(`id.eq.${targetInst}_school_remedial_rate_settings,and(institution_id.eq.${targetInst},module_id.eq.school_remedial_rate_settings)`)
+                            .order('updated_at', { ascending: false })
                             .limit(1);
                         if (imsData && imsData.length > 0 && imsData[0].data) {
                             records = [imsData[0].data];
@@ -1744,11 +1755,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     } catch (_) {}
                 }
+
+                // Dedicated check for persistent timetable approval workflow state
+                let approvalDataFromIms: any = null;
+                if (targetInst) {
+                    try {
+                        const { data: appData } = await supabase
+                            .from('institution_module_states')
+                            .select('data, status')
+                            .or(`id.eq.${targetInst}_remedial_timetable_approval,and(institution_id.eq.${targetInst},module_id.eq.remedial_timetable_approval)`)
+                            .order('updated_at', { ascending: false })
+                            .limit(1);
+                        if (appData && appData.length > 0 && appData[0].data) {
+                            approvalDataFromIms = appData[0].data;
+                        }
+                    } catch (_) {}
+                }
+
+                if (records.length === 0 && targetInst) {
+                    records = [{
+                        id: `rates_${targetInst}`,
+                        institution_id: targetInst,
+                        institutionId: targetInst,
+                        hourly_rate: 1000,
+                        weekday_hourly_rate: 1000,
+                        weekend_hourly_rate: 1500,
+                        metadata: {
+                            timetableApproval: approvalDataFromIms || { status: 'draft' }
+                        }
+                    }];
+                    data = records;
+                }
+
                 records.forEach((r: any) => {
                     if (r && typeof r === 'object') {
                         const meta = typeof r.metadata === 'object' && r.metadata !== null 
-                            ? r.metadata 
+                            ? { ...r.metadata } 
                             : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
+
+                        if (approvalDataFromIms) {
+                            if (!meta.timetableApproval || !meta.timetableApproval.status || meta.timetableApproval.status === 'draft' || (approvalDataFromIms.status && approvalDataFromIms.status !== 'draft')) {
+                                meta.timetableApproval = {
+                                    ...(meta.timetableApproval || {}),
+                                    ...approvalDataFromIms
+                                };
+                            }
+                        }
 
                         // Saturday & Sunday Times
                         const satStart = r.saturday_start_time ?? r.saturdayStartTime ?? meta.saturday_start_time ?? meta.saturdayStartTime ?? r.weekend_start_time ?? r.weekendStartTime ?? '08:00';
@@ -1858,8 +1910,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Rates
                         r.weekday_duty_flat_rate = r.weekday_duty_flat_rate ?? meta.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? 200;
                         r.weekdayDutyFlatRate = r.weekday_duty_flat_rate;
+
+                        // Ensure metadata is always assigned as a normalized object
+                        r.metadata = meta;
                     }
                 });
+                data = records;
             }
 
             if (moduleName === 'school_remedial_allocations' && Array.isArray(data)) {
@@ -4102,16 +4158,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (moduleName === 'school_remedial_rate_settings') {
                 const savedItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
-                const instId = savedItem?.institution_id;
+                const rawItem = Array.isArray(recordData) ? recordData[0] : recordData;
+                const instId = savedItem?.institution_id || savedItem?.institutionId || rawItem?.institution_id || rawItem?.institutionId || savedItem?.metadata?.institution_id || rawItem?.metadata?.institution_id || user?.institutionId;
                 if (instId) {
-                    Promise.resolve(supabase.from('institution_module_states').upsert({
+                    const imsPromises: Promise<any>[] = [];
+
+                    imsPromises.push(supabase.from('institution_module_states').upsert({
                         id: `${instId}_school_remedial_rate_settings`,
                         institution_id: instId,
                         module_id: 'school_remedial_rate_settings',
                         status: 'active',
-                        data: savedItem,
+                        data: { ...(savedItem || {}), ...(rawItem || {}) },
                         updated_at: new Date().toISOString()
-                    }, { onConflict: 'id' })).catch(() => {});
+                    }, { onConflict: 'id' }));
+
+                    const meta = typeof savedItem?.metadata === 'object' && savedItem?.metadata !== null
+                        ? savedItem.metadata
+                        : (typeof rawItem?.metadata === 'object' && rawItem?.metadata !== null
+                            ? rawItem.metadata
+                            : (typeof savedItem?.metadata === 'string' ? (() => { try { return JSON.parse(savedItem.metadata); } catch (_) { return {}; } })() : {}));
+                    
+                    const timetableApproval = meta?.timetableApproval || rawItem?.timetableApproval || (savedItem as any)?.timetableApproval;
+
+                    if (timetableApproval && typeof timetableApproval === 'object') {
+                        imsPromises.push(supabase.from('institution_module_states').upsert({
+                            id: `${instId}_remedial_timetable_approval`,
+                            institution_id: instId,
+                            module_id: 'remedial_timetable_approval',
+                            status: timetableApproval.status || 'active',
+                            data: timetableApproval,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'id' }));
+                    }
+
+                    try {
+                        await Promise.allSettled(imsPromises);
+                    } catch (_) {}
                 }
             }
 

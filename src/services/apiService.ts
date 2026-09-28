@@ -6699,11 +6699,35 @@ export const apiService = {
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { return apiService.fetchModuleRecords('school_remedial_sessions', instId); },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { await apiService.saveModuleRecord('school_remedial_sessions', data); },
     async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> {
-        const records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);
+        let records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);
+        if ((!records || records.length === 0) && instId) {
+            try {
+                const cachedRates = safeLocalStorage.getItem(`remedial_rates_${instId}`);
+                if (cachedRates) {
+                    const parsed = JSON.parse(cachedRates);
+                    if (Array.isArray(parsed) && parsed.length > 0) records = parsed;
+                }
+            } catch (_) {}
+        }
+        let cachedApproval: any = null;
+        if (instId) {
+            try {
+                const appStr = safeLocalStorage.getItem(`remedial_timetable_approval_${instId}`);
+                if (appStr) {
+                    const parsed = JSON.parse(appStr);
+                    if (parsed && parsed.status) cachedApproval = parsed;
+                }
+            } catch (_) {}
+        }
         return (records || []).map((r: any) => {
             const meta = (typeof r.metadata === 'object' && r.metadata !== null) 
-                ? r.metadata 
+                ? { ...r.metadata } 
                 : (typeof r.metadata === 'string' ? (() => { try { return JSON.parse(r.metadata); } catch (_) { return {}; } })() : {});
+            if (cachedApproval && cachedApproval.status && cachedApproval.status !== 'draft') {
+                if (!meta.timetableApproval || !meta.timetableApproval.status || meta.timetableApproval.status === 'draft') {
+                    meta.timetableApproval = cachedApproval;
+                }
+            }
             const cachedSunStart = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_start_${instId}`) : null;
             const cachedSunEnd = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_end_${instId}`) : null;
             const cachedSunPeriods = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_periods_${instId}`) : null;
@@ -6836,14 +6860,32 @@ export const apiService = {
         const instId = (data as any)?.institutionId || (data as any)?.institution_id;
         if (instId) {
             try {
-                await apiService.saveModuleRecord('institution_module_states', {
-                    id: `${instId}_school_remedial_rate_settings`,
-                    institution_id: instId,
-                    module_id: 'school_remedial_rate_settings',
-                    data: data,
-                    status: 'active',
-                    updated_at: new Date().toISOString()
-                }).catch(() => {});
+                const meta = typeof data.metadata === 'object' && data.metadata !== null ? data.metadata : {};
+                const promises: Promise<any>[] = [
+                    apiService.saveModuleRecord('institution_module_states', {
+                        id: `${instId}_school_remedial_rate_settings`,
+                        institution_id: instId,
+                        module_id: 'school_remedial_rate_settings',
+                        data: data,
+                        status: 'active',
+                        updated_at: new Date().toISOString()
+                    }).catch(() => {})
+                ];
+                if (meta.timetableApproval) {
+                    promises.push(
+                        apiService.saveModuleRecord('institution_module_states', {
+                            id: `${instId}_remedial_timetable_approval`,
+                            institution_id: instId,
+                            module_id: 'remedial_timetable_approval',
+                            status: meta.timetableApproval.status || 'active',
+                            data: meta.timetableApproval,
+                            updated_at: new Date().toISOString()
+                        }).catch(() => {})
+                    );
+                    safeLocalStorage.setItem(`remedial_timetable_approval_${instId}`, JSON.stringify(meta.timetableApproval));
+                }
+                safeLocalStorage.setItem(`remedial_rates_${instId}`, JSON.stringify([data]));
+                await Promise.allSettled(promises);
             } catch (_) {}
         }
     },

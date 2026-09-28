@@ -272,13 +272,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const batch = recipients.slice(i, i + batchSize);
 
                 try {
-                    if (prov === 'Sematime') {
-                        const accId = candidate.accountId || candidate.userId || candidate.apiKey || '';
-                        const authToken = candidate.authToken || candidate.apiSecret || candidate.password || '';
+                    if (prov.toLowerCase() === 'sematime') {
+                        const accId = String(
+                            candidate.accountId || candidate.account_id || candidate.userId || candidate.user_id || 
+                            candidate.apiKey || candidate.api_key || candidate.username || ''
+                        ).trim();
+                        const authToken = String(
+                            candidate.authToken || candidate.auth_token || candidate.apiSecret || candidate.api_secret || 
+                            candidate.password || candidate.token || ''
+                        ).trim();
                         if (!accId || !authToken) {
                             throw new Error('Sematime requires accountId and authToken');
                         }
-                        const semaUrl = candidate.baseUrl || candidate.api_url || `https://apis.sematime.com/v1/${accId}/messages/single`;
+
+                        let semaUrl = (candidate.baseUrl || candidate.api_url || '').trim();
+                        if (!semaUrl || !semaUrl.includes('/messages/single')) {
+                            const domain = (semaUrl.includes('api.sematime.com') || semaUrl.includes('apis.sematime.com'))
+                                ? semaUrl.replace(/\/+$/, '')
+                                : 'https://api.sematime.com/v1';
+                            const cleanDomain = domain.includes('/v1') ? domain : `${domain}/v1`;
+                            semaUrl = `${cleanDomain}/${accId}/messages/single`;
+                        }
 
                         const customHeaders: Record<string, string> = {};
                         if (Array.isArray(candidate.headers)) {
@@ -287,31 +301,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             });
                         }
 
+                        // Sematime accepts single phone number string or comma-separated string
+                        const semaRecipients = batch.map(r => {
+                            let clean = r.replace(/[^\d]/g, '');
+                            return clean;
+                        }).filter(Boolean);
+
                         const semaPayload: any = {
                             text: msgText,
-                            recipients: batch.join(',')
+                            recipients: semaRecipients.length === 1 ? semaRecipients[0] : semaRecipients.join(',')
                         };
-                        const customSender = candidate.fromNumber || candidate.senderId || candidate.senderid;
-                        if (customSender) {
+
+                        const customSender = (candidate.fromNumber || candidate.senderId || candidate.senderid || '').trim();
+                        // Only set custom senderId if explicitly non-default to prevent rejected messages on accounts without custom sender approvals
+                        if (customSender && customSender !== 'EDUAI' && customSender !== 'SEMATIME' && customSender.toUpperCase() !== 'DEFAULT') {
                             semaPayload.senderId = customSender;
                         }
 
-                        const sRes = await fetchWithTimeout(semaUrl, {
+                        // Sematime requires AuthToken header. NEVER send 'Authorization: Bearer' as it causes Sematime 500 error.
+                        const semaHeaders = {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'AuthToken': authToken,
+                            ...customHeaders
+                        };
+
+                        let sRes = await fetchWithTimeout(semaUrl, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'AuthToken': authToken,
-                                'Authorization': `Bearer ${authToken}`,
-                                ...customHeaders
-                            },
+                            headers: semaHeaders,
                             body: JSON.stringify(semaPayload)
                         }, gatewayTimeout);
 
-                        const resRaw = await sRes.text();
+                        let resRaw = await sRes.text();
                         lastRaw = resRaw;
                         let resData: any;
                         try { resData = JSON.parse(resRaw); } catch (e) { resData = { raw: resRaw }; }
+
+                        // Auto-retry without senderId if failed and senderId was provided (unregistered sender ID causes error on Sematime)
+                        if ((!sRes.ok || (resData && (resData.response === 'error' || resData.status === 'error' || resData.error || resData.errorMessage))) && semaPayload.senderId) {
+                            console.warn(`[Sematime] Dispatch with senderId '${semaPayload.senderId}' failed (${resRaw.substring(0, 100)}). Retrying without senderId...`);
+                            delete semaPayload.senderId;
+                            sRes = await fetchWithTimeout(semaUrl, {
+                                method: 'POST',
+                                headers: semaHeaders,
+                                body: JSON.stringify(semaPayload)
+                            }, gatewayTimeout);
+                            resRaw = await sRes.text();
+                            lastRaw = resRaw;
+                            try { resData = JSON.parse(resRaw); } catch (e) { resData = { raw: resRaw }; }
+                        }
+
+                        // Auto-retry on alternative endpoint (apis.sematime.com <-> api.sematime.com) if network or server 5xx/404 error
+                        if (!sRes.ok && (sRes.status >= 500 || sRes.status === 404)) {
+                            const altUrl = semaUrl.includes('apis.sematime.com')
+                                ? semaUrl.replace('apis.sematime.com', 'api.sematime.com')
+                                : semaUrl.replace('api.sematime.com', 'apis.sematime.com');
+                            if (altUrl !== semaUrl) {
+                                console.warn(`[Sematime] Retrying on alternate domain: ${altUrl}`);
+                                sRes = await fetchWithTimeout(altUrl, {
+                                    method: 'POST',
+                                    headers: semaHeaders,
+                                    body: JSON.stringify(semaPayload)
+                                }, gatewayTimeout);
+                                resRaw = await sRes.text();
+                                lastRaw = resRaw;
+                                try { resData = JSON.parse(resRaw); } catch (e) { resData = { raw: resRaw }; }
+                            }
+                        }
 
                         let isError = !sRes.ok || (resData && (resData.response === 'error' || resData.status === 'error' || resData.error || resData.errorMessage));
                         const authKeyLower = (accId || '').toLowerCase();
@@ -501,28 +557,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const pushCandidate = (cfg: any, label: string) => {
                 if (!cfg || typeof cfg !== 'object') return;
                 const prov = (cfg.provider || 'Zettatel').trim();
-                const key = cfg.apiKey || cfg.api_key || cfg.username || cfg.userId || cfg.accountId || cfg.apikey || '';
-                const secret = cfg.apiSecret || cfg.api_secret || cfg.password || cfg.authToken || cfg.apisecret || '';
+                const key = cfg.apiKey || cfg.api_key || cfg.username || cfg.userId || cfg.user_id || cfg.accountId || cfg.account_id || cfg.apikey || '';
+                const secret = cfg.apiSecret || cfg.api_secret || cfg.password || cfg.authToken || cfg.auth_token || cfg.token || cfg.apisecret || '';
                 if (!key && !secret && !cfg.baseUrl && !isSysMsg) return;
 
-                const hash = `${prov}:${key}:${secret.substring(0, 4)}:${cfg.baseUrl || ''}`;
+                const hash = `${prov.toLowerCase()}:${key}:${secret.substring(0, 4)}:${cfg.baseUrl || ''}`;
                 if (seen.has(hash)) return;
                 seen.add(hash);
                 list.push({ ...cfg, provider: prov, _source: label });
             };
 
+            const hasAnySmsCreds = (c: any) => Boolean(
+                c && (
+                    c.apiKey || c.api_key || c.username || c.userId || c.user_id || 
+                    c.accountId || c.account_id || c.apikey || c.authToken || c.auth_token || 
+                    c.apiSecret || c.api_secret || c.password || c.token
+                )
+            );
+
             // 1. Explicit body or caller config
-            if (primaryConfig && (primaryConfig.apiKey || primaryConfig.api_key || primaryConfig.userId || primaryConfig.username || primaryConfig.accountId)) {
+            if (primaryConfig && hasAnySmsCreds(primaryConfig)) {
                 pushCandidate(primaryConfig, 'Active Context');
             }
 
             // 2. Institution-specific config
-            if (instConfig && (instConfig.apiKey || instConfig.api_key || instConfig.userId || instConfig.username || instConfig.accountId)) {
+            if (instConfig && hasAnySmsCreds(instConfig)) {
                 pushCandidate(instConfig, 'Institution Config');
             }
 
             // 3. System-wide global config
-            if (sysConfig && (sysConfig.apiKey || sysConfig.api_key || sysConfig.userId || sysConfig.username || sysConfig.accountId)) {
+            if (sysConfig && hasAnySmsCreds(sysConfig)) {
                 pushCandidate(sysConfig, 'System Global Config');
             }
 
@@ -1662,10 +1726,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const effectiveRole = user.role === 'system' ? (user.originalRole || 'system') : user.role;
             let smsConfig = { ...(settings.sms_config || {}) };
 
+            const hasValidSmsCreds = (c: any) => Boolean(
+                c && (
+                    c.apiKey || c.api_key || c.username || c.userId || c.user_id || 
+                    c.accountId || c.account_id || c.apikey || c.authToken || c.auth_token || 
+                    c.apiSecret || c.api_secret || c.password || c.token
+                )
+            );
+
             // If a custom config was provided in the body, use it directly to honor active module context configurations
-            if (bodyConfig && (bodyConfig.apiKey || bodyConfig.api_key || bodyConfig.username || bodyConfig.userId || bodyConfig.apikey)) {
+            if (bodyConfig && hasValidSmsCreds(bodyConfig)) {
                 smsConfig = { ...bodyConfig };
-                console.log(`[SMS Gateway] Using provided body configuration payload override`);
+                console.log(`[SMS Gateway] Using provided body configuration payload override (${bodyConfig.provider || 'default'})`);
             }
 
             // Extract recipients and calculate total units early for balance check
@@ -1726,8 +1798,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     // Prefer institution-specific SMS gateway if configured and no valid body payload was supplied
-                    if (instConfig && (!bodyConfig || !(bodyConfig.apiKey || bodyConfig.api_key || bodyConfig.username || bodyConfig.userId)) && (instConfig.apiKey || instConfig.api_key || instConfig.username || instConfig.userId)) {
-                        console.log(`[SMS Gateway] Using institution-specific configuration for ${institutionId}`);
+                    if (instConfig && (!bodyConfig || !hasValidSmsCreds(bodyConfig)) && hasValidSmsCreds(instConfig)) {
+                        console.log(`[SMS Gateway] Using institution-specific configuration for ${institutionId} (${instConfig.provider || 'default'})`);
                         smsConfig = { ...instConfig };
                     }
                 }
