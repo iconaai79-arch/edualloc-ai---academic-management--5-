@@ -987,6 +987,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 ...session,
                 endTime: end.toISOString(),
                 hours: calculatedHours,
+                durationHours: calculatedHours,
+                duration_hours: calculatedHours,
                 status: 'Pending Duty Approval' as const
             };
 
@@ -1739,6 +1741,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     prefectName: prefect?.name || 'Class Leader / Secretary',
                                     prefectToken: `prefect_remedial_token_class_${courseId}`,
                                     startTime: new Date().toISOString(),
+                                    hours: 1,
+                                    durationHours: 1,
+                                    duration_hours: 1,
                                     status: 'In Progress',
                                     createdAt: new Date().toISOString(),
                                     institutionId: currentInstitution?.id || user?.institutionId || ''
@@ -2594,19 +2599,32 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                             <p className="text-[9px] text-slate-400 font-medium">{new Date(s.startTime).toLocaleDateString()}</p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white">{s.hours ? `${s.hours} hrs` : 'In Progress'}</p>
+                                                            {s.status === 'In Progress' ? (
+                                                                <p className="text-xs font-black text-amber-500 uppercase tracking-wider">In Progress</p>
+                                                            ) : (
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white">
+                                                                    {s.hours || (s as any).durationHours || (s as any).duration_hours || (s.endTime && s.startTime ? Math.max(1, Math.round(((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000) * 10) / 10) : 1)} hrs
+                                                                </p>
+                                                            )}
                                                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-block mt-1 ${
                                                                 s.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
                                                                 s.status === 'Cash Issued to DOS' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300' :
                                                                 s.status === 'Pending Operations Payout' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
                                                                 s.status === 'Pending Headteacher Approval' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
                                                                 s.status === 'Pending Duty Approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                                s.status === 'Duty Rejected - Forwarded to Headteacher' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
+                                                                s.status === 'Headteacher Rejected' ? 'bg-red-200 text-red-800 dark:bg-red-950/80 dark:text-red-300' :
                                                                 s.status === 'Approved' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
                                                                 s.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
                                                                 'bg-slate-100 text-slate-500'
                                                             }`}>
                                                                 {s.status}
                                                             </span>
+                                                            {s.dutyRejectionReason && (
+                                                                <p className="text-[8px] text-rose-500 font-bold mt-0.5 max-w-[160px] truncate" title={s.dutyRejectionReason}>
+                                                                    TOD Rejected: {s.dutyRejectionReason}
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ))

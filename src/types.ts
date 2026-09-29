@@ -6455,6 +6455,8 @@ export type RemedialSessionStatus =
     | 'Prefect Confirmed' 
     | 'Pending Duty Approval' 
     | 'Pending Headteacher Approval' 
+    | 'Duty Rejected - Forwarded to Headteacher'
+    | 'Headteacher Rejected'
     | 'Pending Operations Payout' 
     | 'Cash Issued to DOS' 
     | 'Approved' 
@@ -6479,6 +6481,8 @@ export interface RemedialSession {
     startTime: string;
     endTime?: string;
     hours?: number;
+    durationHours?: number;
+    duration_hours?: number;
     durationMinutes?: number;
     date?: string;
     dayOfWeek?: string;
@@ -6489,19 +6493,27 @@ export interface RemedialSession {
     verifiedAt?: string;
     status: RemedialSessionStatus;
     
-    // Stage 2: Teacher on Duty Verification
+    // Stage 2: Teacher on Duty Verification & Rejection
     dutyApproved?: boolean;
     dutyApprovedBy?: string;
     dutyApprovedById?: string;
     dutyApprovedAt?: string;
     dutyNotes?: string;
+    dutyRejected?: boolean;
+    dutyRejectionReason?: string;
+    dutyRejectedBy?: string;
+    dutyRejectedAt?: string;
 
-    // Stage 3: Headteacher / Principal Authorization
+    // Stage 3: Headteacher / Principal Authorization & Review
     headteacherApproved?: boolean;
     headteacherApprovedBy?: string;
     headteacherApprovedById?: string;
     headteacherApprovedAt?: string;
     headteacherNotes?: string;
+    headteacherRejected?: boolean;
+    headteacherRejectionReason?: string;
+    headteacherRejectedBy?: string;
+    headteacherRejectedAt?: string;
 
     // Stage 4: Operations Manager Cash Handover to DOS
     operationsDisbursed?: boolean;

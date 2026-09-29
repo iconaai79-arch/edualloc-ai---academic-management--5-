@@ -6696,8 +6696,34 @@ export const apiService = {
         ls.upsert('institution_module_states', [payload]);
     },
     // Remedial Module
-    async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { return apiService.fetchModuleRecords('school_remedial_sessions', instId); },
-    async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { await apiService.saveModuleRecord('school_remedial_sessions', data); },
+    async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { 
+        const records = await apiService.fetchModuleRecords<any>('school_remedial_sessions', instId); 
+        return (records || []).map((r: any) => {
+            const rawH = r.hours ?? r.durationHours ?? r.duration_hours ?? (
+                r.durationMinutes ? r.durationMinutes / 60 : (
+                    r.startTime && r.endTime ? Math.max(1, Math.round(((new Date(r.endTime).getTime() - new Date(r.startTime).getTime()) / 3600000) * 10) / 10) : 1
+                )
+            );
+            const numH = (!rawH || isNaN(Number(rawH)) || Number(rawH) <= 0) ? 1 : Number(rawH);
+            return {
+                ...r,
+                hours: numH,
+                durationHours: numH,
+                duration_hours: numH
+            };
+        });
+    },
+    async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { 
+        const payload: any = { ...data };
+        const rawH = payload.hours ?? payload.durationHours ?? payload.duration_hours ?? (
+            payload.startTime && payload.endTime ? Math.max(1, Math.round(((new Date(payload.endTime).getTime() - new Date(payload.startTime).getTime()) / 3600000) * 10) / 10) : 1
+        );
+        const numH = (!rawH || isNaN(Number(rawH)) || Number(rawH) <= 0) ? 1 : Number(rawH);
+        payload.hours = numH;
+        payload.durationHours = numH;
+        payload.duration_hours = numH;
+        await apiService.saveModuleRecord('school_remedial_sessions', payload); 
+    },
     async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> {
         let records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);
         if ((!records || records.length === 0) && instId) {
