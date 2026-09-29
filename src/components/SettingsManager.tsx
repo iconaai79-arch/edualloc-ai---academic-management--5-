@@ -58,6 +58,8 @@ import { RectangleStackIcon } from './icons/RectangleStackIcon';
 import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
 import { EyeIcon } from './icons/EyeIcon';
 import { DocumentArrowDownIcon } from './icons/DocumentArrowDownIcon';
+import { QrCodeIcon } from './icons/QrCodeIcon';
+import { printGateQrSignboard } from './TeacherCheckInView';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { EnvelopeIcon } from './icons/EnvelopeIcon';
 import { StoreIcon } from './icons/StoreIcon';
@@ -4542,6 +4544,36 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             >
                                                 Copy Kiosk Link
                                             </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Gate Attendance & Staff Self Check-In QR Signboard */}
+                                    <div className="p-6 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-700 space-y-4 mt-4 animate-fade-in">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <h5 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                                    <QrCodeIcon className="w-5 h-5 text-indigo-500" />
+                                                    Staff Gate Attendance & Check-In QR Signboard
+                                                </h5>
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    Print official entrance signboard QR posters. Teachers and staff scan this physical poster with their mobile devices upon arrival to complete self check-in.
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => printGateQrSignboard(props.currentInstitution?.name || 'School Entrance', props.currentInstitution?.id || '')}
+                                                className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition-all font-black uppercase text-xs tracking-widest shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+                                                title="Print Gate Attendance Signboard"
+                                            >
+                                                <PrinterIcon className="w-4 h-4 text-white" />
+                                                Print Gate QR Signboard
+                                            </button>
+                                        </div>
+                                        <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between text-xs">
+                                            <span className="text-slate-500 font-medium">Entrance Gate QR Payload:</span>
+                                            <code className="text-indigo-600 dark:text-indigo-400 font-mono font-bold bg-white dark:bg-slate-800 px-2.5 py-1 rounded-md border border-indigo-200/50">
+                                                school_gate_id:{props.currentInstitution?.id || 'N/A'}
+                                            </code>
                                         </div>
                                     </div>
 

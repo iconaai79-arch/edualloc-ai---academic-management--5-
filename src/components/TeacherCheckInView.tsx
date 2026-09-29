@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Institution, TeacherCheckInWithDetails, CheckInType, CheckInStatus } from '../types';
 import { ClockIcon } from './icons/ClockIcon';
 import { CheckCircleIcon } from './icons/CheckCircleIcon';
@@ -9,6 +9,7 @@ import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { CameraIcon } from './icons/CameraIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
+import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { apiService } from '../services/apiService';
 import { calculateDistance } from '../utils/locationUtils';
 
@@ -167,12 +168,14 @@ interface TeacherCheckInViewProps {
     currentUser?: User | null;
     currentInstitution?: Institution | null;
     onLogAction?: (action: string) => Promise<void> | void;
+    showPrintGateQr?: boolean;
 }
 
 const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     currentUser,
     currentInstitution,
-    onLogAction
+    onLogAction,
+    showPrintGateQr = false
 }) => {
     const [todayCheckIn, setTodayCheckIn] = useState<TeacherCheckInWithDetails | null>(null);
     const [loading, setLoading] = useState(true);
@@ -185,8 +188,295 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const [checkingLocation, setCheckingLocation] = useState(false);
     const [scanningGateQr, setScanningGateQr] = useState(false);
 
+    // Live Camera & Hardware QR Scanner States
+    const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+    const [isCameraActive, setIsCameraActive] = useState(false);
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
+    const [isProcessingCheckIn, setIsProcessingCheckIn] = useState(false);
+    const [scanSuccessBadge, setScanSuccessBadge] = useState<string | null>(null);
+    const [qrValidationError, setQrValidationError] = useState<string | null>(null);
+
     const teacherId = currentUser?.id || '';
     const institutionId = currentInstitution?.id || currentUser?.institutionId || '';
+
+    const stopCamera = useCallback(() => {
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => {
+                try { track.stop(); } catch (_) {}
+            });
+            setCameraStream(null);
+        }
+        setIsCameraActive(false);
+    }, [cameraStream]);
+
+    const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
+        setCameraError(null);
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => {
+                try { track.stop(); } catch (_) {}
+            });
+        }
+        try {
+            if (!navigator?.mediaDevices?.getUserMedia) {
+                throw new Error("Camera API not supported in this browser. Please use HTTPS or localhost.");
+            }
+
+            let stream: MediaStream | null = null;
+
+            if (facing === 'environment') {
+                // 1. Try explicit rear/back camera deviceId if devices are already enumerated
+                if (navigator.mediaDevices.enumerateDevices) {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                        const rearDevice = videoDevices.find(d => 
+                            /back|rear|environment|main|facing\s*back/i.test(d.label)
+                        );
+                        if (rearDevice && rearDevice.deviceId) {
+                            stream = await navigator.mediaDevices.getUserMedia({
+                                video: {
+                                    deviceId: { exact: rearDevice.deviceId },
+                                    width: { ideal: 1280 },
+                                    height: { ideal: 720 }
+                                },
+                                audio: false
+                            });
+                        }
+                    } catch (_) {}
+                }
+
+                // 2. Exact 'environment' constraint - forces rear camera on mobile (Chrome / Safari / Edge)
+                if (!stream) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: {
+                                facingMode: { exact: 'environment' },
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            },
+                            audio: false
+                        });
+                    } catch (_) {}
+                }
+
+                // 3. Fallback to ideal 'environment'
+                if (!stream) {
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            video: {
+                                facingMode: { ideal: 'environment' },
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            },
+                            audio: false
+                        });
+                    } catch (_) {}
+                }
+
+                // 4. Ultimate fallback to standard video stream
+                if (!stream) {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                }
+            } else {
+                // Front / User camera requested
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    });
+                } catch (_) {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                }
+            }
+
+            setCameraStream(stream);
+            setIsCameraActive(true);
+            if (scannerVideoRef.current) {
+                scannerVideoRef.current.srcObject = stream;
+                scannerVideoRef.current.play().catch(e => console.warn('Video play warning:', e));
+            }
+        } catch (err: any) {
+            console.error("Camera access failed:", err);
+            let friendly = "Could not activate camera.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                friendly = "Camera access denied. Please click the lock/camera icon in your browser URL bar and allow Camera permission.";
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                friendly = "No camera hardware detected on this device.";
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                friendly = "Camera is in use by another tab or application.";
+            }
+            setCameraError(friendly);
+            setIsCameraActive(false);
+        }
+    }, [cameraStream]);
+
+    const toggleCameraFacing = useCallback(() => {
+        const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
+        setCameraFacingMode(nextFacing);
+        startCamera(nextFacing);
+    }, [cameraFacingMode, startCamera]);
+
+    // Gate QR Scanner loop: native BarcodeDetector with jsQR fallback and validation
+    useEffect(() => {
+        let scanInterval: any = null;
+        let detector: any = null;
+        let offscreenCanvas: HTMLCanvasElement | null = null;
+        let jsQrScript: HTMLScriptElement | null = null;
+
+        if (scanningGateQr) {
+            setScanSuccessBadge(null);
+            setQrValidationError(null);
+            setIsProcessingCheckIn(false);
+            setCameraFacingMode('environment'); // Always default to rear camera on open
+            startCamera('environment');
+
+            if ('BarcodeDetector' in window) {
+                try {
+                    detector = new (window as any).BarcodeDetector({
+                        formats: ['qr_code', 'code_128', 'ean_13', 'data_matrix']
+                    });
+                } catch (e) {
+                    console.warn('BarcodeDetector init warning:', e);
+                }
+            }
+
+            if (!('BarcodeDetector' in window) && !(window as any).jsQR) {
+                jsQrScript = document.createElement('script');
+                jsQrScript.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+                jsQrScript.async = true;
+                document.body.appendChild(jsQrScript);
+            }
+
+            offscreenCanvas = document.createElement('canvas');
+
+            let lastScannedRaw = '';
+            let lastScanTime = 0;
+
+            scanInterval = setInterval(async () => {
+                const video = scannerVideoRef.current;
+                if (!video || video.readyState < 2) return;
+
+                let detectedRaw: string | null = null;
+
+                // Engine 1: Native BarcodeDetector
+                if (detector) {
+                    try {
+                        const barcodes = await detector.detect(video);
+                        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                            detectedRaw = String(barcodes[0].rawValue).trim();
+                        }
+                    } catch (_) {}
+                }
+
+                // Engine 2: Canvas + jsQR Fallback
+                if (!detectedRaw && (window as any).jsQR && offscreenCanvas) {
+                    try {
+                        const vw = video.videoWidth || 640;
+                        const vh = video.videoHeight || 480;
+                        offscreenCanvas.width = vw;
+                        offscreenCanvas.height = vh;
+                        const ctx = offscreenCanvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(video, 0, 0, vw, vh);
+                            const imgData = ctx.getImageData(0, 0, vw, vh);
+                            const code = (window as any).jsQR(imgData.data, imgData.width, imgData.height, {
+                                inversionAttempts: "dontInvert"
+                            });
+                            if (code && code.data) {
+                                detectedRaw = String(code.data).trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                if (!detectedRaw) return;
+
+                const now = Date.now();
+                if (detectedRaw === lastScannedRaw && now - lastScanTime < 3000) {
+                    return;
+                }
+                lastScannedRaw = detectedRaw;
+                lastScanTime = now;
+
+                // VALIDATE OFFICIAL GATE QR CODE
+                const trimmed = detectedRaw.trim();
+                const expectedToken = `school_gate_id:${institutionId}`;
+                const isValidGate = (
+                    trimmed === expectedToken ||
+                    (institutionId && trimmed.includes(institutionId)) ||
+                    trimmed.startsWith('school_gate_id:')
+                );
+
+                if (!isValidGate) {
+                    setQrValidationError(`Invalid Gate QR: "${trimmed.slice(0, 28)}...". This code does not match the official school entrance gate.`);
+                    return;
+                }
+
+                // Official Gate QR verified! Process check-in
+                setQrValidationError(null);
+                setScanSuccessBadge(trimmed);
+                setIsProcessingCheckIn(true);
+
+                const hour = new Date().getHours();
+                const shift: CheckInType = (hour >= 15) ? 'Afternoon' : 'Morning';
+
+                try {
+                    await apiService.processTeacherCheckIn({
+                        teacher_id: teacherId,
+                        institution_id: institutionId,
+                        checkin_type: shift,
+                        location: 'School Gate (Hardware Scanned Entrance Signboard)',
+                        notes: `Gate Check-In Verified [${trimmed}]`
+                    });
+
+                    if (onLogAction) {
+                        await onLogAction(`Checked in via Gate QR Code Scan for ${shift} shift`);
+                    }
+
+                    setTimeout(() => {
+                        setScanningGateQr(false);
+                        stopCamera();
+                        loadTodayCheckIn();
+                    }, 1400);
+                } catch (err: any) {
+                    setQrValidationError(err.message || 'Check-in failed. Please try again.');
+                    setIsProcessingCheckIn(false);
+                }
+            }, 120);
+        } else {
+            stopCamera();
+        }
+
+        return () => {
+            if (scanInterval) clearInterval(scanInterval);
+            if (jsQrScript && jsQrScript.parentNode) {
+                jsQrScript.parentNode.removeChild(jsQrScript);
+            }
+        };
+    }, [scanningGateQr, institutionId, teacherId, onLogAction, startCamera, stopCamera]);
+
+    // Clean up camera stream on unmount
+    useEffect(() => {
+        return () => {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => {
+                    try { track.stop(); } catch (_) {}
+                });
+            }
+        };
+    }, [cameraStream]);
 
     useEffect(() => {
         if (teacherId) {
@@ -451,14 +741,16 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                     <p className="text-lg font-semibold text-blue-600 mt-1">{getCurrentTime()}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', institutionId)}
-                        className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-2xl shadow-sm transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
-                        title="Print Gate Attendance Signboard"
-                    >
-                        <PrinterIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        Print Gate QR
-                    </button>
+                    {showPrintGateQr && (
+                        <button
+                            onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', institutionId)}
+                            className="flex items-center gap-2 px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-2xl shadow-sm transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
+                            title="Print Gate Attendance Signboard"
+                        >
+                            <PrinterIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                            Print Gate QR
+                        </button>
+                    )}
                     <button
                         onClick={() => setScanningGateQr(true)}
                         className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-lg hover:shadow-indigo-150 transition-all font-black uppercase text-xs tracking-widest hover:scale-[1.02] active:scale-[0.98]"
@@ -709,66 +1001,126 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                 </div>
             )}
             {scanningGateQr && (
-                <div className="fixed inset-0 bg-black/90 z-[200] flex flex-col items-center justify-center p-4">
-                    <div className="w-full max-w-lg text-center flex flex-col items-center">
-                        <div className="relative aspect-square w-full max-w-[320px] bg-slate-800 rounded-3xl border-4 border-indigo-500 overflow-hidden mb-6 shadow-[0_0_50px_rgba(99,102,241,0.5)]">
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                                <QrCodeIcon className="w-24 h-24 text-indigo-400/20 mb-4 animate-pulse" />
-                                <p className="text-indigo-400 font-bold uppercase text-[10px] tracking-widest mb-4">Accessing Camera...</p>
-                                <button
-                                    onClick={() => setScanningGateQr(false)}
-                                    className="px-6 py-2.5 bg-red-650/40 hover:bg-red-650/60 text-red-300 rounded-xl border border-red-500/20 text-xs font-black uppercase tracking-wider transition-all"
-                                >
-                                    Cancel Scan
-                                </button>
-                            </div>
-                            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_20px_#6366f1] animate-[scan_3s_infinite]"></div>
-                        </div>
-                        <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">Scan Gate printed QR Code</h3>
-                        <p className="text-slate-400 font-medium text-xs mb-8">Point your device camera at the printed QR code plate mounted at the school gate</p>
-                        
-                        {/* Mock Printed QR Scanner Targets */}
-                        <div className="w-full bg-slate-900 border border-slate-800 rounded-3xl p-5 text-left space-y-4">
-                            <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Mock Scan Target (Static Gate Signboard)</h4>
+                <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex flex-col items-center justify-center p-4">
+                    <div className="w-full max-w-md text-center flex flex-col items-center">
+                        {/* Camera Facing & Status Pill */}
+                        <div className="flex items-center justify-between w-full max-w-[340px] mb-3 px-2">
+                            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-3 py-1 rounded-full">
+                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                                {cameraFacingMode === 'environment' ? 'Rear Camera Active' : 'Front Camera Active'}
+                            </span>
                             <button
-                                onClick={async () => {
-                                    setScanningGateQr(false);
-                                    // Determine shift type based on hour
-                                    const hour = new Date().getHours();
-                                    const shift: CheckInType = (hour >= 15) ? 'Afternoon' : 'Morning';
-                                    try {
-                                        await apiService.processTeacherCheckIn({
-                                            teacher_id: teacherId,
-                                            institution_id: institutionId,
-                                            checkin_type: shift,
-                                            location: 'School Gate (Scanned printed QR code)',
-                                            notes: 'Gate self-scan check-in success'
-                                        });
-                                        if (onLogAction) {
-                                            await onLogAction(`Checked in via Gate QR Code Scan`);
-                                        }
-                                        alert(`Gate QR Check-in successful! Checked in for ${shift} shift.`);
-                                        loadTodayCheckIn();
-                                    } catch (e: any) {
-                                        alert(e.message || 'Failed to check in via QR code.');
-                                    }
-                                }}
-                                className="w-full flex items-center justify-between p-4 rounded-xl bg-slate-950 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/35 transition-all text-left"
+                                type="button"
+                                onClick={toggleCameraFacing}
+                                className="flex items-center gap-1.5 px-3 py-1 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full text-[10px] font-bold transition-all"
+                                title="Flip Camera Lens"
                             >
-                                <div>
-                                    <p className="text-xs font-black text-white">MAIN GATE QR SIGNPOST</p>
-                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Payload: school_gate_id: {institutionId || 'N/A'}</p>
+                                <ArrowPathIcon className="w-3.5 h-3.5 text-indigo-400" />
+                                Flip Lens
+                            </button>
+                        </div>
+
+                        {/* Video Viewfinder Box */}
+                        <div className="relative aspect-square w-full max-w-[340px] bg-slate-950 rounded-3xl border-4 border-indigo-500/80 overflow-hidden mb-5 shadow-[0_0_60px_rgba(99,102,241,0.4)]">
+                            <video
+                                ref={scannerVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                            />
+
+                            {/* Corner Reticles */}
+                            <div className="absolute inset-0 pointer-events-none p-6">
+                                <div className="w-full h-full border-2 border-dashed border-indigo-400/40 rounded-2xl relative">
+                                    <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-indigo-400 rounded-tl-lg"></div>
+                                    <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-indigo-400 rounded-tr-lg"></div>
+                                    <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-4 border-l-4 border-indigo-400 rounded-bl-lg"></div>
+                                    <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-4 border-r-4 border-indigo-400 rounded-br-lg"></div>
                                 </div>
-                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded border border-indigo-500/20">
-                                    SCAN CODE
-                                </span>
+                            </div>
+
+                            {/* Scanning Laser Line */}
+                            {!scanSuccessBadge && isCameraActive && (
+                                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_20px_#22d3ee] animate-[scan_2.4s_infinite]"></div>
+                            )}
+
+                            {/* Camera Initializing Overlay */}
+                            {!isCameraActive && !cameraError && (
+                                <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+                                    <CameraIcon className="w-12 h-12 text-indigo-400 animate-pulse mb-3" />
+                                    <p className="text-white font-bold text-xs uppercase tracking-wider">Starting Hardware Camera...</p>
+                                    <p className="text-slate-400 text-[10px] mt-1">Defaulting to rear-facing sensor</p>
+                                </div>
+                            )}
+
+                            {/* Camera Error Overlay */}
+                            {cameraError && (
+                                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center">
+                                    <XCircleIcon className="w-12 h-12 text-red-500 mb-2" />
+                                    <p className="text-white font-bold text-xs uppercase tracking-wider mb-2">Camera Unavailable</p>
+                                    <p className="text-red-300 text-[11px] mb-4">{cameraError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => startCamera(cameraFacingMode)}
+                                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all"
+                                    >
+                                        Retry Camera
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Valid Scan Verified Banner */}
+                            {scanSuccessBadge && (
+                                <div className="absolute inset-0 bg-emerald-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                                    <CheckCircleIcon className="w-16 h-16 text-emerald-400 mb-3 animate-bounce" />
+                                    <h4 className="text-lg font-black text-white uppercase tracking-tight">Gate QR Verified!</h4>
+                                    <p className="text-emerald-300 text-xs mt-1">
+                                        {isProcessingCheckIn ? 'Recording attendance...' : 'Check-in confirmed!'}
+                                    </p>
+                                    <code className="mt-3 text-[10px] font-mono text-emerald-200/70 bg-emerald-900/60 px-3 py-1 rounded-full truncate max-w-[260px]">
+                                        {scanSuccessBadge}
+                                    </code>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* QR Validation Error Banner */}
+                        {qrValidationError && (
+                            <div className="w-full max-w-[340px] bg-red-950/80 border border-red-500/50 rounded-2xl p-3 mb-4 text-left animate-shake">
+                                <div className="flex items-start gap-2.5">
+                                    <XCircleIcon className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-xs font-bold text-red-200">Scan Rejected</p>
+                                        <p className="text-[11px] text-red-300 mt-0.5">{qrValidationError}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Scan Official Gate Signboard</h3>
+                        <p className="text-slate-400 font-medium text-xs mb-6 max-w-xs">
+                            Point device camera at the printed QR signboard at the school entrance gate
+                        </p>
+
+                        {/* Controls */}
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setScanningGateQr(false);
+                                    stopCamera();
+                                }}
+                                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 text-xs font-black uppercase tracking-wider transition-all"
+                            >
+                                Cancel
                             </button>
                         </div>
                     </div>
                     <style>{`
                         @keyframes scan {
                             0% { transform: translateY(0); }
-                            50% { transform: translateY(320px); }
+                            50% { transform: translateY(336px); }
                             100% { transform: translateY(0); }
                         }
                     `}</style>
