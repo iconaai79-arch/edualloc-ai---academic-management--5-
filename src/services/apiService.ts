@@ -401,7 +401,9 @@ export const apiService = {
             localStorage.setItem('eduai_active_session', JSON.stringify(user));
             // If logging in as a tenant user (not super_admin), clear stale super admin and impersonation keys
             // to ensure backend queries are never elevated to global/bypass mode!
-            if (user && user.role !== 'super_admin') {
+            // BUT: if this is an impersonated session, preserve super admin session and impersonation keys!
+            const isImpersonating = !!user?.isImpersonated || !!(user as any)?.impersonated || !!localStorage.getItem('eduai_super_admin_session') || !!sessionStorage.getItem('eduai_impersonated_by_admin');
+            if (user && user.role !== 'super_admin' && !isImpersonating) {
                 localStorage.removeItem('eduai_super_admin_session');
                 localStorage.removeItem('eduai_impersonated_user');
             } else if (user && user.role === 'super_admin') {

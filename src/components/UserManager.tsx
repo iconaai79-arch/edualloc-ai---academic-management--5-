@@ -954,9 +954,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
 
     const handleLoginAsTeacher = (teacher: User) => {
         try {
-            const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
-            if (active && (active.role === 'super_admin' || isSuperAdminUser(active)) && !localStorage.getItem('eduai_super_admin_session')) {
-                localStorage.setItem('eduai_super_admin_session', JSON.stringify(active));
+            const saStored = localStorage.getItem('eduai_super_admin_session');
+            if (!saStored) {
+                const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
+                const superAdminUser = (active && (active.role === 'super_admin' || isSuperAdminUser(active))) ? active : currentUser;
+                if (superAdminUser) {
+                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(superAdminUser));
+                }
             }
         } catch (e) {
             console.warn('[UserManager] Failed to cache super admin session:', e);
@@ -966,9 +970,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             ...teacher,
             institutionId: teacher.institutionId || currentInstitution?.id || '',
             role: (teacher.role && teacher.role !== 'super_admin') ? teacher.role : 'teacher',
-            isImpersonated: true
+            isImpersonated: true,
+            // Skip forced credential/profile update when Super Admin logs in as teacher
+            passwordLastUpdated: teacher.passwordLastUpdated || new Date().toISOString()
         };
 
+        try {
+            sessionStorage.setItem('eduai_impersonated_by_admin', 'true');
+        } catch (_) {}
         apiService.storeSession(impersonatedTeacher);
         try {
             localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedTeacher));

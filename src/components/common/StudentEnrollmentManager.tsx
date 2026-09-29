@@ -5188,23 +5188,31 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
         try {
             // 1. Preserve original super admin session if not already stored
-            const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
-            if (active?.role === 'super_admin' && !localStorage.getItem('eduai_super_admin_session')) {
-                localStorage.setItem('eduai_super_admin_session', JSON.stringify(active));
+            const saStored = localStorage.getItem('eduai_super_admin_session');
+            if (!saStored) {
+                const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
+                const superAdminUser = (active && (active.role === 'super_admin' || isSuperAdminUser(active))) ? active : currentUser;
+                if (superAdminUser) {
+                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(superAdminUser));
+                }
             }
         } catch (e) {
             console.warn('[StudentEnrollmentManager] Failed to cache super admin session:', e);
         }
 
-        // 2. Prepare the impersonated teacher payload
+        // 2. Prepare the impersonated teacher payload (skipping email & password update prompts)
         const impersonatedTeacher: User = {
             ...teacher,
             institutionId: teacher.institutionId || currentInstitution?.id || '',
             role: (teacher.role && teacher.role !== 'super_admin') ? teacher.role : 'teacher',
-            isImpersonated: true
+            isImpersonated: true,
+            passwordLastUpdated: teacher.passwordLastUpdated || new Date().toISOString()
         };
 
-        // 3. Store the new session into active localStorage keys
+        // 3. Store the new session into active localStorage & sessionStorage keys
+        try {
+            sessionStorage.setItem('eduai_impersonated_by_admin', 'true');
+        } catch (_) {}
         apiService.storeSession(impersonatedTeacher);
         try {
             localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedTeacher));

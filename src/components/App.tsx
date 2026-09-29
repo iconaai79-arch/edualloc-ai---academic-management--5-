@@ -1593,8 +1593,18 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         JSON.stringify(refreshedSelf.permissions || []) !== JSON.stringify(currentUser.permissions || [])
                     );
                     if (hasChanges) {
-                        setCurrentUser(prev => ({ ...prev, ...refreshedSelf } as User));
-                        apiService.storeSession({ ...currentUser, ...refreshedSelf } as User);
+                        setCurrentUser(prev => ({
+                            ...prev,
+                            ...refreshedSelf,
+                            ...(prev?.isImpersonated ? { isImpersonated: true } : {}),
+                            ...(prev?.passwordLastUpdated ? { passwordLastUpdated: prev.passwordLastUpdated } : {})
+                        } as User));
+                        apiService.storeSession({
+                            ...currentUser,
+                            ...refreshedSelf,
+                            ...(currentUser?.isImpersonated ? { isImpersonated: true } : {}),
+                            ...(currentUser?.passwordLastUpdated ? { passwordLastUpdated: currentUser.passwordLastUpdated } : {})
+                        } as User);
                     }
                 } else if (!finalUsers.some((u: User) => u.id === currentUser.id) && !currentUser.id.startsWith('temp_admin_')) {
                     apiService.saveUser(currentUser).catch(err => {
@@ -4291,7 +4301,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     countyId: targetCounty ? targetCounty.id : admin.countyId || (isCountyTarget ? institutionId : undefined),
                     branchId: isBranchInst ? institutionId : undefined,
                     role: resolvedRole as Role,
-                    isImpersonated: true
+                    isImpersonated: true,
+                    passwordLastUpdated: admin.passwordLastUpdated || new Date().toISOString()
                 };
                 
                 console.log(`[Simulator] Impersonating ${impersonatedUser.role} for ${institutionId}`);
@@ -4527,21 +4538,37 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     }, [institutions, currentUser, loadData]);
 
     const onRestoreSuperAdminSession = () => {
-        if (originalSuperAdminSession) {
+        let saUser = originalSuperAdminSession;
+        if (!saUser) {
+            try {
+                const stored = localStorage.getItem('eduai_super_admin_session');
+                if (stored) saUser = JSON.parse(stored);
+            } catch (_) {}
+        }
+        if (saUser) {
             setIsTransitioning(true);
             setTimeout(() => {
-                const saUser = originalSuperAdminSession;
                 setOriginalSuperAdminSession(null);
                 setImpersonatedRole(null);
                 setIsSimulatorMode(false);
                 setIsHealthSystemOpen(false);
                 setIsPharmacySystemOpen(false);
                 localStorage.removeItem('eduai_super_admin_session');
+                localStorage.removeItem('eduai_impersonated_user');
+                try {
+                    sessionStorage.removeItem('eduai_impersonated_by_admin');
+                } catch (_) {}
                 setCurrentUser(saUser);
                 apiService.storeSession(saUser);
                 setIsTransitioning(false);
-                // loadData() is triggered automatically by the useEffect watching currentUser.id
+                window.location.href = window.location.origin + window.location.pathname;
             }, 100);
+        } else {
+            try {
+                sessionStorage.removeItem('eduai_impersonated_by_admin');
+            } catch (_) {}
+            apiService.clearSession();
+            window.location.href = window.location.origin + window.location.pathname;
         }
     };
 
@@ -7265,7 +7292,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
 
     if (currentUser && activeRole !== 'super_admin' && activeRole !== 'reseller') {
-        const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!localStorage.getItem('eduai_super_admin_session');
+        const isSuperAdminImpersonating = !!currentUser?.isImpersonated || 
+                                          !!(currentUser as any)?.impersonated || 
+                                          !!originalSuperAdminSession || 
+                                          !!localStorage.getItem('eduai_super_admin_session') || 
+                                          !!localStorage.getItem('eduai_impersonated_user') ||
+                                          sessionStorage.getItem('eduai_impersonated_by_admin') === 'true';
         if (!isSuperAdminImpersonating) {
             const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
             const isReseller = inst?.institutionType === 'Reseller' || currentUser.role === 'reseller';
@@ -7335,7 +7367,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 );
             }
         }
-        if (!currentUser.passwordLastUpdated && !currentUser.id.startsWith('demo_') && !currentUser.id.startsWith('temp_admin_') && currentUser.role !== 'super_admin' && !originalSuperAdminSession && !isSimulatorMode) {
+
+        if (!currentUser.passwordLastUpdated && 
+            !currentUser.id.startsWith('demo_') && 
+            !currentUser.id.startsWith('temp_admin_') && 
+            currentUser.role !== 'super_admin' && 
+            !isSuperAdminImpersonating && 
+            !originalSuperAdminSession && 
+            !isSimulatorMode) {
             return (
                 <Suspense fallback={<SystemPulseLoader message="Security Handshake..." />}>
                     <MandatoryUpdateView 
@@ -9276,7 +9315,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 )}
                 <PerspectiveReturnButton
                     role={impersonatedRole}
-                    isImpersonatedSession={!!originalSuperAdminSession}
+                    isImpersonatedSession={!!originalSuperAdminSession || !!currentUser?.isImpersonated || !!localStorage.getItem('eduai_super_admin_session') || sessionStorage.getItem('eduai_impersonated_by_admin') === 'true'}
                     hasCurrentUser={!!currentUser}
                     isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback || showTenantStore}
                     hideReturnToLogin={showTenantStore}
