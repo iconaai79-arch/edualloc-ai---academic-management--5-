@@ -239,7 +239,18 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
     const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
     const [scannedBadgeSuccess, setScannedBadgeSuccess] = useState<boolean>(false);
+    const [scannedVerifiedPrefect, setScannedVerifiedPrefect] = useState<any | null>(null);
+    const [qrValidationError, setQrValidationError] = useState<string | null>(null);
+    const [isProcessingSession, setIsProcessingSession] = useState<boolean>(false);
     const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+    const scannerContextRef = useRef<{
+        courseId: string;
+        courseName: string;
+        subjectId: string;
+        prefects: any[];
+        primaryPrefect: any;
+        onStart: (override?: any) => Promise<void>;
+    }>({ courseId: '', courseName: '', subjectId: '', prefects: [], primaryPrefect: null, onStart: async () => {} });
 
     const stopCamera = useCallback(() => {
         if (cameraStream) {
@@ -373,16 +384,23 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         startCamera(nextFacing);
     }, [cameraFacingMode, startCamera]);
 
-    // Manage camera lifecycle and automated barcode/QR detection loop
+    // Manage camera lifecycle and real QR detection & validation loop
     useEffect(() => {
         let scanInterval: any = null;
         let detector: any = null;
+        let offscreenCanvas: HTMLCanvasElement | null = null;
+        let jsQrScript: HTMLScriptElement | null = null;
 
         if (isScannerModalOpen) {
             setScannedBadgeSuccess(false);
+            setScannedVerifiedPrefect(null);
+            setQrValidationError(null);
+            setIsProcessingSession(false);
+            setScannerManualToken('');
             setCameraFacingMode('environment'); // Always default to rear camera on open
             startCamera('environment'); // Always launch with rear camera first
 
+            // 1. Native BarcodeDetector if available
             if ('BarcodeDetector' in window) {
                 try {
                     detector = new (window as any).BarcodeDetector({
@@ -393,28 +411,136 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 }
             }
 
+            // 2. jsQR dynamic fallback for universal browser support (iOS Safari, Firefox, etc.)
+            if (!('BarcodeDetector' in window) && !(window as any).jsQR) {
+                jsQrScript = document.createElement('script');
+                jsQrScript.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+                jsQrScript.async = true;
+                document.body.appendChild(jsQrScript);
+            }
+
+            offscreenCanvas = document.createElement('canvas');
+
+            let lastScannedRaw = '';
+            let lastScanTime = 0;
+
             scanInterval = setInterval(async () => {
-                if (detector && scannerVideoRef.current && scannerVideoRef.current.readyState >= 2) {
+                const video = scannerVideoRef.current;
+                if (!video || video.readyState < 2) return;
+
+                let detectedRaw: string | null = null;
+
+                // Engine 1: Native BarcodeDetector
+                if (detector) {
                     try {
-                        const barcodes = await detector.detect(scannerVideoRef.current);
-                        if (barcodes && barcodes.length > 0) {
-                            const raw = barcodes[0].rawValue;
-                            setScannedBadgeSuccess(true);
-                            setScannerManualToken(raw);
-                            setTimeout(() => {
-                                const btn = document.getElementById('btn-verify-prefect-start');
-                                if (btn) (btn as HTMLButtonElement).click();
-                            }, 500);
+                        const barcodes = await detector.detect(video);
+                        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                            detectedRaw = String(barcodes[0].rawValue).trim();
                         }
                     } catch (_) {}
                 }
-            }, 300);
+
+                // Engine 2: Canvas + jsQR Fallback
+                if (!detectedRaw && (window as any).jsQR && offscreenCanvas) {
+                    try {
+                        const vw = video.videoWidth || 640;
+                        const vh = video.videoHeight || 480;
+                        offscreenCanvas.width = vw;
+                        offscreenCanvas.height = vh;
+                        const ctx = offscreenCanvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(video, 0, 0, vw, vh);
+                            const imgData = ctx.getImageData(0, 0, vw, vh);
+                            const code = (window as any).jsQR(imgData.data, imgData.width, imgData.height, {
+                                inversionAttempts: "dontInvert"
+                            });
+                            if (code && code.data) {
+                                detectedRaw = String(code.data).trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                if (!detectedRaw) return;
+
+                // Debounce identical scans within 2.5s
+                const now = Date.now();
+                if (detectedRaw === lastScannedRaw && now - lastScanTime < 2500) {
+                    return;
+                }
+                lastScannedRaw = detectedRaw;
+                lastScanTime = now;
+
+                // VALIDATE BEFORE PROCESSING
+                const ctx = scannerContextRef.current;
+                const expectedPrefix = `prefect_remedial_token_class_${ctx.courseId}`;
+                let isValid = false;
+                let matchedPrefect: any = null;
+                let errorMsg = '';
+
+                if (ctx.courseId && detectedRaw.includes(expectedPrefix)) {
+                    isValid = true;
+                    matchedPrefect = ctx.primaryPrefect || ctx.prefects[0] || { id: 'prefect_verified', name: 'Class Leader / Secretary' };
+                } else if (detectedRaw.includes('prefect_remedial_token_class_')) {
+                    isValid = false;
+                    errorMsg = `Wrong Class Badge: This card belongs to another class, not ${ctx.courseName}.`;
+                } else {
+                    // Check if code matches an authorized prefect for this course
+                    matchedPrefect = ctx.prefects.find(p => 
+                        (p.id && detectedRaw === p.id) ||
+                        (p.admissionNumber && detectedRaw.toLowerCase().includes(p.admissionNumber.toLowerCase())) ||
+                        (p.name && detectedRaw.toLowerCase().includes(p.name.toLowerCase()))
+                    );
+
+                    if (matchedPrefect) {
+                        isValid = true;
+                    } else {
+                        // Check JSON structure
+                        try {
+                            const parsed = JSON.parse(detectedRaw);
+                            if (parsed.courseId === ctx.courseId || parsed.classId === ctx.courseId) {
+                                isValid = true;
+                                matchedPrefect = ctx.prefects.find(p => p.id === parsed.prefectId || p.id === parsed.studentId) || ctx.primaryPrefect || { id: 'prefect_verified', name: parsed.name || 'Class Leader' };
+                            }
+                        } catch (_) {}
+                    }
+
+                    if (!isValid) {
+                        errorMsg = `QR Code Rejected: Not an authorized Prefect Badge or Student Card for ${ctx.courseName}.`;
+                    }
+                }
+
+                if (isValid && matchedPrefect) {
+                    setScannedBadgeSuccess(true);
+                    setScannedVerifiedPrefect(matchedPrefect);
+                    setQrValidationError(null);
+                    setIsProcessingSession(true);
+                    setScannerManualToken(detectedRaw);
+
+                    // Auto-start after brief verification confirmation display
+                    setTimeout(() => {
+                        ctx.onStart({
+                            courseId: ctx.courseId,
+                            subjectId: ctx.subjectId,
+                            prefectId: matchedPrefect.id
+                        });
+                    }, 800);
+                } else {
+                    setQrValidationError(errorMsg);
+                    setTimeout(() => {
+                        setQrValidationError(null);
+                    }, 3500);
+                }
+            }, 250);
         } else {
             stopCamera();
         }
 
         return () => {
             if (scanInterval) clearInterval(scanInterval);
+            if (jsQrScript && document.body.contains(jsQrScript)) {
+                document.body.removeChild(jsQrScript);
+            }
             stopCamera();
         };
     }, [isScannerModalOpen]);
@@ -1610,7 +1736,19 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 loadRemedialData();
                             } catch (err: any) {
                                 alert(err.message || 'Failed to start remedial session');
+                            } finally {
+                                setIsProcessingSession(false);
                             }
+                        };
+
+                        // Synchronize active remedial context for real-time camera QR badge validation
+                        scannerContextRef.current = {
+                            courseId: effectiveCourseId,
+                            courseName: courses?.find(c => c.id === effectiveCourseId)?.name || todaysScheduledRemedial?.className || 'Selected Class',
+                            subjectId: effectiveSubjectId,
+                            prefects: coursePrefects,
+                            primaryPrefect: primaryPrefect,
+                            onStart: handleStartRemedial
                         };
 
                         const handleEndRemedial = async (session: RemedialSession) => {
@@ -2319,21 +2457,35 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     {/* Laser Scan line animation across the camera view */}
                                                     {isCameraActive && (
                                                         <div 
-                                                            className={`absolute inset-x-8 h-0.5 pointer-events-none ${
-                                                                scannedBadgeSuccess 
-                                                                    ? 'bg-emerald-400 shadow-[0_0_16px_#10b981]' 
-                                                                    : 'bg-gradient-to-r from-transparent via-rose-500 to-transparent shadow-[0_0_12px_#f43f5e] animate-bounce'
+                                                            className={`absolute inset-x-8 h-0.5 pointer-events-none transition-all duration-300 ${
+                                                                qrValidationError
+                                                                    ? 'bg-rose-500 shadow-[0_0_16px_#f43f5e]'
+                                                                    : scannedBadgeSuccess 
+                                                                        ? 'bg-emerald-400 shadow-[0_0_16px_#10b981]' 
+                                                                        : 'bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_12px_#06b6d4] animate-bounce'
                                                             }`} 
                                                             style={{ animationDuration: '2s' }} 
                                                         />
                                                     )}
 
-                                                    {/* Success Popup when badge is detected */}
-                                                    {scannedBadgeSuccess && (
-                                                        <div className="absolute inset-0 bg-emerald-950/85 backdrop-blur-xs flex flex-col items-center justify-center p-6 text-center animate-fade-in z-20">
+                                                    {/* Validation Error Alert Banner */}
+                                                    {qrValidationError && (
+                                                        <div className="absolute inset-x-4 top-14 p-3 bg-rose-950/95 border border-rose-500/80 rounded-2xl backdrop-blur-md flex items-center gap-2.5 text-left text-xs font-bold text-rose-200 z-20 shadow-2xl animate-fade-in">
+                                                            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="font-black text-rose-300 text-[10px] uppercase tracking-wider">Badge Rejected</p>
+                                                                <p className="text-[11px] leading-tight text-white mt-0.5">{qrValidationError}</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Success Popup when badge is detected and validated */}
+                                                    {scannedBadgeSuccess && scannedVerifiedPrefect && (
+                                                        <div className="absolute inset-0 bg-emerald-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in z-30">
                                                             <CheckCircle2 className="w-14 h-14 text-emerald-400 animate-scale-up mb-2" />
                                                             <h4 className="text-sm font-black text-white uppercase tracking-wider">Prefect Card Verified!</h4>
-                                                            <p className="text-xs text-emerald-300 mt-1">Starting remedial lesson...</p>
+                                                            <p className="text-xs font-bold text-emerald-200 mt-1">Prefect: {scannedVerifiedPrefect.name}</p>
+                                                            <p className="text-[10px] text-emerald-300/80 mt-0.5">Authorized leader for {(courses?.find(c => c.id === effectiveCourseId)?.name || 'this class')}. Starting lesson...</p>
                                                         </div>
                                                     )}
 
@@ -2344,17 +2496,36 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                             {cameraFacingMode === 'environment' ? 'Rear Camera (Default)' : 'Front Camera'} Active
                                                         </div>
                                                     )}
+
+                                                    {/* Viewfinder Guidance Footer */}
+                                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-slate-950/80 border border-slate-700/60 rounded-full text-[9px] font-bold text-slate-300 pointer-events-none whitespace-nowrap">
+                                                        Align Rear Camera with Prefect QR Badge
+                                                    </div>
                                                 </div>
 
                                                 {/* Trigger Buttons */}
                                                 <div className="space-y-3">
-                                                    <button
-                                                        id="btn-verify-prefect-start"
-                                                        onClick={() => handleStartRemedial()}
-                                                        className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
-                                                    >
-                                                        <CheckCircle2 className="w-4 h-4" /> Verify Prefect Badge &amp; Start Lesson
-                                                    </button>
+                                                    {scannedVerifiedPrefect ? (
+                                                        <button
+                                                            id="btn-verify-prefect-start"
+                                                            onClick={() => handleStartRemedial({
+                                                                courseId: effectiveCourseId,
+                                                                subjectId: effectiveSubjectId,
+                                                                prefectId: scannedVerifiedPrefect.id
+                                                            })}
+                                                            className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 animate-pulse"
+                                                        >
+                                                            <CheckCircle2 className="w-4 h-4 text-emerald-200" /> Start Lesson &bull; Verified: {scannedVerifiedPrefect.name}
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            id="btn-verify-prefect-start"
+                                                            disabled
+                                                            className="w-full py-4 bg-slate-800 border border-slate-700 text-slate-400 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-not-allowed opacity-75"
+                                                        >
+                                                            <Clock className="w-4 h-4 animate-spin text-amber-400" /> Awaiting Valid Prefect QR Scan...
+                                                        </button>
+                                                    )}
 
                                                     <div className="flex items-center gap-2 pt-1">
                                                         <input
@@ -2366,10 +2537,47 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                         />
                                                         {scannerManualToken && (
                                                             <button
-                                                                onClick={() => handleStartRemedial()}
-                                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold"
+                                                                onClick={() => {
+                                                                    const ctx = scannerContextRef.current;
+                                                                    const raw = scannerManualToken.trim();
+                                                                    const expectedPrefix = `prefect_remedial_token_class_${ctx.courseId}`;
+                                                                    let matched = null;
+                                                                    let err = '';
+
+                                                                    if (raw.includes(expectedPrefix)) {
+                                                                        matched = ctx.primaryPrefect || ctx.prefects[0] || { id: 'prefect_verified', name: 'Class Leader' };
+                                                                    } else if (raw.includes('prefect_remedial_token_class_')) {
+                                                                        err = `Wrong Class: This token belongs to another class, not ${ctx.courseName}.`;
+                                                                    } else {
+                                                                        matched = ctx.prefects.find(p => 
+                                                                            (p.id && raw === p.id) ||
+                                                                            (p.admissionNumber && raw.toLowerCase().includes(p.admissionNumber.toLowerCase())) ||
+                                                                            (p.name && raw.toLowerCase().includes(p.name.toLowerCase()))
+                                                                        );
+                                                                        if (!matched) {
+                                                                            err = `Token Rejected: Not an authorized Prefect for ${ctx.courseName}.`;
+                                                                        }
+                                                                    }
+
+                                                                    if (err || !matched) {
+                                                                        setQrValidationError(err);
+                                                                        alert(`❌ Validation Failed:\n${err}`);
+                                                                        return;
+                                                                    }
+
+                                                                    setScannedBadgeSuccess(true);
+                                                                    setScannedVerifiedPrefect(matched);
+                                                                    setQrValidationError(null);
+                                                                    setIsProcessingSession(true);
+                                                                    ctx.onStart({
+                                                                        courseId: ctx.courseId,
+                                                                        subjectId: ctx.subjectId,
+                                                                        prefectId: matched.id
+                                                                    });
+                                                                }}
+                                                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors"
                                                             >
-                                                                Confirm
+                                                                Validate &amp; Start
                                                             </button>
                                                         )}
                                                     </div>
