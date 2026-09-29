@@ -243,6 +243,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [qrValidationError, setQrValidationError] = useState<string | null>(null);
     const [isProcessingSession, setIsProcessingSession] = useState<boolean>(false);
     const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+    const cameraStreamRef = useRef<MediaStream | null>(null);
     const scannerContextRef = useRef<{
         courseId: string;
         courseName: string;
@@ -253,136 +254,121 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     }>({ courseId: '', courseName: '', subjectId: '', prefects: [], primaryPrefect: null, onStart: async () => {} });
 
     const stopCamera = useCallback(() => {
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => {
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(track => {
                 try { track.stop(); } catch (_) {}
             });
-            setCameraStream(null);
+            cameraStreamRef.current = null;
         }
         if (scannerVideoRef.current) {
-            scannerVideoRef.current.srcObject = null;
+            try {
+                scannerVideoRef.current.srcObject = null;
+            } catch (_) {}
         }
+        setCameraStream(null);
         setIsCameraActive(false);
-    }, [cameraStream]);
+    }, []);
 
     const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
         setCameraError(null);
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => {
+        setIsCameraActive(false);
+
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(track => {
                 try { track.stop(); } catch (_) {}
             });
+            cameraStreamRef.current = null;
         }
+
         try {
+            if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                throw new Error("Camera requires a secure HTTPS connection. Please use HTTPS.");
+            }
+
             if (!navigator?.mediaDevices?.getUserMedia) {
-                throw new Error("Camera API not supported in this browser. Please use HTTPS or localhost.");
+                throw new Error("Camera API not supported or blocked in this browser. Please check browser permissions.");
             }
 
             let stream: MediaStream | null = null;
 
-            if (facing === 'environment') {
-                // 1. Try explicit rear/back camera deviceId if devices are already enumerated
-                if (navigator.mediaDevices.enumerateDevices) {
-                    try {
-                        const devices = await navigator.mediaDevices.enumerateDevices();
-                        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-                        const rearDevice = videoDevices.find(d => 
-                            /back|rear|environment|main|facing\s*back/i.test(d.label)
-                        );
-                        if (rearDevice && rearDevice.deviceId) {
-                            stream = await navigator.mediaDevices.getUserMedia({
-                                video: {
-                                    deviceId: { exact: rearDevice.deviceId },
-                                    width: { ideal: 1280 },
-                                    height: { ideal: 720 }
-                                },
-                                audio: false
-                            });
-                        }
-                    } catch (_) {}
-                }
+            // Strategy 1: Ideal facingMode
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: facing },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                });
+            } catch (_) {}
 
-                // 2. Exact 'environment' constraint - forces rear camera on mobile (Chrome / Safari / Edge)
-                if (!stream) {
-                    try {
-                        stream = await navigator.mediaDevices.getUserMedia({
-                            video: {
-                                facingMode: { exact: 'environment' },
-                                width: { ideal: 1280 },
-                                height: { ideal: 720 }
-                            },
-                            audio: false
-                        });
-                    } catch (_) {
-                        // Thrown on laptops or devices with only one front camera
-                    }
-                }
-
-                // 3. Fallback to ideal 'environment'
-                if (!stream) {
-                    try {
-                        stream = await navigator.mediaDevices.getUserMedia({
-                            video: {
-                                facingMode: { ideal: 'environment' },
-                                width: { ideal: 1280 },
-                                height: { ideal: 720 }
-                            },
-                            audio: false
-                        });
-                    } catch (_) {}
-                }
-
-                // 4. Ultimate fallback to standard video stream
-                if (!stream) {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
-                        audio: false
-                    });
-                }
-            } else {
-                // Front / User camera requested
+            // Strategy 2: Simple facingMode
+            if (!stream) {
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        },
+                        video: { facingMode: facing },
                         audio: false
                     });
-                } catch (_) {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
-                        audio: false
-                    });
-                }
+                } catch (_) {}
             }
 
+            // Strategy 3: Ultimate universal video fallback
+            if (!stream) {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+            }
+
+            if (!stream) {
+                throw new Error("Could not acquire video feed from device camera.");
+            }
+
+            cameraStreamRef.current = stream;
             setCameraStream(stream);
             setIsCameraActive(true);
+
             if (scannerVideoRef.current) {
                 scannerVideoRef.current.srcObject = stream;
+                scannerVideoRef.current.setAttribute('playsinline', 'true');
+                scannerVideoRef.current.setAttribute('muted', 'true');
+                scannerVideoRef.current.muted = true;
                 scannerVideoRef.current.play().catch(e => console.warn('Video play warning:', e));
             }
         } catch (err: any) {
             console.error("Camera access failed:", err);
-            let friendly = "Could not activate camera.";
+            let friendly = err?.message || "Could not activate camera.";
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 friendly = "Camera access denied. Please click the lock/camera icon in your browser URL bar and allow Camera permission.";
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                 friendly = "No camera hardware detected on this device.";
             } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                friendly = "Camera is in use by another tab or application.";
+                friendly = "Camera is currently locked or in use by another tab or app. Please close other camera apps and retry.";
             }
             setCameraError(friendly);
             setIsCameraActive(false);
         }
-    }, [cameraStream]);
+    }, []);
 
     const toggleCameraFacing = useCallback(() => {
-        const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
-        setCameraFacingMode(nextFacing);
-        startCamera(nextFacing);
-    }, [cameraFacingMode, startCamera]);
+        setCameraFacingMode(prev => {
+            const nextFacing = prev === 'environment' ? 'user' : 'environment';
+            startCamera(nextFacing);
+            return nextFacing;
+        });
+    }, [startCamera]);
+
+    const handleScannerVideoRef = useCallback((node: HTMLVideoElement | null) => {
+        scannerVideoRef.current = node;
+        if (node && cameraStreamRef.current) {
+            node.srcObject = cameraStreamRef.current;
+            node.setAttribute('playsinline', 'true');
+            node.setAttribute('muted', 'true');
+            node.muted = true;
+            node.play().catch(e => console.warn('Video play warning on mount:', e));
+        }
+    }, []);
 
     // Manage camera lifecycle and real QR detection & validation loop
     useEffect(() => {
@@ -984,6 +970,34 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             a.status === 'Substitute Pending' && a.substituteTeacherId === user?.id
         );
     }, [remedialAllocations, user?.id]);
+
+    // End active remedial session directly without opening camera/scanner
+    const handleEndRemedial = async (session: RemedialSession) => {
+        try {
+            // Explicitly ensure camera/scanner is turned off & modal is closed
+            setIsScannerModalOpen(false);
+            stopCamera();
+
+            const end = new Date();
+            const start = new Date(session.startTime);
+            const diffMs = Math.max(0, end.getTime() - start.getTime());
+            const calculatedHours = Math.max(1, Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10);
+
+            const updated: RemedialSession = {
+                ...session,
+                endTime: end.toISOString(),
+                hours: calculatedHours,
+                status: 'Pending Duty Approval' as const
+            };
+
+            await apiService.saveRemedialSession(updated);
+            props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calculatedHours} hrs)`);
+            alert(`✅ Remedial class completed!\n\n• Subject: ${session.subjectName}\n• Class: ${session.className}\n• Verified Duration: ${calculatedHours} hrs\n• Concluded At: ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\nStatus: Pending Teacher on Duty approval before payout.`);
+            loadRemedialData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to end remedial session');
+        }
+    };
     const [myRequestsSubTab, setMyRequestsSubTab] = useState<'catalog' | 'pending' | 'allocations'>('catalog');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -1198,6 +1212,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 myRemedialAllocations={myRemedialAllocations}
                                 pendingSubstituteRequests={pendingSubstituteRequests}
                                 remedialSessions={remedialSessions}
+                                onEndRemedialSession={handleEndRemedial}
                             />
                         </div>
                     )}
@@ -1751,29 +1766,6 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             onStart: handleStartRemedial
                         };
 
-                        const handleEndRemedial = async (session: RemedialSession) => {
-                            try {
-                                const end = new Date();
-                                const start = new Date(session.startTime);
-                                const diffMs = end.getTime() - start.getTime();
-                                const calculatedHours = Math.max(1, Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10);
-
-                                const updated: RemedialSession = {
-                                    ...session,
-                                    endTime: end.toISOString(),
-                                    hours: calculatedHours,
-                                    status: 'Pending Duty Approval' as const
-                                };
-
-                                await apiService.saveRemedialSession(updated);
-                                props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calculatedHours} hrs)`);
-                                alert(`Remedial class completed successfully!\nVerified hours: ${calculatedHours} hrs.\n\nStatus: Pending Teacher on Duty approval before payout.`);
-                                loadRemedialData();
-                            } catch (err: any) {
-                                alert(err.message || 'Failed to end remedial session');
-                            }
-                        };
-
                         const handleSignVoucher = async (e: React.FormEvent) => {
                             e.preventDefault();
                             if (!signingPayout) return;
@@ -2226,13 +2218,13 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                                             <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-indigo-100 dark:border-indigo-900/40">
                                                 <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                                                    Ready to conclude? Scan the prefect's badge or click below to calculate payable hours.
+                                                    Ready to conclude? Click below to immediately end this session and submit verified hours (no camera or scanner required).
                                                 </p>
                                                 <button 
                                                     onClick={() => handleEndRemedial(activeSession)}
-                                                    className="px-6 py-3.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all flex items-center gap-2 active:scale-95 shrink-0"
+                                                    className="px-6 py-3.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all flex items-center gap-2 active:scale-95 shrink-0 cursor-pointer"
                                                 >
-                                                    <Square className="w-4 h-4" /> Scan Prefect Card &amp; End Lesson
+                                                    <Square className="w-4 h-4" /> End Remedial Lesson Now
                                                 </button>
                                             </div>
                                         </div>
@@ -2411,13 +2403,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 <div className="relative aspect-video bg-black rounded-3xl border-2 border-indigo-500/50 flex flex-col items-center justify-center overflow-hidden text-center shadow-2xl">
                                                     {/* Live Video Stream from Device Camera */}
                                                     <video
-                                                        ref={(el) => {
-                                                            scannerVideoRef.current = el;
-                                                            if (el && cameraStream && el.srcObject !== cameraStream) {
-                                                                el.srcObject = cameraStream;
-                                                                el.play().catch(() => {});
-                                                            }
-                                                        }}
+                                                        ref={handleScannerVideoRef}
                                                         autoPlay
                                                         playsInline
                                                         muted

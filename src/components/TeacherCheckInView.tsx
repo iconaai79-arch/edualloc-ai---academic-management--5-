@@ -8,6 +8,7 @@ import { MapPinIcon } from './icons/MapPinIcon';
 import { CalendarDaysIcon } from './icons/CalendarDaysIcon';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { CameraIcon } from './icons/CameraIcon';
+import { PhotoIcon } from './icons/PhotoIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { apiService } from '../services/apiService';
@@ -190,6 +191,8 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
 
     // Live Camera & Hardware QR Scanner States
     const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
+    const cameraStreamRef = useRef<MediaStream | null>(null);
+    const qrFileInputRef = useRef<HTMLInputElement | null>(null);
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
@@ -202,131 +205,239 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
     const institutionId = currentInstitution?.id || currentUser?.institutionId || '';
 
     const stopCamera = useCallback(() => {
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => {
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(track => {
                 try { track.stop(); } catch (_) {}
             });
-            setCameraStream(null);
+            cameraStreamRef.current = null;
         }
+        if (scannerVideoRef.current) {
+            try {
+                scannerVideoRef.current.srcObject = null;
+            } catch (_) {}
+        }
+        setCameraStream(null);
         setIsCameraActive(false);
-    }, [cameraStream]);
+    }, []);
 
     const startCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
         setCameraError(null);
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => {
+        setIsCameraActive(false);
+
+        // Terminate any previous media tracks before starting a new session
+        if (cameraStreamRef.current) {
+            cameraStreamRef.current.getTracks().forEach(track => {
                 try { track.stop(); } catch (_) {}
             });
+            cameraStreamRef.current = null;
         }
+
         try {
+            if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                throw new Error("Camera requires a secure HTTPS connection. Please use HTTPS.");
+            }
+
             if (!navigator?.mediaDevices?.getUserMedia) {
-                throw new Error("Camera API not supported in this browser. Please use HTTPS or localhost.");
+                throw new Error("Camera API not supported or blocked in this browser. Please check browser permissions.");
             }
 
             let stream: MediaStream | null = null;
 
-            if (facing === 'environment') {
-                // 1. Try explicit rear/back camera deviceId if devices are already enumerated
-                if (navigator.mediaDevices.enumerateDevices) {
-                    try {
-                        const devices = await navigator.mediaDevices.enumerateDevices();
-                        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-                        const rearDevice = videoDevices.find(d => 
-                            /back|rear|environment|main|facing\s*back/i.test(d.label)
-                        );
-                        if (rearDevice && rearDevice.deviceId) {
-                            stream = await navigator.mediaDevices.getUserMedia({
-                                video: {
-                                    deviceId: { exact: rearDevice.deviceId },
-                                    width: { ideal: 1280 },
-                                    height: { ideal: 720 }
-                                },
-                                audio: false
-                            });
-                        }
-                    } catch (_) {}
-                }
+            // Strategy 1: Ideal facingMode with resolutions
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: facing },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: false
+                });
+            } catch (err1) {
+                console.warn("Camera ideal constraint fallback triggered:", err1);
+            }
 
-                // 2. Exact 'environment' constraint - forces rear camera on mobile (Chrome / Safari / Edge)
-                if (!stream) {
-                    try {
-                        stream = await navigator.mediaDevices.getUserMedia({
-                            video: {
-                                facingMode: { exact: 'environment' },
-                                width: { ideal: 1280 },
-                                height: { ideal: 720 }
-                            },
-                            audio: false
-                        });
-                    } catch (_) {}
-                }
-
-                // 3. Fallback to ideal 'environment'
-                if (!stream) {
-                    try {
-                        stream = await navigator.mediaDevices.getUserMedia({
-                            video: {
-                                facingMode: { ideal: 'environment' },
-                                width: { ideal: 1280 },
-                                height: { ideal: 720 }
-                            },
-                            audio: false
-                        });
-                    } catch (_) {}
-                }
-
-                // 4. Ultimate fallback to standard video stream
-                if (!stream) {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
-                        audio: false
-                    });
-                }
-            } else {
-                // Front / User camera requested
+            // Strategy 2: Simple facingMode constraint
+            if (!stream) {
                 try {
                     stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user',
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        },
+                        video: { facingMode: facing },
                         audio: false
                     });
-                } catch (_) {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: true,
-                        audio: false
-                    });
+                } catch (err2) {
+                    console.warn("Camera facingMode fallback triggered:", err2);
                 }
             }
 
+            // Strategy 3: Ultimate universal video fallback (works on all webcams and laptops)
+            if (!stream) {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false
+                });
+            }
+
+            if (!stream) {
+                throw new Error("Could not acquire video feed from device camera.");
+            }
+
+            cameraStreamRef.current = stream;
             setCameraStream(stream);
             setIsCameraActive(true);
+
             if (scannerVideoRef.current) {
                 scannerVideoRef.current.srcObject = stream;
+                scannerVideoRef.current.setAttribute('playsinline', 'true');
+                scannerVideoRef.current.setAttribute('muted', 'true');
+                scannerVideoRef.current.muted = true;
                 scannerVideoRef.current.play().catch(e => console.warn('Video play warning:', e));
             }
         } catch (err: any) {
             console.error("Camera access failed:", err);
-            let friendly = "Could not activate camera.";
+            let friendly = err?.message || "Could not activate camera.";
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                friendly = "Camera access denied. Please click the lock/camera icon in your browser URL bar and allow Camera permission.";
+                friendly = "Camera access denied. Please click the lock or camera icon in your browser address bar and allow Camera permission.";
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                 friendly = "No camera hardware detected on this device.";
             } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                friendly = "Camera is in use by another tab or application.";
+                friendly = "Camera is currently in use by another tab or app. Please close other camera apps and retry.";
+            } else if (err.name === 'OverconstrainedError') {
+                friendly = "Requested camera sensor is not supported by your hardware.";
             }
             setCameraError(friendly);
             setIsCameraActive(false);
         }
-    }, [cameraStream]);
+    }, []);
 
     const toggleCameraFacing = useCallback(() => {
-        const nextFacing = cameraFacingMode === 'environment' ? 'user' : 'environment';
-        setCameraFacingMode(nextFacing);
-        startCamera(nextFacing);
-    }, [cameraFacingMode, startCamera]);
+        setCameraFacingMode(prev => {
+            const nextFacing = prev === 'environment' ? 'user' : 'environment';
+            startCamera(nextFacing);
+            return nextFacing;
+        });
+    }, [startCamera]);
+
+    // Callback ref guaranteeing srcObject is immediately assigned when the video element mounts
+    const handleScannerVideoRef = useCallback((node: HTMLVideoElement | null) => {
+        scannerVideoRef.current = node;
+        if (node && cameraStreamRef.current) {
+            node.srcObject = cameraStreamRef.current;
+            node.setAttribute('playsinline', 'true');
+            node.setAttribute('muted', 'true');
+            node.muted = true;
+            node.play().catch(e => console.warn('Video play warning on ref mount:', e));
+        }
+    }, []);
+
+    // Scanned Gate QR Code processor
+    const processScannedGateCode = useCallback(async (rawCode: string) => {
+        const trimmed = (rawCode || '').trim();
+        if (!trimmed) return;
+
+        const expectedToken = `school_gate_id:${institutionId}`;
+        const isValidGate = (
+            trimmed === expectedToken ||
+            (institutionId && trimmed.includes(institutionId)) ||
+            trimmed.startsWith('school_gate_id:')
+        );
+
+        if (!isValidGate) {
+            setQrValidationError(`Invalid Gate QR: "${trimmed.slice(0, 28)}...". This code does not match the official school entrance gate.`);
+            return;
+        }
+
+        // Official Gate QR verified! Process check-in
+        setQrValidationError(null);
+        setScanSuccessBadge(trimmed);
+        setIsProcessingCheckIn(true);
+
+        const hour = new Date().getHours();
+        const shift: CheckInType = (hour >= 15) ? 'Afternoon' : 'Morning';
+
+        try {
+            await apiService.processTeacherCheckIn({
+                teacher_id: teacherId,
+                institution_id: institutionId,
+                checkin_type: shift,
+                location: 'School Gate (Hardware Scanned Entrance Signboard)',
+                notes: `Gate Check-In Verified [${trimmed}]`
+            });
+
+            if (onLogAction) {
+                await onLogAction(`Checked in via Gate QR Code Scan for ${shift} shift`);
+            }
+
+            setTimeout(() => {
+                setScanningGateQr(false);
+                stopCamera();
+                loadTodayCheckIn();
+            }, 1400);
+        } catch (err: any) {
+            setQrValidationError(err.message || 'Check-in failed. Please try again.');
+            setIsProcessingCheckIn(false);
+        }
+    }, [institutionId, teacherId, onLogAction, stopCamera]);
+
+    // Fallback: upload or capture image with QR code
+    const handleQrPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
+            img.src = objectUrl;
+
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error("Could not initialize canvas");
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(objectUrl);
+
+            let detected: string | null = null;
+
+            if ('BarcodeDetector' in window) {
+                try {
+                    const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+                    const barcodes = await detector.detect(canvas);
+                    if (barcodes.length > 0) detected = barcodes[0].rawValue;
+                } catch (_) {}
+            }
+
+            if (!detected && (window as any).jsQR) {
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = (window as any).jsQR(imgData.data, imgData.width, imgData.height);
+                if (code) detected = code.data;
+            }
+
+            if (detected) {
+                await processScannedGateCode(detected);
+            } else {
+                setQrValidationError("No QR code detected in the selected image. Please ensure the gate signboard is clear and well-lit.");
+            }
+        } catch (err: any) {
+            console.error("Photo QR scan failed:", err);
+            setQrValidationError("Failed to read image file. Please retry or scan with live camera.");
+        } finally {
+            if (e.target) e.target.value = '';
+        }
+    };
+
+    // Manual gate pass 1-tap confirmation fallback
+    const handleManualGateTokenCheckIn = async () => {
+        if (!institutionId) {
+            alert("School institution ID is not set.");
+            return;
+        }
+        await processScannedGateCode(`school_gate_id:${institutionId}`);
+    };
 
     // Gate QR Scanner loop: native BarcodeDetector with jsQR fallback and validation
     useEffect(() => {
@@ -410,50 +521,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                 lastScannedRaw = detectedRaw;
                 lastScanTime = now;
 
-                // VALIDATE OFFICIAL GATE QR CODE
-                const trimmed = detectedRaw.trim();
-                const expectedToken = `school_gate_id:${institutionId}`;
-                const isValidGate = (
-                    trimmed === expectedToken ||
-                    (institutionId && trimmed.includes(institutionId)) ||
-                    trimmed.startsWith('school_gate_id:')
-                );
-
-                if (!isValidGate) {
-                    setQrValidationError(`Invalid Gate QR: "${trimmed.slice(0, 28)}...". This code does not match the official school entrance gate.`);
-                    return;
-                }
-
-                // Official Gate QR verified! Process check-in
-                setQrValidationError(null);
-                setScanSuccessBadge(trimmed);
-                setIsProcessingCheckIn(true);
-
-                const hour = new Date().getHours();
-                const shift: CheckInType = (hour >= 15) ? 'Afternoon' : 'Morning';
-
-                try {
-                    await apiService.processTeacherCheckIn({
-                        teacher_id: teacherId,
-                        institution_id: institutionId,
-                        checkin_type: shift,
-                        location: 'School Gate (Hardware Scanned Entrance Signboard)',
-                        notes: `Gate Check-In Verified [${trimmed}]`
-                    });
-
-                    if (onLogAction) {
-                        await onLogAction(`Checked in via Gate QR Code Scan for ${shift} shift`);
-                    }
-
-                    setTimeout(() => {
-                        setScanningGateQr(false);
-                        stopCamera();
-                        loadTodayCheckIn();
-                    }, 1400);
-                } catch (err: any) {
-                    setQrValidationError(err.message || 'Check-in failed. Please try again.');
-                    setIsProcessingCheckIn(false);
-                }
+                await processScannedGateCode(detectedRaw);
             }, 120);
         } else {
             stopCamera();
@@ -464,19 +532,21 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
             if (jsQrScript && jsQrScript.parentNode) {
                 jsQrScript.parentNode.removeChild(jsQrScript);
             }
+            stopCamera();
         };
-    }, [scanningGateQr, institutionId, teacherId, onLogAction, startCamera, stopCamera]);
+    }, [scanningGateQr, startCamera, stopCamera, processScannedGateCode]);
 
     // Clean up camera stream on unmount
     useEffect(() => {
         return () => {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => {
+            if (cameraStreamRef.current) {
+                cameraStreamRef.current.getTracks().forEach(track => {
                     try { track.stop(); } catch (_) {}
                 });
+                cameraStreamRef.current = null;
             }
         };
-    }, [cameraStream]);
+    }, []);
 
     useEffect(() => {
         if (teacherId) {
@@ -1002,6 +1072,16 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
             )}
             {scanningGateQr && (
                 <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[200] flex flex-col items-center justify-center p-4">
+                    {/* Hidden file input for photo fallback */}
+                    <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        ref={qrFileInputRef}
+                        onChange={handleQrPhotoUpload}
+                    />
+
                     <div className="w-full max-w-md text-center flex flex-col items-center">
                         {/* Camera Facing & Status Pill */}
                         <div className="flex items-center justify-between w-full max-w-[340px] mb-3 px-2">
@@ -1023,7 +1103,7 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                         {/* Video Viewfinder Box */}
                         <div className="relative aspect-square w-full max-w-[340px] bg-slate-950 rounded-3xl border-4 border-indigo-500/80 overflow-hidden mb-5 shadow-[0_0_60px_rgba(99,102,241,0.4)]">
                             <video
-                                ref={scannerVideoRef}
+                                ref={handleScannerVideoRef}
                                 autoPlay
                                 playsInline
                                 muted
@@ -1050,23 +1130,48 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                                 <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
                                     <CameraIcon className="w-12 h-12 text-indigo-400 animate-pulse mb-3" />
                                     <p className="text-white font-bold text-xs uppercase tracking-wider">Starting Hardware Camera...</p>
-                                    <p className="text-slate-400 text-[10px] mt-1">Defaulting to rear-facing sensor</p>
+                                    <p className="text-slate-400 text-[10px] mt-1">Acquiring sensor feed...</p>
                                 </div>
                             )}
 
                             {/* Camera Error Overlay */}
                             {cameraError && (
-                                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center">
-                                    <XCircleIcon className="w-12 h-12 text-red-500 mb-2" />
-                                    <p className="text-white font-bold text-xs uppercase tracking-wider mb-2">Camera Unavailable</p>
-                                    <p className="text-red-300 text-[11px] mb-4">{cameraError}</p>
-                                    <button
-                                        type="button"
-                                        onClick={() => startCamera(cameraFacingMode)}
-                                        className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all"
-                                    >
-                                        Retry Camera
-                                    </button>
+                                <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-5 text-center overflow-y-auto">
+                                    <XCircleIcon className="w-10 h-10 text-red-500 mb-2 shrink-0" />
+                                    <p className="text-white font-black text-xs uppercase tracking-wider mb-1">Camera Feed Unavailable</p>
+                                    <p className="text-red-300 text-[11px] mb-4 max-w-[280px] leading-relaxed">{cameraError}</p>
+                                    
+                                    <div className="flex flex-col gap-2 w-full max-w-[240px]">
+                                        <button
+                                            type="button"
+                                            onClick={() => startCamera(cameraFacingMode)}
+                                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                                        >
+                                            Retry Camera
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={toggleCameraFacing}
+                                            className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700"
+                                        >
+                                            Switch to {cameraFacingMode === 'environment' ? 'Front Camera' : 'Rear Camera'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => qrFileInputRef.current?.click()}
+                                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                        >
+                                            <PhotoIcon className="w-4 h-4" />
+                                            Take / Upload QR Photo
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleManualGateTokenCheckIn}
+                                            className="w-full py-2 bg-indigo-950 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-200 rounded-xl text-[11px] font-bold transition-all"
+                                        >
+                                            Instant Gate Pass Check-In
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -1099,19 +1204,38 @@ const TeacherCheckInView: React.FC<TeacherCheckInViewProps> = ({
                         )}
 
                         <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">Scan Official Gate Signboard</h3>
-                        <p className="text-slate-400 font-medium text-xs mb-6 max-w-xs">
+                        <p className="text-slate-400 font-medium text-xs mb-5 max-w-xs">
                             Point device camera at the printed QR signboard at the school entrance gate
                         </p>
 
-                        {/* Controls */}
-                        <div className="flex items-center gap-3">
+                        {/* Alternative Controls & Fallbacks */}
+                        <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+                            <button
+                                type="button"
+                                onClick={() => qrFileInputRef.current?.click()}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-xl border border-slate-700 text-xs font-bold transition-all"
+                            >
+                                <PhotoIcon className="w-4 h-4 text-indigo-400" />
+                                Snap / Upload Photo
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleManualGateTokenCheckIn}
+                                className="px-4 py-2 bg-indigo-900/60 hover:bg-indigo-900 text-indigo-200 rounded-xl border border-indigo-700/50 text-xs font-bold transition-all"
+                            >
+                                Quick Gate Check-In
+                            </button>
+                        </div>
+
+                        {/* Cancel Button */}
+                        <div>
                             <button
                                 type="button"
                                 onClick={() => {
                                     setScanningGateQr(false);
                                     stopCamera();
                                 }}
-                                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 text-xs font-black uppercase tracking-wider transition-all"
+                                className="px-8 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 text-xs font-black uppercase tracking-wider transition-all"
                             >
                                 Cancel
                             </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QrCodeIcon } from './icons/QrCodeIcon';
 import { SearchIcon } from './icons/SearchIcon';
 import { TruckIcon } from './icons/TruckIcon';
@@ -317,6 +317,114 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
     const [staffNotes, setStaffNotes] = useState('');
     const [staffCheckInType, setStaffCheckInType] = useState<'Morning' | 'Afternoon'>('Morning');
     const [staffScanning, setStaffScanning] = useState(false);
+
+    // Live Camera scanner states for Gate Pass views
+    const gateVideoRef = useRef<HTMLVideoElement | null>(null);
+    const gateStreamRef = useRef<MediaStream | null>(null);
+    const [isGateCameraActive, setIsGateCameraActive] = useState(false);
+    const [gateCameraError, setGateCameraError] = useState<string | null>(null);
+    const [gateFacingMode, setGateFacingMode] = useState<'environment' | 'user'>('environment');
+
+    const stopGateCamera = useCallback(() => {
+        if (gateStreamRef.current) {
+            gateStreamRef.current.getTracks().forEach(t => {
+                try { t.stop(); } catch (_) {}
+            });
+            gateStreamRef.current = null;
+        }
+        if (gateVideoRef.current) {
+            try {
+                gateVideoRef.current.srcObject = null;
+            } catch (_) {}
+        }
+        setIsGateCameraActive(false);
+    }, []);
+
+    const startGateCamera = useCallback(async (facing: 'environment' | 'user' = 'environment') => {
+        setGateCameraError(null);
+        setIsGateCameraActive(false);
+        if (gateStreamRef.current) {
+            gateStreamRef.current.getTracks().forEach(t => {
+                try { t.stop(); } catch (_) {}
+            });
+            gateStreamRef.current = null;
+        }
+
+        try {
+            if (typeof window !== 'undefined' && !window.isSecureContext && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                throw new Error("Camera requires a secure HTTPS connection. Please access via HTTPS.");
+            }
+
+            if (!navigator?.mediaDevices?.getUserMedia) {
+                throw new Error("Camera API not supported or blocked in this browser. Please check camera permissions.");
+            }
+
+            let stream: MediaStream | null = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+            } catch (_) {}
+
+            if (!stream) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: facing },
+                        audio: false
+                    });
+                } catch (_) {}
+            }
+
+            if (!stream) {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+
+            if (!stream) throw new Error("Could not acquire video feed from device camera.");
+
+            gateStreamRef.current = stream;
+            setIsGateCameraActive(true);
+
+            if (gateVideoRef.current) {
+                gateVideoRef.current.srcObject = stream;
+                gateVideoRef.current.setAttribute('playsinline', 'true');
+                gateVideoRef.current.setAttribute('muted', 'true');
+                gateVideoRef.current.muted = true;
+                gateVideoRef.current.play().catch(e => console.warn('Gate camera play warning:', e));
+            }
+        } catch (err: any) {
+            console.error("Gate camera failed to start:", err);
+            let friendly = err?.message || "Could not activate camera.";
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                friendly = "Camera access denied. Please allow camera permissions in your browser.";
+            } else if (err.name === 'NotFoundError') {
+                friendly = "No camera hardware detected on this device.";
+            } else if (err.name === 'NotReadableError') {
+                friendly = "Camera is currently locked or in use by another tab or app.";
+            }
+            setGateCameraError(friendly);
+            setIsGateCameraActive(false);
+        }
+    }, []);
+
+    const toggleGateCameraFacing = useCallback(() => {
+        setGateFacingMode(prev => {
+            const nextFacing = prev === 'environment' ? 'user' : 'environment';
+            startGateCamera(nextFacing);
+            return nextFacing;
+        });
+    }, [startGateCamera]);
+
+    const handleGateVideoRef = useCallback((el: HTMLVideoElement | null) => {
+        gateVideoRef.current = el;
+        if (el && gateStreamRef.current) {
+            el.srcObject = gateStreamRef.current;
+            el.setAttribute('playsinline', 'true');
+            el.setAttribute('muted', 'true');
+            el.muted = true;
+            el.play().catch(e => console.warn('Gate video ref play warning:', e));
+        }
+    }, []);
 
     // Casual/Contractor Walk-in State (Staff Gate Tab)
     const [showWorkerWalkIn, setShowWorkerWalkIn] = useState(false);
@@ -810,6 +918,126 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             alert(error.message);
         }
     };
+
+    // Gate barcode and QR scanning detection loop
+    useEffect(() => {
+        let scanInterval: any = null;
+        let detector: any = null;
+        let offscreenCanvas: HTMLCanvasElement | null = null;
+        let jsQrScript: HTMLScriptElement | null = null;
+
+        if (staffScanning || scanning || parentScanning) {
+            startGateCamera('environment');
+
+            if ('BarcodeDetector' in window) {
+                try {
+                    detector = new (window as any).BarcodeDetector({
+                        formats: ['qr_code', 'code_128', 'ean_13', 'data_matrix']
+                    });
+                } catch (_) {}
+            }
+
+            if (!('BarcodeDetector' in window) && !(window as any).jsQR) {
+                jsQrScript = document.createElement('script');
+                jsQrScript.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+                jsQrScript.async = true;
+                document.body.appendChild(jsQrScript);
+            }
+
+            offscreenCanvas = document.createElement('canvas');
+
+            scanInterval = setInterval(async () => {
+                const video = gateVideoRef.current;
+                if (!video || video.readyState < 2) return;
+
+                let detectedRaw: string | null = null;
+
+                if (detector) {
+                    try {
+                        const barcodes = await detector.detect(video);
+                        if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                            detectedRaw = String(barcodes[0].rawValue).trim();
+                        }
+                    } catch (_) {}
+                }
+
+                if (!detectedRaw && (window as any).jsQR && offscreenCanvas) {
+                    try {
+                        const vw = video.videoWidth || 640;
+                        const vh = video.videoHeight || 480;
+                        offscreenCanvas.width = vw;
+                        offscreenCanvas.height = vh;
+                        const ctx = offscreenCanvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(video, 0, 0, vw, vh);
+                            const imgData = ctx.getImageData(0, 0, vw, vh);
+                            const code = (window as any).jsQR(imgData.data, imgData.width, imgData.height, {
+                                inversionAttempts: "dontInvert"
+                            });
+                            if (code && code.data) {
+                                detectedRaw = String(code.data).trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                if (!detectedRaw) return;
+                const code = detectedRaw.trim();
+
+                if (staffScanning) {
+                    const matched = (users || []).find(u => 
+                        u.id === code ||
+                        (u.phoneNumber && phonesMatch(u.phoneNumber, code)) ||
+                        (u.nationalId && u.nationalId.toLowerCase() === code.toLowerCase()) ||
+                        (u.name && u.name.toLowerCase() === code.toLowerCase())
+                    );
+                    if (matched) {
+                        setSelectedStaff(matched);
+                        setStaffSearchTerm(matched.name);
+                        setStaffScanning(false);
+                        stopGateCamera();
+                    }
+                } else if (parentScanning) {
+                    setParentSearchTerm(code);
+                    handleSearchParent(code);
+                    setParentScanning(false);
+                    stopGateCamera();
+                } else if (scanning) {
+                    const matchedV = vehicles.find(v => v.plateNumber.toLowerCase() === code.toLowerCase() || v.id === code);
+                    if (matchedV) {
+                        setSelectedVehicle(matchedV);
+                        setSearchTerm(matchedV.plateNumber);
+                    } else {
+                        setSearchTerm(code);
+                    }
+                    setScanning(false);
+                    stopGateCamera();
+                }
+            }, 180);
+        } else {
+            stopGateCamera();
+        }
+
+        return () => {
+            if (scanInterval) clearInterval(scanInterval);
+            if (jsQrScript && jsQrScript.parentNode) {
+                jsQrScript.parentNode.removeChild(jsQrScript);
+            }
+            stopGateCamera();
+        };
+    }, [staffScanning, scanning, parentScanning, startGateCamera, stopGateCamera, users, vehicles]);
+
+    // Cleanup camera stream on unmount
+    useEffect(() => {
+        return () => {
+            if (gateStreamRef.current) {
+                gateStreamRef.current.getTracks().forEach(t => {
+                    try { t.stop(); } catch (_) {}
+                });
+                gateStreamRef.current = null;
+            }
+        };
+    }, []);
 
     const performVerificationAndPrint = async (
         pin: any,
@@ -2566,37 +2794,87 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
             {/* Viewfinder Cam Modals (Optimized for Guard Desk viewports) */}
             {scanning && activeTab === 'vehicle' && (
                 <div className="fixed inset-0 bg-slate-950/90 z-[200] flex flex-col items-center justify-center p-6 backdrop-blur-md">
-                    <div className="w-full max-w-md text-center space-y-6">
+                    <div className="w-full max-w-md text-center space-y-5">
+                        {/* Lens selector */}
+                        <div className="flex items-center justify-between w-full max-w-[320px] mx-auto px-1">
+                            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                {gateFacingMode === 'environment' ? 'Rear Camera Active' : 'Front Camera Active'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={toggleGateCameraFacing}
+                                className="flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full text-[9px] font-bold transition-all"
+                            >
+                                <ArrowPathIcon className="w-3 h-3 text-indigo-400" />
+                                Flip Lens
+                            </button>
+                        </div>
+
                         <div className="relative aspect-square w-full max-w-[320px] mx-auto bg-slate-900 rounded-[2.5rem] border-4 border-blue-500 overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.3)]">
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-slate-950/40">
-                                <QrCodeIcon className="w-24 h-24 text-blue-500/20 mb-4 animate-pulse" />
-                                <p className="text-blue-500 font-black uppercase text-[10px] tracking-widest mb-6">Camera Viewfinder Active</p>
-                                <div className="grid grid-cols-2 gap-3 w-full">
+                            <video
+                                ref={handleGateVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                            />
+                            {/* Scanning Laser Line */}
+                            {isGateCameraActive && (
+                                <div className="absolute top-0 left-0 w-full h-1 bg-blue-500 shadow-[0_0_20px_#3b82f6] animate-[scan_3s_infinite]"></div>
+                            )}
+                            {/* Initializing Overlay */}
+                            {!isGateCameraActive && !gateCameraError && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/80 text-center">
+                                    <CameraIcon className="w-10 h-10 text-blue-400 animate-pulse mb-2" />
+                                    <p className="text-white font-bold text-[10px] uppercase tracking-wider">Activating Camera Feed...</p>
+                                </div>
+                            )}
+                            {/* Error Overlay */}
+                            {gateCameraError && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/95 text-center">
+                                    <XCircleIcon className="w-8 h-8 text-red-500 mb-1" />
+                                    <p className="text-white font-bold text-[10px] uppercase tracking-wider mb-1">Camera Unavailable</p>
+                                    <p className="text-red-300 text-[9px] mb-3 max-w-[220px]">{gateCameraError}</p>
                                     <button
-                                        onClick={() => {
-                                            if (vehicles.length > 0) {
-                                                const v = vehicles[0];
-                                                setSelectedVehicle(v);
-                                                setSearchTerm(v.plateNumber);
-                                                setScanning(false);
-                                            }
-                                        }}
-                                        className="bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all"
+                                        type="button"
+                                        onClick={() => startGateCamera(gateFacingMode)}
+                                        className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold"
                                     >
-                                        Simulate Scan
-                                    </button>
-                                    <button
-                                        onClick={() => setScanning(false)}
-                                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 py-3 rounded-xl border border-red-500/20 text-[10px] font-black uppercase tracking-widest transition-all"
-                                    >
-                                        Close
+                                        Retry Camera
                                     </button>
                                 </div>
-                            </div>
-                            <div className="absolute top-0 left-0 w-full h-1 bg-blue-500 shadow-[0_0_20px_#3b82f6] animate-[scan_3s_infinite]"></div>
+                            )}
                         </div>
-                        <h3 className="text-2xl font-black text-white uppercase tracking-tight">Align Plate Barcode</h3>
-                        <p className="text-slate-450 text-xs font-bold uppercase tracking-wider">Position barcode/QR within the camera scanner frame</p>
+
+                        <h3 className="text-xl font-black text-white uppercase tracking-tight">Scan Vehicle Plate / QR</h3>
+                        <p className="text-slate-450 text-xs font-bold uppercase tracking-wider">Point camera at vehicle gate pass barcode or license plate</p>
+
+                        <div className="flex items-center justify-center gap-3">
+                            {vehicles.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        const v = vehicles[0];
+                                        setSelectedVehicle(v);
+                                        setSearchTerm(v.plateNumber);
+                                        setScanning(false);
+                                        stopGateCamera();
+                                    }}
+                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Select First Fleet Vehicle
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    setScanning(false);
+                                    stopGateCamera();
+                                }}
+                                className="px-5 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/20 text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                     <style>{`
                         @keyframes scan {
@@ -2610,19 +2888,69 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
             {parentScanning && (
                 <div className="fixed inset-0 bg-slate-950/90 z-[200] flex flex-col items-center justify-center p-6 backdrop-blur-md">
-                    <div className="w-full max-w-lg text-center flex flex-col items-center space-y-6">
+                    <div className="w-full max-w-lg text-center flex flex-col items-center space-y-5">
+                        {/* Lens selector */}
+                        <div className="flex items-center justify-between w-full max-w-[280px] px-1">
+                            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                {gateFacingMode === 'environment' ? 'Rear Camera' : 'Front Camera'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={toggleGateCameraFacing}
+                                className="flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full text-[9px] font-bold transition-all"
+                            >
+                                <ArrowPathIcon className="w-3 h-3 text-purple-400" />
+                                Flip Lens
+                            </button>
+                        </div>
+
                         <div className="relative aspect-square w-full max-w-[280px] bg-slate-900 rounded-[2.5rem] border-4 border-purple-500 overflow-hidden shadow-[0_0_50px_rgba(168,85,247,0.3)]">
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/40">
-                                <QrCodeIcon className="w-20 h-20 text-purple-500/20 mb-4 animate-pulse" />
-                                <p className="text-purple-400 font-black uppercase text-[10px] tracking-widest mb-6">Camera Viewfinder Active</p>
-                                <button
-                                    onClick={() => setParentScanning(false)}
-                                    className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                >
-                                    Cancel Scan
-                                </button>
-                            </div>
-                            <div className="absolute top-0 left-0 w-full h-1 bg-purple-500 shadow-[0_0_20px_#a855f7] animate-[scan_3s_infinite]"></div>
+                            <video
+                                ref={handleGateVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                            />
+                            {/* Scanning Laser Line */}
+                            {isGateCameraActive && (
+                                <div className="absolute top-0 left-0 w-full h-1 bg-purple-500 shadow-[0_0_20px_#a855f7] animate-[scan_3s_infinite]"></div>
+                            )}
+                            {/* Initializing Overlay */}
+                            {!isGateCameraActive && !gateCameraError && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/80 text-center">
+                                    <CameraIcon className="w-10 h-10 text-purple-400 animate-pulse mb-2" />
+                                    <p className="text-white font-bold text-[10px] uppercase tracking-wider">Activating Camera...</p>
+                                </div>
+                            )}
+                            {/* Error Overlay */}
+                            {gateCameraError && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/95 text-center">
+                                    <XCircleIcon className="w-8 h-8 text-red-500 mb-1" />
+                                    <p className="text-white font-bold text-[10px] uppercase tracking-wider mb-1">Camera Unavailable</p>
+                                    <p className="text-red-300 text-[9px] mb-3 max-w-[220px]">{gateCameraError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => startGateCamera(gateFacingMode)}
+                                        className="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-[10px] font-bold"
+                                    >
+                                        Retry Camera
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <button
+                                onClick={() => {
+                                    setParentScanning(false);
+                                    stopGateCamera();
+                                }}
+                                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Cancel Scan
+                            </button>
                         </div>
                         
                         {/* Simulation Select Panel */}
@@ -2657,6 +2985,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                 setParentSearchTerm(p.pin);
                                                 handleSearchParent(p.pin);
                                                 setParentScanning(false);
+                                                stopGateCamera();
                                                 setScanFilter('');
                                             }}
                                             className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950 hover:bg-purple-950/20 border border-slate-800 hover:border-purple-500/30 transition-all text-left group"
@@ -2681,19 +3010,91 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 
             {staffScanning && (
                 <div className="fixed inset-0 bg-slate-950/90 z-[200] flex flex-col items-center justify-center p-6 backdrop-blur-md">
-                    <div className="w-full max-w-lg text-center flex flex-col items-center space-y-6">
+                    <div className="w-full max-w-lg text-center flex flex-col items-center space-y-5">
+                        {/* Lens selector */}
+                        <div className="flex items-center justify-between w-full max-w-[280px] px-1">
+                            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                {gateFacingMode === 'environment' ? 'Rear Camera Active' : 'Front Camera Active'}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={toggleGateCameraFacing}
+                                className="flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-full text-[9px] font-bold transition-all"
+                            >
+                                <ArrowPathIcon className="w-3 h-3 text-indigo-400" />
+                                Flip Lens
+                            </button>
+                        </div>
+
                         <div className="relative aspect-square w-full max-w-[280px] bg-slate-900 rounded-[2.5rem] border-4 border-indigo-500 overflow-hidden shadow-[0_0_50px_rgba(99,102,241,0.3)]">
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/40">
-                                <QrCodeIcon className="w-20 h-20 text-indigo-500/20 mb-4 animate-pulse" />
-                                <p className="text-indigo-455 font-black uppercase text-[10px] tracking-widest mb-6">Camera Viewfinder Active</p>
-                                <button
-                                    onClick={() => setStaffScanning(false)}
-                                    className="px-6 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                >
-                                    Cancel Scan
-                                </button>
+                            <video
+                                ref={handleGateVideoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                            />
+
+                            {/* Corner guide reticles */}
+                            <div className="absolute inset-0 pointer-events-none p-5">
+                                <div className="w-full h-full border border-dashed border-indigo-400/30 rounded-2xl relative">
+                                    <div className="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-indigo-400"></div>
+                                    <div className="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-indigo-400"></div>
+                                    <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-indigo-400"></div>
+                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-indigo-400"></div>
+                                </div>
                             </div>
-                            <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_20px_#6366f1] animate-[scan_3s_infinite]"></div>
+
+                            {/* Scanning Laser Line */}
+                            {isGateCameraActive && (
+                                <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 shadow-[0_0_20px_#6366f1] animate-[scan_3s_infinite]"></div>
+                            )}
+
+                            {/* Initializing Overlay */}
+                            {!isGateCameraActive && !gateCameraError && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/80 text-center">
+                                    <CameraIcon className="w-10 h-10 text-indigo-400 animate-pulse mb-2" />
+                                    <p className="text-white font-bold text-[10px] uppercase tracking-wider">Activating Camera...</p>
+                                </div>
+                            )}
+
+                            {/* Error Overlay */}
+                            {gateCameraError && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-950/95 text-center">
+                                    <XCircleIcon className="w-8 h-8 text-red-500 mb-1" />
+                                    <p className="text-white font-bold text-[10px] uppercase tracking-wider mb-1">Camera Unavailable</p>
+                                    <p className="text-red-300 text-[9px] mb-3 max-w-[220px]">{gateCameraError}</p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => startGateCamera(gateFacingMode)}
+                                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold"
+                                        >
+                                            Retry
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={toggleGateCameraFacing}
+                                            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[10px] font-bold border border-slate-700"
+                                        >
+                                            Switch Lens
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <button
+                                onClick={() => {
+                                    setStaffScanning(false);
+                                    stopGateCamera();
+                                }}
+                                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                                Cancel Scan
+                            </button>
                         </div>
                         
                         {/* Simulation Select Panel */}
@@ -2707,6 +3108,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         onClick={() => {
                                             setSelectedStaff(u);
                                             setStaffScanning(false);
+                                            stopGateCamera();
                                         }}
                                         className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950 hover:bg-indigo-950/20 border border-slate-800 hover:border-indigo-500/35 transition-all text-left"
                                     >
@@ -2715,7 +3117,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">{u.role}</p>
                                         </div>
                                         <span className="text-[9px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded border border-indigo-500/20">
-                                            Simulate RFID Scan
+                                            Select Staff
                                         </span>
                                     </button>
                                 ))}

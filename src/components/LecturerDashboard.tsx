@@ -52,6 +52,7 @@ interface LecturerDashboardProps {
     myRemedialAllocations?: RemedialAllocation[];
     pendingSubstituteRequests?: RemedialAllocation[];
     remedialSessions?: RemedialSession[];
+    onEndRemedialSession?: (session: RemedialSession) => void;
     canAccessSupervisor?: boolean;
 }
 
@@ -384,6 +385,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     studentAttendances = [], studentAbsenceRequests = [], onSaveAttendance, users = [],
     onAccessAlumnaPortal, schoolRegistry,
     myRemedialAllocations = [], pendingSubstituteRequests = [], remedialSessions = [],
+    onEndRemedialSession,
     canAccessSupervisor = false
 }) => {
     const useRequests = currentInstitution?.useAllocationRequests ?? true;
@@ -641,10 +643,16 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                             </div>
                         </div>
                         <button
-                            onClick={() => setActiveTab('remedials')}
-                            className="px-5 py-2.5 bg-white text-emerald-900 hover:bg-emerald-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow active:scale-95 shrink-0 cursor-pointer"
+                            onClick={() => {
+                                if (onEndRemedialSession) {
+                                    onEndRemedialSession(activeRemedialSession);
+                                } else {
+                                    setActiveTab('remedials');
+                                }
+                            }}
+                            className="px-5 py-2.5 bg-white text-emerald-900 hover:bg-emerald-50 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow active:scale-95 shrink-0 cursor-pointer flex items-center gap-1.5"
                         >
-                            End Lesson &amp; Scan &rarr;
+                            End Lesson Now &rarr;
                         </button>
                     </div>
                 )}
