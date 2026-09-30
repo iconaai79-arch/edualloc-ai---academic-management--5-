@@ -875,7 +875,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             'super_admin', 'reseller', 'agrovet_admin', 'property_admin', 'carwash_admin',
             'retail_agent', 'transport_admin', 'dos', 'director_of_studies', 'academics_officer',
             'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head',
-            'hod', 'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin',
+            'tto', 'director', 'finance', 'finance_officer', 'mechanic_admin',
             'managing_director', 'hoi', 'operation_manager', 'operations_manager'
         ].includes(role || '');
     }, [props.activeRole, props.currentUser?.role]);
@@ -1354,7 +1354,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         return props.currentInstitution?.moduleStates?.find(m => m.moduleId === moduleId);
     };
 
-    if (isStrictTeacherUser(props.currentUser)) {
+    if (isStrictTeacherUser(props.currentUser) || isTeacherRole(props.activeRole) || isTeacherRole(props.currentUser?.role)) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center p-6">
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-8 max-w-md text-center shadow-xl">
@@ -1363,11 +1363,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Teacher Portal Access Only</h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-                        Teacher accounts are strictly restricted to the Teacher Portal. Institutional administration is reserved for DOS, Deputy, and Head Teacher.
+                        Teacher and Head of Department (HOD) accounts are strictly restricted to the Teacher Portal. Institutional administration is reserved for DOS, Deputy, and Head Teacher.
                     </p>
                     <button
                         onClick={() => { window.location.href = '/'; }}
-                        className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all"
+                        className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all cursor-pointer"
                     >
                         Return to Teacher Portal
                     </button>

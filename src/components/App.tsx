@@ -881,10 +881,14 @@ export const App: React.FC = () => {
         if (!currentUser) return null;
 
         // STRICT ACCESS ENFORCEMENT:
-        // A user whose assigned role is strictly a teacher (no administrative leadership role)
+        // A user whose assigned role is strictly a teacher or HOD (no administrative leadership role)
         // must strictly access the Teacher Portal only.
         if (isStrictTeacherUser(currentUser)) {
-            return (currentUser.role === 'lecturer' || currentUser.role === 'practice_teacher') ? currentUser.role : 'teacher';
+            const roleCandidate = selectedRole || currentUser.role;
+            if (isTeacherRole(roleCandidate)) {
+                return roleCandidate as Role;
+            }
+            return (currentUser.role === 'lecturer' || currentUser.role === 'practice_teacher' || currentUser.role === 'hod') ? currentUser.role : 'teacher';
         }
 
         if (impersonatedRole) return impersonatedRole;
@@ -904,16 +908,17 @@ export const App: React.FC = () => {
     }, [activeInstitution, activeRole]);
 
     const isAdminCatchAll = useMemo(() => {
-        // Pure teachers can NEVER access the Admin Portal
+        // Pure teachers & HODs can NEVER access the Admin Portal
         if (isStrictTeacherUser(currentUser)) return false;
         if (isTeacherRole(activeRole)) return false;
+        if (currentUser?.role === 'hod' || activeRole === 'hod') return false;
 
         return [
             'super_admin', 'group_admin', 'school_group_admin', 'school_admin', 'admin',
             'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress',
             'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head',
             'dos', 'director_of_studies', 'academics_officer',
-            'hod', 'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse',
+            'tto', 'agrovet_admin', 'property_admin', 'his_admin', 'nurse',
             'carwash_admin', 'transport_admin', 'reseller', 'retail_agent', 'field_agent',
             'store', 'supplier', 'fuel_admin', 'legal_admin', 'cooperative_manager',
             'coop_chairman', 'sacco_officer', 'coop_admin', 'pharmacy_admin',
@@ -6865,7 +6870,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onOnboardStudent: handleOnboardStudent,
         onOffboardStudent: handleOffboardStudent,
         onSwitchPerspective: (role: Role | null) => {
-            if (isStrictTeacherUser(currentUser) && role && !isTeacherRole(role)) {
+            if ((isStrictTeacherUser(currentUser) || isTeacherRole(currentUser?.role)) && role && !isTeacherRole(role)) {
                 return;
             }
             setImpersonatedRole(role);
@@ -7502,7 +7507,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             applicationTitle={companyDetails.applicationTitle}
                             activeRole={activeRole as Role}
                             onSwitchRole={(r) => {
-                                if (isStrictTeacherUser(currentUser) && !isTeacherRole(r)) {
+                                if ((isStrictTeacherUser(currentUser) || isTeacherRole(currentUser?.role)) && !isTeacherRole(r)) {
                                     return;
                                 }
                                 React.startTransition(() => {
@@ -7932,7 +7937,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                     </ModuleAccessGuard>
-                                ) : (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || isStrictTeacherUser(currentUser)) ? (
+                                ) : (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || activeRole === 'hod' || isStrictTeacherUser(currentUser)) ? (
                                     <LecturerView {...{
                                         ...lecturerProps,
                                         user: currentUser,

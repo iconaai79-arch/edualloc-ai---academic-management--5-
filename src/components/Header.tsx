@@ -123,10 +123,10 @@ export const Header: React.FC<HeaderProps> = ({
             roles.unshift(currentUser.role);
         }
 
-        // STRICT ACCESS ENFORCEMENT: Teachers can strictly access Teacher Portal only
-        if (isStrictTeacherUser(currentUser)) {
+        // STRICT ACCESS ENFORCEMENT: Teachers and HODs can strictly access Teacher Portal only
+        if (isStrictTeacherUser(currentUser) || isTeacherRole(currentUser.role)) {
             roles = roles.filter(r => isTeacherRole(r));
-            if (roles.length === 0) roles = ['teacher'];
+            if (roles.length === 0) roles = [currentUser.role || 'teacher'];
         }
 
         return [...new Set(roles)];

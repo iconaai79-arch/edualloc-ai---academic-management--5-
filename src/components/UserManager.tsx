@@ -1111,7 +1111,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         if (!currentUser) return false;
         const r = currentUser.role;
         const baseAdminRoles = [
-            'admin', 'super_admin', 'head_teacher', 'dos', 'deputy', 'hod', 'academics_officer', 'registrar',
+            'admin', 'super_admin', 'head_teacher', 'dos', 'deputy', 'academics_officer', 'registrar',
             'property_admin', 'cooperative_manager', 'agrovet_admin', 'his_admin', 'carwash_admin', 
             'transport_admin', 'mechanic_admin', 'director', 'finance', 'finance_officer', 'managing_director', 'hoi',
             'operation_manager', 'operations_manager'
@@ -1204,7 +1204,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             list = list.filter(u => retailRoles.includes(u.role));
         }
 
-        const isRestrictedAdmin = (currentUser?.role === 'hod' || currentUser?.role === 'tto');
+        const isRestrictedAdmin = currentUser?.role === 'tto';
         if (isRestrictedAdmin && currentUser?.departmentId) {
             list = list.filter(u => u.departmentId === currentUser.departmentId);
         }

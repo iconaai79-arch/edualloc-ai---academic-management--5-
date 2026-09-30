@@ -484,8 +484,9 @@ export function formatRoleDisplayName(role: Role | string, institution?: Institu
 
 /**
  * Standard teacher roles that belong strictly to the Teacher Portal.
+ * Includes Head of Department (HOD) who are classroom instructors heading departmental curriculum.
  */
-export const TEACHER_ROLES: Role[] = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher'];
+export const TEACHER_ROLES: Role[] = ['teacher', 'lecturer', 'practice_teacher', 'county_teacher', 'hod'];
 
 /**
  * Checks if a given role is a teacher-related role.
@@ -535,13 +536,27 @@ export function isSchoolAdminRole(role?: Role | string | null): boolean {
 }
 
 /**
- * Checks if a user is strictly a teacher (possesses teacher role without holding administrative leadership roles).
+ * Checks if a user is strictly a teacher or HOD (possesses teaching/HOD role without holding executive leadership roles like Principal, Deputy, DOS).
  */
 export function isStrictTeacherUser(user: { role?: Role | string | null; roles?: (Role | string)[] | null } | null | undefined): boolean {
     if (!user) return false;
+    const primaryRole = String(user.role || '').toLowerCase();
     const userRoles: string[] = Array.isArray(user.roles)
         ? user.roles.map(r => String(r).toLowerCase())
-        : (user.role ? [String(user.role).toLowerCase()] : []);
+        : (user.role ? [primaryRole] : []);
+
+    // Primary teacher or HOD roles strictly belong to Teacher Portal unless holding senior executive leadership
+    if (primaryRole === 'teacher' || primaryRole === 'hod' || primaryRole === 'lecturer' || primaryRole === 'practice_teacher') {
+        const seniorExecutiveRoles = [
+            'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress',
+            'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head',
+            'dos', 'director_of_studies', 'super_admin'
+        ];
+        const hasSeniorExecutive = userRoles.some(r => seniorExecutiveRoles.includes(r));
+        if (!hasSeniorExecutive) {
+            return true;
+        }
+    }
 
     const hasAdmin = userRoles.some(r => SCHOOL_ADMIN_ROLES.some(ar => ar.toLowerCase() === r));
     if (hasAdmin) return false;
@@ -551,11 +566,12 @@ export function isStrictTeacherUser(user: { role?: Role | string | null; roles?:
 
 /**
  * Checks if a user has authorization to access the Admin Portal.
- * Teachers are strictly restricted from the Admin Portal unless they hold administrative leadership roles.
+ * Teachers and HODs are strictly restricted from the Admin Portal unless they hold administrative leadership roles.
  */
 export function canAccessAdminPortal(user: { role?: Role | string | null; roles?: (Role | string)[] | null } | null | undefined, activeRole?: Role | string | null): boolean {
     if (!user) return false;
     if (isStrictTeacherUser(user)) return false;
+    if (activeRole && isTeacherRole(activeRole)) return false;
     if (activeRole && isSchoolAdminRole(activeRole)) return true;
 
     const userRoles: string[] = Array.isArray(user.roles)
