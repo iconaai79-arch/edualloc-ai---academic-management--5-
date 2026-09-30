@@ -31,7 +31,9 @@ import {
     cleanStreamName,
     extractIndividualStreams,
     getAscSubjectColor,
-    getAutomaticAcademicTermAndWeek
+    getAutomaticAcademicTermAndWeek,
+    buildDynamicRemedialSlots,
+    matchSlotAllocation
 } from '../utils/remedialReportGenerator';
 
 interface RemedialLessonsManagerProps {
@@ -512,6 +514,49 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [teacherDaySearchQuery, setTeacherDaySearchQuery] = useState('');
     const [cancellationCutoffHours, setCancellationCutoffHours] = useState<number>(3);
     const [confirmationTimeoutMinutes, setConfirmationTimeoutMinutes] = useState<number>(45);
+
+    // Dynamic remedial settings composite for PDF/Excel/Print/Preview reports
+    const effectiveRateSetting = useMemo(() => ({
+        ...(rateSetting || {}),
+        weekdayStartTime,
+        weekdayEndTime,
+        saturdayStartTime,
+        saturdayEndTime,
+        saturdayBreakStartTime,
+        saturdayBreakEndTime,
+        saturdayBreakLabel,
+        includeSaturdayBreak,
+        saturdayPeriodsCount,
+        sundayStartTime,
+        sundayEndTime,
+        sundayBreakStartTime,
+        sundayBreakEndTime,
+        sundayBreakLabel,
+        includeSundayBreak,
+        sundayPeriodsCount,
+        maxSundayLessonsPerClassPerDay,
+        maxSaturdayLessonsPerClassPerDay
+    }), [
+        rateSetting,
+        weekdayStartTime,
+        weekdayEndTime,
+        saturdayStartTime,
+        saturdayEndTime,
+        saturdayBreakStartTime,
+        saturdayBreakEndTime,
+        saturdayBreakLabel,
+        includeSaturdayBreak,
+        saturdayPeriodsCount,
+        sundayStartTime,
+        sundayEndTime,
+        sundayBreakStartTime,
+        sundayBreakEndTime,
+        sundayBreakLabel,
+        includeSundayBreak,
+        sundayPeriodsCount,
+        maxSundayLessonsPerClassPerDay,
+        maxSaturdayLessonsPerClassPerDay
+    ]);
 
     // Teachers Tab Management State
     const [teacherCodes, setTeacherCodes] = useState<Record<string, string>>({});
@@ -6236,7 +6281,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     allocations,
                     courses: combinedCourses,
                     users: teachersList,
-                    rateSetting,
+                    rateSetting: effectiveRateSetting,
                     termName: timetableTerm,
                     weekName: timetableWeek,
                     yearName: timetableYear,
@@ -6300,7 +6345,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     allocations,
                     courses: combinedCourses,
                     users: teachersList,
-                    rateSetting,
+                    rateSetting: effectiveRateSetting,
                     termName: timetableTerm,
                     weekName: timetableWeek,
                     yearName: timetableYear,
@@ -6360,6 +6405,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     allocations,
                     courses: combinedCourses,
                     users: teachersList,
+                    rateSetting: effectiveRateSetting,
                     termName: timetableTerm,
                     weekName: timetableWeek,
                     yearName: timetableYear,
@@ -6885,14 +6931,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             `).join('');
 
             // Saturday slots
-            const satSlots = [
-                { label: '0800-0900', start: '08:00', end: '09:00', isBreak: false },
-                { label: '0900:1000', start: '09:00', end: '10:00', isBreak: false },
-                { label: '1000-1030', isBreak: true },
-                { label: '1030-1130', start: '10:30', end: '11:30', isBreak: false },
-                { label: '1130-1230', start: '11:30', end: '12:30', isBreak: false },
-                { label: '1230-1330', start: '12:30', end: '13:30', isBreak: false }
-            ];
+            const satSlots = buildDynamicRemedialSlots('Saturday', effectiveRateSetting);
             const satRowsHtml = distinctClasses.map(cls => `
                 <tr>
                     <td style="font-weight:bold;text-align:center;background:#f8fafc;padding:6px;border:1px solid #334155;">${cls.shortCode}</td>
@@ -6904,7 +6943,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             a.dayOfWeek === 'Saturday' &&
                             (a.className === cls.className || a.courseId === cls.className) &&
                             matchAllocationStream(a, cls.stream) &&
-                            (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                            matchSlotAllocation(a, slot)
                         );
                         const cell = matches.map(a => {
                             const c = getAscSubjectColor(a.subjectName, a.subjectId);
@@ -6918,11 +6957,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             `).join('');
 
             // Sunday slots
-            const sunSlots = [
-                { label: '9:30-1100', start: '09:30', end: '11:00', isBreak: false },
-                { label: '11:00-11:30', isBreak: true },
-                { label: '11:30-1:00', start: '11:30', end: '13:00', isBreak: false }
-            ];
+            const sunSlots = buildDynamicRemedialSlots('Sunday', effectiveRateSetting);
             const sunRowsHtml = distinctClasses.map(cls => `
                 <tr>
                     <td style="font-weight:bold;text-align:center;background:#f8fafc;padding:6px;border:1px solid #334155;">${cls.shortCode}</td>
@@ -6934,7 +6969,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             a.dayOfWeek === 'Sunday' &&
                             (a.className === cls.className || a.courseId === cls.className) &&
                             matchAllocationStream(a, cls.stream) &&
-                            (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                            matchSlotAllocation(a, slot)
                         );
                         const cell = matches.map(a => {
                             const c = getAscSubjectColor(a.subjectName, a.subjectId);
@@ -13967,174 +14002,184 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     </div>
 
                                     {/* TABLE 2: SATURDAY TIMETABLE */}
-                                    <div className="space-y-2 pt-2">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                                Saturday Schedule – Duty {timetableSatDuty}
-                                            </h4>
-                                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
-                                                Weekend Recess: 10:00 – 10:30 (Break)
-                                            </span>
-                                        </div>
-                                        <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
-                                            <table className="w-full text-center text-xs border-collapse">
-                                                <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
-                                                    <tr>
-                                                        <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">08:00 - 09:00</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">09:00 - 10:00</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700 bg-amber-200/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300">10:00 - 10:30</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">10:30 - 11:30</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">11:30 - 12:30</th>
-                                                        <th className="py-2.5 px-2">12:30 - 13:30</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
-                                                        <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
-                                                            <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
-                                                                {cls.shortCode}
-                                                            </td>
-                                                            {[
-                                                                { start: '08:00', end: '09:00', isBreak: false },
-                                                                { start: '09:00', end: '10:00', isBreak: false },
-                                                                { isBreak: true },
-                                                                { start: '10:30', end: '11:30', isBreak: false },
-                                                                { start: '11:30', end: '12:30', isBreak: false },
-                                                                { start: '12:30', end: '13:30', isBreak: false }
-                                                            ].map((slot, sIdx) => {
-                                                                if (slot.isBreak) {
-                                                                    return (
-                                                                        <td key={sIdx} className="py-2 px-2 border-r border-slate-300 dark:border-slate-700 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-black tracking-widest text-[10px]">
-                                                                            BREAK
-                                                                        </td>
-                                                                    );
-                                                                }
-                                                                const matches = allocations.filter(a =>
-                                                                    a.dayOfWeek === 'Saturday' &&
-                                                                    (a.className === cls.className || a.courseId === cls.className) &&
-                                                                    matchAllocationStream(a, cls.stream) &&
-                                                                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
-                                                                );
-                                                                return (
-                                                                    <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < 5 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
-                                                                        {matches.length === 0 ? (
-                                                                            <span className="text-slate-300 dark:text-slate-600">-</span>
-                                                                        ) : (
-                                                                            matches.map((a, mIdx) => {
-                                                                                const sc = getAscSubjectColor(a.subjectName, a.subjectId);
-                                                                                const sCode = getSubjectCode(a.subjectName, a.subjectId);
-                                                                                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
-                                                                                return (
-                                                                                    <div
-                                                                                        key={mIdx}
-                                                                                        className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
-                                                                                        style={{
-                                                                                            backgroundColor: sc.bg,
-                                                                                            color: sc.text,
-                                                                                            border: `1px solid ${sc.border}`
-                                                                                        }}
-                                                                                        title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
-                                                                                    >
-                                                                                        <span>{sCode}</span>
-                                                                                        <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
-                                                                                            {tCode}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                );
-                                                                            })
-                                                                        )}
+                                    {(() => {
+                                        const previewSatSlots = buildDynamicRemedialSlots('Saturday', effectiveRateSetting);
+                                        return (
+                                            <div className="space-y-2 pt-2">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                        Saturday Schedule – Duty {timetableSatDuty}
+                                                    </h4>
+                                                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
+                                                        {includeSaturdayBreak ? `Weekend Recess: ${saturdayBreakStartTime || '10:00'} – ${saturdayBreakEndTime || '10:30'} (Break)` : 'Continuous Session'}
+                                                    </span>
+                                                </div>
+                                                <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
+                                                    <table className="w-full text-center text-xs border-collapse">
+                                                        <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
+                                                            <tr>
+                                                                <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
+                                                                {previewSatSlots.map((slot, sIdx) => (
+                                                                    <th
+                                                                        key={sIdx}
+                                                                        className={`py-2.5 px-2 ${sIdx < previewSatSlots.length - 1 ? 'border-r border-slate-400 dark:border-slate-700' : ''} ${
+                                                                            slot.isBreak ? 'bg-amber-200/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300' : ''
+                                                                        }`}
+                                                                    >
+                                                                        {slot.label}
+                                                                    </th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y border-slate-800 dark:border-slate-600">
+                                                            {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
+                                                                <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                                                                    <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
+                                                                        {cls.shortCode}
                                                                     </td>
-                                                                );
-                                                            })}
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
+                                                                    {previewSatSlots.map((slot, sIdx) => {
+                                                                        if (slot.isBreak) {
+                                                                            return (
+                                                                                <td key={sIdx} className="py-2 px-2 border-r border-slate-300 dark:border-slate-700 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-black tracking-widest text-[10px]">
+                                                                                    BREAK
+                                                                                </td>
+                                                                            );
+                                                                        }
+                                                                        const matches = allocations.filter(a =>
+                                                                            a.dayOfWeek === 'Saturday' &&
+                                                                            (a.className === cls.className || a.courseId === cls.className) &&
+                                                                            matchAllocationStream(a, cls.stream) &&
+                                                                            matchSlotAllocation(a, slot)
+                                                                        );
+                                                                        return (
+                                                                            <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < previewSatSlots.length - 1 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
+                                                                                {matches.length === 0 ? (
+                                                                                    <span className="text-slate-300 dark:text-slate-600">-</span>
+                                                                                ) : (
+                                                                                    matches.map((a, mIdx) => {
+                                                                                        const sc = getAscSubjectColor(a.subjectName, a.subjectId);
+                                                                                        const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                                                                                        const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={mIdx}
+                                                                                                className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
+                                                                                                style={{
+                                                                                                    backgroundColor: sc.bg,
+                                                                                                    color: sc.text,
+                                                                                                    border: `1px solid ${sc.border}`
+                                                                                                }}
+                                                                                                title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
+                                                                                            >
+                                                                                                <span>{sCode}</span>
+                                                                                                <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
+                                                                                                    {tCode}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })
+                                                                                )}
+                                                                            </td>
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* TABLE 3: SUNDAY TIMETABLE */}
-                                    <div className="space-y-2 pt-2">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                                                Sunday Schedule – Duty {timetableSunDuty}
-                                            </h4>
-                                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
-                                                Sunday Recess: 11:00 – 11:30 (Break)
-                                            </span>
-                                        </div>
-                                        <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
-                                            <table className="w-full text-center text-xs border-collapse">
-                                                <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
-                                                    <tr>
-                                                        <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700">09:30 - 11:00</th>
-                                                        <th className="py-2.5 px-2 border-r border-slate-400 dark:border-slate-700 bg-amber-200/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300">11:00 - 11:30</th>
-                                                        <th className="py-2.5 px-2">11:30 - 13:00</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y border-slate-800 dark:border-slate-600">
-                                                    {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
-                                                        <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
-                                                            <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
-                                                                {cls.shortCode}
-                                                            </td>
-                                                            {[
-                                                                { start: '09:30', end: '11:00', isBreak: false },
-                                                                { isBreak: true },
-                                                                { start: '11:30', end: '13:00', isBreak: false }
-                                                            ].map((slot, sIdx) => {
-                                                                if (slot.isBreak) {
-                                                                    return (
-                                                                        <td key={sIdx} className="py-2 px-2 border-r border-slate-300 dark:border-slate-700 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-black tracking-widest text-[10px]">
-                                                                            BREAK
-                                                                        </td>
-                                                                    );
-                                                                }
-                                                                const matches = allocations.filter(a =>
-                                                                    a.dayOfWeek === 'Sunday' &&
-                                                                    (a.className === cls.className || a.courseId === cls.className) &&
-                                                                    matchAllocationStream(a, cls.stream) &&
-                                                                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
-                                                                );
-                                                                return (
-                                                                    <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < 2 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
-                                                                        {matches.length === 0 ? (
-                                                                            <span className="text-slate-300 dark:text-slate-600">-</span>
-                                                                        ) : (
-                                                                            matches.map((a, mIdx) => {
-                                                                                const sc = getAscSubjectColor(a.subjectName, a.subjectId);
-                                                                                const sCode = getSubjectCode(a.subjectName, a.subjectId);
-                                                                                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
-                                                                                return (
-                                                                                    <div
-                                                                                        key={mIdx}
-                                                                                        className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
-                                                                                        style={{
-                                                                                            backgroundColor: sc.bg,
-                                                                                            color: sc.text,
-                                                                                            border: `1px solid ${sc.border}`
-                                                                                        }}
-                                                                                        title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
-                                                                                    >
-                                                                                        <span>{sCode}</span>
-                                                                                        <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
-                                                                                            {tCode}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                );
-                                                                            })
-                                                                        )}
+                                    {(() => {
+                                        const previewSunSlots = buildDynamicRemedialSlots('Sunday', effectiveRateSetting);
+                                        return (
+                                            <div className="space-y-2 pt-2">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                        Sunday Schedule – Duty {timetableSunDuty}
+                                                    </h4>
+                                                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">
+                                                        {includeSundayBreak ? `Sunday Recess: ${sundayBreakStartTime || '11:00'} – ${sundayBreakEndTime || '11:30'} (Break)` : 'Continuous Session'}
+                                                    </span>
+                                                </div>
+                                                <div className="overflow-x-auto border-2 border-slate-800 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-900">
+                                                    <table className="w-full text-center text-xs border-collapse">
+                                                        <thead className="bg-slate-100 dark:bg-slate-800 text-[11px] font-black uppercase text-slate-900 dark:text-white border-b-2 border-slate-800 dark:border-slate-600">
+                                                            <tr>
+                                                                <th className="py-2.5 px-3 border-r-2 border-slate-800 dark:border-slate-600 w-16 bg-slate-200/80 dark:bg-slate-700/80">Class</th>
+                                                                {previewSunSlots.map((slot, sIdx) => (
+                                                                    <th
+                                                                        key={sIdx}
+                                                                        className={`py-2.5 px-2 ${sIdx < previewSunSlots.length - 1 ? 'border-r border-slate-400 dark:border-slate-700' : ''} ${
+                                                                            slot.isBreak ? 'bg-amber-200/80 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300' : ''
+                                                                        }`}
+                                                                    >
+                                                                        {slot.label}
+                                                                    </th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y border-slate-800 dark:border-slate-600">
+                                                            {getDistinctTimetableClasses(allocations, combinedCourses, autoHideUnallocatedClasses).map(cls => (
+                                                                <tr key={cls.sortKey} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                                                                    <td className="py-2.5 px-3 font-black text-slate-900 dark:text-white border-r-2 border-slate-800 dark:border-slate-600 bg-slate-100/80 dark:bg-slate-800/80">
+                                                                        {cls.shortCode}
                                                                     </td>
-                                                                );
-                                                            })}
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
+                                                                    {previewSunSlots.map((slot, sIdx) => {
+                                                                        if (slot.isBreak) {
+                                                                            return (
+                                                                                <td key={sIdx} className="py-2 px-2 border-r border-slate-300 dark:border-slate-700 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 font-black tracking-widest text-[10px]">
+                                                                                    BREAK
+                                                                                </td>
+                                                                            );
+                                                                        }
+                                                                        const matches = allocations.filter(a =>
+                                                                            a.dayOfWeek === 'Sunday' &&
+                                                                            (a.className === cls.className || a.courseId === cls.className) &&
+                                                                            matchAllocationStream(a, cls.stream) &&
+                                                                            matchSlotAllocation(a, slot)
+                                                                        );
+                                                                        return (
+                                                                            <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < previewSunSlots.length - 1 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
+                                                                                {matches.length === 0 ? (
+                                                                                    <span className="text-slate-300 dark:text-slate-600">-</span>
+                                                                                ) : (
+                                                                                    matches.map((a, mIdx) => {
+                                                                                        const sc = getAscSubjectColor(a.subjectName, a.subjectId);
+                                                                                        const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                                                                                        const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={mIdx}
+                                                                                                className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
+                                                                                                style={{
+                                                                                                    backgroundColor: sc.bg,
+                                                                                                    color: sc.text,
+                                                                                                    border: `1px solid ${sc.border}`
+                                                                                                }}
+                                                                                                title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
+                                                                                            >
+                                                                                                <span>{sCode}</span>
+                                                                                                <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
+                                                                                                    {tCode}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })
+                                                                                )}
+                                                                            </td>
+                                                                        );
+                                                                    })}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* TABLE 4: REFERENCE LEGEND (SUBJECT & STAFF CODE DIRECTORY) */}
                                     <div className="space-y-2 pt-2">

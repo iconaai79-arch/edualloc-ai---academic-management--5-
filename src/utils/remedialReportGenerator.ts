@@ -1010,6 +1010,232 @@ const hexToRgb = (hex?: string, fallback: [number, number, number] = [241, 245, 
     return fallback;
 };
 
+export interface RemedialPeriodSlot {
+    periodNum: number;
+    startTime: string;
+    endTime: string;
+    label: string;
+    pdfLabel: string;
+    isBreak: boolean;
+}
+
+export const addMinutesToTimeString = (timeStr: string, minutes: number = 60): string => {
+    if (!timeStr) return '';
+    const parts = timeStr.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1] || '0', 10);
+    if (isNaN(h)) return '';
+    const totalMin = h * 60 + m + minutes;
+    const newH = Math.floor((totalMin / 60) % 24);
+    const newM = totalMin % 60;
+    return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+};
+
+export const buildDynamicRemedialSlots = (
+    day: 'Saturday' | 'Sunday',
+    config?: any
+): RemedialPeriodSlot[] => {
+    const slots: RemedialPeriodSlot[] = [];
+
+    if (day === 'Saturday') {
+        const satStart = config?.saturdayStartTime || config?.saturday_start_time || config?.weekendStartTime || config?.weekend_start_time || '08:00';
+        const satEnd = config?.saturdayEndTime || config?.saturday_end_time || config?.weekendEndTime || config?.weekend_end_time || '12:00';
+        const satCount = Math.max(1, config?.saturdayPeriodsCount || config?.saturday_periods_count || 5);
+        const satBreakStart = config?.saturdayBreakStartTime || config?.saturday_break_start_time || config?.weekendBreakStartTime || config?.weekend_break_start_time || '10:00';
+        const satBreakEnd = config?.saturdayBreakEndTime || config?.saturday_break_end_time || config?.weekendBreakEndTime || config?.weekend_break_end_time || '10:30';
+        const includeBreak = (config?.includeSaturdayBreak ?? config?.include_saturday_break ?? config?.includeWeekendBreak ?? config?.include_weekend_break ?? true) !== false;
+
+        const preBreakCount = includeBreak ? Math.min(2, Math.max(1, satCount - 1)) : satCount;
+        let curStart = satStart;
+
+        for (let p = 1; p <= preBreakCount; p++) {
+            const nextEnd = (includeBreak && p === preBreakCount)
+                ? satBreakStart
+                : addMinutesToTimeString(curStart, 60);
+            slots.push({
+                periodNum: p,
+                startTime: curStart,
+                endTime: nextEnd,
+                label: `${curStart} - ${nextEnd}`,
+                pdfLabel: `${curStart}-\n${nextEnd}`,
+                isBreak: false
+            });
+            curStart = nextEnd;
+        }
+
+        if (includeBreak && satCount > preBreakCount) {
+            slots.push({
+                periodNum: 0,
+                startTime: satBreakStart,
+                endTime: satBreakEnd,
+                label: `${satBreakStart} - ${satBreakEnd} (BREAK)`,
+                pdfLabel: `${satBreakStart}-\n${satBreakEnd}`,
+                isBreak: true
+            });
+            curStart = satBreakEnd;
+            for (let p = preBreakCount + 1; p <= satCount; p++) {
+                const nextEnd = (p === satCount && satEnd && satEnd > curStart)
+                    ? satEnd
+                    : addMinutesToTimeString(curStart, 60);
+                slots.push({
+                    periodNum: p,
+                    startTime: curStart,
+                    endTime: nextEnd,
+                    label: `${curStart} - ${nextEnd}`,
+                    pdfLabel: `${curStart}-\n${nextEnd}`,
+                    isBreak: false
+                });
+                curStart = nextEnd;
+            }
+        }
+        return slots;
+    }
+
+    if (day === 'Sunday') {
+        const sunStart = config?.sundayStartTime || config?.sunday_start_time || '09:00';
+        const sunEnd = config?.sundayEndTime || config?.sunday_end_time || '13:00';
+        const sunPeriodsCount = config?.sundayPeriodsCount || config?.sunday_periods_count;
+        const maxSunLimit = config?.maxSundayLessonsPerClassPerDay || 2;
+        const count = Math.max(1, sunPeriodsCount ? Math.min(sunPeriodsCount, maxSunLimit || sunPeriodsCount) : (maxSunLimit || 2));
+        const sunBreakStart = config?.sundayBreakStartTime || config?.sunday_break_start_time || '11:00';
+        const sunBreakEnd = config?.sundayBreakEndTime || config?.sunday_break_end_time || '11:30';
+        const includeBreak = (config?.includeSundayBreak ?? config?.include_sunday_break ?? config?.includeWeekendBreak ?? config?.include_weekend_break ?? true) !== false;
+
+        if (count <= 2) {
+            if (includeBreak && count === 2) {
+                slots.push({
+                    periodNum: 1,
+                    startTime: sunStart,
+                    endTime: sunBreakStart,
+                    label: `${sunStart} - ${sunBreakStart}`,
+                    pdfLabel: `${sunStart} -\n${sunBreakStart}`,
+                    isBreak: false
+                });
+                slots.push({
+                    periodNum: 0,
+                    startTime: sunBreakStart,
+                    endTime: sunBreakEnd,
+                    label: `${sunBreakStart} - ${sunBreakEnd} (BREAK)`,
+                    pdfLabel: `${sunBreakStart} -\n${sunBreakEnd}`,
+                    isBreak: true
+                });
+                slots.push({
+                    periodNum: 2,
+                    startTime: sunBreakEnd,
+                    endTime: sunEnd,
+                    label: `${sunBreakEnd} - ${sunEnd}`,
+                    pdfLabel: `${sunBreakEnd} -\n${sunEnd}`,
+                    isBreak: false
+                });
+            } else if (count === 1) {
+                slots.push({
+                    periodNum: 1,
+                    startTime: sunStart,
+                    endTime: sunEnd,
+                    label: `${sunStart} - ${sunEnd}`,
+                    pdfLabel: `${sunStart} -\n${sunEnd}`,
+                    isBreak: false
+                });
+            } else {
+                const midTime = sunBreakStart || '11:00';
+                slots.push({
+                    periodNum: 1,
+                    startTime: sunStart,
+                    endTime: midTime,
+                    label: `${sunStart} - ${midTime}`,
+                    pdfLabel: `${sunStart} -\n${midTime}`,
+                    isBreak: false
+                });
+                slots.push({
+                    periodNum: 2,
+                    startTime: midTime,
+                    endTime: sunEnd,
+                    label: `${midTime} - ${sunEnd}`,
+                    pdfLabel: `${midTime} -\n${sunEnd}`,
+                    isBreak: false
+                });
+            }
+            return slots;
+        }
+
+        const preBreakCount = includeBreak ? Math.min(2, Math.max(1, count - 1)) : count;
+        let curStart = sunStart;
+        for (let p = 1; p <= preBreakCount; p++) {
+            const nextEnd = (includeBreak && p === preBreakCount)
+                ? sunBreakStart
+                : addMinutesToTimeString(curStart, 60);
+            slots.push({
+                periodNum: p,
+                startTime: curStart,
+                endTime: nextEnd,
+                label: `${curStart} - ${nextEnd}`,
+                pdfLabel: `${curStart} -\n${nextEnd}`,
+                isBreak: false
+            });
+            curStart = nextEnd;
+        }
+
+        if (includeBreak && count > preBreakCount) {
+            slots.push({
+                periodNum: 0,
+                startTime: sunBreakStart,
+                endTime: sunBreakEnd,
+                label: `${sunBreakStart} - ${sunBreakEnd} (BREAK)`,
+                pdfLabel: `${sunBreakStart} -\n${sunBreakEnd}`,
+                isBreak: true
+            });
+            curStart = sunBreakEnd;
+            for (let p = preBreakCount + 1; p <= count; p++) {
+                const nextEnd = (p === count && sunEnd && sunEnd > curStart)
+                    ? sunEnd
+                    : addMinutesToTimeString(curStart, 60);
+                slots.push({
+                    periodNum: p,
+                    startTime: curStart,
+                    endTime: nextEnd,
+                    label: `${curStart} - ${nextEnd}`,
+                    pdfLabel: `${curStart} -\n${nextEnd}`,
+                    isBreak: false
+                });
+                curStart = nextEnd;
+            }
+        }
+        return slots;
+    }
+
+    return slots;
+};
+
+export const matchSlotAllocation = (
+    allocation: any,
+    slot: { startTime?: string; endTime?: string; start?: string; end?: string; periodNum?: number; isBreak?: boolean }
+): boolean => {
+    if (slot.isBreak) return false;
+
+    const sStart = slot.startTime || slot.start;
+    const sEnd = slot.endTime || slot.end;
+
+    // 1. Check periodNumber / periodNum match if specified
+    const allocPeriod = (allocation as any).periodNumber ?? (allocation as any).periodNum;
+    if (allocPeriod !== undefined && slot.periodNum !== undefined && slot.periodNum > 0) {
+        if (Number(allocPeriod) === Number(slot.periodNum)) {
+            return true;
+        }
+    }
+
+    // 2. Exact start time match
+    if (allocation.startTime && sStart && allocation.startTime === sStart) {
+        return true;
+    }
+
+    // 3. Fallback: time interval overlap
+    if (allocation.startTime && sStart && sEnd) {
+        return allocation.startTime >= sStart && allocation.startTime < sEnd;
+    }
+
+    return false;
+};
+
 export interface MasterTimetableReportParams {
     institution: any;
     allocations: any[];
@@ -1070,7 +1296,9 @@ export const generateRemedialMasterTimetablePdf = async ({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    const subMeta = `OFFICIAL REMEDIAL SCHEDULE  •  WEEKDAY WINDOW: 07:00 – 08:10  •  GENERATED: ${new Date().toLocaleDateString('en-GB')}`;
+    const wdStart = rateSetting?.weekdayStartTime || rateSetting?.weekday_start_time || '07:00';
+    const wdEnd = rateSetting?.weekdayEndTime || rateSetting?.weekday_end_time || '08:10';
+    const subMeta = `OFFICIAL REMEDIAL SCHEDULE  •  WEEKDAY WINDOW: ${wdStart} – ${wdEnd}  •  GENERATED: ${new Date().toLocaleDateString('en-GB')}`;
     doc.text(subMeta, pageWidth / 2, currentY, { align: 'center' });
     currentY += 6;
 
@@ -1178,16 +1406,9 @@ export const generateRemedialMasterTimetablePdf = async ({
     doc.text(`SATURDAY SCHEDULE – DUTY STAFF: ${saturdayDutyStaff}`.toUpperCase(), margin, currentY);
     currentY += 4;
 
-    const satSlots = [
-        { label: '08:00-\n09:00', start: '08:00', end: '09:00', isBreak: false },
-        { label: '09:00-\n10:00', start: '09:00', end: '10:00', isBreak: false },
-        { label: '10:00-\n10:30', start: '10:00', end: '10:30', isBreak: true },
-        { label: '10:30-\n11:30', start: '10:30', end: '11:30', isBreak: false },
-        { label: '11:30-\n12:30', start: '11:30', end: '12:30', isBreak: false },
-        { label: '12:30-\n13:30', start: '12:30', end: '13:30', isBreak: false }
-    ];
+    const satSlots = buildDynamicRemedialSlots('Saturday', rateSetting);
 
-    const satHeaders = ['CLASS', ...satSlots.map(s => s.label)];
+    const satHeaders = ['CLASS', ...satSlots.map(s => s.pdfLabel || s.label)];
     const satRows = distinctClasses.map(cls => {
         const row: any[] = [
             {
@@ -1219,7 +1440,7 @@ export const generateRemedialMasterTimetablePdf = async ({
                 a.dayOfWeek === 'Saturday' &&
                 (a.className === cls.className || a.courseId === cls.className) &&
                 matchAllocationStream(a, cls.stream) &&
-                (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                matchSlotAllocation(a, slot)
             );
             if (matches.length === 0) {
                 row.push({
@@ -1255,6 +1476,18 @@ export const generateRemedialMasterTimetablePdf = async ({
         return row;
     });
 
+    const satColumnStyles: Record<number, any> = {
+        0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] }
+    };
+    satSlots.forEach((slot, idx) => {
+        const colIdx = idx + 1;
+        if (slot.isBreak) {
+            satColumnStyles[colIdx] = { cellWidth: 16, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] };
+        } else {
+            satColumnStyles[colIdx] = { halign: 'center' };
+        }
+    });
+
     autoTable(doc, {
         startY: currentY,
         head: [satHeaders],
@@ -1276,15 +1509,7 @@ export const generateRemedialMasterTimetablePdf = async ({
             halign: 'center',
             fontSize: 7.5
         },
-        columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] },
-            1: { halign: 'center' },
-            2: { halign: 'center' },
-            3: { cellWidth: 16, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] },
-            4: { halign: 'center' },
-            5: { halign: 'center' },
-            6: { halign: 'center' }
-        },
+        columnStyles: satColumnStyles,
         margin: { left: margin, right: margin }
     });
 
@@ -1304,13 +1529,9 @@ export const generateRemedialMasterTimetablePdf = async ({
     doc.text(`SUNDAY SCHEDULE – DUTY STAFF: ${sundayDutyStaff}`.toUpperCase(), margin, currentY);
     currentY += 4;
 
-    const sunSlots = [
-        { label: '09:30 - 11:00', start: '09:30', end: '11:00', isBreak: false },
-        { label: '11:00 - 11:30', start: '11:00', end: '11:30', isBreak: true },
-        { label: '11:30 - 13:00', start: '11:30', end: '13:00', isBreak: false }
-    ];
+    const sunSlots = buildDynamicRemedialSlots('Sunday', rateSetting);
 
-    const sunHeaders = ['CLASS', ...sunSlots.map(s => s.label)];
+    const sunHeaders = ['CLASS', ...sunSlots.map(s => s.pdfLabel || s.label)];
     const sunRows = distinctClasses.map(cls => {
         const row: any[] = [
             {
@@ -1342,7 +1563,7 @@ export const generateRemedialMasterTimetablePdf = async ({
                 a.dayOfWeek === 'Sunday' &&
                 (a.className === cls.className || a.courseId === cls.className) &&
                 matchAllocationStream(a, cls.stream) &&
-                (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                matchSlotAllocation(a, slot)
             );
             if (matches.length === 0) {
                 row.push({
@@ -1378,6 +1599,18 @@ export const generateRemedialMasterTimetablePdf = async ({
         return row;
     });
 
+    const sunColumnStyles: Record<number, any> = {
+        0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] }
+    };
+    sunSlots.forEach((slot, idx) => {
+        const colIdx = idx + 1;
+        if (slot.isBreak) {
+            sunColumnStyles[colIdx] = { cellWidth: 26, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] };
+        } else {
+            sunColumnStyles[colIdx] = { halign: 'center' };
+        }
+    });
+
     autoTable(doc, {
         startY: currentY,
         head: [sunHeaders],
@@ -1399,12 +1632,7 @@ export const generateRemedialMasterTimetablePdf = async ({
             halign: 'center',
             fontSize: 8
         },
-        columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] },
-            1: { cellWidth: 62, halign: 'center' },
-            2: { cellWidth: 26, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] },
-            3: { cellWidth: 62, halign: 'center' }
-        },
+        columnStyles: sunColumnStyles,
         margin: { left: margin, right: margin }
     });
 
@@ -1503,6 +1731,7 @@ export const exportRemedialMasterTimetableToExcel = ({
     allocations,
     courses,
     users,
+    rateSetting,
     termName = 'TERM 3',
     weekName = 'WEEK 3',
     yearName = '2026',
@@ -1513,6 +1742,7 @@ export const exportRemedialMasterTimetableToExcel = ({
     allocations: any[];
     courses: any[];
     users: any[];
+    rateSetting?: any;
     termName?: string;
     weekName?: string;
     yearName?: string;
@@ -1541,28 +1771,22 @@ export const exportRemedialMasterTimetableToExcel = ({
         XLSX.utils.book_append_sheet(workbook, wsWeekday, 'Monday-Friday');
 
         // Sheet 2: Saturday
-        const satSlots = [
-            { label: '08:00 - 09:00', start: '08:00', end: '09:00' },
-            { label: '09:00 - 10:00', start: '09:00', end: '10:00' },
-            { label: '10:00 - 10:30 (BREAK)', isBreak: true },
-            { label: '10:30 - 11:30', start: '10:30', end: '11:30' },
-            { label: '11:30 - 12:30', start: '11:30', end: '12:30' },
-            { label: '12:30 - 13:30', start: '12:30', end: '13:30' }
-        ];
+        const satSlots = buildDynamicRemedialSlots('Saturday', rateSetting);
         const satData = distinctClasses.map(cls => {
             const rowObj: any = { 'Class / Stream': cls.shortCode, 'Full Class': cls.className + (cls.stream ? ` (${cls.stream})` : '') };
             satSlots.forEach(slot => {
+                const colLabel = slot.isBreak ? `${slot.startTime} - ${slot.endTime} (BREAK)` : `${slot.startTime} - ${slot.endTime}`;
                 if (slot.isBreak) {
-                    rowObj[slot.label] = 'BREAK';
+                    rowObj[colLabel] = 'BREAK';
                     return;
                 }
                 const matches = allocations.filter(a =>
                     a.dayOfWeek === 'Saturday' &&
                     (a.className === cls.className || a.courseId === cls.className) &&
                     matchAllocationStream(a, cls.stream) &&
-                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                    matchSlotAllocation(a, slot)
                 );
-                rowObj[slot.label] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
+                rowObj[colLabel] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });
             return rowObj;
         });
@@ -1570,25 +1794,22 @@ export const exportRemedialMasterTimetableToExcel = ({
         XLSX.utils.book_append_sheet(workbook, wsSat, 'Saturday');
 
         // Sheet 3: Sunday
-        const sunSlots = [
-            { label: '09:30 - 11:00', start: '09:30', end: '11:00' },
-            { label: '11:00 - 11:30 (BREAK)', isBreak: true },
-            { label: '11:30 - 13:00', start: '11:30', end: '13:00' }
-        ];
+        const sunSlots = buildDynamicRemedialSlots('Sunday', rateSetting);
         const sunData = distinctClasses.map(cls => {
             const rowObj: any = { 'Class / Stream': cls.shortCode, 'Full Class': cls.className + (cls.stream ? ` (${cls.stream})` : '') };
             sunSlots.forEach(slot => {
+                const colLabel = slot.isBreak ? `${slot.startTime} - ${slot.endTime} (BREAK)` : `${slot.startTime} - ${slot.endTime}`;
                 if (slot.isBreak) {
-                    rowObj[slot.label] = 'BREAK';
+                    rowObj[colLabel] = 'BREAK';
                     return;
                 }
                 const matches = allocations.filter(a =>
                     a.dayOfWeek === 'Sunday' &&
                     (a.className === cls.className || a.courseId === cls.className) &&
                     matchAllocationStream(a, cls.stream) &&
-                    (a.startTime && slot.start && slot.end ? a.startTime >= slot.start && a.startTime < slot.end : true)
+                    matchSlotAllocation(a, slot)
                 );
-                rowObj[slot.label] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
+                rowObj[colLabel] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });
             return rowObj;
         });
