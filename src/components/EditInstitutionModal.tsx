@@ -180,6 +180,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         yearly: formData.customSubscriptionPrice.yearly ? parseFloat(formData.customSubscriptionPrice.yearly) : undefined,
       },
       isOtpEnabled: formData.isOtpEnabled,
+      is_otp_enabled: formData.isOtpEnabled,
       customSmsPrice: formData.customSmsPrice ? parseFloat(formData.customSmsPrice) : null,
       category: formData.category || undefined,
       businessSubType: formData.category || formData.businessSubType || undefined,

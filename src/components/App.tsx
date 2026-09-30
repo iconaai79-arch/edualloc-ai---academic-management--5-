@@ -9229,7 +9229,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                     // When client is offline, bypass OTP verification so login does not require internet connectivity
                                     // Also bypass OTP enforcement for super_admin to prevent administrative lockout
-                                    const isOtpRequired = !isClientOffline && u.role !== 'super_admin' && (inst?.isOtpEnabled || companyDetails.enforceGlobalOtp);
+                                    const tenantOtpEnforced = Boolean(
+                                        inst?.isOtpEnabled === true || 
+                                        (inst as any)?.is_otp_enabled === true || 
+                                        String(inst?.isOtpEnabled) === 'true' || 
+                                        String((inst as any)?.is_otp_enabled) === 'true'
+                                    );
+                                    const isOtpRequired = !isClientOffline && u.role !== 'super_admin' && (tenantOtpEnforced || companyDetails.enforceGlobalOtp);
 
                                     if (isOtpRequired) {
                                         // Generate and Send OTP
@@ -9242,17 +9248,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
                                         const timestampText = `${formattedDate} at ${formattedTime}`;
 
-                                        const portalName = activeBranding.displayName || 'EduAI';
+                                        const portalName = activeBranding.displayName || inst?.name || 'EduAI';
                                         const otpMessage = `Your ${portalName} Verification Code is: ${otp}. Sent on ${timestampText}. Do not share this code with anyone.`;
-                                        console.log(`[Login] OTP Triggered for ${u.email}(Role: ${u.role}, Inst: ${u.institutionId})`);
+                                        console.log(`[Login] OTP Triggered for ${u.email} (Role: ${u.role}, Inst: ${u.institutionId})`);
 
                                         // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
                                         const emailCfg = inst?.emailConfig || companyDetails.emailConfig;
                                         const smsCfg = inst?.smsConfig || companyDetails.smsConfig;
 
+                                        const userPhone = u.phoneNumber || (u as any).phone_number || (u as any).phone || '';
+                                        const userEmail = u.email || '';
+                                        const formattedPhone = formatPhoneNumber(userPhone);
+                                        const targetInstId = u.institutionId || (u as any).institution_id || inst?.id || 'GLOBAL';
+
                                         Promise.all([
-                                            u.email ? apiService.sendEmail(u.email, 'Verification Code', otpMessage, emailCfg, u.id) : Promise.resolve({ success: true }),
-                                            u.phoneNumber ? apiService.sendSms(formatPhoneNumber(u.phoneNumber), otpMessage, smsCfg, 1, u.institutionId, u.id, true) : Promise.resolve({ success: true })
+                                            userEmail ? apiService.sendEmail(userEmail, 'Verification Code', otpMessage, emailCfg, u.id) : Promise.resolve({ success: true }),
+                                            formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, smsCfg, 1, targetInstId, u.id, true) : Promise.resolve({ success: true })
                                         ]).then((results: any) => {
                                             const smsResult = (results[1] || results[0]);
                                             if (smsResult && smsResult.success === false) {
@@ -9324,18 +9335,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
                                 const timestampText = `${formattedDate} at ${formattedTime}`;
 
-                                const portalName = activeBranding.displayName || 'EduAI';
+                                const instForOtp = institutions.find(i => i.id === otpPendingUser.institutionId);
+                                const portalName = activeBranding.displayName || instForOtp?.name || 'EduAI';
                                 const otpMessage = `Your New ${portalName} Verification Code is: ${otp}. Sent on ${timestampText}. Do not share this code with anyone.`;
                                 console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
                                 // Dispatch with reporting and explicit authToken (User ID)
-                                const instForOtp = institutions.find(i => i.id === otpPendingUser.institutionId);
                                 const emailCfg = instForOtp?.emailConfig || companyDetails.emailConfig;
                                 const smsCfg = instForOtp?.smsConfig || companyDetails.smsConfig;
 
+                                const userPhone = otpPendingUser.phoneNumber || (otpPendingUser as any).phone_number || (otpPendingUser as any).phone || '';
+                                const userEmail = otpPendingUser.email || '';
+                                const formattedPhone = formatPhoneNumber(userPhone);
+                                const targetInstId = otpPendingUser.institutionId || (otpPendingUser as any).institution_id || instForOtp?.id || 'GLOBAL';
+
                                 Promise.all([
-                                    otpPendingUser.email ? apiService.sendEmail(otpPendingUser.email, 'New Verification Code', otpMessage, emailCfg, otpPendingUser.id) : Promise.resolve({ success: true }),
-                                    otpPendingUser.phoneNumber ? apiService.sendSms(formatPhoneNumber(otpPendingUser.phoneNumber), otpMessage, smsCfg, 1, otpPendingUser.institutionId, otpPendingUser.id, true) : Promise.resolve({ success: true })
+                                    userEmail ? apiService.sendEmail(userEmail, 'New Verification Code', otpMessage, emailCfg, otpPendingUser.id) : Promise.resolve({ success: true }),
+                                    formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, smsCfg, 1, targetInstId, otpPendingUser.id, true) : Promise.resolve({ success: true })
                                 ]).then(results => {
                                     const smsResult = (results[1] || results[0]) as any;
                                     if (smsResult && smsResult.success === false) {

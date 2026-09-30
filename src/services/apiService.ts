@@ -2227,6 +2227,12 @@ export const apiService = {
                                 inst.visitorArrivalSmsTemplate = meta.visitorArrivalSmsTemplate || meta.visitor_arrival_sms_template;
                             }
                         }
+
+                        // Hydrate tenant OTP enforcement settings (both camelCase and snake_case)
+                        const rawOtpEnabled = inst.isOtpEnabled !== undefined ? inst.isOtpEnabled : (inst.is_otp_enabled !== undefined ? inst.is_otp_enabled : undefined);
+                        const isTenantOtpOn = rawOtpEnabled === true || rawOtpEnabled === 'true' || rawOtpEnabled === 1 || rawOtpEnabled === '1';
+                        inst.isOtpEnabled = isTenantOtpOn;
+                        inst.is_otp_enabled = isTenantOtpOn;
                     });
                 }
                 if (module === 'his_patients' && Array.isArray(result)) {
@@ -4887,9 +4893,14 @@ export const apiService = {
             }).catch(() => {});
         }
 
+        const otpVal = inst.isOtpEnabled !== undefined ? inst.isOtpEnabled : (inst as any).is_otp_enabled;
+        const isOtpOn = otpVal === true || otpVal === 'true' || otpVal === 1 || otpVal === '1';
+
         const resId = inst.resellerId || (inst as any).reseller_id || null;
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
+            isOtpEnabled: isOtpOn,
+            is_otp_enabled: isOtpOn,
             reseller_id: resId,
             resellerId: resId,
             coop_settings,

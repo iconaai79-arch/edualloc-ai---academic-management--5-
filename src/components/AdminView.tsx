@@ -141,7 +141,7 @@ const CarShowroomReportsDashboard = lazy(() => import('./automotive/CarShowroomR
 const ExternalModuleView = lazy(() => import('./ExternalModuleView').then(m => ({ default: m.ExternalModuleView })));
 const FuelStationDashboard = lazy(() => import('./FuelStationDashboard').then(m => ({ default: m.FuelStationDashboard })));
 const CorporateInvoicingManager = lazy(() => import('./Invoicing/CorporateInvoicingManager').then(m => ({ default: m.CorporateInvoicingManager })));
-import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution, isInvoicingInstitution, isStrictTeacherUser } from '../utils/roleUtils';
+import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMillingInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole } from '../utils/roleUtils';
 
 export interface AdminViewProps {
     currentUser?: User;

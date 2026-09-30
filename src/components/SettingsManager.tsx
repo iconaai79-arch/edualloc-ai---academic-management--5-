@@ -442,7 +442,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
             phoneNumber: props.currentInstitution?.phoneNumber || '',
             useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
             aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
-            isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
+            isOtpEnabled: Boolean(props.currentInstitution?.isOtpEnabled ?? (props.currentInstitution as any)?.is_otp_enabled ?? false),
             parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
             farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
             slug: props.currentInstitution?.slug || '',
@@ -479,7 +479,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 phoneNumber: props.currentInstitution?.phoneNumber || '',
                 useAllocationRequests: props.currentInstitution?.useAllocationRequests ?? true,
                 aiModelTier: props.currentInstitution?.aiModelTier || 'premium',
-                isOtpEnabled: props.currentInstitution?.isOtpEnabled ?? false,
+                isOtpEnabled: Boolean(props.currentInstitution?.isOtpEnabled ?? (props.currentInstitution as any)?.is_otp_enabled ?? false),
                 parentAbsenceNotificationsEnabled: props.currentInstitution?.parentAbsenceNotificationsEnabled ?? false,
                 farmerSmsBillingEnabled: props.currentInstitution?.farmerSmsBillingEnabled ?? false,
                 slug: props.currentInstitution?.slug || '',
@@ -663,6 +663,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
             const finalProfile = {
                 ...instProfile,
+                isOtpEnabled: Boolean(instProfile.isOtpEnabled),
+                is_otp_enabled: Boolean(instProfile.isOtpEnabled),
                 visitorAutoFinalizeEnabled: visitorEnabled,
                 visitorAutoFinalizeTime: visitorCutoff,
                 visitor_auto_finalize_enabled: visitorEnabled,
