@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
+import { PdfPreviewModal } from './PdfPreviewModal';
 import {
     generateTeacherPayoutLedgerPdf,
     generatePrefectAuditReportPdf,
@@ -29,7 +30,8 @@ import {
     matchAllocationStream,
     cleanStreamName,
     extractIndividualStreams,
-    getAscSubjectColor
+    getAscSubjectColor,
+    getAutomaticAcademicTermAndWeek
 } from '../utils/remedialReportGenerator';
 
 interface RemedialLessonsManagerProps {
@@ -580,12 +582,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [isExporting, setIsExporting] = useState<boolean>(false);
 
     // Master Timetable Report Specific Parameters (matching school printed schedule)
+    const autoAcademic = useMemo(() => getAutomaticAcademicTermAndWeek(), []);
     const [timetableStage, setTimetableStage] = useState<string>('JS');
-    const [timetableTerm, setTimetableTerm] = useState<string>('TERM 3');
-    const [timetableWeek, setTimetableWeek] = useState<string>('WEEK 3');
-    const [timetableYear, setTimetableYear] = useState<string>('2026');
+    const [timetableTerm, setTimetableTerm] = useState<string>(() => autoAcademic.termName);
+    const [timetableWeek, setTimetableWeek] = useState<string>(() => autoAcademic.weekName);
+    const [timetableYear, setTimetableYear] = useState<string>(() => autoAcademic.year);
     const [timetableSatDuty, setTimetableSatDuty] = useState<string>('38, 32');
     const [timetableSunDuty, setTimetableSunDuty] = useState<string>('14, 13');
+    const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+    const [previewPdfFilename, setPreviewPdfFilename] = useState<string>('report.pdf');
+    const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
 
     // Helper to safely apply loaded or cached rate settings
     const applyRateSettings = (r: any) => {
@@ -6276,6 +6282,72 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             alert('Failed to generate report PDF: ' + (err.message || 'Unknown error'));
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    // Report PDF Preview Action (Modern in-app preview)
+    const handlePreviewReportPdf = async () => {
+        setIsPreviewing(true);
+        try {
+            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(tenantUsers.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(combinedCourses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}`;
+
+            let doc: any = null;
+            let filename = 'report.pdf';
+
+            if (selectedReportType === 'master_timetable') {
+                doc = await generateRemedialMasterTimetablePdf({
+                    institution: currentInstitution,
+                    allocations,
+                    courses: combinedCourses,
+                    users: teachersList,
+                    rateSetting,
+                    termName: timetableTerm,
+                    weekName: timetableWeek,
+                    yearName: timetableYear,
+                    stageName: timetableStage,
+                    saturdayDutyStaff: timetableSatDuty,
+                    sundayDutyStaff: timetableSunDuty
+                });
+                filename = `${timetableStage ? `${timetableStage}_` : ''}${timetableWeek.replace(/\s+/g, '_')}_${timetableTerm.replace(/\s+/g, '_')}_${timetableYear}_REMEDIAL_TT.pdf`;
+            } else if (selectedReportType === 'payout_ledger') {
+                doc = await generateTeacherPayoutLedgerPdf({
+                    institution: currentInstitution,
+                    payoutsData: reportPayoutsData,
+                    dateRange: { startDate: reportStartDate, endDate: reportEndDate },
+                    rateSetting,
+                    filtersSummary: filterSummary
+                });
+                filename = `Remedial_Teacher_Payout_Ledger_${new Date().toISOString().split('T')[0]}.pdf`;
+            } else if (selectedReportType === 'prefect_audit') {
+                doc = await generatePrefectAuditReportPdf({
+                    institution: currentInstitution,
+                    sessionsData: reportPrefectAuditData,
+                    filtersSummary: filterSummary
+                });
+                filename = `Remedial_Prefect_QR_Verification_Audit_${new Date().toISOString().split('T')[0]}.pdf`;
+            } else if (selectedReportType === 'billing_statement') {
+                doc = await generateStudentBillingReportPdf({
+                    institution: currentInstitution,
+                    billingData: reportBillingData,
+                    filtersSummary: filterSummary
+                });
+                filename = `Remedial_Student_Billing_Statement_${new Date().toISOString().split('T')[0]}.pdf`;
+            } else if (selectedReportType === 'workload_summary') {
+                handlePrintTimetable();
+                return;
+            }
+
+            if (doc) {
+                const blobUrl = doc.output('bloburl');
+                setPreviewPdfUrl(blobUrl.toString());
+                setPreviewPdfFilename(filename);
+                onLogAction?.(`Opened Live PDF Preview for ${filename}`);
+            }
+        } catch (err: any) {
+            console.error('PDF preview failed:', err);
+            alert('Failed to preview report PDF: ' + (err.message || 'Unknown error'));
+        } finally {
+            setIsPreviewing(false);
         }
     };
 
@@ -13454,6 +13526,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                             <button
                                 type="button"
+                                onClick={handlePreviewReportPdf}
+                                disabled={isPreviewing}
+                                className="flex-1 sm:flex-none px-5 py-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700/60 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm cursor-pointer disabled:opacity-50"
+                                title="Open modern in-app PDF preview with zoom, print, download, and email options"
+                            >
+                                {isPreviewing ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+                                        <span>Loading Preview...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                        <span>Live PDF Preview</span>
+                                    </>
+                                )}
+                            </button>
+
+                            <button
+                                type="button"
                                 onClick={handleExportExcel}
                                 className="flex-1 sm:flex-none px-5 py-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/60 rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-95 shadow-sm cursor-pointer"
                             >
@@ -13616,16 +13708,61 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                        Week
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={timetableWeek}
-                                        onChange={e => setTimetableWeek(e.target.value)}
-                                        placeholder="e.g. WEEK 3"
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
-                                    />
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                            Week
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const auto = getAutomaticAcademicTermAndWeek();
+                                                setTimetableWeek(auto.weekName);
+                                                setTimetableTerm(auto.termName);
+                                                setTimetableYear(auto.year);
+                                                onLogAction?.(`Auto-synced timetable parameters to ${auto.weekName}, ${auto.termName} ${auto.year}`);
+                                            }}
+                                            className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center gap-1 cursor-pointer transition-colors bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded"
+                                            title={`Sync to current calendar: ${autoAcademic.weekName} (${autoAcademic.termName})`}
+                                        >
+                                            <Zap className="w-2.5 h-2.5 text-amber-500 fill-amber-500" />
+                                            Auto: {autoAcademic.weekNumber ? `Wk ${autoAcademic.weekNumber}` : 'Sync'}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const match = timetableWeek.match(/\d+/);
+                                                const cur = match ? parseInt(match[0], 10) : 1;
+                                                const next = Math.max(1, cur - 1);
+                                                setTimetableWeek(`WEEK ${next}`);
+                                            }}
+                                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer text-xs"
+                                            title="Previous Week"
+                                        >
+                                            <ChevronLeft className="w-3.5 h-3.5" />
+                                        </button>
+                                        <input
+                                            type="text"
+                                            value={timetableWeek}
+                                            onChange={e => setTimetableWeek(e.target.value)}
+                                            placeholder="e.g. WEEK 3"
+                                            className="w-full text-center bg-transparent border-0 text-xs font-black outline-none text-slate-900 dark:text-white"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const match = timetableWeek.match(/\d+/);
+                                                const cur = match ? parseInt(match[0], 10) : 1;
+                                                const next = Math.min(20, cur + 1);
+                                                setTimetableWeek(`WEEK ${next}`);
+                                            }}
+                                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 transition-colors cursor-pointer text-xs"
+                                            title="Next Week"
+                                        >
+                                            <ChevronRight className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
@@ -13633,11 +13770,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     </label>
                                     <input
                                         type="text"
+                                        list="timetable-terms-list"
                                         value={timetableTerm}
                                         onChange={e => setTimetableTerm(e.target.value)}
                                         placeholder="e.g. TERM 3"
                                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white"
                                     />
+                                    <datalist id="timetable-terms-list">
+                                        <option value="TERM 1" />
+                                        <option value="TERM 2" />
+                                        <option value="TERM 3" />
+                                    </datalist>
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
@@ -13790,12 +13933,28 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                         {matches.length === 0 ? (
                                                                             <span className="text-slate-300 dark:text-slate-600">-</span>
                                                                         ) : (
-                                                                            matches.map((a, mIdx) => (
-                                                                                <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
-                                                                                    <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
-                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
-                                                                                </div>
-                                                                            ))
+                                                                            matches.map((a, mIdx) => {
+                                                                                const sc = getAscSubjectColor(a.subjectName, a.subjectId);
+                                                                                const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                                                                                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                                                                                return (
+                                                                                    <div
+                                                                                        key={mIdx}
+                                                                                        className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
+                                                                                        style={{
+                                                                                            backgroundColor: sc.bg,
+                                                                                            color: sc.text,
+                                                                                            border: `1px solid ${sc.border}`
+                                                                                        }}
+                                                                                        title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
+                                                                                    >
+                                                                                        <span>{sCode}</span>
+                                                                                        <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
+                                                                                            {tCode}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                );
+                                                                            })
                                                                         )}
                                                                     </td>
                                                                 );
@@ -13862,12 +14021,28 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                         {matches.length === 0 ? (
                                                                             <span className="text-slate-300 dark:text-slate-600">-</span>
                                                                         ) : (
-                                                                            matches.map((a, mIdx) => (
-                                                                                <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
-                                                                                    <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
-                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
-                                                                                </div>
-                                                                            ))
+                                                                            matches.map((a, mIdx) => {
+                                                                                const sc = getAscSubjectColor(a.subjectName, a.subjectId);
+                                                                                const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                                                                                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                                                                                return (
+                                                                                    <div
+                                                                                        key={mIdx}
+                                                                                        className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
+                                                                                        style={{
+                                                                                            backgroundColor: sc.bg,
+                                                                                            color: sc.text,
+                                                                                            border: `1px solid ${sc.border}`
+                                                                                        }}
+                                                                                        title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
+                                                                                    >
+                                                                                        <span>{sCode}</span>
+                                                                                        <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
+                                                                                            {tCode}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                );
+                                                                            })
                                                                         )}
                                                                     </td>
                                                                 );
@@ -13928,12 +14103,28 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                         {matches.length === 0 ? (
                                                                             <span className="text-slate-300 dark:text-slate-600">-</span>
                                                                         ) : (
-                                                                            matches.map((a, mIdx) => (
-                                                                                <div key={mIdx} className="font-mono text-slate-900 dark:text-white font-extrabold">
-                                                                                    <span className="text-indigo-700 dark:text-indigo-400">{getSubjectCode(a.subjectName, a.subjectId)}</span>{' '}
-                                                                                    <span className="text-slate-700 dark:text-slate-300">{getTeacherCode(a.teacherId, a.teacherName, enrichedUsers)}</span>
-                                                                                </div>
-                                                                            ))
+                                                                            matches.map((a, mIdx) => {
+                                                                                const sc = getAscSubjectColor(a.subjectName, a.subjectId);
+                                                                                const sCode = getSubjectCode(a.subjectName, a.subjectId);
+                                                                                const tCode = getTeacherCode(a.teacherId, a.teacherName, enrichedUsers);
+                                                                                return (
+                                                                                    <div
+                                                                                        key={mIdx}
+                                                                                        className="my-0.5 px-1.5 py-1 rounded-md text-[11px] font-mono font-black shadow-xs flex items-center justify-center gap-1.5 transition-transform hover:scale-105"
+                                                                                        style={{
+                                                                                            backgroundColor: sc.bg,
+                                                                                            color: sc.text,
+                                                                                            border: `1px solid ${sc.border}`
+                                                                                        }}
+                                                                                        title={`${a.subjectName || sCode} – Tr. ${a.teacherName || tCode}`}
+                                                                                    >
+                                                                                        <span>{sCode}</span>
+                                                                                        <span className="opacity-95 font-extrabold text-[10px] bg-black/10 dark:bg-white/20 px-1 py-0.5 rounded">
+                                                                                            {tCode}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                );
+                                                                            })
                                                                         )}
                                                                     </td>
                                                                 );
@@ -13979,7 +14170,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             const t = teachArr[i];
                                                             rows.push(
                                                                 <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                                                                    <td className="py-1.5 px-3 font-mono font-black text-indigo-700 dark:text-indigo-400">{s ? s[0] : '-'}</td>
+                                                                    <td className="py-1.5 px-3 font-mono font-black">
+                                                                        {s ? (() => {
+                                                                            const sc = getAscSubjectColor(s[1], s[0]);
+                                                                            return (
+                                                                                <span
+                                                                                    className="inline-block px-2 py-0.5 rounded text-[11px] font-bold shadow-xs"
+                                                                                    style={{
+                                                                                        backgroundColor: sc.bg,
+                                                                                        color: sc.text,
+                                                                                        border: `1px solid ${sc.border}`
+                                                                                    }}
+                                                                                >
+                                                                                    {s[0]}
+                                                                                </span>
+                                                                            );
+                                                                        })() : '-'}
+                                                                    </td>
                                                                     <td className="py-1.5 px-3 font-medium text-slate-800 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700">{s ? s[1] : '-'}</td>
                                                                     <td className="py-1.5 px-3 font-mono font-black text-slate-900 dark:text-white">{t ? t[0] : '-'}</td>
                                                                     <td className="py-1.5 px-3 font-medium text-slate-800 dark:text-slate-200">{t ? t[1] : '-'}</td>
@@ -17176,6 +17383,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             currentTerm="Term 1"
             currentYear={new Date().getFullYear().toString()}
         />
+
+        {/* Live In-App PDF Preview Modal */}
+        {previewPdfUrl && (
+            <PdfPreviewModal
+                url={previewPdfUrl}
+                filename={previewPdfFilename}
+                onClose={() => setPreviewPdfUrl(null)}
+            />
+        )}
         </>
     );
 };

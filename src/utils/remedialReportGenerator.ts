@@ -950,6 +950,66 @@ export const getDistinctTimetableClasses = (allocations: any[], courses: any[], 
     return Array.from(classMap.values()).sort((a, b) => a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true }));
 };
 
+/**
+ * Automatically computes current Academic Term, Week of Term, and Academic Year
+ * based on standard Kenyan / East African school term calendars.
+ */
+export const getAutomaticAcademicTermAndWeek = (refDate: Date = new Date()) => {
+    const year = refDate.getFullYear().toString();
+    const month = refDate.getMonth(); // 0 = Jan ... 11 = Dec
+
+    let termName = 'TERM 1';
+    let termStartDate = new Date(refDate.getFullYear(), 0, 5); // Default Jan 5
+
+    if (month >= 0 && month <= 3) {
+        // Term 1: Jan to April (starts ~1st Monday of Jan)
+        termName = 'TERM 1';
+        termStartDate = new Date(refDate.getFullYear(), 0, 5);
+    } else if (month >= 4 && month <= 7) {
+        // Term 2: May to August (starts ~1st Monday of May)
+        termName = 'TERM 2';
+        termStartDate = new Date(refDate.getFullYear(), 4, 4);
+    } else {
+        // Term 3: late August / September to November (starts ~Aug 25)
+        termName = 'TERM 3';
+        termStartDate = new Date(refDate.getFullYear(), 7, 25);
+    }
+
+    // Elapsed weeks calculation:
+    const diffMs = refDate.getTime() - termStartDate.getTime();
+    const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+    const weekNumber = Math.max(1, Math.min(14, diffWeeks));
+    const weekName = `WEEK ${weekNumber}`;
+
+    return {
+        year,
+        termName,
+        weekName,
+        weekNumber,
+        termStartDate
+    };
+};
+
+const hexToRgb = (hex?: string, fallback: [number, number, number] = [241, 245, 249]): [number, number, number] => {
+    if (!hex) return fallback;
+    const cleanHex = hex.replace('#', '').trim();
+    if (cleanHex.length === 3) {
+        return [
+            parseInt(cleanHex[0] + cleanHex[0], 16),
+            parseInt(cleanHex[1] + cleanHex[1], 16),
+            parseInt(cleanHex[2] + cleanHex[2], 16)
+        ];
+    }
+    if (cleanHex.length === 6) {
+        return [
+            parseInt(cleanHex.substring(0, 2), 16),
+            parseInt(cleanHex.substring(2, 4), 16),
+            parseInt(cleanHex.substring(4, 6), 16)
+        ];
+    }
+    return fallback;
+};
+
 export interface MasterTimetableReportParams {
     institution: any;
     allocations: any[];
@@ -966,13 +1026,8 @@ export interface MasterTimetableReportParams {
 }
 
 /**
- * Generates the Official Remedial Master Timetable PDF matching the requested layout:
- * - Top Header: [SCHOOL NAME] \n [JS WEEK 3 TERM 3 2026 REMEDIAL TT]
- * - Table 1: MONDAY – FRIDAY Grid (Rows: Classes, Cols: Days, Cells: SUBJ CODE + TEACHER CODE)
- * - Table 2: SATURDAY – DUTY [CODES] (Cols: Time Slots with BREAK Column)
- * - Table 3: SUNDAY - DUTY [CODES] (Cols: Time Slots with BREAK Column)
- * - Table 4: Staff Code & Subject Reference Legend
- * - Footer: Sign-off block with DOS, Coordinator, and Headteacher Approval
+ * Generates the Official Remedial Master Timetable PDF with authentic subject colors,
+ * executive typography, duty rosters, and certification seal block.
  */
 export const generateRemedialMasterTimetablePdf = async ({
     institution,
@@ -994,18 +1049,30 @@ export const generateRemedialMasterTimetablePdf = async ({
     const schoolName = String(institution?.name || 'KIPKEINO SCHOOL').toUpperCase();
     const docTitle = `${stageName ? `${stageName} ` : ''}${weekName} ${termName} ${yearName} REMEDIAL TT`.toUpperCase();
 
-    // 1. Header: School Name & Timetable Title
-    let currentY = 14;
+    // 0. Top Accent Brand Stripe
+    doc.setFillColor(79, 70, 229); // Indigo 600
+    doc.rect(0, 0, pageWidth, 4, 'F');
+
+    // 1. Executive Header: School Name & Timetable Title
+    let currentY = 13;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(15, 23, 42);
     doc.text(schoolName, pageWidth / 2, currentY, { align: 'center' });
-    currentY += 7;
+    currentY += 6;
 
-    doc.setFontSize(11);
-    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(10.5);
+    doc.setTextColor(79, 70, 229);
     doc.text(docTitle, pageWidth / 2, currentY, { align: 'center' });
-    currentY += 8;
+    currentY += 5;
+
+    // Sub-header detail chips
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    const subMeta = `OFFICIAL REMEDIAL SCHEDULE  •  WEEKDAY WINDOW: 07:00 – 08:10  •  GENERATED: ${new Date().toLocaleDateString('en-GB')}`;
+    doc.text(subMeta, pageWidth / 2, currentY, { align: 'center' });
+    currentY += 6;
 
     const distinctClasses = getDistinctTimetableClasses(allocations, courses, true);
 
@@ -1013,22 +1080,57 @@ export const generateRemedialMasterTimetablePdf = async ({
     // TABLE 1: WEEKDAY TIMETABLE (MONDAY - FRIDAY)
     // ------------------------------------------------------------
     const weekdayDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
-    const weekdayHeaders = ['', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+    const weekdayHeaders = ['CLASS', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
 
     const weekdayRows = distinctClasses.map(cls => {
-        const row = [cls.shortCode];
+        const row: any[] = [
+            {
+                content: cls.shortCode,
+                styles: {
+                    fillColor: [241, 245, 249],
+                    textColor: [15, 23, 42],
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    valign: 'middle'
+                }
+            }
+        ];
         weekdayDays.forEach(day => {
             const matches = allocations.filter(a =>
                 a.dayOfWeek === day &&
                 (a.className === cls.className || a.courseId === cls.className) &&
                 matchAllocationStream(a, cls.stream)
             );
-            const cellText = matches.map(a => {
-                const sub = getSubjectCode(a.subjectName, a.subjectId);
-                const teacher = getTeacherCode(a.teacherId, a.teacherName, users);
-                return `${sub} ${teacher}`.trim();
-            }).join('\n');
-            row.push(cellText);
+            if (matches.length === 0) {
+                row.push({
+                    content: '-',
+                    styles: {
+                        fillColor: [255, 255, 255],
+                        textColor: [203, 213, 225],
+                        halign: 'center',
+                        valign: 'middle'
+                    }
+                });
+            } else {
+                const primary = matches[0];
+                const subColor = getAscSubjectColor(primary.subjectName, primary.subjectId);
+                const cellText = matches.map(a => {
+                    const sub = getSubjectCode(a.subjectName, a.subjectId);
+                    const teacher = getTeacherCode(a.teacherId, a.teacherName, users);
+                    return `${sub} ${teacher}`.trim();
+                }).join('\n');
+                row.push({
+                    content: cellText,
+                    styles: {
+                        fillColor: hexToRgb(subColor.bg),
+                        textColor: hexToRgb(subColor.text),
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle',
+                        cellPadding: 1.8
+                    }
+                });
+            }
         });
         return row;
     });
@@ -1041,21 +1143,21 @@ export const generateRemedialMasterTimetablePdf = async ({
         styles: {
             font: 'helvetica',
             fontSize: 8.5,
-            cellPadding: 2.2,
+            cellPadding: 2,
             textColor: [15, 23, 42],
-            lineColor: [51, 65, 85],
-            lineWidth: 0.35,
+            lineColor: [71, 85, 105],
+            lineWidth: 0.3,
             valign: 'middle'
         },
         headStyles: {
-            fillColor: [241, 245, 249],
-            textColor: [15, 23, 42],
+            fillColor: [15, 23, 42],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
-            fontSize: 9
+            fontSize: 8.5
         },
         columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [248, 250, 252] },
+            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] },
             1: { halign: 'center' },
             2: { halign: 'center' },
             3: { halign: 'center' },
@@ -1065,32 +1167,52 @@ export const generateRemedialMasterTimetablePdf = async ({
         margin: { left: margin, right: margin }
     });
 
-    currentY = (doc as any).lastAutoTable?.finalY + 8;
+    currentY = (doc as any).lastAutoTable?.finalY + 7;
 
     // ------------------------------------------------------------
     // TABLE 2: SATURDAY TIMETABLE
     // ------------------------------------------------------------
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
+    doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
-    doc.text(`SATURDAY – DUTY ${saturdayDutyStaff}`.toUpperCase(), margin, currentY);
+    doc.text(`SATURDAY SCHEDULE – DUTY STAFF: ${saturdayDutyStaff}`.toUpperCase(), margin, currentY);
     currentY += 4;
 
     const satSlots = [
-        { label: '0800-\n0900', start: '08:00', end: '09:00', isBreak: false },
-        { label: '0900:1000', start: '09:00', end: '10:00', isBreak: false },
-        { label: '1000-\n1030', start: '10:00', end: '10:30', isBreak: true },
-        { label: '1030-\n1130', start: '10:30', end: '11:30', isBreak: false },
-        { label: '1130-1230', start: '11:30', end: '12:30', isBreak: false },
-        { label: '1230-1330', start: '12:30', end: '13:30', isBreak: false }
+        { label: '08:00-\n09:00', start: '08:00', end: '09:00', isBreak: false },
+        { label: '09:00-\n10:00', start: '09:00', end: '10:00', isBreak: false },
+        { label: '10:00-\n10:30', start: '10:00', end: '10:30', isBreak: true },
+        { label: '10:30-\n11:30', start: '10:30', end: '11:30', isBreak: false },
+        { label: '11:30-\n12:30', start: '11:30', end: '12:30', isBreak: false },
+        { label: '12:30-\n13:30', start: '12:30', end: '13:30', isBreak: false }
     ];
 
-    const satHeaders = ['', ...satSlots.map(s => s.label)];
+    const satHeaders = ['CLASS', ...satSlots.map(s => s.label)];
     const satRows = distinctClasses.map(cls => {
-        const row = [cls.shortCode];
+        const row: any[] = [
+            {
+                content: cls.shortCode,
+                styles: {
+                    fillColor: [241, 245, 249],
+                    textColor: [15, 23, 42],
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    valign: 'middle'
+                }
+            }
+        ];
         satSlots.forEach(slot => {
             if (slot.isBreak) {
-                row.push('BREAK');
+                row.push({
+                    content: 'BREAK',
+                    styles: {
+                        fillColor: [254, 243, 199], // amber 100
+                        textColor: [180, 83, 9],    // amber 700
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle'
+                    }
+                });
                 return;
             }
             const matches = allocations.filter(a =>
@@ -1099,12 +1221,36 @@ export const generateRemedialMasterTimetablePdf = async ({
                 matchAllocationStream(a, cls.stream) &&
                 (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
             );
-            const cellText = matches.map(a => {
-                const sub = getSubjectCode(a.subjectName, a.subjectId);
-                const teacher = getTeacherCode(a.teacherId, a.teacherName, users);
-                return `${sub} ${teacher}`.trim();
-            }).join('\n');
-            row.push(cellText);
+            if (matches.length === 0) {
+                row.push({
+                    content: '-',
+                    styles: {
+                        fillColor: [255, 255, 255],
+                        textColor: [203, 213, 225],
+                        halign: 'center',
+                        valign: 'middle'
+                    }
+                });
+            } else {
+                const primary = matches[0];
+                const subColor = getAscSubjectColor(primary.subjectName, primary.subjectId);
+                const cellText = matches.map(a => {
+                    const sub = getSubjectCode(a.subjectName, a.subjectId);
+                    const teacher = getTeacherCode(a.teacherId, a.teacherName, users);
+                    return `${sub} ${teacher}`.trim();
+                }).join('\n');
+                row.push({
+                    content: cellText,
+                    styles: {
+                        fillColor: hexToRgb(subColor.bg),
+                        textColor: hexToRgb(subColor.text),
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle',
+                        cellPadding: 1.8
+                    }
+                });
+            }
         });
         return row;
     });
@@ -1116,25 +1262,25 @@ export const generateRemedialMasterTimetablePdf = async ({
         theme: 'grid',
         styles: {
             font: 'helvetica',
-            fontSize: 8.5,
-            cellPadding: 2.2,
+            fontSize: 8,
+            cellPadding: 1.8,
             textColor: [15, 23, 42],
-            lineColor: [51, 65, 85],
-            lineWidth: 0.35,
+            lineColor: [71, 85, 105],
+            lineWidth: 0.3,
             valign: 'middle'
         },
         headStyles: {
-            fillColor: [241, 245, 249],
-            textColor: [15, 23, 42],
+            fillColor: [15, 23, 42],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
-            fontSize: 8
+            fontSize: 7.5
         },
         columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [248, 250, 252] },
+            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] },
             1: { halign: 'center' },
             2: { halign: 'center' },
-            3: { cellWidth: 18, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] },
+            3: { cellWidth: 16, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] },
             4: { halign: 'center' },
             5: { halign: 'center' },
             6: { halign: 'center' }
@@ -1142,7 +1288,7 @@ export const generateRemedialMasterTimetablePdf = async ({
         margin: { left: margin, right: margin }
     });
 
-    currentY = (doc as any).lastAutoTable?.finalY + 8;
+    currentY = (doc as any).lastAutoTable?.finalY + 7;
 
     if (currentY > doc.internal.pageSize.getHeight() - 65) {
         doc.addPage();
@@ -1153,23 +1299,43 @@ export const generateRemedialMasterTimetablePdf = async ({
     // TABLE 3: SUNDAY TIMETABLE
     // ------------------------------------------------------------
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10.5);
+    doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
-    doc.text(`SUNDAY - DUTY ${sundayDutyStaff}`.toUpperCase(), margin, currentY);
+    doc.text(`SUNDAY SCHEDULE – DUTY STAFF: ${sundayDutyStaff}`.toUpperCase(), margin, currentY);
     currentY += 4;
 
     const sunSlots = [
-        { label: '9:30-1100', start: '09:30', end: '11:00', isBreak: false },
-        { label: '11:00-11:30', start: '11:00', end: '11:30', isBreak: true },
-        { label: '11:30-1:00', start: '11:30', end: '13:00', isBreak: false }
+        { label: '09:30 - 11:00', start: '09:30', end: '11:00', isBreak: false },
+        { label: '11:00 - 11:30', start: '11:00', end: '11:30', isBreak: true },
+        { label: '11:30 - 13:00', start: '11:30', end: '13:00', isBreak: false }
     ];
 
-    const sunHeaders = ['', ...sunSlots.map(s => s.label)];
+    const sunHeaders = ['CLASS', ...sunSlots.map(s => s.label)];
     const sunRows = distinctClasses.map(cls => {
-        const row = [cls.shortCode];
+        const row: any[] = [
+            {
+                content: cls.shortCode,
+                styles: {
+                    fillColor: [241, 245, 249],
+                    textColor: [15, 23, 42],
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    valign: 'middle'
+                }
+            }
+        ];
         sunSlots.forEach(slot => {
             if (slot.isBreak) {
-                row.push('BREAK');
+                row.push({
+                    content: 'BREAK',
+                    styles: {
+                        fillColor: [254, 243, 199], // amber 100
+                        textColor: [180, 83, 9],    // amber 700
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle'
+                    }
+                });
                 return;
             }
             const matches = allocations.filter(a =>
@@ -1178,12 +1344,36 @@ export const generateRemedialMasterTimetablePdf = async ({
                 matchAllocationStream(a, cls.stream) &&
                 (a.startTime ? a.startTime >= slot.start && a.startTime < slot.end : true)
             );
-            const cellText = matches.map(a => {
-                const sub = getSubjectCode(a.subjectName, a.subjectId);
-                const teacher = getTeacherCode(a.teacherId, a.teacherName, users);
-                return `${sub} ${teacher}`.trim();
-            }).join('\n');
-            row.push(cellText);
+            if (matches.length === 0) {
+                row.push({
+                    content: '-',
+                    styles: {
+                        fillColor: [255, 255, 255],
+                        textColor: [203, 213, 225],
+                        halign: 'center',
+                        valign: 'middle'
+                    }
+                });
+            } else {
+                const primary = matches[0];
+                const subColor = getAscSubjectColor(primary.subjectName, primary.subjectId);
+                const cellText = matches.map(a => {
+                    const sub = getSubjectCode(a.subjectName, a.subjectId);
+                    const teacher = getTeacherCode(a.teacherId, a.teacherName, users);
+                    return `${sub} ${teacher}`.trim();
+                }).join('\n');
+                row.push({
+                    content: cellText,
+                    styles: {
+                        fillColor: hexToRgb(subColor.bg),
+                        textColor: hexToRgb(subColor.text),
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle',
+                        cellPadding: 1.8
+                    }
+                });
+            }
         });
         return row;
     });
@@ -1195,30 +1385,30 @@ export const generateRemedialMasterTimetablePdf = async ({
         theme: 'grid',
         styles: {
             font: 'helvetica',
-            fontSize: 8.5,
-            cellPadding: 2.2,
+            fontSize: 8,
+            cellPadding: 1.8,
             textColor: [15, 23, 42],
-            lineColor: [51, 65, 85],
-            lineWidth: 0.35,
+            lineColor: [71, 85, 105],
+            lineWidth: 0.3,
             valign: 'middle'
         },
         headStyles: {
-            fillColor: [241, 245, 249],
-            textColor: [15, 23, 42],
+            fillColor: [15, 23, 42],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
-            fontSize: 8.5
+            fontSize: 8
         },
         columnStyles: {
-            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [248, 250, 252] },
-            1: { cellWidth: 54, halign: 'center' },
-            2: { cellWidth: 30, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] },
-            3: { cellWidth: 54, halign: 'center' }
+            0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] },
+            1: { cellWidth: 62, halign: 'center' },
+            2: { cellWidth: 26, halign: 'center', fontStyle: 'bold', fillColor: [254, 243, 199] },
+            3: { cellWidth: 62, halign: 'center' }
         },
         margin: { left: margin, right: margin }
     });
 
-    currentY = (doc as any).lastAutoTable?.finalY + 8;
+    currentY = (doc as any).lastAutoTable?.finalY + 7;
 
     // ------------------------------------------------------------
     // TABLE 4: PROFESSIONAL REFERENCE LEGEND (Staff & Subject Key)
@@ -1243,12 +1433,22 @@ export const generateRemedialMasterTimetablePdf = async ({
 
     const maxLegendRows = Math.max(subLegendArr.length, teachLegendArr.length);
     if (maxLegendRows > 0) {
-        const legendRows: string[][] = [];
+        const legendRows: any[][] = [];
         for (let i = 0; i < maxLegendRows; i++) {
             const sub = subLegendArr[i];
             const teach = teachLegendArr[i];
+            const subColor = sub ? getAscSubjectColor(sub[1], sub[0]) : null;
             legendRows.push([
-                sub ? sub[0] : '',
+                subColor ? {
+                    content: sub ? sub[0] : '',
+                    styles: {
+                        fillColor: hexToRgb(subColor.bg),
+                        textColor: hexToRgb(subColor.text),
+                        fontStyle: 'bold',
+                        halign: 'center',
+                        valign: 'middle'
+                    }
+                } : (sub ? sub[0] : ''),
                 sub ? sub[1] : '',
                 teach ? teach[0] : '',
                 teach ? teach[1] : ''
@@ -1257,28 +1457,28 @@ export const generateRemedialMasterTimetablePdf = async ({
 
         autoTable(doc, {
             startY: currentY,
-            head: [['SUBJECT CODE', 'SUBJECT NAME', 'STAFF CODE', 'TEACHER NAME']],
+            head: [['CODE', 'SUBJECT NAME', 'STAFF ID', 'TEACHER NAME']],
             body: legendRows,
             theme: 'plain',
             styles: {
                 font: 'helvetica',
-                fontSize: 7,
+                fontSize: 7.5,
                 cellPadding: 1.5,
-                textColor: [51, 65, 85],
+                textColor: [30, 41, 59],
                 lineColor: [226, 232, 240],
                 lineWidth: 0.2
             },
             headStyles: {
-                fillColor: [248, 250, 252],
+                fillColor: [241, 245, 249],
                 textColor: [15, 23, 42],
                 fontStyle: 'bold',
                 fontSize: 7.5
             },
             columnStyles: {
-                0: { cellWidth: 22, fontStyle: 'bold', halign: 'center' },
-                1: { cellWidth: 65 },
-                2: { cellWidth: 22, fontStyle: 'bold', halign: 'center' },
-                3: { cellWidth: 65 }
+                0: { cellWidth: 20, fontStyle: 'bold', halign: 'center' },
+                1: { cellWidth: 67 },
+                2: { cellWidth: 20, fontStyle: 'bold', halign: 'center', fillColor: [248, 250, 252] },
+                3: { cellWidth: 67 }
             },
             margin: { left: margin, right: margin }
         });
