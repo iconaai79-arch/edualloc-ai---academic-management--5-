@@ -1125,6 +1125,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            const applyModuleOrdering = (query: any) => {
+                let q = query;
+                const orderParam = getStrParam(order);
+                if (orderParam && orderParam.includes('.')) {
+                    let [col, dir] = orderParam.split('.');
+                    if (moduleName === 'activity_log' && col === 'created_at') col = 'timestamp';
+                    if (col) {
+                        q = q.order(col, { ascending: dir === 'asc' });
+                    }
+                } else if (orderParam) {
+                    const col = (moduleName === 'activity_log' && orderParam === 'created_at') ? 'timestamp' : orderParam;
+                    q = q.order(col, { ascending: true });
+                } else if (moduleName === 'activity_log') {
+                    q = q.order('timestamp', { ascending: false });
+                } else if (['teacher_check_ins'].includes(moduleName)) {
+                    q = q.order('check_in_date', { ascending: false });
+                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
+                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
+                } else if (['receipts'].includes(moduleName)) {
+                    q = q.order('payment_date', { ascending: false }).order('id', { ascending: false });
+                } else if (['invoices'].includes(moduleName)) {
+                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
+                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
+                    q = q.order('id', { ascending: false });
+                } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
+                    q = q.order('id', { ascending: true });
+                }
+                return q;
+            };
+
             const buildBaseQuery = () => {
                 let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
                 if (isStudentsAlias) {
@@ -1224,33 +1254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 });
 
-                const orderParam = getStrParam(order);
-                if (orderParam && orderParam.includes('.')) {
-                    let [col, dir] = orderParam.split('.');
-                    if (moduleName === 'activity_log' && col === 'created_at') col = 'timestamp';
-                    if (col) {
-                        q = q.order(col, { ascending: dir === 'asc' });
-                    }
-                } else if (orderParam) {
-                    const col = (moduleName === 'activity_log' && orderParam === 'created_at') ? 'timestamp' : orderParam;
-                    q = q.order(col, { ascending: true });
-                } else if (moduleName === 'activity_log') {
-                    q = q.order('timestamp', { ascending: false });
-                } else if (['teacher_check_ins'].includes(moduleName)) {
-                    q = q.order('check_in_date', { ascending: false });
-                } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
-                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
-                } else if (['receipts'].includes(moduleName)) {
-                    q = q.order('payment_date', { ascending: false }).order('id', { ascending: false });
-                } else if (['invoices'].includes(moduleName)) {
-                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
-                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
-                    q = q.order('id', { ascending: false });
-                } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
-                    q = q.order('id', { ascending: true });
-                }
-
-                return q;
+                return applyModuleOrdering(q);
             };
             
             const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId;
@@ -1341,20 +1345,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (strVal) q = q.eq(key, strVal);
                     }
                 });
-                if (['receipts', 'invoices', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)) {
-                    q = q.order('id', { ascending: false });
-                } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
-                    q = q.order('id', { ascending: false });
-                } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id))) {
-                    q = q.order('id', { ascending: true });
-                } else if (moduleName === 'activity_log') {
-                    q = q.order('timestamp', { ascending: false });
-                } else if (['teacher_check_ins'].includes(moduleName)) {
-                    q = q.order('check_in_date', { ascending: false });
-                } else if (['visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
-                    q = q.order('created_at', { ascending: false });
-                }
-                return q;
+                return applyModuleOrdering(q);
             };
 
             // Prepare conditions for Direct SQL Fallback
@@ -1470,7 +1461,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             } else if (['teacher_check_ins'].includes(moduleName)) {
                 defaultOrderBy = 'check_in_date.desc';
             } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records', 'school_remedial_rate_settings'].includes(moduleName)) {
-                defaultOrderBy = 'updated_at.desc';
+                defaultOrderBy = 'created_at.desc';
             } else if (['receipts'].includes(moduleName)) {
                 defaultOrderBy = 'payment_date.desc';
             } else if (['invoices'].includes(moduleName)) {
@@ -1591,7 +1582,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             
                             // If the entire chunk is duplicates, we've hit a true pagination loop or end of dataset
                             if (uniqueChunk.length === 0 && chunk.length > 0) {
-                                console.warn(`[API GET] Duplicate chunk detected at offset ${currentOffset} for '${moduleName}' (all ${chunk.length} items already seen). Terminating pagination loop.`);
+                                console.info(`[API GET] Reached dataset boundary / duplicate chunk detected at offset ${currentOffset} for '${moduleName}' (${chunk.length} items already retrieved, ${data.length} unique records retained). Terminating pagination loop cleanly.`);
                                 break;
                             }
                             for (const row of uniqueChunk) {
