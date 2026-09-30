@@ -510,8 +510,13 @@ export function RetailReportsDashboard({ institutionId, users, isEducation }: Re
         const [filterStoreId, setFilterStoreId] = useState('');
         const [isFiltering, setIsFiltering] = useState(false);
         
-        const filteredInventory = filterStoreId 
-            ? inventory.filter(item => item.storeId === filterStoreId)
+        const filteredInventory = (filterStoreId && filterStoreId !== 'all')
+            ? inventory.filter(item => 
+                item.storeId === filterStoreId || 
+                (item as any).store_id === filterStoreId ||
+                item.storeName?.toLowerCase() === filterStoreId.toLowerCase() ||
+                (item as any).location?.toLowerCase() === filterStoreId.toLowerCase()
+            )
             : inventory;
 
         const totalUnitsCount = filteredInventory.reduce((sum, item) => sum + (item.quantity || 0), 0);

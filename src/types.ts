@@ -2126,6 +2126,11 @@ export interface InventoryItem {
     price?: number;
     status?: string;
     minThreshold?: number;
+    storeId?: string;
+    store_id?: string;
+    storeName?: string;
+    store_name?: string;
+    sku?: string;
 }
 
 export interface TransportBill {
@@ -6484,6 +6489,13 @@ export interface RemedialSession {
     durationHours?: number;
     duration_hours?: number;
     durationMinutes?: number;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
+    scheduledDurationMinutes?: number;
+    allocationId?: string;
+    earlyLoginMinutesOmitted?: number;
+    cappedAtTimetable?: boolean;
+    loggedOutEarly?: boolean;
     date?: string;
     dayOfWeek?: string;
     day_of_week?: string;

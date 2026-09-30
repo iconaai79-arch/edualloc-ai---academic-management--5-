@@ -125,10 +125,11 @@ export function RetailManager(props: RetailManagerProps) {
         }),
     [activityLog]);
 
-    const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+    const adminRoles = ['admin', 'super_admin', 'store_manager', 'store_keeper', 'store', 'principal', 'director', 'bursar', 'head_teacher'];
+    const isAdmin = adminRoles.includes((currentUser?.role || '').toLowerCase()) || Boolean(isEducation);
     const filteredRetailStores = isAdmin
         ? retailStores
-        : retailStores.filter(s => s.id === currentUser?.departmentId);
+        : (currentUser?.departmentId ? retailStores.filter(s => s.id === currentUser?.departmentId) : retailStores);
 
     const [internalActiveView, setInternalActiveView] = useState<'dashboard' | 'stores' | 'inventory' | 'stock_inwards' | 'shipments' | 'transfers' | 'wishlist' | 'commissions' | 'pos' | 'expenses' | 'requisitions' | 'cafe_menu' | 'vendors' | 'logistics' | 'teachers' | 'support_staff' | 'students' | 'reports' | 'config' | 'goods_in_lieu'>('dashboard');
     const [selectedUserForPOS, setSelectedUserForPOS] = useState<User | null>(null);
@@ -1008,6 +1009,7 @@ export function RetailManager(props: RetailManagerProps) {
                                 institutionId={institutionId}
                                 currentInstitution={currentInstitution}
                                 stores={filteredRetailStores}
+                                inventory={inventory}
                                 voteHeads={voteHeads}
                                 isEducation={isEducation}
                             />

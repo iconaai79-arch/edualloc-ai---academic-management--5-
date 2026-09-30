@@ -625,8 +625,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const cachedWdStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_wd_start_${institutionId}`) : null;
         const cachedWdEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_wd_end_${institutionId}`) : null;
 
-        const wdStart = cachedWdStart || r.weekdayStartTime || r.weekday_start_time || '16:00';
-        const wdEnd = cachedWdEnd || r.weekdayEndTime || r.weekday_end_time || '18:00';
+        const wdStart = cachedWdStart || r.weekdayStartTime || r.weekday_start_time || meta.weekdayStartTime || meta.weekday_start_time || '16:00';
+        const wdEnd = cachedWdEnd || r.weekdayEndTime || r.weekday_end_time || meta.weekdayEndTime || meta.weekday_end_time || '18:00';
         setWeekdayStartTime(wdStart);
         setWeekdayEndTime(wdEnd);
 
@@ -1560,6 +1560,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             };
             const updatedMetadata = {
                 ...((rateSetting as any)?.metadata || {}),
+                weekdayStartTime: rateSetting?.weekdayStartTime || weekdayStartTime,
+                weekday_start_time: rateSetting?.weekdayStartTime || weekdayStartTime,
+                weekdayEndTime: rateSetting?.weekdayEndTime || weekdayEndTime,
+                weekday_end_time: rateSetting?.weekdayEndTime || weekdayEndTime,
                 timetableApproval: updatedApproval
             };
             const updatedRateSetting = {
@@ -1571,7 +1575,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 weekdayHourlyRate: rateSetting?.weekdayHourlyRate || weekdayHourlyRate,
                 weekendHourlyRate: rateSetting?.weekendHourlyRate || weekendHourlyRate,
                 weekdayStartTime: rateSetting?.weekdayStartTime || weekdayStartTime,
+                weekday_start_time: rateSetting?.weekdayStartTime || weekdayStartTime,
                 weekdayEndTime: rateSetting?.weekdayEndTime || weekdayEndTime,
+                weekday_end_time: rateSetting?.weekdayEndTime || weekdayEndTime,
                 weekendStartTime: rateSetting?.weekendStartTime || weekendStartTime,
                 weekendEndTime: rateSetting?.weekendEndTime || weekendEndTime,
                 saturdayStartTime: rateSetting?.saturdayStartTime || saturdayStartTime,
@@ -1822,6 +1828,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return matchesSearch && matchesStatus;
         });
     }, [sessions, searchQuery, statusFilter]);
+
+    // Detect duplicate orphaned "In Progress" sessions where another completed session exists for same teacher, class & date
+    const duplicateInprogressSessions = useMemo(() => {
+        return (sessions || []).filter(inProg => {
+            if (inProg.status !== 'In Progress') return false;
+            const inProgDate = (inProg.startTime || inProg.createdAt || '').split('T')[0];
+            return (sessions || []).some(other =>
+                other.id !== inProg.id &&
+                other.teacherId === inProg.teacherId &&
+                other.status !== 'In Progress' &&
+                (other.courseId === inProg.courseId || other.className === inProg.className) &&
+                (other.subjectId === inProg.subjectId || other.subjectName === inProg.subjectName) &&
+                (other.startTime || other.createdAt || '').split('T')[0] === inProgDate
+            );
+        });
+    }, [sessions]);
 
     // Helper to calculate end time by adding minutes safely
     const addMinutesToTime = (timeStr: string, minutes: number = 60): string => {
@@ -2988,6 +3010,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 sunday_break_label: effSunBreakLabel,
                 metadata: {
                     ...existingMeta,
+                    weekdayStartTime: effWdStart,
+                    weekday_start_time: effWdStart,
+                    weekdayEndTime: effWdEnd,
+                    weekday_end_time: effWdEnd,
                     saturdayStartTime: effSatStart,
                     saturday_start_time: effSatStart,
                     saturdayEndTime: effSatEnd,
@@ -3449,6 +3475,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             alert(err.message || 'Failed to reject session');
         } finally {
             setIsSubmittingHeadteacherReject(false);
+        }
+    };
+
+    // Discard / Delete Orphaned or Duplicate In-Progress Remedial Session
+    const handleDeleteOrphanSession = async (session: RemedialSession) => {
+        if (!window.confirm(`Are you sure you want to discard this duplicate or orphaned in-progress session for ${session.teacherName} (${session.subjectName})?`)) {
+            return;
+        }
+        try {
+            await apiService.deleteRemedialSession(session.id);
+            onLogAction?.(`Discarded duplicate in-progress remedial session ${session.id} for ${session.teacherName}`);
+            alert('Duplicate in-progress session discarded successfully.');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to discard session');
+        }
+    };
+
+    // Bulk Clean Up Duplicate In-Progress Sessions
+    const handleBulkCleanOrphanSessions = async () => {
+        if (duplicateInprogressSessions.length === 0) return;
+        if (!window.confirm(`Clean up all ${duplicateInprogressSessions.length} duplicate in-progress ghost session(s) now?`)) {
+            return;
+        }
+        try {
+            const idsToDelete = duplicateInprogressSessions.map(s => s.id);
+            await apiService.deleteRemedialSession(idsToDelete);
+            onLogAction?.(`Cleaned up ${idsToDelete.length} duplicate in-progress remedial sessions`);
+            alert(`Cleaned up ${idsToDelete.length} duplicate ghost session(s) successfully!`);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to clean up duplicate sessions');
         }
     };
 
@@ -5760,7 +5818,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Helper to compute correct payout amount for any session (considering Weekday TOD flat rates vs hourly rates)
     const computeSessionPayout = useCallback((s: RemedialSession) => {
-        const sHours = s.hours || 1;
+        const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
         const sDate = new Date(s.date || s.startTime);
         const dayIdx = sDate.getDay();
         const isWeekend = dayIdx === 0 || dayIdx === 6;
@@ -5811,7 +5869,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sessionIds: []
                 };
             }
-            const sHours = s.hours || 1;
+            const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
             const sessionAmount = computeSessionPayout(s);
             grouped[s.teacherId].totalHours += sHours;
             grouped[s.teacherId].totalAmount += sessionAmount;
@@ -5847,7 +5905,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sessionIds: []
                 };
             }
-            const sHours = s.hours || 1;
+            const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
             const sessionAmount = computeSessionPayout(s);
             grouped[s.teacherId].totalHours += sHours;
             grouped[s.teacherId].totalAmount += sessionAmount;
@@ -5884,7 +5942,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     operationsManagerName: s.operationsDisbursedBy
                 };
             }
-            const sHours = s.hours || 1;
+            const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
             const sessionAmount = computeSessionPayout(s);
             grouped[s.teacherId].totalHours += sHours;
             grouped[s.teacherId].totalAmount += sessionAmount;
@@ -11751,6 +11809,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </div>
                     </div>
 
+                    {duplicateInprogressSessions.length > 0 && (
+                        <div className="p-4 sm:p-5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-amber-500 text-white rounded-2xl shrink-0">
+                                    <AlertTriangle className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                        Duplicate Ghost Sessions Detected ({duplicateInprogressSessions.length})
+                                    </h4>
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                                        Found {duplicateInprogressSessions.length} orphaned "In Progress" session(s) where the teacher has already finished and submitted the lesson for the same day.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleBulkCleanOrphanSessions}
+                                className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" /> Clean Up {duplicateInprogressSessions.length} Duplicates Now
+                            </button>
+                        </div>
+                    )}
+
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
@@ -11802,10 +11884,31 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     {session.status === 'In Progress' ? (
                                                         <span className="text-xs font-black text-amber-500 uppercase tracking-wider block">In Progress</span>
                                                     ) : (
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white">
-                                                            {session.hours || (session as any).durationHours || (session as any).duration_hours || 
-                                                             (session.endTime && session.startTime ? Math.max(1, Math.round(((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 3600000) * 10) / 10) : 1)} hrs
-                                                        </p>
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white">
+                                                                {(typeof session.hours === 'number' && !isNaN(session.hours)) ? session.hours : ((session as any).durationHours ?? (session as any).duration_hours ?? 1)} hrs
+                                                                {session.durationMinutes && (
+                                                                    <span className="text-[10px] text-slate-400 font-bold ml-1">({session.durationMinutes}m)</span>
+                                                                )}
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {session.earlyLoginMinutesOmitted && session.earlyLoginMinutesOmitted > 0 ? (
+                                                                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-[8px] font-black uppercase text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800" title={`Logged in early; ${session.earlyLoginMinutesOmitted} min(s) omitted before timetable start`}>
+                                                                        {session.earlyLoginMinutesOmitted}m early omitted
+                                                                    </span>
+                                                                ) : null}
+                                                                {session.cappedAtTimetable ? (
+                                                                    <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-[8px] font-black uppercase text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800" title="Duration rounded off to timetable minutes">
+                                                                        Timetable Capped
+                                                                    </span>
+                                                                ) : null}
+                                                                {session.loggedOutEarly ? (
+                                                                    <span className="inline-block px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 text-[8px] font-black uppercase text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800" title="Teacher logged out earlier; calculated using exact minutes">
+                                                                        Exact ({session.durationMinutes}m)
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                     <p className="text-[9px] text-slate-400 uppercase font-bold mt-0.5">
                                                         {new Date(session.startTime).toLocaleDateString()}
@@ -11849,6 +11952,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     )}
                                                 </td>
                                                 <td className="p-6 text-right">
+                                                    {session.status === 'In Progress' && (
+                                                        <div className="flex items-center justify-end">
+                                                            <button 
+                                                                onClick={() => handleDeleteOrphanSession(session)}
+                                                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-rose-200 dark:border-rose-900"
+                                                                title="Discard duplicate or phantom in-progress session"
+                                                            >
+                                                                <Trash2 className="w-3 h-3 text-rose-500" /> Discard Duplicate
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     {session.status === 'Prefect Confirmed' && (
                                                         <button 
                                                             onClick={() => handleApproveSession(session)}

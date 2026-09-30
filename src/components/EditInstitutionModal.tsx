@@ -173,6 +173,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         ? undefined 
         : (formData.subscriptionEndsAt ? new Date(`${formData.subscriptionEndsAt}T23:59:59.999Z`).toISOString() : undefined),
       isSuspendedForBilling: isReseller ? false : formData.isSuspendedForBilling,
+      is_suspended_for_billing: isReseller ? false : formData.isSuspendedForBilling,
       customSubscriptionPrice: isReseller ? undefined : {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         quarterly: formData.customSubscriptionPrice.quarterly ? parseFloat(formData.customSubscriptionPrice.quarterly) : undefined,
@@ -183,7 +184,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       category: formData.category || undefined,
       businessSubType: formData.category || formData.businessSubType || undefined,
       billingModel: isReseller ? 'fixed' : (formData.billingModel as any),
+      billing_model: isReseller ? 'fixed' : (formData.billingModel as any),
       ratePerStudent: isReseller ? 0 : (parseFloat(formData.ratePerStudent) || 0),
+      rate_per_student: isReseller ? 0 : (parseFloat(formData.ratePerStudent) || 0),
       resellerId: isReseller ? undefined : (formData.resellerId || null as any),
       reseller_id: isReseller ? undefined : (formData.resellerId || null as any),
     };

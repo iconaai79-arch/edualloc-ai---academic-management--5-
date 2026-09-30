@@ -19,6 +19,7 @@ import {
     isConfirmationExpired, getNextOccurrenceDate 
 } from '../utils/remedialSubstitutionUtils';
 import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
+import { calculateRemedialSessionDuration, timeToMinutes } from '../utils/timeUtils';
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -252,6 +253,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         primaryPrefect: any;
         onStart: (override?: any) => Promise<void>;
     }>({ courseId: '', courseName: '', subjectId: '', prefects: [], primaryPrefect: null, onStart: async () => {} });
+    const isStartingRemedialRef = useRef<boolean>(false);
 
     const stopCamera = useCallback(() => {
         if (cameraStreamRef.current) {
@@ -497,6 +499,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 }
 
                 if (isValid && matchedPrefect) {
+                    if (scanInterval) {
+                        clearInterval(scanInterval);
+                        scanInterval = null;
+                    }
                     setScannedBadgeSuccess(true);
                     setScannedVerifiedPrefect(matchedPrefect);
                     setQrValidationError(null);
@@ -979,22 +985,74 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             stopCamera();
 
             const end = new Date();
-            const start = new Date(session.startTime);
-            const diffMs = Math.max(0, end.getTime() - start.getTime());
-            const calculatedHours = Math.max(1, Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10);
+            const matchedAlloc = (remedialAllocations || []).find(a =>
+                (session.allocationId && a.id === session.allocationId) ||
+                (a.teacherId === session.teacherId &&
+                    (a.courseId === session.courseId || a.className === session.className) &&
+                    (a.subjectId === session.subjectId || a.subjectName === session.subjectName) &&
+                    a.dayOfWeek?.toLowerCase() === new Date(session.startTime).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase())
+            ) || (myRemedialAllocations || []).find(a =>
+                (a.courseId === session.courseId || a.className === session.className) &&
+                (a.subjectId === session.subjectId || a.subjectName === session.subjectName)
+            );
+
+            const schedStart = session.scheduledStartTime || matchedAlloc?.startTime;
+            const schedEnd = session.scheduledEndTime || matchedAlloc?.endTime;
+            const schedDuration = session.scheduledDurationMinutes || (schedStart && schedEnd ? Math.max(1, timeToMinutes(schedEnd) - timeToMinutes(schedStart)) : 60);
+
+            const calc = calculateRemedialSessionDuration(session.startTime, end, {
+                startTime: schedStart,
+                endTime: schedEnd,
+                durationMinutes: schedDuration
+            });
 
             const updated: RemedialSession = {
                 ...session,
                 endTime: end.toISOString(),
-                hours: calculatedHours,
-                durationHours: calculatedHours,
-                duration_hours: calculatedHours,
+                hours: calc.hours,
+                durationHours: calc.hours,
+                duration_hours: calc.hours,
+                durationMinutes: calc.durationMinutes,
+                scheduledStartTime: schedStart,
+                scheduledEndTime: schedEnd,
+                scheduledDurationMinutes: calc.scheduledMinutes,
+                allocationId: session.allocationId || matchedAlloc?.id,
+                earlyLoginMinutesOmitted: calc.earlyMinutesOmitted,
+                cappedAtTimetable: calc.isCappedAtTimetable,
+                loggedOutEarly: calc.isLoggedOutEarly,
                 status: 'Pending Duty Approval' as const
             };
 
             await apiService.saveRemedialSession(updated);
-            props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calculatedHours} hrs)`);
-            alert(`✅ Remedial class completed!\n\n• Subject: ${session.subjectName}\n• Class: ${session.className}\n• Verified Duration: ${calculatedHours} hrs\n• Concluded At: ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\nStatus: Pending Teacher on Duty approval before payout.`);
+
+            // Clean up any duplicate orphaned in-progress sessions for the same teacher and course/subject today
+            try {
+                const todayStr = new Date(session.startTime).toDateString();
+                const orphanDuplicates = (remedialSessions || []).filter(s =>
+                    s.id !== session.id &&
+                    s.teacherId === session.teacherId &&
+                    s.status === 'In Progress' &&
+                    new Date(s.startTime).toDateString() === todayStr &&
+                    (s.courseId === session.courseId || s.className === session.className || s.subjectId === session.subjectId)
+                );
+                if (orphanDuplicates.length > 0) {
+                    const orphanIds = orphanDuplicates.map(o => o.id);
+                    await apiService.deleteRemedialSession(orphanIds);
+                }
+            } catch (_) {}
+
+            let durationBreakdown = `• Verified Duration: ${calc.hours} hrs (${calc.durationMinutes} mins)`;
+            if (calc.isEarlyLogin && calc.earlyMinutesOmitted > 0) {
+                durationBreakdown += `\n• Early Login: Logged in early; ${calc.earlyMinutesOmitted} min(s) omitted before timetable start (${schedStart})`;
+            }
+            if (calc.isCappedAtTimetable) {
+                durationBreakdown += `\n• Timetable Round-Off: Logged out at/after required duration; rounded off to timetable (${calc.scheduledMinutes} mins)`;
+            } else if (calc.isLoggedOutEarly) {
+                durationBreakdown += `\n• Early Conclude: Logged out earlier than required duration; calculated using exact minutes (${calc.durationMinutes} mins)`;
+            }
+
+            props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calc.hours} hrs, ${calc.durationMinutes} mins)`);
+            alert(`✅ Remedial class completed!\n\n• Subject: ${session.subjectName}\n• Class: ${session.className}\n${durationBreakdown}\n• Concluded At: ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\nStatus: Pending Teacher on Duty approval before payout.`);
             loadRemedialData();
         } catch (err: any) {
             alert(err.message || 'Failed to end remedial session');
@@ -1682,12 +1740,28 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         const effectivePrefectId = selectedPrefectId || primaryPrefect?.id || '';
 
                         const handleStartRemedial = async (override?: { courseId?: string; subjectId?: string; prefectId?: string }) => {
+                            if (isStartingRemedialRef.current) return;
+                            isStartingRemedialRef.current = true;
+                            setIsProcessingSession(true);
+
                             const courseId = override?.courseId || effectiveCourseId;
                             const subjectId = override?.subjectId || effectiveSubjectId;
                             const prefectId = override?.prefectId || effectivePrefectId;
 
                             if (!subjectId || !courseId) {
+                                isStartingRemedialRef.current = false;
+                                setIsProcessingSession(false);
                                 return alert('Please select subject and class stream before starting.');
+                            }
+
+                            // Prevent duplicate session start if teacher already has an active session in progress
+                            const existingActiveSession = remedialSessions.find(s => s.teacherId === user?.id && s.status === 'In Progress');
+                            if (existingActiveSession) {
+                                isStartingRemedialRef.current = false;
+                                setIsProcessingSession(false);
+                                setIsScannerModalOpen(false);
+                                stopCamera();
+                                return alert(`Lesson Already In Progress:\nYou already have an active remedial session running for ${existingActiveSession.subjectName} (${existingActiveSession.className}).\n\nPlease conclude that lesson before starting a new one.`);
                             }
 
                             // Check daily max limit configuration
@@ -1729,6 +1803,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     ? `${courseName} (${stream})` 
                                     : courseName;
 
+                                const matchedAlloc = todaysScheduledRemedial || (myRemedialAllocations || []).find(a =>
+                                    (a.courseId === courseId || a.className === displayClassName) &&
+                                    (a.subjectId === subjectId || a.subjectName === subjectName)
+                                );
+                                const schedStart = matchedAlloc?.startTime;
+                                const schedEnd = matchedAlloc?.endTime;
+                                const schedDurationMins = (schedStart && schedEnd)
+                                    ? Math.max(1, timeToMinutes(schedEnd) - timeToMinutes(schedStart))
+                                    : 60;
+
                                 const newSession: RemedialSession = {
                                     id: `rem_${Date.now()}`,
                                     teacherId: user?.id || '',
@@ -1741,9 +1825,14 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     prefectName: prefect?.name || 'Class Leader / Secretary',
                                     prefectToken: `prefect_remedial_token_class_${courseId}`,
                                     startTime: new Date().toISOString(),
-                                    hours: 1,
-                                    durationHours: 1,
-                                    duration_hours: 1,
+                                    hours: Math.round((schedDurationMins / 60) * 100) / 100,
+                                    durationHours: Math.round((schedDurationMins / 60) * 100) / 100,
+                                    duration_hours: Math.round((schedDurationMins / 60) * 100) / 100,
+                                    durationMinutes: schedDurationMins,
+                                    scheduledStartTime: schedStart,
+                                    scheduledEndTime: schedEnd,
+                                    scheduledDurationMinutes: schedDurationMins,
+                                    allocationId: matchedAlloc?.id,
                                     status: 'In Progress',
                                     createdAt: new Date().toISOString(),
                                     institutionId: currentInstitution?.id || user?.institutionId || ''
@@ -1752,11 +1841,22 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 await apiService.saveRemedialSession(newSession);
                                 props.onLogAction?.(`Started remedial lesson: ${subjectName} for ${displayClassName}`);
                                 setIsScannerModalOpen(false);
-                                alert(`⚡ Remedial Lesson Started!\n\n• Class: ${displayClassName}\n• Subject: ${subjectName}\n• Prefect Sign-off: ${newSession.prefectName}\n• Started: ${new Date().toLocaleTimeString()}\n\nThe session timer is now running.`);
+                                stopCamera();
+
+                                const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+                                const schedStartMins = schedStart ? timeToMinutes(schedStart) : null;
+                                const isEarly = schedStartMins !== null && nowMins < schedStartMins;
+                                const earlyMins = isEarly ? (schedStartMins - nowMins) : 0;
+                                const earlyNote = isEarly
+                                    ? `\n\nℹ️ Early Login Note: You logged in ${earlyMins} min(s) before scheduled start (${schedStart}). The early ${earlyMins} minute(s) will be omitted so teaching time counts from ${schedStart}.`
+                                    : '';
+
+                                alert(`⚡ Remedial Lesson Started!\n\n• Class: ${displayClassName}\n• Subject: ${subjectName}\n• Prefect Sign-off: ${newSession.prefectName}\n• Started: ${new Date().toLocaleTimeString()}${schedStart ? `\n• Timetable Slot: ${schedStart} - ${schedEnd}` : ''}${earlyNote}\n\nThe session timer is now running.`);
                                 loadRemedialData();
                             } catch (err: any) {
                                 alert(err.message || 'Failed to start remedial session');
                             } finally {
+                                isStartingRemedialRef.current = false;
                                 setIsProcessingSession(false);
                             }
                         };
@@ -2218,6 +2318,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 <div>
                                                     <p className="text-[10px] text-slate-400 uppercase font-black">Started At</p>
                                                     <p className="text-slate-900 dark:text-white font-black text-sm mt-0.5">{new Date(activeSession.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                    {activeSession.scheduledStartTime && (
+                                                        <p className="text-[9px] text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
+                                                            Timetable: {activeSession.scheduledStartTime} - {activeSession.scheduledEndTime || 'End'}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 

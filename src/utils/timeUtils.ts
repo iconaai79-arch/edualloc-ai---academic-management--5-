@@ -221,3 +221,114 @@ export const formatEta = (ms: number | null): string => {
   const remainingMinutes = minutes % 60;
   return `about ${hours} hour${hours > 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''} remaining...`;
 };
+
+export interface RemedialDurationCalculation {
+  hours: number;                  // e.g. 1.0 or 0.7 or 0.83 (rounded to 2 decimal places)
+  durationMinutes: number;        // Effective minutes taught
+  scheduledMinutes: number;       // Timetable scheduled minutes
+  earlyMinutesOmitted: number;    // Minutes between early login and scheduled start
+  isEarlyLogin: boolean;          // Teacher logged in before scheduled start
+  isCappedAtTimetable: boolean;   // Logged out after required minutes, rounded to timetable
+  isLoggedOutEarly: boolean;      // Logged out earlier than required minutes
+  effectiveStart: string;         // ISO string of effective calculation start
+  effectiveEnd: string;           // ISO string of effective calculation end
+}
+
+/**
+ * Calculates remedial lesson verified duration according to timetable rules:
+ * 1. If teacher logs in before the lesson's scheduled time, omit the early minutes when calculating time.
+ * 2. If user logs out after the required minutes, round off to the timetable minutes.
+ * 3. If user logs out earlier, calculate using the exact minutes.
+ */
+export const calculateRemedialSessionDuration = (
+  actualStartTime: string | Date,
+  actualEndTime?: string | Date | null,
+  scheduledTime?: {
+    startTime?: string;
+    endTime?: string;
+    durationMinutes?: number;
+  } | null
+): RemedialDurationCalculation => {
+  const actualStart = new Date(actualStartTime);
+  const actualEnd = actualEndTime ? new Date(actualEndTime) : new Date();
+
+  if (isNaN(actualStart.getTime())) {
+    return {
+      hours: 1,
+      durationMinutes: 60,
+      scheduledMinutes: 60,
+      earlyMinutesOmitted: 0,
+      isEarlyLogin: false,
+      isCappedAtTimetable: true,
+      isLoggedOutEarly: false,
+      effectiveStart: new Date().toISOString(),
+      effectiveEnd: new Date().toISOString()
+    };
+  }
+
+  let schedStartMinutes: number | null = null;
+  let schedEndMinutes: number | null = null;
+  let scheduledDurationMins = 60;
+
+  if (scheduledTime?.startTime && scheduledTime?.endTime) {
+    schedStartMinutes = timeToMinutes(scheduledTime.startTime);
+    schedEndMinutes = timeToMinutes(scheduledTime.endTime);
+    if (schedEndMinutes > schedStartMinutes) {
+      scheduledDurationMins = schedEndMinutes - schedStartMinutes;
+    }
+  } else if (scheduledTime?.durationMinutes && scheduledTime.durationMinutes > 0) {
+    scheduledDurationMins = scheduledTime.durationMinutes;
+  }
+
+  const actualStartDayMinutes = actualStart.getHours() * 60 + actualStart.getMinutes();
+  let effectiveStartDate = new Date(actualStart);
+  let earlyMinutesOmitted = 0;
+  let isEarlyLogin = false;
+
+  // 1. If the teacher logs in before the lesson's scheduled time, omit the minutes when calculating time
+  if (schedStartMinutes !== null && actualStartDayMinutes < schedStartMinutes) {
+    isEarlyLogin = true;
+    earlyMinutesOmitted = schedStartMinutes - actualStartDayMinutes;
+    effectiveStartDate = new Date(actualStart);
+    effectiveStartDate.setHours(Math.floor(schedStartMinutes / 60), schedStartMinutes % 60, 0, 0);
+  }
+
+  // Elapsed minutes from effective start time
+  const elapsedMs = Math.max(0, actualEnd.getTime() - effectiveStartDate.getTime());
+  const elapsedMinutes = Math.round(elapsedMs / 60000);
+
+  let finalMinutes = elapsedMinutes;
+  let isCappedAtTimetable = false;
+  let isLoggedOutEarly = false;
+
+  // 2. If user logs out after required minutes, just round off to the timetable minutes
+  if (elapsedMinutes >= scheduledDurationMins) {
+    finalMinutes = scheduledDurationMins;
+    isCappedAtTimetable = true;
+  } else {
+    // 3. But if user logs out earlier, calculate using exact minutes
+    finalMinutes = elapsedMinutes;
+    isLoggedOutEarly = true;
+  }
+
+  // Floor to 0 if negative, minimum 1 min if some time elapsed (> 15 seconds)
+  if (finalMinutes === 0 && elapsedMs >= 15000) {
+    finalMinutes = 1;
+  }
+
+  const exactHours = finalMinutes / 60;
+  const hours = Math.round(exactHours * 100) / 100;
+
+  return {
+    hours,
+    durationMinutes: finalMinutes,
+    scheduledMinutes: scheduledDurationMins,
+    earlyMinutesOmitted,
+    isEarlyLogin,
+    isCappedAtTimetable,
+    isLoggedOutEarly,
+    effectiveStart: effectiveStartDate.toISOString(),
+    effectiveEnd: actualEnd.toISOString()
+  };
+};
+

@@ -638,7 +638,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                                     {activeRemedialSession.subjectName} • {activeRemedialSession.className}
                                 </h4>
                                 <p className="text-[11px] text-emerald-100 font-medium">
-                                    Prefect: {activeRemedialSession.prefectName} • Started: {new Date(activeRemedialSession.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    Prefect: {activeRemedialSession.prefectName} • Started: {new Date(activeRemedialSession.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{activeRemedialSession.scheduledStartTime ? ` • Timetable: ${activeRemedialSession.scheduledStartTime} - ${activeRemedialSession.scheduledEndTime || 'End'}` : ''}
                                 </p>
                             </div>
                         </div>

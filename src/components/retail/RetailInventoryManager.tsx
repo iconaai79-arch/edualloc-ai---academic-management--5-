@@ -30,11 +30,12 @@ interface RetailInventoryManagerProps {
     institutionId: string;
     currentInstitution?: any;
     stores?: any[];
+    inventory?: RetailInventoryItem[];
     voteHeads?: VoteHead[];
     isEducation?: boolean;
 }
 
-export function RetailInventoryManager({ institutionId, currentInstitution, stores = [], voteHeads = [], isEducation }: RetailInventoryManagerProps) {
+export function RetailInventoryManager({ institutionId, currentInstitution, stores = [], inventory: propInventory, voteHeads = [], isEducation }: RetailInventoryManagerProps) {
     const [items, setItems] = useState<RetailInventoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +52,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [isSavingAll, setIsSavingAll] = useState(false);
     const [lastSaved, setLastSaved] = useState<string | null>(null);
     const [categoryFilter, setCategoryFilter] = useState('all');
+    const [storeFilter, setStoreFilter] = useState('all');
 
     // Subtab state: School store stock, Inbound county consignments pipeline, Sickbay/Pharmacy, or Action History
     const [inventorySubTab, setInventorySubTab] = useState<'school' | 'county_consignments' | 'pharmacy' | 'history'>('school');
@@ -78,10 +80,10 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
-    // Auto-reset page when search queries or category filters are updated
+    // Auto-reset page when search queries or filters are updated
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, categoryFilter]);
+    }, [searchQuery, categoryFilter, storeFilter]);
 
     // States for PDF Previewer
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -480,8 +482,76 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
     const fetchInventory = async () => {
         setIsLoading(true);
         try {
-            const data = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId);
-            setItems(data);
+            const [retailData, schoolData, storeStockData] = await Promise.all([
+                apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('inventory', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('retail_store_stock', institutionId).catch(() => [])
+            ]);
+
+            const merged: RetailInventoryItem[] = [...(retailData || [])];
+            if (propInventory && Array.isArray(propInventory)) {
+                propInventory.forEach(pi => {
+                    if (!merged.some(m => m.id === pi.id)) {
+                        merged.push(pi);
+                    }
+                });
+            }
+
+            const existingIds = new Set(merged.map(i => i.id));
+            const existingNames = new Set(merged.map(i => (i.name || '').trim().toLowerCase()));
+
+            // Merge legacy/general school inventory items so stock from all stores is fully accounted for
+            (schoolData || []).forEach((leg: any) => {
+                const normName = (leg.name || '').trim().toLowerCase();
+                if (!existingIds.has(leg.id) && !existingNames.has(normName)) {
+                    const storeIdentifier = leg.storeId || leg.store_id || leg.location || '';
+                    const matchedStore = effectiveStores.find(s => 
+                        s.id === storeIdentifier || 
+                        s.name?.toLowerCase() === storeIdentifier.toLowerCase()
+                    );
+                    merged.push({
+                        id: leg.id,
+                        institutionId: leg.institutionId || leg.institution_id || institutionId,
+                        name: leg.name,
+                        sku: leg.sku || `SKU-${String(leg.id).slice(-6)}`,
+                        category: leg.category || 'Stationery',
+                        quantity: Number(leg.quantity || 0),
+                        unit: leg.unit || 'pcs',
+                        reorderLevel: Number(leg.reorderLevel || leg.minThreshold || 5),
+                        costPrice: Number(leg.price || leg.costPrice || 0),
+                        basePrice: Number(leg.price || leg.basePrice || 0),
+                        srpPrice: Number(leg.price || leg.srpPrice || 0),
+                        storeId: matchedStore ? matchedStore.id : storeIdentifier,
+                        storeName: matchedStore ? matchedStore.name : (leg.location || leg.storeName || leg.store_name || 'Main School Store'),
+                        description: leg.description || '',
+                        marketplaceEnabled: false,
+                        bufferStock: 0,
+                        viewCount: 0,
+                        inquiryCount: 0,
+                        createdAt: leg.createdAt || new Date().toISOString(),
+                        lastUpdated: leg.lastUpdated || leg.last_updated || new Date().toISOString()
+                    });
+                }
+            });
+
+            // Normalize store fields and attach store stocks for every item
+            const normalized = merged.map(item => {
+                const rawStoreId = item.storeId || (item as any).store_id || (item as any).location || '';
+                const rawStoreName = item.storeName || (item as any).store_name || (item as any).location || '';
+                const matchedStore = effectiveStores.find(s => 
+                    s.id === rawStoreId || 
+                    (rawStoreName && s.name?.toLowerCase() === rawStoreName.toLowerCase())
+                );
+                const itemStoreStocks = (storeStockData || []).filter((ss: any) => ss.itemId === item.id || ss.item_id === item.id);
+                return {
+                    ...item,
+                    storeId: matchedStore ? matchedStore.id : rawStoreId,
+                    storeName: matchedStore ? matchedStore.name : (rawStoreName || 'Main School Store'),
+                    storeStocks: itemStoreStocks
+                };
+            });
+
+            setItems(normalized);
         } catch (err) {
             console.error("Fetch error:", err);
         } finally {
@@ -519,6 +589,8 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         try {
             const payload = {
                 ...formData,
+                store_id: formData.storeId || (formData as any).store_id || null,
+                store_name: formData.storeName || (formData as any).store_name || null,
                 institutionId,
                 lastUpdated: new Date().toISOString()
             };
@@ -684,11 +756,17 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
             const matchesSearch =
                 item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (item.category?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+                (item.category?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                (item.storeName?.toLowerCase() || '').includes(searchQuery.toLowerCase());
             const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
-            return matchesSearch && matchesCategory;
+            const itemStoreId = item.storeId || (item as any).store_id;
+            const matchesStore = storeFilter === 'all' ||
+                itemStoreId === storeFilter ||
+                item.storeName?.toLowerCase() === storeFilter.toLowerCase() ||
+                (item as any).storeStocks?.some((ss: any) => (ss.storeId === storeFilter || ss.store_id === storeFilter));
+            return matchesSearch && matchesCategory && matchesStore;
         });
-    }, [items, searchQuery, categoryFilter]);
+    }, [items, searchQuery, categoryFilter, storeFilter]);
 
     // Merge dirty edits on top of persisted items for display
     const displayItems = useMemo(() =>
@@ -722,7 +800,12 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
         setIsSavingAll(true);
         try {
             for (const row of Object.values(dirtyRows)) {
-                await apiService.saveModuleRecord('retail_inventory_items', { ...row, lastUpdated: new Date().toISOString() });
+                await apiService.saveModuleRecord('retail_inventory_items', {
+                    ...row,
+                    store_id: row.storeId || (row as any).store_id || null,
+                    store_name: row.storeName || (row as any).store_name || null,
+                    lastUpdated: new Date().toISOString()
+                });
             }
             setDirtyRows({});
             setLastSaved(new Date().toLocaleTimeString());
@@ -1045,7 +1128,7 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                     />
                 </div>
 
-                <div className="relative w-full md:w-64">
+                <div className="relative w-full md:w-56">
                     <select
                         value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
@@ -1054,6 +1137,19 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                         <option value="all">All Categories</option>
                         {categories.map(cat => (
                             <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="relative w-full md:w-56">
+                    <select
+                        value={storeFilter}
+                        onChange={(e) => setStoreFilter(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 cursor-pointer"
+                    >
+                        <option value="all">🏢 All Stores & Locations ({effectiveStores.length || 'All'})</option>
+                        {effectiveStores.map(store => (
+                            <option key={store.id} value={store.id}>🏢 {store.name}</option>
                         ))}
                     </select>
                 </div>
@@ -1103,10 +1199,15 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                                         )}
 
                                         {/* Overlay Badges */}
-                                        <div className="absolute top-6 left-6 flex flex-col gap-2">
-                                            <span className="px-5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-xl border border-white/50">
+                                        <div className="absolute top-6 left-6 flex flex-col gap-1.5">
+                                            <span className="px-3.5 py-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl rounded-xl text-[9px] font-black uppercase tracking-widest shadow-xl border border-white/50 text-slate-800 dark:text-slate-100">
                                                 {item.category}
                                             </span>
+                                            {item.storeName && (
+                                                <span className="px-3 py-1 bg-indigo-600/90 backdrop-blur-md text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-lg flex items-center gap-1">
+                                                    🏢 {item.storeName}
+                                                </span>
+                                            )}
                                         </div>
 
                                         {item.marketplaceEnabled && (

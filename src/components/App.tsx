@@ -2314,7 +2314,46 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                 setRetailExpenses(retExp || []);
                 setRetailStores(rStores || []);
-                setRetailInventory(rInv || []);
+
+                // Combine items from retail_inventory_items and legacy inventory tables across all stores
+                const mergedRetailInventory: RetailInventoryItem[] = [...(rInv || [])];
+                const existingRetailIds = new Set(mergedRetailInventory.map(i => i.id));
+                const existingRetailNames = new Set(mergedRetailInventory.map(i => (i.name || '').trim().toLowerCase()));
+
+                (item || []).forEach((leg: any) => {
+                    const normName = (leg.name || '').trim().toLowerCase();
+                    if (!existingRetailIds.has(leg.id) && !existingRetailNames.has(normName)) {
+                        const storeIdentifier = leg.storeId || leg.store_id || leg.location || '';
+                        const matchedStore = (rStores || []).find((s: any) => 
+                            s.id === storeIdentifier || 
+                            s.name?.toLowerCase() === storeIdentifier.toLowerCase()
+                        );
+                        mergedRetailInventory.push({
+                            id: leg.id,
+                            institutionId: leg.institutionId || leg.institution_id || effectiveInstIdFinal,
+                            name: leg.name,
+                            sku: leg.sku || `SKU-${String(leg.id).slice(-6)}`,
+                            category: leg.category || 'Stationery',
+                            quantity: Number(leg.quantity || 0),
+                            unit: leg.unit || 'pcs',
+                            reorderLevel: Number(leg.reorderLevel || leg.minThreshold || 5),
+                            costPrice: Number(leg.price || leg.costPrice || 0),
+                            basePrice: Number(leg.price || leg.basePrice || 0),
+                            srpPrice: Number(leg.price || leg.srpPrice || 0),
+                            storeId: matchedStore ? matchedStore.id : storeIdentifier,
+                            storeName: matchedStore ? matchedStore.name : (leg.location || leg.storeName || leg.store_name || 'Main School Store'),
+                            description: leg.description || '',
+                            marketplaceEnabled: false,
+                            bufferStock: 0,
+                            viewCount: 0,
+                            inquiryCount: 0,
+                            createdAt: leg.createdAt || new Date().toISOString(),
+                            lastUpdated: leg.lastUpdated || leg.last_updated || new Date().toISOString()
+                        });
+                    }
+                });
+
+                setRetailInventory(mergedRetailInventory);
                 setTimeOffRequests(tor || []);
                 setBulletinItems(fBulletin || []);
                 setDocumentCollections(fDocs || []);

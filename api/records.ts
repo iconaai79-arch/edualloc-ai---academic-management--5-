@@ -1239,11 +1239,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } else if (['teacher_check_ins'].includes(moduleName)) {
                     q = q.order('check_in_date', { ascending: false });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
-                    q = q.order('created_at', { ascending: false });
+                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
                 } else if (['receipts'].includes(moduleName)) {
-                    q = q.order('payment_date', { ascending: false });
+                    q = q.order('payment_date', { ascending: false }).order('id', { ascending: false });
                 } else if (['invoices'].includes(moduleName)) {
-                    q = q.order('created_at', { ascending: false });
+                    q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
@@ -1341,7 +1341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (strVal) q = q.eq(key, strVal);
                     }
                 });
-                if (['receipts', 'invoices'].includes(moduleName)) {
+                if (['receipts', 'invoices', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
@@ -1585,16 +1585,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const chunk = res?.data || [];
                             if (chunk.length === 0) break;
 
-                            // Guard against pagination loops / duplicate chunks
-                            if (chunk[0]?.id && seenChunkIds.has(chunk[0].id)) {
-                                console.warn(`[API GET] Duplicate chunk detected at offset ${currentOffset} for '${moduleName}'. Terminating pagination loop.`);
+                            // Guard against pagination loops / duplicate chunks:
+                            // Filter out already-seen records (e.g. boundary shift caused by concurrent inserts or shared timestamps)
+                            const uniqueChunk = chunk.filter((row: any) => !row?.id || !seenChunkIds.has(row.id));
+                            
+                            // If the entire chunk is duplicates, we've hit a true pagination loop or end of dataset
+                            if (uniqueChunk.length === 0 && chunk.length > 0) {
+                                console.warn(`[API GET] Duplicate chunk detected at offset ${currentOffset} for '${moduleName}' (all ${chunk.length} items already seen). Terminating pagination loop.`);
                                 break;
                             }
-                            for (const row of chunk) {
+                            for (const row of uniqueChunk) {
                                 if (row?.id) seenChunkIds.add(row.id);
                             }
 
-                            data.push(...chunk);
+                            data.push(...uniqueChunk);
                             if (chunk.length < effectiveBatchSize) break; // Reached end of dataset
                             currentOffset += chunk.length;
                             remaining -= chunk.length;
@@ -2472,6 +2476,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 delete copy.createdAt;
                 if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
                 delete copy.institutionId;
+            }
+            if (moduleName === 'institutions' || targetDbTable === 'institutions') {
+                const camelMap: Record<string, string> = {
+                    isSuspendedForBilling: 'is_suspended_for_billing',
+                    subscriptionEndsAt: 'subscription_ends_at',
+                    trialEndsAt: 'trial_ends_at',
+                    resellerId: 'reseller_id',
+                    billingModel: 'billing_model',
+                    ratePerStudent: 'rate_per_student',
+                    billingCycleAnchor: 'billing_cycle_anchor',
+                    studentRateMonthly: 'student_rate_monthly',
+                    baseMonthlyRate: 'base_monthly_rate',
+                    billingCurrency: 'billing_currency',
+                    billingCycleDay: 'billing_cycle_day',
+                    visitorAutoFinalizeEnabled: 'visitor_auto_finalize_enabled',
+                    visitorAutoFinalizeTime: 'visitor_auto_finalize_time',
+                    notifyHostOnVisitorArrival: 'notify_host_on_visitor_arrival',
+                    visitorArrivalSmsTemplate: 'visitor_arrival_sms_template',
+                    institutionType: 'institution_type',
+                    countyId: 'county_id',
+                    treeGradingNodes: 'tree_grading_nodes',
+                    classExamConfigs: 'class_exam_configs',
+                    classTeacherCommentsConfig: 'class_teacher_comments_config',
+                    classRankingConfigs: 'class_ranking_configs',
+                    othersExamSettings: 'others_exam_settings',
+                    isOtpEnabled: 'is_otp_enabled',
+                    customSmsPrice: 'custom_sms_price',
+                    businessSubType: 'business_sub_type'
+                };
+                Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                    if (copy[camelKey] !== undefined) {
+                        if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                        delete copy[camelKey];
+                    }
+                });
+                delete copy.createdAt;
+                delete copy.updatedAt;
             }
             universalKeys.forEach(k => {
                 if (k in copy) delete copy[k];
@@ -3868,6 +3909,120 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normAllocationRequest) : normAllocationRequest(currentPayload);
             }
 
+            // Normalize institutions: map camelCase → snake_case DB columns and delete camelCase keys
+            // to prevent PGRST204 schema cache stale retries on un-cached columns like isSuspendedForBilling,
+            // subscriptionEndsAt, trialEndsAt, billingModel, etc.
+            if (moduleName === 'institutions' || targetDbTable === 'institutions') {
+                const normInstitution = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.isSuspendedForBilling !== undefined) {
+                        if (c.is_suspended_for_billing === undefined) c.is_suspended_for_billing = Boolean(c.isSuspendedForBilling);
+                        delete c.isSuspendedForBilling;
+                    }
+                    if (c.resellerId !== undefined) {
+                        if (c.reseller_id === undefined) c.reseller_id = c.resellerId;
+                        delete c.resellerId;
+                    }
+                    if (c.subscriptionEndsAt !== undefined) {
+                        if (c.subscription_ends_at === undefined) c.subscription_ends_at = c.subscriptionEndsAt;
+                        delete c.subscriptionEndsAt;
+                    }
+                    if (c.trialEndsAt !== undefined) {
+                        if (c.trial_ends_at === undefined) c.trial_ends_at = c.trialEndsAt;
+                        delete c.trialEndsAt;
+                    }
+                    if (c.billingModel !== undefined) {
+                        if (c.billing_model === undefined) c.billing_model = c.billingModel;
+                        delete c.billingModel;
+                    }
+                    if (c.ratePerStudent !== undefined) {
+                        if (c.rate_per_student === undefined) c.rate_per_student = c.ratePerStudent;
+                        delete c.ratePerStudent;
+                    }
+                    if (c.billingCycleAnchor !== undefined) {
+                        if (c.billing_cycle_anchor === undefined) c.billing_cycle_anchor = c.billingCycleAnchor;
+                        delete c.billingCycleAnchor;
+                    }
+                    if (c.studentRateMonthly !== undefined) {
+                        if (c.student_rate_monthly === undefined) c.student_rate_monthly = c.studentRateMonthly;
+                        delete c.studentRateMonthly;
+                    }
+                    if (c.baseMonthlyRate !== undefined) {
+                        if (c.base_monthly_rate === undefined) c.base_monthly_rate = c.baseMonthlyRate;
+                        delete c.baseMonthlyRate;
+                    }
+                    if (c.billingCurrency !== undefined) {
+                        if (c.billing_currency === undefined) c.billing_currency = c.billingCurrency;
+                        delete c.billingCurrency;
+                    }
+                    if (c.billingCycleDay !== undefined) {
+                        if (c.billing_cycle_day === undefined) c.billing_cycle_day = c.billingCycleDay;
+                        delete c.billingCycleDay;
+                    }
+                    if (c.visitorAutoFinalizeEnabled !== undefined) {
+                        if (c.visitor_auto_finalize_enabled === undefined) c.visitor_auto_finalize_enabled = c.visitorAutoFinalizeEnabled;
+                        delete c.visitorAutoFinalizeEnabled;
+                    }
+                    if (c.visitorAutoFinalizeTime !== undefined) {
+                        if (c.visitor_auto_finalize_time === undefined) c.visitor_auto_finalize_time = c.visitorAutoFinalizeTime;
+                        delete c.visitorAutoFinalizeTime;
+                    }
+                    if (c.notifyHostOnVisitorArrival !== undefined) {
+                        if (c.notify_host_on_visitor_arrival === undefined) c.notify_host_on_visitor_arrival = c.notifyHostOnVisitorArrival;
+                        delete c.notifyHostOnVisitorArrival;
+                    }
+                    if (c.visitorArrivalSmsTemplate !== undefined) {
+                        if (c.visitor_arrival_sms_template === undefined) c.visitor_arrival_sms_template = c.visitorArrivalSmsTemplate;
+                        delete c.visitorArrivalSmsTemplate;
+                    }
+                    if (c.institutionType !== undefined) {
+                        if (c.institution_type === undefined) c.institution_type = c.institutionType;
+                        delete c.institutionType;
+                    }
+                    if (c.countyId !== undefined) {
+                        if (c.county_id === undefined) c.county_id = c.countyId;
+                        delete c.countyId;
+                    }
+                    if (c.treeGradingNodes !== undefined) {
+                        if (c.tree_grading_nodes === undefined) c.tree_grading_nodes = c.treeGradingNodes;
+                        delete c.treeGradingNodes;
+                    }
+                    if (c.classExamConfigs !== undefined) {
+                        if (c.class_exam_configs === undefined) c.class_exam_configs = c.classExamConfigs;
+                        delete c.classExamConfigs;
+                    }
+                    if (c.classTeacherCommentsConfig !== undefined) {
+                        if (c.class_teacher_comments_config === undefined) c.class_teacher_comments_config = c.classTeacherCommentsConfig;
+                        delete c.classTeacherCommentsConfig;
+                    }
+                    if (c.classRankingConfigs !== undefined) {
+                        if (c.class_ranking_configs === undefined) c.class_ranking_configs = c.classRankingConfigs;
+                        delete c.classRankingConfigs;
+                    }
+                    if (c.othersExamSettings !== undefined) {
+                        if (c.others_exam_settings === undefined) c.others_exam_settings = c.othersExamSettings;
+                        delete c.othersExamSettings;
+                    }
+                    if (c.isOtpEnabled !== undefined) {
+                        if (c.is_otp_enabled === undefined) c.is_otp_enabled = c.isOtpEnabled;
+                        delete c.isOtpEnabled;
+                    }
+                    if (c.customSmsPrice !== undefined) {
+                        if (c.custom_sms_price === undefined) c.custom_sms_price = c.customSmsPrice;
+                        delete c.customSmsPrice;
+                    }
+                    if (c.businessSubType !== undefined) {
+                        if (c.business_sub_type === undefined) c.business_sub_type = c.businessSubType;
+                        delete c.businessSubType;
+                    }
+                    delete c.createdAt;
+                    delete c.updatedAt;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInstitution) : normInstitution(currentPayload);
+            }
+
             // Normalize his_vital_statistics: map camelCase → snake_case and strip UI-only columns (e.g. trend)
             if (moduleName === 'his_vital_statistics' || targetDbTable === 'his_vital_statistics') {
                 const normVital = (item: any) => {
@@ -3931,6 +4086,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
                     
+                    if (moduleName === 'institutions' || targetDbTable === 'institutions') {
+                        const stripInstCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            const camelMap: Record<string, string> = {
+                                isSuspendedForBilling: 'is_suspended_for_billing',
+                                subscriptionEndsAt: 'subscription_ends_at',
+                                trialEndsAt: 'trial_ends_at',
+                                resellerId: 'reseller_id',
+                                billingModel: 'billing_model',
+                                ratePerStudent: 'rate_per_student',
+                                billingCycleAnchor: 'billing_cycle_anchor',
+                                studentRateMonthly: 'student_rate_monthly',
+                                baseMonthlyRate: 'base_monthly_rate',
+                                billingCurrency: 'billing_currency',
+                                billingCycleDay: 'billing_cycle_day',
+                                visitorAutoFinalizeEnabled: 'visitor_auto_finalize_enabled',
+                                visitorAutoFinalizeTime: 'visitor_auto_finalize_time',
+                                notifyHostOnVisitorArrival: 'notify_host_on_visitor_arrival',
+                                visitorArrivalSmsTemplate: 'visitor_arrival_sms_template',
+                                institutionType: 'institution_type',
+                                countyId: 'county_id',
+                                treeGradingNodes: 'tree_grading_nodes',
+                                classExamConfigs: 'class_exam_configs',
+                                classTeacherCommentsConfig: 'class_teacher_comments_config',
+                                classRankingConfigs: 'class_ranking_configs',
+                                othersExamSettings: 'others_exam_settings',
+                                isOtpEnabled: 'is_otp_enabled',
+                                customSmsPrice: 'custom_sms_price',
+                                businessSubType: 'business_sub_type'
+                            };
+                            Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                                if (copy[camelKey] !== undefined) {
+                                    if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                                    delete copy[camelKey];
+                                }
+                            });
+                            delete copy[offendingCol];
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripInstCol) : stripInstCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     if (moduleName === 'teacher_lesson_plans' || targetDbTable === 'teacher_lesson_plans') {
                         const stripLessonPlanCol = (item: any) => {
                             if (!item || typeof item !== 'object') return item;
@@ -5066,6 +5266,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.createdAt;
                     delete copy.updatedAt;
                     currentUpdateData = copy;
+                } else if ((moduleName === 'institutions' || targetDbTable === 'institutions') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    const camelMap: Record<string, string> = {
+                        isSuspendedForBilling: 'is_suspended_for_billing',
+                        subscriptionEndsAt: 'subscription_ends_at',
+                        trialEndsAt: 'trial_ends_at',
+                        resellerId: 'reseller_id',
+                        billingModel: 'billing_model',
+                        ratePerStudent: 'rate_per_student',
+                        billingCycleAnchor: 'billing_cycle_anchor',
+                        studentRateMonthly: 'student_rate_monthly',
+                        baseMonthlyRate: 'base_monthly_rate',
+                        billingCurrency: 'billing_currency',
+                        billingCycleDay: 'billing_cycle_day',
+                        visitorAutoFinalizeEnabled: 'visitor_auto_finalize_enabled',
+                        visitorAutoFinalizeTime: 'visitor_auto_finalize_time',
+                        notifyHostOnVisitorArrival: 'notify_host_on_visitor_arrival',
+                        visitorArrivalSmsTemplate: 'visitor_arrival_sms_template',
+                        institutionType: 'institution_type',
+                        countyId: 'county_id',
+                        treeGradingNodes: 'tree_grading_nodes',
+                        classExamConfigs: 'class_exam_configs',
+                        classTeacherCommentsConfig: 'class_teacher_comments_config',
+                        classRankingConfigs: 'class_ranking_configs',
+                        othersExamSettings: 'others_exam_settings',
+                        isOtpEnabled: 'is_otp_enabled',
+                        customSmsPrice: 'custom_sms_price',
+                        businessSubType: 'business_sub_type'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (copy[camelKey] !== undefined) {
+                            if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                            delete copy[camelKey];
+                        }
+                    });
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+                    currentUpdateData = copy;
                 }
                 let data: any = null;
                 let error: any = null;
@@ -5122,6 +5360,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
                         
+                        if (moduleName === 'institutions' || targetDbTable === 'institutions') {
+                            const camelMap: Record<string, string> = {
+                                isSuspendedForBilling: 'is_suspended_for_billing',
+                                subscriptionEndsAt: 'subscription_ends_at',
+                                trialEndsAt: 'trial_ends_at',
+                                resellerId: 'reseller_id',
+                                billingModel: 'billing_model',
+                                ratePerStudent: 'rate_per_student',
+                                billingCycleAnchor: 'billing_cycle_anchor',
+                                studentRateMonthly: 'student_rate_monthly',
+                                baseMonthlyRate: 'base_monthly_rate',
+                                billingCurrency: 'billing_currency',
+                                billingCycleDay: 'billing_cycle_day',
+                                visitorAutoFinalizeEnabled: 'visitor_auto_finalize_enabled',
+                                visitorAutoFinalizeTime: 'visitor_auto_finalize_time',
+                                notifyHostOnVisitorArrival: 'notify_host_on_visitor_arrival',
+                                visitorArrivalSmsTemplate: 'visitor_arrival_sms_template',
+                                institutionType: 'institution_type',
+                                countyId: 'county_id',
+                                treeGradingNodes: 'tree_grading_nodes',
+                                classExamConfigs: 'class_exam_configs',
+                                classTeacherCommentsConfig: 'class_teacher_comments_config',
+                                classRankingConfigs: 'class_ranking_configs',
+                                othersExamSettings: 'others_exam_settings',
+                                isOtpEnabled: 'is_otp_enabled',
+                                customSmsPrice: 'custom_sms_price',
+                                businessSubType: 'business_sub_type'
+                            };
+                            Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                                if (currentUpdateData[camelKey] !== undefined) {
+                                    if (currentUpdateData[snakeKey] === undefined) currentUpdateData[snakeKey] = currentUpdateData[camelKey];
+                                    delete currentUpdateData[camelKey];
+                                }
+                            });
+                            delete currentUpdateData[offendingCol];
+                            patchRetries--;
+                            continue;
+                        }
+
                         if (moduleName === 'teacher_lesson_plans' || targetDbTable === 'teacher_lesson_plans') {
                             if (offendingCol === 'trajectory') {
                                 if (currentUpdateData.trajectory && !currentUpdateData.lesson_trajectory) currentUpdateData.lesson_trajectory = currentUpdateData.trajectory;

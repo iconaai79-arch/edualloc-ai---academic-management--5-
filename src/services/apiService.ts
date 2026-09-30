@@ -4,6 +4,7 @@ import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtil
 import { isPlaceholderEmail } from '../utils/academicUtils';
 import { localDb } from './localDb';
 import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
+import { calculateRemedialSessionDuration } from '../utils/timeUtils';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
     Priority, Department, Subject, Course, CompanyDetails, Room,
@@ -1645,6 +1646,27 @@ export const apiService = {
                         if (inst.visitor_arrival_sms_template && !inst.visitorArrivalSmsTemplate) {
                             inst.visitorArrivalSmsTemplate = inst.visitor_arrival_sms_template;
                         }
+                        if (inst.is_suspended_for_billing !== undefined && inst.isSuspendedForBilling === undefined) {
+                            inst.isSuspendedForBilling = Boolean(inst.is_suspended_for_billing);
+                        }
+                        if (inst.isSuspendedForBilling !== undefined && inst.is_suspended_for_billing === undefined) {
+                            inst.is_suspended_for_billing = Boolean(inst.isSuspendedForBilling);
+                        }
+                        if (inst.billing_model && !inst.billingModel) {
+                            inst.billingModel = inst.billing_model;
+                        }
+                        if (inst.rate_per_student !== undefined && inst.ratePerStudent === undefined) {
+                            inst.ratePerStudent = Number(inst.rate_per_student);
+                        }
+                        if (inst.billing_cycle_anchor && !inst.billingCycleAnchor) {
+                            inst.billingCycleAnchor = inst.billing_cycle_anchor;
+                        }
+                        if (inst.subscription_ends_at && !inst.subscriptionEndsAt) {
+                            inst.subscriptionEndsAt = inst.subscription_ends_at;
+                        }
+                        if (inst.trial_ends_at && !inst.trialEndsAt) {
+                            inst.trialEndsAt = inst.trial_ends_at;
+                        }
                         if (inst.reseller_id && !inst.resellerId) {
                             inst.resellerId = inst.reseller_id;
                         }
@@ -3010,16 +3032,54 @@ export const apiService = {
                 });
             }
 
-            // Institutions normalization
+            // Institutions normalization - map camelCase to snake_case and delete camelCase keys to avoid PGRST204 schema cache stale errors
             if (module === 'institutions') {
                 if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;
-                if (item.reseller_id && !item.resellerId) item.resellerId = item.reseller_id;
+                delete item.resellerId;
+
                 if (item.subscriptionEndsAt && !item.subscription_ends_at) item.subscription_ends_at = item.subscriptionEndsAt;
-                if (item.subscription_ends_at && !item.subscriptionEndsAt) item.subscriptionEndsAt = item.subscription_ends_at;
+                delete item.subscriptionEndsAt;
+
                 if (item.trialEndsAt && !item.trial_ends_at) item.trial_ends_at = item.trialEndsAt;
-                if (item.trial_ends_at && !item.trialEndsAt) item.trialEndsAt = item.trial_ends_at;
-                if (item.isSuspendedForBilling !== undefined && item.is_suspended_for_billing === undefined) item.is_suspended_for_billing = item.isSuspendedForBilling;
-                if (item.is_suspended_for_billing !== undefined && item.isSuspendedForBilling === undefined) item.isSuspendedForBilling = item.is_suspended_for_billing;
+                delete item.trialEndsAt;
+
+                if (item.isSuspendedForBilling !== undefined) {
+                    if (item.is_suspended_for_billing === undefined) item.is_suspended_for_billing = Boolean(item.isSuspendedForBilling);
+                    delete item.isSuspendedForBilling;
+                }
+
+                if (item.billingModel && !item.billing_model) item.billing_model = item.billingModel;
+                delete item.billingModel;
+
+                if (item.ratePerStudent !== undefined && item.rate_per_student === undefined) item.rate_per_student = item.ratePerStudent;
+                delete item.ratePerStudent;
+
+                if (item.billingCycleAnchor && !item.billing_cycle_anchor) item.billing_cycle_anchor = item.billingCycleAnchor;
+                delete item.billingCycleAnchor;
+
+                if (item.studentRateMonthly !== undefined && item.student_rate_monthly === undefined) item.student_rate_monthly = item.studentRateMonthly;
+                delete item.studentRateMonthly;
+
+                if (item.baseMonthlyRate !== undefined && item.base_monthly_rate === undefined) item.base_monthly_rate = item.baseMonthlyRate;
+                delete item.baseMonthlyRate;
+
+                if (item.billingCurrency && !item.billing_currency) item.billing_currency = item.billingCurrency;
+                delete item.billingCurrency;
+
+                if (item.billingCycleDay !== undefined && item.billing_cycle_day === undefined) item.billing_cycle_day = item.billingCycleDay;
+                delete item.billingCycleDay;
+
+                if (item.visitorAutoFinalizeEnabled !== undefined && item.visitor_auto_finalize_enabled === undefined) item.visitor_auto_finalize_enabled = item.visitorAutoFinalizeEnabled;
+                delete item.visitorAutoFinalizeEnabled;
+
+                if (item.visitorAutoFinalizeTime && !item.visitor_auto_finalize_time) item.visitor_auto_finalize_time = item.visitorAutoFinalizeTime;
+                delete item.visitorAutoFinalizeTime;
+
+                if (item.notifyHostOnVisitorArrival !== undefined && item.notify_host_on_visitor_arrival === undefined) item.notify_host_on_visitor_arrival = item.notifyHostOnVisitorArrival;
+                delete item.notifyHostOnVisitorArrival;
+
+                if (item.visitorArrivalSmsTemplate && !item.visitor_arrival_sms_template) item.visitor_arrival_sms_template = item.visitorArrivalSmsTemplate;
+                delete item.visitorArrivalSmsTemplate;
             }
 
             // Commission withdrawal requests normalization
@@ -6701,30 +6761,68 @@ export const apiService = {
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { 
         const records = await apiService.fetchModuleRecords<any>('school_remedial_sessions', instId); 
         return (records || []).map((r: any) => {
-            const rawH = r.hours ?? r.durationHours ?? r.duration_hours ?? (
-                r.durationMinutes ? r.durationMinutes / 60 : (
-                    r.startTime && r.endTime ? Math.max(1, Math.round(((new Date(r.endTime).getTime() - new Date(r.startTime).getTime()) / 3600000) * 10) / 10) : 1
-                )
-            );
-            const numH = (!rawH || isNaN(Number(rawH)) || Number(rawH) <= 0) ? 1 : Number(rawH);
+            let numH = r.hours ?? r.durationHours ?? r.duration_hours;
+            let numM = r.durationMinutes;
+
+            if ((numH === undefined || numH === null || isNaN(Number(numH))) && r.startTime && r.endTime) {
+                const calc = calculateRemedialSessionDuration(r.startTime, r.endTime, {
+                    startTime: r.scheduledStartTime,
+                    endTime: r.scheduledEndTime,
+                    durationMinutes: r.scheduledDurationMinutes
+                });
+                numH = calc.hours;
+                numM = calc.durationMinutes;
+            } else if (numH !== undefined && numH !== null && !isNaN(Number(numH))) {
+                numH = Number(numH);
+            } else {
+                numH = 1;
+            }
+
             return {
                 ...r,
                 hours: numH,
                 durationHours: numH,
-                duration_hours: numH
+                duration_hours: numH,
+                durationMinutes: numM ?? (r.durationMinutes || Math.round(numH * 60))
             };
         });
     },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { 
         const payload: any = { ...data };
-        const rawH = payload.hours ?? payload.durationHours ?? payload.duration_hours ?? (
-            payload.startTime && payload.endTime ? Math.max(1, Math.round(((new Date(payload.endTime).getTime() - new Date(payload.startTime).getTime()) / 3600000) * 10) / 10) : 1
-        );
-        const numH = (!rawH || isNaN(Number(rawH)) || Number(rawH) <= 0) ? 1 : Number(rawH);
-        payload.hours = numH;
-        payload.durationHours = numH;
-        payload.duration_hours = numH;
+        let numH = payload.hours ?? payload.durationHours ?? payload.duration_hours;
+        let numM = payload.durationMinutes;
+
+        if ((numH === undefined || numH === null || isNaN(Number(numH))) && payload.startTime && payload.endTime) {
+            const calc = calculateRemedialSessionDuration(payload.startTime, payload.endTime, {
+                startTime: payload.scheduledStartTime,
+                endTime: payload.scheduledEndTime,
+                durationMinutes: payload.scheduledDurationMinutes
+            });
+            numH = calc.hours;
+            numM = calc.durationMinutes;
+            payload.earlyLoginMinutesOmitted = calc.earlyMinutesOmitted;
+            payload.cappedAtTimetable = calc.isCappedAtTimetable;
+            payload.loggedOutEarly = calc.isLoggedOutEarly;
+        } else if (numH !== undefined && numH !== null && !isNaN(Number(numH))) {
+            numH = Number(numH);
+        } else if (payload.status !== 'In Progress') {
+            numH = 1;
+        }
+
+        if (numH !== undefined && numH !== null) {
+            payload.hours = numH;
+            payload.durationHours = numH;
+            payload.duration_hours = numH;
+        }
+        if (numM !== undefined && numM !== null) {
+            payload.durationMinutes = numM;
+        }
         await apiService.saveModuleRecord('school_remedial_sessions', payload); 
+    },
+    async deleteRemedialSession(ids: string | string[]): Promise<void> {
+        const idStr = Array.isArray(ids) ? ids.join(',') : ids;
+        if (!idStr) return;
+        await apiService.deleteModuleRecord('school_remedial_sessions', idStr);
     },
     async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> {
         let records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);
@@ -6756,6 +6854,8 @@ export const apiService = {
                     meta.timetableApproval = cachedApproval;
                 }
             }
+            const cachedWdStart = instId ? safeLocalStorage.getItem(`eduai_remedial_wd_start_${instId}`) : null;
+            const cachedWdEnd = instId ? safeLocalStorage.getItem(`eduai_remedial_wd_end_${instId}`) : null;
             const cachedSunStart = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_start_${instId}`) : null;
             const cachedSunEnd = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_end_${instId}`) : null;
             const cachedSunPeriods = instId ? safeLocalStorage.getItem(`eduai_remedial_sun_periods_${instId}`) : null;
@@ -6763,6 +6863,8 @@ export const apiService = {
             const cachedSatEnd = instId ? safeLocalStorage.getItem(`eduai_remedial_sat_end_${instId}`) : null;
             const cachedSatPeriods = instId ? safeLocalStorage.getItem(`eduai_remedial_sat_periods_${instId}`) : null;
 
+            const wdStart = cachedWdStart || r.weekdayStartTime || r.weekday_start_time || meta.weekdayStartTime || meta.weekday_start_time || '16:00';
+            const wdEnd = cachedWdEnd || r.weekdayEndTime || r.weekday_end_time || meta.weekdayEndTime || meta.weekday_end_time || '18:00';
             const satStart = cachedSatStart || r.saturdayStartTime || r.saturday_start_time || meta.saturdayStartTime || meta.saturday_start_time || r.weekendStartTime || r.weekend_start_time || '08:00';
             const satEnd = cachedSatEnd || r.saturdayEndTime || r.saturday_end_time || meta.saturdayEndTime || meta.saturday_end_time || r.weekendEndTime || r.weekend_end_time || '12:00';
             const sunStart = cachedSunStart || r.sundayStartTime || r.sunday_start_time || meta.sundayStartTime || meta.sunday_start_time || '09:00';
@@ -6803,10 +6905,10 @@ export const apiService = {
                 weekend_hourly_rate: r.weekend_hourly_rate ?? r.weekendHourlyRate ?? 1500,
                 weekdayDutyFlatRate: wDutyRate,
                 weekday_duty_flat_rate: wDutyRate,
-                weekdayStartTime: r.weekdayStartTime ?? r.weekday_start_time ?? '16:00',
-                weekday_start_time: r.weekday_start_time ?? r.weekdayStartTime ?? '16:00',
-                weekdayEndTime: r.weekdayEndTime ?? r.weekday_end_time ?? '18:00',
-                weekday_end_time: r.weekday_end_time ?? r.weekdayEndTime ?? '18:00',
+                weekdayStartTime: wdStart,
+                weekday_start_time: wdStart,
+                weekdayEndTime: wdEnd,
+                weekday_end_time: wdEnd,
                 weekendStartTime: satStart,
                 weekend_start_time: satStart,
                 weekendEndTime: satEnd,
@@ -6884,17 +6986,39 @@ export const apiService = {
         });
     },
     async saveRemedialRateSetting(data: Partial<RemedialRateSetting>): Promise<void> { 
-        await apiService.saveModuleRecord('school_remedial_rate_settings', data); 
         const instId = (data as any)?.institutionId || (data as any)?.institution_id;
+        const wdStart = data.weekdayStartTime || (data as any).weekday_start_time;
+        const wdEnd = data.weekdayEndTime || (data as any).weekday_end_time;
+        if (instId) {
+            if (wdStart) safeLocalStorage.setItem(`eduai_remedial_wd_start_${instId}`, String(wdStart));
+            if (wdEnd) safeLocalStorage.setItem(`eduai_remedial_wd_end_${instId}`, String(wdEnd));
+        }
+
+        const meta = typeof data.metadata === 'object' && data.metadata !== null ? { ...data.metadata } : {};
+        if (wdStart) {
+            meta.weekdayStartTime = wdStart;
+            meta.weekday_start_time = wdStart;
+        }
+        if (wdEnd) {
+            meta.weekdayEndTime = wdEnd;
+            meta.weekday_end_time = wdEnd;
+        }
+        const enrichedData = {
+            ...data,
+            ...(wdStart ? { weekdayStartTime: wdStart, weekday_start_time: wdStart } : {}),
+            ...(wdEnd ? { weekdayEndTime: wdEnd, weekday_end_time: wdEnd } : {}),
+            metadata: meta
+        };
+
+        await apiService.saveModuleRecord('school_remedial_rate_settings', enrichedData); 
         if (instId) {
             try {
-                const meta = typeof data.metadata === 'object' && data.metadata !== null ? data.metadata : {};
                 const promises: Promise<any>[] = [
                     apiService.saveModuleRecord('institution_module_states', {
                         id: `${instId}_school_remedial_rate_settings`,
                         institution_id: instId,
                         module_id: 'school_remedial_rate_settings',
-                        data: data,
+                        data: enrichedData,
                         status: 'active',
                         updated_at: new Date().toISOString()
                     }).catch(() => {})
@@ -6912,7 +7036,7 @@ export const apiService = {
                     );
                     safeLocalStorage.setItem(`remedial_timetable_approval_${instId}`, JSON.stringify(meta.timetableApproval));
                 }
-                safeLocalStorage.setItem(`remedial_rates_${instId}`, JSON.stringify([data]));
+                safeLocalStorage.setItem(`remedial_rates_${instId}`, JSON.stringify([enrichedData]));
                 await Promise.allSettled(promises);
             } catch (_) {}
         }

@@ -88,7 +88,12 @@ export function RetailDashboard({ institutionId, onNavigate, isEducation }: Reta
             // Build per-store breakdown from real data (not fake multipliers)
             const storeColors = ['bg-indigo-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-violet-500'];
             const storeBreakdown = (stores || []).map((store, idx) => {
-                const storeItems = (inventory || []).filter(item => (item as any).storeId === store.id);
+                const storeItems = (inventory || []).filter(item => 
+                    (item as any).storeId === store.id ||
+                    (item as any).store_id === store.id ||
+                    (item as any).storeName?.toLowerCase() === store.name?.toLowerCase() ||
+                    (item as any).location?.toLowerCase() === store.name?.toLowerCase()
+                );
                 const storeValue = storeItems.reduce((sum, item) => {
                     const cost = isEducation
                         ? ((item as any).costPrice ?? (item as any).basePrice ?? 0)

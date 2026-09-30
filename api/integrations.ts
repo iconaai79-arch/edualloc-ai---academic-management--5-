@@ -287,12 +287,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         let semaUrl = (candidate.baseUrl || candidate.api_url || '').trim();
                         if (!semaUrl || !semaUrl.includes('/messages/single')) {
+                            // FIX: Default to apis.sematime.com (plural) — this is the live production endpoint.
+                            // api.sematime.com (no 's') is the legacy endpoint and may not respond correctly.
                             const domain = (semaUrl.includes('api.sematime.com') || semaUrl.includes('apis.sematime.com'))
                                 ? semaUrl.replace(/\/+$/, '')
-                                : 'https://api.sematime.com/v1';
+                                : 'https://apis.sematime.com/v1';
                             const cleanDomain = domain.includes('/v1') ? domain : `${domain}/v1`;
                             semaUrl = `${cleanDomain}/${accId}/messages/single`;
                         }
+                        console.log(`[Sematime] Resolved endpoint URL: ${semaUrl} | AccountID present: ${!!accId} | AuthToken present: ${!!authToken}`);
 
                         const customHeaders: Record<string, string> = {};
                         if (Array.isArray(candidate.headers)) {
@@ -674,14 +677,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Final safety net for OTP/System Messages: Never fail an OTP!
             if (!success && isSysMsg) {
-                console.log(`[SMS OTP Emergency Guarantee] All ${candidates.length} gateways exhausted. Engaging guaranteed OTP simulator.`);
-                console.log(`[SMS OTP Dispatched Content] Recipients: ${recipients.join(', ')} | Text: ${msgText}`);
+                // ⚠️ DIAGNOSTIC: All real gateways failed. OTP was NOT actually delivered.
+                // This block prevents a hard error response, but the user will NOT receive the SMS.
+                // Check server logs for [Sematime] or gateway errors above this line to find the real cause.
+                console.error(`[SMS OTP Emergency Guarantee] ⚠️ REAL DELIVERY FAILED — All ${candidates.length} gateway(s) exhausted. OTP was NOT sent to recipient(s): ${recipients.join(', ')}.`);
+                console.error(`[SMS OTP Emergency Guarantee] Failover history: ${failoverHistory.join(' → ')}`);
+                console.error(`[SMS OTP Emergency Guarantee] OTP content (for manual delivery if needed): ${msgText}`);
+                console.error(`[SMS OTP Emergency Guarantee] Engaging simulated success to prevent hard auth failure. Investigate gateway config immediately.`);
                 success = true;
                 successfulProvider = 'FailSafeSimulated';
                 successBatches = 1;
                 totalBatches = 1;
-                lastResponse = { simulated: true, note: 'Simulated to guarantee OTP delivery during telco gateway outage' };
-                failoverHistory.push(`FailSafeSimulated: ENGAGED`);
+                lastResponse = { simulated: true, note: 'OTP NOT DELIVERED — Simulated to prevent auth lockout. All gateways failed. See server logs for details.', failoverHistory };
+                failoverHistory.push(`FailSafeSimulated: ENGAGED — OTP NOT DELIVERED TO ${recipients.join(', ')}`);
             }
 
             return {
@@ -2120,7 +2128,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const candidates = buildCandidateGateways(bodyConfig, instConfig, settings.sms_config || settings.smsConfig, true);
-                console.log(`[Forgot Password OTP] Dispatching to ${phone} via candidate gateways: ${candidates.map(c => `${c._source}(${c.provider})`).join(', ')}`);
+
+                // === OTP DISPATCH DIAGNOSTICS ===
+                console.log(`[Forgot Password OTP] Target phone: ${phone} | Institution: ${targetInstId}`);
+                console.log(`[Forgot Password OTP] instConfig loaded: ${JSON.stringify(Object.keys(instConfig || {}))}`);
+                console.log(`[Forgot Password OTP] instConfig.provider: ${instConfig?.provider || '(none)'} | has accountId: ${!!(instConfig?.accountId || instConfig?.apiKey)} | has authToken: ${!!(instConfig?.authToken || instConfig?.apiSecret)}`);
+                console.log(`[Forgot Password OTP] sysConfig.provider: ${settings.sms_config?.provider || settings.smsConfig?.provider || '(none)'} | has accountId: ${!!(settings.sms_config?.accountId || settings.sms_config?.apiKey || settings.smsConfig?.accountId || settings.smsConfig?.apiKey)}`);
+                console.log(`[Forgot Password OTP] Total candidate gateways: ${candidates.length} → ${candidates.map(c => `${c._source}(${c.provider})`).join(', ') || 'NONE — OTP will be simulated and NOT delivered!'}`);
+                if (candidates.length === 0) {
+                    console.error(`[Forgot Password OTP] ⚠️ NO VALID GATEWAY CONFIGURED. Check that Sematime Account ID and Auth Token are saved in institution or system SMS settings.`);
+                }
+                // === END DIAGNOSTICS ===
 
                 // Parallelized dual-channel dispatch: Send SMS and Email concurrently to prevent Vercel 60s execution timeout
                 const sendSmsPromise = dispatchSmsWithCascade(candidates, [phone], otpMessage, true);
