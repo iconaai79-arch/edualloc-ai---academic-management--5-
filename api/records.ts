@@ -422,6 +422,7 @@ const TABLES_WITH_METADATA = new Set([
   'school_remedial_subjects',
   'school_remedial_rate_settings',
   'school_remedial_allocations',
+  'school_remedial_sessions',
   'school_authorized_devices',
   'school_router_profiles',
   'invoice_clients',
@@ -4030,6 +4031,119 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normVital) : normVital(currentPayload);
             }
 
+            // Normalize school_remedial_sessions: map camelCase → snake_case
+            if (moduleName === 'school_remedial_sessions' || targetDbTable === 'school_remedial_sessions') {
+                const normSession = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    const camelMap: Record<string, string> = {
+                        teacherId: 'teacher_id',
+                        teacherName: 'teacher_name',
+                        subjectId: 'subject_id',
+                        subjectName: 'subject_name',
+                        courseId: 'course_id',
+                        className: 'class_name',
+                        isJoint: 'is_joint',
+                        jointStreams: 'joint_streams',
+                        prefectId: 'prefect_id',
+                        prefectName: 'prefect_name',
+                        prefectToken: 'prefect_token',
+                        startTime: 'start_time',
+                        endTime: 'end_time',
+                        hours: 'duration_hours',
+                        durationHours: 'duration_hours',
+                        durationMinutes: 'duration_minutes',
+                        scheduledStartTime: 'scheduled_start_time',
+                        scheduledEndTime: 'scheduled_end_time',
+                        scheduledDurationMinutes: 'scheduled_duration_minutes',
+                        allocationId: 'allocation_id',
+                        earlyLoginMinutesOmitted: 'early_login_minutes_omitted',
+                        cappedAtTimetable: 'capped_at_timetable',
+                        loggedOutEarly: 'logged_out_early',
+                        dayOfWeek: 'day_of_week',
+                        isDutyLesson: 'is_duty_lesson',
+                        qrToken: 'qr_token',
+                        verifiedAt: 'verified_at',
+                        dutyApproved: 'duty_approved',
+                        dutyApprovedBy: 'duty_approved_by',
+                        dutyApprovedById: 'duty_approved_by_id',
+                        dutyApprovedAt: 'duty_approved_at',
+                        dutyNotes: 'duty_notes',
+                        dutyRejected: 'duty_rejected',
+                        dutyRejectionReason: 'duty_rejection_reason',
+                        dutyRejectedBy: 'duty_rejected_by',
+                        dutyRejectedAt: 'duty_rejected_at',
+                        headteacherApproved: 'headteacher_approved',
+                        headteacherApprovedBy: 'headteacher_approved_by',
+                        headteacherApprovedById: 'headteacher_approved_by_id',
+                        headteacherApprovedAt: 'headteacher_approved_at',
+                        headteacherNotes: 'headteacher_notes',
+                        headteacherRejected: 'headteacher_rejected',
+                        headteacherRejectionReason: 'headteacher_rejection_reason',
+                        headteacherRejectedBy: 'headteacher_rejected_by',
+                        headteacherRejectedAt: 'headteacher_rejected_at',
+                        operationsDisbursed: 'operations_disbursed',
+                        operationsManagerName: 'operations_manager_name',
+                        operationsManagerId: 'operations_manager_id',
+                        operationsDisbursedBy: 'operations_disbursed_by',
+                        operationsDisbursedAt: 'operations_disbursed_at',
+                        cashDisbursedToDosAt: 'cash_disbursed_to_dos_at',
+                        cashVoucherRef: 'cash_voucher_ref',
+                        paidByDosName: 'paid_by_dos_name',
+                        paidByDosId: 'paid_by_dos_id',
+                        paidAt: 'paid_at',
+                        teacherSignatureDataUrl: 'teacher_signature_data_url',
+                        paymentMethod: 'payment_method',
+                        institutionId: 'institution_id',
+                        payoutId: 'payout_id'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (c[camelKey] !== undefined) {
+                            if (c[snakeKey] === undefined) c[snakeKey] = c[camelKey];
+                            delete c[camelKey];
+                        }
+                    });
+                    if (c.hours !== undefined) {
+                        if (c.duration_hours === undefined) c.duration_hours = c.hours;
+                        delete c.hours;
+                    }
+                    if (c.durationHours !== undefined) {
+                        if (c.duration_hours === undefined) c.duration_hours = c.durationHours;
+                        delete c.durationHours;
+                    }
+
+                    // Pack extended calculation/workflow columns into metadata so un-cached columns are never sent at top level
+                    const EXTENDED_SESSION_KEYS = [
+                        'duration_minutes', 'hours', 'scheduled_start_time', 'scheduled_end_time',
+                        'scheduled_duration_minutes', 'early_login_minutes_omitted',
+                        'capped_at_timetable', 'logged_out_early', 'is_duty_lesson',
+                        'qr_token', 'verified_at',
+                        'duty_approved', 'duty_approved_by', 'duty_approved_by_id', 'duty_approved_at', 'duty_notes',
+                        'duty_rejected', 'duty_rejection_reason', 'duty_rejected_by', 'duty_rejected_at',
+                        'headteacher_approved', 'headteacher_approved_by', 'headteacher_approved_by_id', 'headteacher_approved_at', 'headteacher_notes',
+                        'headteacher_rejected', 'headteacher_rejection_reason', 'headteacher_rejected_by', 'headteacher_rejected_at',
+                        'operations_disbursed', 'operations_manager_name', 'operations_manager_id', 'operations_disbursed_by', 'operations_disbursed_at',
+                        'cash_disbursed_to_dos_at', 'cash_voucher_ref',
+                        'paid_by_dos_name', 'paid_by_dos_id', 'paid_at',
+                        'teacher_signature_data_url', 'payment_method'
+                    ];
+
+                    const meta = typeof c.metadata === 'object' && c.metadata !== null ? { ...c.metadata } : {};
+                    EXTENDED_SESSION_KEYS.forEach(k => {
+                        if (c[k] !== undefined && c[k] !== null) {
+                            if (meta[k] === undefined) meta[k] = c[k];
+                            delete c[k];
+                        }
+                    });
+                    if (Object.keys(meta).length > 0) {
+                        c.metadata = meta;
+                    }
+
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normSession) : normSession(currentPayload);
+            }
+
             let data: any = null;
 
             let error: any = null;
@@ -4225,6 +4339,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripSubExtended) : stripSubExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'school_remedial_sessions' || targetDbTable === 'school_remedial_sessions') {
+                        const EXTENDED_SESSION_COLS = [
+                            'duration_minutes', 'hours', 'scheduled_start_time', 'scheduled_end_time',
+                            'scheduled_duration_minutes', 'early_login_minutes_omitted',
+                            'capped_at_timetable', 'logged_out_early', 'is_duty_lesson',
+                            'qr_token', 'verified_at',
+                            'duty_approved', 'duty_approved_by', 'duty_approved_by_id', 'duty_approved_at', 'duty_notes',
+                            'duty_rejected', 'duty_rejection_reason', 'duty_rejected_by', 'duty_rejected_at',
+                            'headteacher_approved', 'headteacher_approved_by', 'headteacher_approved_by_id', 'headteacher_approved_at', 'headteacher_notes',
+                            'headteacher_rejected', 'headteacher_rejection_reason', 'headteacher_rejected_by', 'headteacher_rejected_at',
+                            'operations_disbursed', 'operations_manager_name', 'operations_manager_id', 'operations_disbursed_by', 'operations_disbursed_at',
+                            'cash_disbursed_to_dos_at', 'cash_voucher_ref',
+                            'paid_by_dos_name', 'paid_by_dos_id', 'paid_at',
+                            'teacher_signature_data_url', 'payment_method',
+                            'class_name', 'subject_name', 'teacher_name', 'prefect_token', 'stream', 'is_joint', 'joint_streams'
+                        ];
+                        const stripSessionExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                            EXTENDED_SESSION_COLS.forEach(c => {
+                                if (copy[c] !== undefined && copy[c] !== null && copy[c] !== '') {
+                                    meta[c] = copy[c];
+                                    delete copy[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            } else {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripSessionExtended) : stripSessionExtended(currentPayload);
                         maxRetries--;
                         continue;
                     }
@@ -5417,6 +5569,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             ];
                             const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
                             EXTENDED_ALLOC_COLS.forEach(c => {
+                                if (currentUpdateData[c] !== undefined && currentUpdateData[c] !== null && currentUpdateData[c] !== '') {
+                                    meta[c] = currentUpdateData[c];
+                                    delete currentUpdateData[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !patchTableSupportsMetadata) {
+                                delete currentUpdateData.metadata;
+                            } else {
+                                currentUpdateData.metadata = meta;
+                            }
+                            patchRetries--;
+                            continue;
+                        }
+
+                        if (moduleName === 'school_remedial_sessions' || targetDbTable === 'school_remedial_sessions') {
+                            if (currentUpdateData.hours !== undefined) {
+                                if (currentUpdateData.duration_hours === undefined) currentUpdateData.duration_hours = currentUpdateData.hours;
+                                delete currentUpdateData.hours;
+                            }
+                            if (currentUpdateData.durationHours !== undefined) {
+                                if (currentUpdateData.duration_hours === undefined) currentUpdateData.duration_hours = currentUpdateData.durationHours;
+                                delete currentUpdateData.durationHours;
+                            }
+                            const EXTENDED_SESSION_COLS = [
+                                'duration_minutes', 'hours', 'scheduled_start_time', 'scheduled_end_time',
+                                'scheduled_duration_minutes', 'early_login_minutes_omitted',
+                                'capped_at_timetable', 'logged_out_early', 'is_duty_lesson',
+                                'qr_token', 'verified_at',
+                                'duty_approved', 'duty_approved_by', 'duty_approved_by_id', 'duty_approved_at', 'duty_notes',
+                                'duty_rejected', 'duty_rejection_reason', 'duty_rejected_by', 'duty_rejected_at',
+                                'headteacher_approved', 'headteacher_approved_by', 'headteacher_approved_by_id', 'headteacher_approved_at', 'headteacher_notes',
+                                'headteacher_rejected', 'headteacher_rejection_reason', 'headteacher_rejected_by', 'headteacher_rejected_at',
+                                'operations_disbursed', 'operations_manager_name', 'operations_manager_id', 'operations_disbursed_by', 'operations_disbursed_at',
+                                'cash_disbursed_to_dos_at', 'cash_voucher_ref',
+                                'paid_by_dos_name', 'paid_by_dos_id', 'paid_at',
+                                'teacher_signature_data_url', 'payment_method',
+                                'class_name', 'subject_name', 'teacher_name', 'prefect_token', 'stream', 'is_joint', 'joint_streams'
+                            ];
+                            const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
+                            EXTENDED_SESSION_COLS.forEach(c => {
                                 if (currentUpdateData[c] !== undefined && currentUpdateData[c] !== null && currentUpdateData[c] !== '') {
                                     meta[c] = currentUpdateData[c];
                                     delete currentUpdateData[c];

@@ -77,6 +77,7 @@ import { AcademicConfigManager } from './AcademicConfigManager';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { CalculatorIcon } from './icons/CalculatorIcon';
+import { ConvenienceFeeSettingsModal } from './SuperAdmin/ConvenienceFeeSettingsModal';
 
 interface SettingsManagerProps {
     currentUser: User;
@@ -289,7 +290,8 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
 
     const [timetableSubTab, setTimetableSubTab] = useState<'hours' | 'periods' | 'constraints' | 'exams' | 'teacher_logic'>('hours');
     const [generalSubTab, setGeneralSubTab] = useState<'profile' | 'academic_settings' | 'security_policy' | 'location' | 'branding' | 'grading' | 'billing' | 'integrations' | 'sms' | 'whatsapp' | 'email' | 'farmer_billing' | 'subject_grouping' | 'kcpe_scores' | 'exam_config'>('profile');
-    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive'>('profile');
+    const [globalSubTab, setGlobalSubTab] = useState<'profile' | 'infrastructure' | 'branding' | 'sms' | 'email' | 'billing' | 'integrations' | 'showcase' | 'storage' | 'googledrive' | 'convenience_fees'>('profile');
+    const [showConvenienceFeeModal, setShowConvenienceFeeModal] = useState(false);
     const [billingSubTab, setBillingSubTab] = useState<'mpesa' | 'gateways' | 'ncba' | 'kcb' | 'equity' | 'im' | 'coop'>('mpesa');
     const [instIntegrationTab, setInstIntegrationTab] = useState<'mpesa' | 'ncba' | 'googledrive' | 'itax'>('mpesa');
     const [facilitiesSubTab, setFacilitiesSubTab] = useState<'departments' | 'buildings' | 'rooms' | 'levels' | 'streams'>(isDS ? 'buildings' : 'departments');
@@ -1211,6 +1213,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                             <button onClick={() => setGlobalSubTab('email')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'email' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><EnvelopeIcon className="w-4 h-4" /> Email Relay</button>
                             <button onClick={() => setGlobalSubTab('showcase')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'showcase' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><SparklesIcon className="w-4 h-4" /> Showcase</button>
                             <button onClick={() => setGlobalSubTab('integrations')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'integrations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ArrowsRightLeftIcon className="w-4 h-4" /> Billing Map</button>
+                            <button onClick={() => setGlobalSubTab('convenience_fees')} className={`py-4 px-1 border-b-2 font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap flex items-center gap-2 ${globalSubTab === 'convenience_fees' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><CurrencyIcon className="w-4 h-4 text-amber-500" /> Convenience Fees & Float</button>
                         </nav>
                     </div>
 
@@ -2019,6 +2022,92 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                         <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save Financial Configuration</button>
                                     </div>
                                  </div>
+                            </div>
+                        )}
+
+                        {globalSubTab === 'convenience_fees' && (
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-8 animate-fade-in">
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-700/80 pb-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-gradient-to-tr from-amber-500 to-indigo-600 text-white rounded-2xl shadow-lg shadow-amber-500/20">
+                                            <CurrencyIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-white">Platform Convenience Fees & E-Wallets</h3>
+                                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Monetization Engine</span>
+                                            </div>
+                                            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Automated Platform Revenue Collection on Teacher Payout Cash-Outs & School Top-Ups</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConvenienceFeeModal(true)}
+                                        className="btn-primary flex items-center gap-2 px-6 h-12 uppercase tracking-widest text-[11px] font-black shadow-lg shadow-indigo-500/20"
+                                    >
+                                        <SparklesIcon className="w-4 h-4 text-amber-300" />
+                                        <span>Manage Fee Engine & Rules</span>
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-500/5 via-slate-50 to-indigo-50/20 dark:from-slate-800 dark:to-slate-900 border border-amber-200/40 dark:border-amber-900/30">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Rule Mechanism</span>
+                                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">Configurable</span>
+                                        </div>
+                                        <div className="text-2xl font-black text-slate-900 dark:text-white mb-2">Hybrid Fee Formula</div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            Platform charges a combined base fixed fee (e.g. KES 10) + a percentage (e.g. 1.0%) with safety floor and ceiling caps.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-6 rounded-3xl bg-gradient-to-br from-emerald-500/5 via-slate-50 to-indigo-50/20 dark:from-slate-800 dark:to-slate-900 border border-emerald-200/40 dark:border-emerald-900/30">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Fee Bearer Target</span>
+                                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Teacher / School</span>
+                                        </div>
+                                        <div className="text-2xl font-black text-slate-900 dark:text-white mb-2">Payer Allocation</div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            Fee can be deducted at cash-out directly from Teacher's M-Pesa withdrawal or absorbed by the institution float wallet.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-6 rounded-3xl bg-gradient-to-br from-indigo-500/5 via-slate-50 to-indigo-50/20 dark:from-slate-800 dark:to-slate-900 border border-indigo-200/40 dark:border-indigo-900/30">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Ledger & Settlement</span>
+                                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">Double-Entry</span>
+                                        </div>
+                                        <div className="text-2xl font-black text-slate-900 dark:text-white mb-2">Automated Revenue</div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                            Real-time transaction splits deposit fee revenue into the Super Admin platform revenue pool with complete audit trails.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-3 bg-amber-50 dark:bg-amber-950/40 text-amber-600 rounded-2xl">
+                                            <ShieldCheckIcon className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-black uppercase text-slate-900 dark:text-white">Live Simulator & Fee Settings Available</h4>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Launch the Super Admin control panel to adjust percentage rates, fixed rates, min/max caps, and test real-time disbursement calculations.</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConvenienceFeeModal(true)}
+                                        className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider transition-all"
+                                    >
+                                        Open Settings & Revenue Pool
+                                    </button>
+                                </div>
+
+                                <ConvenienceFeeSettingsModal
+                                    isOpen={showConvenienceFeeModal}
+                                    onClose={() => setShowConvenienceFeeModal(false)}
+                                />
                             </div>
                         )}
 

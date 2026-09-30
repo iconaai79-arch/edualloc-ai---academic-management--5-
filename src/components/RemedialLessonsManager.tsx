@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty, RemedialTeacherOpeningBalance } from '../types';
 import { RemedialOpeningBalancesModal } from './RemedialOpeningBalancesModal';
+import { SchoolFloatWalletCard } from './Finance/SchoolFloatWalletCard';
+import { walletService } from '../services/walletService';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { 
@@ -6057,6 +6059,48 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to issue payout');
+        }
+    };
+
+    // Instant Disburse to Teacher E-Wallet from School Float
+    const handleDisburseToTeacherWallet = async (batch: { teacherId: string; teacherName: string; totalAmount: number; totalHours: number; sessionIds: string[] }) => {
+        if (!institutionId) {
+            alert('Institution context missing');
+            return;
+        }
+
+        if (!window.confirm(`Disburse KES ${batch.totalAmount.toLocaleString()} directly into ${batch.teacherName}'s E-Wallet from School Float?\n\nThis will debit the school float and credit the teacher's wallet instantly with zero transfer fees.`)) {
+            return;
+        }
+
+        try {
+            const res = await walletService.disburseToTeacherWallet({
+                institutionId,
+                teacherId: batch.teacherId,
+                amount: batch.totalAmount,
+                sessionIds: batch.sessionIds,
+                notes: `Remedial Payout for ${batch.totalHours} hrs (${batch.sessionIds.length} lessons)`
+            });
+
+            if (res.success) {
+                for (const sessId of batch.sessionIds) {
+                    const sess = sessions.find(s => s.id === sessId);
+                    if (sess) {
+                        await apiService.saveRemedialSession({
+                            ...sess,
+                            status: 'Paid',
+                            notes: (sess.notes || '') + ' [Credited to Teacher E-Wallet]'
+                        });
+                    }
+                }
+                alert(`🎉 Success! KES ${batch.totalAmount.toLocaleString()} credited to ${batch.teacherName}'s E-Wallet.\n\nThe teacher can withdraw to M-Pesa on demand from their portal.`);
+                onLogAction?.(`Disbursed KES ${batch.totalAmount} to teacher wallet (${batch.teacherName})`);
+                loadData();
+            } else {
+                alert(`Disbursement failed: ${res.message}`);
+            }
+        } catch (err: any) {
+            alert(err.message || 'Failed to disburse to teacher wallet.');
         }
     };
 
@@ -12210,6 +12254,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             {/* TAB: PAYOUTS */}
             {activeTab === 'payouts' && (
                 <div className="space-y-8">
+                    {/* School Pre-Funded Payout Float Wallet */}
+                    {institutionId && (
+                        <SchoolFloatWalletCard
+                            institutionId={institutionId}
+                            institutionName={currentInstitution?.name || 'School'}
+                            onBalanceChange={loadData}
+                        />
+                    )}
+
                     {/* STAGE 4: OPERATIONS MANAGER CASH HANDOVER TO DOS */}
                     <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -12260,16 +12313,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {batch.rate.toLocaleString()}/hr</td>
                                             <td className="p-6 text-sm font-black text-purple-600 dark:text-purple-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
                                             <td className="p-6 text-right">
-                                                <button 
-                                                    onClick={() => {
-                                                        setOpsDisburseBatch(batch);
-                                                        setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
-                                                        setIsOpsCashModalOpen(true);
-                                                    }}
-                                                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 ml-auto"
-                                                >
-                                                    <Banknote className="w-3.5 h-3.5" /> Release Cash to DOS
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button 
+                                                        onClick={() => handleDisburseToTeacherWallet(batch)}
+                                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                        title="Instant transfer from school float into teacher e-wallet"
+                                                    >
+                                                        <Wallet className="w-3.5 h-3.5" /> Disburse to E-Wallet
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setOpsDisburseBatch(batch);
+                                                            setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
+                                                            setIsOpsCashModalOpen(true);
+                                                        }}
+                                                        className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                    >
+                                                        <Banknote className="w-3.5 h-3.5" /> Cash Handover
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
@@ -12378,12 +12440,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {accrued.rate.toLocaleString()}</td>
                                             <td className="p-6 text-sm font-black text-indigo-650 font-mono">KES {accrued.totalAmount.toLocaleString()}</td>
                                             <td className="p-6 text-right">
-                                                <button 
-                                                    onClick={() => handleIssuePayout(accrued)}
-                                                    className="px-4 py-2 bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all"
-                                                >
-                                                    Issue Payout Voucher
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button 
+                                                        onClick={() => handleDisburseToTeacherWallet({
+                                                            teacherId: accrued.teacherId,
+                                                            teacherName: accrued.teacherName,
+                                                            totalAmount: accrued.totalAmount,
+                                                            totalHours: accrued.totalHours,
+                                                            sessionIds: accrued.sessionIds || []
+                                                        })}
+                                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                        title="Instant transfer from school float into teacher e-wallet"
+                                                    >
+                                                        <Wallet className="w-3.5 h-3.5" /> Disburse to E-Wallet
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleIssuePayout(accrued)}
+                                                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all cursor-pointer"
+                                                    >
+                                                        Cash Voucher
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

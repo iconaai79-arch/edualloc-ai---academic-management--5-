@@ -23,6 +23,7 @@ import { calculateRemedialSessionDuration, timeToMinutes } from '../utils/timeUt
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
+import { TeacherWalletCard } from './TeacherWalletCard';
 import { DeallocationModal } from './DeallocationModal';
 import { ChangeRequestModal } from './ChangeRequestModal';
 import { LecturerDashboard } from './LecturerDashboard';
@@ -2682,6 +2683,19 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Teacher Pre-Funded Earnings & M-Pesa Cash-Out Wallet */}
+                                {user?.id && (currentInstitution?.id || user?.institutionId) && (
+                                    <div className="mb-8">
+                                        <TeacherWalletCard
+                                            teacherId={user.id}
+                                            institutionId={currentInstitution?.id || user?.institutionId || ''}
+                                            teacherName={user.name || 'Teacher'}
+                                            defaultPhone={user.phone || ''}
+                                            onBalanceChange={loadRemedialData}
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">

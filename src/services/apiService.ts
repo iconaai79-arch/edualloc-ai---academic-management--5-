@@ -6771,15 +6771,17 @@ export const apiService = {
     // Remedial Module
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { 
         const records = await apiService.fetchModuleRecords<any>('school_remedial_sessions', instId); 
-        return (records || []).map((r: any) => {
-            let numH = r.hours ?? r.durationHours ?? r.duration_hours;
-            let numM = r.durationMinutes;
+        return (records || []).map((raw: any) => {
+            const meta = typeof raw.metadata === 'object' && raw.metadata !== null ? raw.metadata : {};
+            const r = { ...meta, ...raw };
+            let numH = r.hours ?? r.durationHours ?? r.duration_hours ?? meta.hours ?? meta.durationHours ?? meta.duration_hours;
+            let numM = r.durationMinutes ?? r.duration_minutes ?? meta.durationMinutes ?? meta.duration_minutes;
 
             if ((numH === undefined || numH === null || isNaN(Number(numH))) && r.startTime && r.endTime) {
                 const calc = calculateRemedialSessionDuration(r.startTime, r.endTime, {
-                    startTime: r.scheduledStartTime,
-                    endTime: r.scheduledEndTime,
-                    durationMinutes: r.scheduledDurationMinutes
+                    startTime: r.scheduledStartTime ?? meta.scheduledStartTime ?? meta.scheduled_start_time,
+                    endTime: r.scheduledEndTime ?? meta.scheduledEndTime ?? meta.scheduled_end_time,
+                    durationMinutes: r.scheduledDurationMinutes ?? meta.scheduledDurationMinutes ?? meta.scheduled_duration_minutes
                 });
                 numH = calc.hours;
                 numM = calc.durationMinutes;
@@ -6821,13 +6823,61 @@ export const apiService = {
         }
 
         if (numH !== undefined && numH !== null) {
-            payload.hours = numH;
-            payload.durationHours = numH;
             payload.duration_hours = numH;
         }
-        if (numM !== undefined && numM !== null) {
-            payload.durationMinutes = numM;
+
+        // Pack extended calculation & approval metadata into metadata JSON
+        const metaFields: Record<string, any> = {
+            durationMinutes: numM,
+            scheduledStartTime: payload.scheduledStartTime,
+            scheduledEndTime: payload.scheduledEndTime,
+            scheduledDurationMinutes: payload.scheduledDurationMinutes,
+            earlyLoginMinutesOmitted: payload.earlyLoginMinutesOmitted,
+            cappedAtTimetable: payload.cappedAtTimetable,
+            loggedOutEarly: payload.loggedOutEarly,
+            dutyNotes: payload.dutyNotes,
+            dutyRejectionReason: payload.dutyRejectionReason,
+            dutyRejectedBy: payload.dutyRejectedBy,
+            dutyRejectedAt: payload.dutyRejectedAt,
+            headteacherNotes: payload.headteacherNotes,
+            headteacherRejectionReason: payload.headteacherRejectionReason,
+            headteacherRejectedBy: payload.headteacherRejectedBy,
+            headteacherRejectedAt: payload.headteacherRejectedAt,
+            cashDisbursedToDosAt: payload.cashDisbursedToDosAt,
+            cashVoucherRef: payload.cashVoucherRef,
+            teacherSignatureDataUrl: payload.teacherSignatureDataUrl,
+            paymentMethod: payload.paymentMethod
+        };
+
+        const existingMeta = typeof payload.metadata === 'object' && payload.metadata !== null ? payload.metadata : {};
+        const cleanMeta = Object.fromEntries(Object.entries(metaFields).filter(([_, v]) => v !== undefined && v !== null));
+        if (Object.keys(cleanMeta).length > 0 || Object.keys(existingMeta).length > 0) {
+            payload.metadata = { ...existingMeta, ...cleanMeta };
         }
+
+        // Prune non-schema top-level columns so PostgREST schema cache never rejects them
+        delete payload.hours;
+        delete payload.durationHours;
+        delete payload.durationMinutes;
+        delete payload.scheduledStartTime;
+        delete payload.scheduledEndTime;
+        delete payload.scheduledDurationMinutes;
+        delete payload.earlyLoginMinutesOmitted;
+        delete payload.cappedAtTimetable;
+        delete payload.loggedOutEarly;
+        delete payload.dutyNotes;
+        delete payload.dutyRejectionReason;
+        delete payload.dutyRejectedBy;
+        delete payload.dutyRejectedAt;
+        delete payload.headteacherNotes;
+        delete payload.headteacherRejectionReason;
+        delete payload.headteacherRejectedBy;
+        delete payload.headteacherRejectedAt;
+        delete payload.cashDisbursedToDosAt;
+        delete payload.cashVoucherRef;
+        delete payload.teacherSignatureDataUrl;
+        delete payload.paymentMethod;
+
         await apiService.saveModuleRecord('school_remedial_sessions', payload); 
     },
     async deleteRemedialSession(ids: string | string[]): Promise<void> {

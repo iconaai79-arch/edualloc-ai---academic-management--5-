@@ -7237,3 +7237,107 @@ export interface SchoolRouterProfile {
     createdAt?: string;
     updatedAt?: string;
 }
+
+// ==========================================
+// INSTITUTION & TEACHER E-WALLETS & FEES
+// ==========================================
+
+export interface InstitutionWallet {
+    id: string;
+    institutionId: string;
+    currency: string;
+    currentBalance: number;
+    reservedBalance: number;
+    lowFloatThreshold: number;
+    autoTopupEnabled: boolean;
+    isLocked: boolean;
+    lockReason?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface TeacherWallet {
+    id: string;
+    teacherId: string;
+    institutionId: string;
+    currency: string;
+    availableBalance: number;
+    pendingBalance: number;
+    totalWithdrawn: number;
+    totalEarned: number;
+    mpesaPhoneNumber?: string;
+    isLocked: boolean;
+    lockReason?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface SuperAdminRevenueWallet {
+    id: string;
+    currency: string;
+    totalFeesCollected: number;
+    availableBalance: number;
+    totalWithdrawn: number;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type ConvenienceFeeType = 'FIXED' | 'PERCENTAGE' | 'HYBRID' | 'FREE';
+export type ConvenienceFeeBearer = 'TEACHER' | 'SCHOOL' | 'SPLIT';
+export type ConvenienceFeeAppliesTo = 'TEACHER_WITHDRAWAL' | 'REMEDIAL_PAYOUT' | 'FLOAT_TOPUP' | 'ALL_PAYOUTS';
+
+export interface ConvenienceFeeConfig {
+    id: string;
+    name: string;
+    feeType: ConvenienceFeeType;
+    fixedAmount: number;
+    percentageRate: number;
+    minFee: number;
+    maxFee: number;
+    feeBearer: ConvenienceFeeBearer;
+    appliesTo: ConvenienceFeeAppliesTo;
+    isActive: boolean;
+    description?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type WalletType = 'INSTITUTION' | 'TEACHER' | 'SUPER_ADMIN';
+export type WalletTransactionCategory = 
+    | 'FLOAT_TOPUP' 
+    | 'EARNING_CREDIT' 
+    | 'TEACHER_WITHDRAWAL' 
+    | 'CONVENIENCE_FEE' 
+    | 'INTERNAL_TRANSFER' 
+    | 'REVERSAL' 
+    | 'ADJUSTMENT';
+
+export type WalletFlowType = 'CREDIT' | 'DEBIT';
+export type WalletTransactionStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REVERSED';
+
+export interface WalletTransaction {
+    id: string;
+    institutionId?: string;
+    walletType: WalletType;
+    institutionWalletId?: string;
+    teacherWalletId?: string;
+    teacherId?: string;
+    transactionCategory: WalletTransactionCategory;
+    flowType: WalletFlowType;
+    amount: number;
+    convenienceFee: number;
+    netAmount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    currency: string;
+    status: WalletTransactionStatus;
+    externalReference?: string;
+    paymentMethod: string;
+    phoneNumber?: string;
+    relatedPayoutId?: string;
+    relatedSessionIds?: string[];
+    metadata?: Record<string, any>;
+    notes?: string;
+    createdAt?: string;
+}
+
