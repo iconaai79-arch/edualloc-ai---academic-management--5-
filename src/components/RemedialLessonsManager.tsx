@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty, RemedialTeacherOpeningBalance } from '../types';
+import { isSuperAdminUser } from '../types';
 import { RemedialOpeningBalancesModal } from './RemedialOpeningBalancesModal';
 import { SchoolFloatWalletCard } from './Finance/SchoolFloatWalletCard';
 import { walletService } from '../services/walletService';
@@ -161,10 +162,43 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [editSessionNotes, setEditSessionNotes] = useState<string>('');
     const [isSavingSuperAdminSession, setIsSavingSuperAdminSession] = useState<boolean>(false);
 
-    // Super Admin detection
+    // Super Admin / School Admin detection for remedial session editing
     const isSuperAdmin = useMemo(() => {
-        const role = (currentUser?.role || '').toLowerCase().replace(/[\s_-]/g, '');
-        return role === 'superadmin' || !!(currentUser as any)?.isSuperAdmin || currentUser?.institutionId === 'GLOBAL';
+        // 1. Built-in isSuperAdminUser helper
+        if (isSuperAdminUser(currentUser)) return true;
+        
+        // 2. Check localStorage for super admin session or impersonation
+        if (typeof window !== 'undefined') {
+            try {
+                if (
+                    safeLocalStorage.getItem('eduai_super_admin_session') ||
+                    safeLocalStorage.getItem('eduai_impersonated_by_admin') === 'true' ||
+                    sessionStorage.getItem('eduai_impersonated_by_admin') === 'true'
+                ) {
+                    return true;
+                }
+            } catch (_) {}
+        }
+
+        // 3. Normalized role checks
+        const role = String(currentUser?.role || '').toLowerCase().trim();
+        const cleanRole = role.replace(/[\s_-]/g, '');
+        if (
+            cleanRole === 'superadmin' || 
+            cleanRole === 'superadministrator' || 
+            currentUser?.institutionId === 'GLOBAL' ||
+            (currentUser as any)?.isSuperAdmin === true ||
+            (currentUser as any)?.is_super_admin === true
+        ) {
+            return true;
+        }
+
+        // 4. Also grant editing access to school admin / principal so institutional heads can adjust remedial hours
+        if (cleanRole === 'admin' || cleanRole === 'headteacher' || cleanRole === 'principal' || cleanRole === 'dos') {
+            return true;
+        }
+
+        return false;
     }, [currentUser]);
 
     // Teacher on Duty Rejection Modal State
@@ -12178,12 +12212,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         <span className="text-xs font-black text-amber-500 uppercase tracking-wider block">In Progress</span>
                                                     ) : (
                                                         <div>
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white">
-                                                                {(typeof session.hours === 'number' && !isNaN(session.hours)) ? session.hours : ((session as any).durationHours ?? (session as any).duration_hours ?? 1)} hrs
-                                                                {session.durationMinutes && (
-                                                                    <span className="text-[10px] text-slate-400 font-bold ml-1">({session.durationMinutes}m)</span>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div>
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white">
+                                                                        {(typeof session.hours === 'number' && !isNaN(session.hours)) ? session.hours : ((session as any).durationHours ?? (session as any).duration_hours ?? 1)} hrs
+                                                                        {session.durationMinutes && (
+                                                                            <span className="text-[10px] text-slate-400 font-bold ml-1">({session.durationMinutes}m)</span>
+                                                                        )}
+                                                                    </p>
+                                                                </div>
+                                                                {isSuperAdmin && (
+                                                                    <button
+                                                                        onClick={() => handleOpenSuperAdminEdit(session)}
+                                                                        className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60 rounded-xl text-[9px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95 shrink-0"
+                                                                        title="Super Admin: Edit session duration, start and end times"
+                                                                    >
+                                                                        <Pencil className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                                                        <span>Edit Duration</span>
+                                                                    </button>
                                                                 )}
-                                                            </p>
+                                                            </div>
                                                             <div className="flex flex-wrap gap-1 mt-1">
                                                                 {session.earlyLoginMinutesOmitted && session.earlyLoginMinutesOmitted > 0 ? (
                                                                     <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-[8px] font-black uppercase text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800" title={`Logged in early; ${session.earlyLoginMinutesOmitted} min(s) omitted before timetable start`}>
@@ -12209,14 +12257,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
                                                     {/* Super Admin Session Times (Start & End) */}
                                                     {isSuperAdmin && (
-                                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[10px] font-mono space-y-0.5">
-                                                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                                                <span className="font-black text-[8px] uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1 py-0.2 rounded">Start:</span>
-                                                                <span className="font-semibold">{session.startTime ? new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</span>
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                                                <span className="font-black text-[8px] uppercase tracking-wider text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 px-1 py-0.2 rounded">End:</span>
-                                                                <span className="font-semibold">{session.endTime ? new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : <span className="text-amber-500 italic">Active / unset</span>}</span>
+                                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[10px] font-mono space-y-1">
+                                                            <div className="flex items-center justify-between gap-2 text-slate-600 dark:text-slate-300">
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="font-black text-[8px] uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1 py-0.5 rounded">Start:</span>
+                                                                    <span className="font-semibold">{session.startTime ? new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="font-black text-[8px] uppercase tracking-wider text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 px-1 py-0.5 rounded">End:</span>
+                                                                    <span className="font-semibold">{session.endTime ? new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : <span className="text-amber-500 italic">Active / unset</span>}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}
@@ -12395,11 +12445,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         <div className="mt-2 flex justify-end">
                                                             <button
                                                                 onClick={() => handleOpenSuperAdminEdit(session)}
-                                                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-indigo-200 dark:border-indigo-800"
-                                                                title="Super Admin Only: View & Edit Start and End times"
+                                                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                                                                title="Super Admin Only: View & Edit Duration, Start and End times"
                                                             >
-                                                                <Pencil className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                                                                Edit Start / End
+                                                                <Pencil className="w-3 h-3" />
+                                                                Edit Duration
                                                             </button>
                                                         </div>
                                                     )}
@@ -12503,7 +12553,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </span>
                                             </div>
                                             <h3 className="text-base font-black uppercase tracking-tight mt-0.5">
-                                                Edit Session Start &amp; End
+                                                Edit Duration &amp; Session Times
                                             </h3>
                                         </div>
                                     </div>
