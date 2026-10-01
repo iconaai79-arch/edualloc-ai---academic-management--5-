@@ -571,9 +571,30 @@ export class WalletService {
                     // Invalidate and refresh cache
                     await this.getTeacherWallet(teacherId, institutionId);
 
+                    let b2cNotice = '';
+                    try {
+                        const { ncbaOpenBankingService } = await import('./ncbaOpenBankingService');
+                        const stored = ncbaOpenBankingService.getStoredConfig();
+                        if (stored && (stored.isOpenBankingEnabled || stored.subscriptionKey)) {
+                            const b2cRes = await ncbaOpenBankingService.sendB2cMpesaPayment({
+                                mobileNumber: formattedPhone,
+                                amount: data.net_disbursed_mpesa,
+                                currency: 'KES',
+                                paymentReason: notes || 'Teacher Wallet Withdrawal',
+                                institutionId: institutionId,
+                                reference: extRef
+                            });
+                            if (b2cRes?.referenceNumber || b2cRes?.transactionId) {
+                                b2cNotice = ` (NCBA Ref: ${b2cRes.referenceNumber || b2cRes.transactionId})`;
+                            }
+                        }
+                    } catch (b2cErr: any) {
+                        console.warn('[WalletService] NCBA Open Banking B2C auto-dispatch note:', b2cErr.message);
+                    }
+
                     return {
                         success: true,
-                        message: `Successfully processed withdrawal of KES ${data.net_disbursed_mpesa.toLocaleString()} to ${formattedPhone}. (Fee: KES ${data.convenience_fee})`,
+                        message: `Successfully processed withdrawal of KES ${data.net_disbursed_mpesa.toLocaleString()} to ${formattedPhone}.${b2cNotice} (Fee: KES ${data.convenience_fee})`,
                         grossAmount: data.gross_amount,
                         convenienceFee: data.convenience_fee,
                         netDisbursedMpesa: data.net_disbursed_mpesa,

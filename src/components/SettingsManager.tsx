@@ -77,7 +77,7 @@ import { AcademicConfigManager } from './AcademicConfigManager';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { CalculatorIcon } from './icons/CalculatorIcon';
-import { ConvenienceFeeSettingsModal } from './SuperAdmin/ConvenienceFeeSettingsModal';
+import { ConvenienceFeeSettingsModal } from './superadmin/ConvenienceFeeSettingsModal';
 
 interface SettingsManagerProps {
     currentUser: User;
@@ -943,7 +943,13 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                 clientId: (localNcbaConfig.clientId || '').replace(/[^\x20-\x7E]/g, '').trim(),
                 clientSecret: (localNcbaConfig.clientSecret || '').replace(/[^\x20-\x7E]/g, '').trim(),
                 username: (localNcbaConfig.username || '').replace(/[^\x20-\x7E]/g, '').trim(),
-                password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim()
+                password: (localNcbaConfig.password || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                subscriptionKey: (localNcbaConfig.subscriptionKey || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                openBankingUserId: (localNcbaConfig.openBankingUserId || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                openBankingPassword: (localNcbaConfig.openBankingPassword || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                debitAccount: (localNcbaConfig.debitAccount || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                senderCif: (localNcbaConfig.senderCif || '').replace(/[^\x20-\x7E]/g, '').trim(),
+                openBankingBaseUrl: (localNcbaConfig.openBankingBaseUrl || '').trim()
             };
 
             // Sanitize Email Credentials before saving to prevent invisible character 535 auth errors
@@ -2250,39 +2256,134 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Username</label><input type="text" value={localNcbaConfig.username || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, username: e.target.value })} className="form-input" /></div>
                                             <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">API Password</label><input type="password" value={localNcbaConfig.password || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, password: e.target.value })} className="form-input" /></div>
                                         </div>
-                                        <div className="space-y-6 pt-10">
+
+                                        {/* NCBA Open Banking Gateway Section (2026 UAT Spec) */}
+                                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                                                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                                        NCBA Open Banking Gateway (B2C M-Pesa, EFT, PesaLink & Statements)
+                                                    </h4>
+                                                </div>
+                                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 uppercase tracking-widest">
+                                                    UAT Ready
+                                                </span>
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 mb-4">
+                                                Direct corporate bank-to-wallet disbursements, live statements, EFT, and account validation via NCBA APIM Gateway.
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Open Banking User ID</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localNcbaConfig.openBankingUserId || ''} 
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, openBankingUserId: e.target.value })} 
+                                                        className="form-input" 
+                                                        placeholder="e.g. cashmanUAT" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Open Banking Password</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localNcbaConfig.openBankingPassword || ''} 
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, openBankingPassword: e.target.value })} 
+                                                        className="form-input" 
+                                                        placeholder="Assigned UAT/Prod Password" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Subscription Key (Ocp-Apim-Subscription-Key)</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={localNcbaConfig.subscriptionKey || ''} 
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, subscriptionKey: e.target.value })} 
+                                                        className="form-input font-mono text-xs" 
+                                                        placeholder="32-character Azure APIM Key" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Corporate Debit Account Number</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localNcbaConfig.debitAccount || ''} 
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, debitAccount: e.target.value, senderCif: e.target.value.slice(0, 6) })} 
+                                                        className="form-input font-mono text-xs" 
+                                                        placeholder="e.g. 9115310018" 
+                                                    />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 ml-1">Open Banking Gateway Base URL</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={localNcbaConfig.openBankingBaseUrl || ''} 
+                                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLocalNcbaConfig({ ...localNcbaConfig, openBankingBaseUrl: e.target.value })} 
+                                                        className="form-input font-mono text-xs" 
+                                                        placeholder="https://openbankingtest.api.ncbagroup.com/test/apigateway/" 
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4 pt-6">
                                             <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-[2rem] border border-blue-100 dark:border-blue-800">
                                                 <div className="flex items-center gap-2 mb-2">
                                                     <InformationCircleIcon className="w-5 h-5 text-blue-500" />
                                                     <span className="text-[10px] font-black uppercase text-blue-600">Bank Integration Policy</span>
                                                 </div>
-                                                <p className="text-xs text-blue-700/70 leading-relaxed">NCBA Bank integration utilizes OAuth2 authentication. Ensure the Client ID and Secret match your registered application in the NCBA Developer Portal.</p>
+                                                <p className="text-xs text-blue-700/70 leading-relaxed">NCBA Bank integration supports C2B STK push and Enterprise Open Banking APIs. Ensure your IP is whitelisted on NCBA's UAT gateway before running live transactions.</p>
                                             </div>
                                             <button onClick={handleSaveGlobalConfigs} className="btn-primary w-full h-12 shadow-indigo-100 uppercase tracking-widest text-xs">Save NCBA Configuration</button>
                                             
-                                            <button 
-                                                onClick={async () => {
-                                                    setIsTestingNcba(true);
-                                                    try {
-                                                        const res = await apiService.testNcbaAuth(localNcbaConfig);
-                                                        if (res.success) {
-                                                            alert(`Integration Success: ${res.message || 'Authentication successful'}`);
-                                                        } else {
-                                                            alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
-                                                        }
-                                                    } catch(err: any) {
-                                                        alert(`Connection Error: ${err.message}`);
-                                                    } finally {
-                                                        setIsTestingNcba(false);
-                                                    }
-                                                }}
-                                                disabled={isTestingNcba}
-                                                className="w-full h-12 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
-                                            >
-                                                {isTestingNcba ? 'Verifying...' : 'Test Global Connection'}
-                                            </button>
-                                        </div>
-                                    </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <button 
+                                                    onClick={async () => {
+                                                        setIsTestingNcba(true);
+                                                        try {
+                                                             const res = await apiService.testNcbaAuth(localNcbaConfig);
+                                                             if (res.success) {
+                                                                 alert(`Integration Success: ${res.message || 'C2B Authentication successful'}`);
+                                                             } else {
+                                                                 alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
+                                                             }
+                                                         } catch(err: any) {
+                                                             alert(`Connection Error: ${err.message}`);
+                                                         } finally {
+                                                             setIsTestingNcba(false);
+                                                         }
+                                                     }}
+                                                     disabled={isTestingNcba}
+                                                     className="w-full h-12 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                                                 >
+                                                     {isTestingNcba ? 'Verifying...' : 'Test C2B STK Auth'}
+                                                 </button>
+
+                                                 <button 
+                                                     onClick={async () => {
+                                                         setIsTestingNcba(true);
+                                                         try {
+                                                             const res = await apiService.testNcbaOpenBankingAuth(localNcbaConfig);
+                                                             if (res.success || res.accessToken) {
+                                                                 alert(`🎉 Open Banking Connected! Bearer Token issued successfully.${res.isMock ? ' (Mock Mode Active)' : ''}`);
+                                                             } else {
+                                                                 alert(`Open Banking Handshake Failed: ${res.message || 'Check your User ID, Password and Subscription Key'}`);
+                                                             }
+                                                         } catch(err: any) {
+                                                             alert(`Connection Error: ${err.message}`);
+                                                         } finally {
+                                                             setIsTestingNcba(false);
+                                                         }
+                                                     }}
+                                                     disabled={isTestingNcba}
+                                                     className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
+                                                 >
+                                                     {isTestingNcba ? 'Connecting Gateway...' : 'Test Open Banking Gateway'}
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
                                 )}
 
                                 {billingSubTab === 'gateways' && (
@@ -5136,54 +5237,133 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 </div>
                                                 <div>
                                                     <h3 className="text-xl font-black uppercase tracking-tight">NCBA Bank Integration</h3>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring NCBA Gateway for this Institution</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Configuring NCBA C2B STK & Open Banking for this Institution</p>
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem]">
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
-                                                    <select 
-                                                        value={localInstNcbaConfig.environment || 'sandbox'} 
-                                                        onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, environment: e.target.value as any })}
-                                                        className="form-select"
-                                                    >
-                                                        <option value="sandbox">Sandbox (Test)</option>
-                                                        <option value="production">Production (Live)</option>
-                                                    </select>
+                                            {/* C2B STK Push Section */}
+                                            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] border border-slate-100 dark:border-slate-800 space-y-4">
+                                                <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-800">
+                                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">C2B STK Push Credentials</h4>
+                                                    <span className="text-[9px] font-bold px-2.5 py-1 bg-blue-100/70 text-blue-700 rounded-full uppercase">Collections</span>
                                                 </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Base URL</label>
-                                                    <input type="text" value={localInstNcbaConfig.baseUrl} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID</label>
-                                                    <input type="text" value={localInstNcbaConfig.clientId} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })} className="form-input" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
-                                                    <input type="password" value={localInstNcbaConfig.clientSecret} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })} className="form-input" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Username</label>
-                                                    <input type="text" value={localInstNcbaConfig.username || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, username: e.target.value })} className="form-input" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Password</label>
-                                                    <input type="password" value={localInstNcbaConfig.password || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, password: e.target.value })} className="form-input" />
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Environment</label>
+                                                        <select 
+                                                            value={localInstNcbaConfig.environment || 'sandbox'} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, environment: e.target.value as any })}
+                                                            className="form-select"
+                                                        >
+                                                            <option value="sandbox">Sandbox (Test)</option>
+                                                            <option value="production">Production (Live)</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">C2B Base URL</label>
+                                                        <input type="text" value={localInstNcbaConfig.baseUrl} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, baseUrl: e.target.value })} className="form-input font-mono text-xs" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client ID / Consumer Key</label>
+                                                        <input type="text" value={localInstNcbaConfig.clientId} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientId: e.target.value })} className="form-input" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Client Secret</label>
+                                                        <input type="password" value={localInstNcbaConfig.clientSecret} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, clientSecret: e.target.value })} className="form-input" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Username</label>
+                                                        <input type="text" value={localInstNcbaConfig.username || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, username: e.target.value })} className="form-input" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">API Password</label>
+                                                        <input type="password" value={localInstNcbaConfig.password || ''} onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, password: e.target.value })} className="form-input" />
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-4 mt-6">
+                                            {/* Open Banking APIM Section */}
+                                            <div className="p-6 bg-emerald-500/5 dark:bg-emerald-950/20 rounded-[2rem] border border-emerald-500/20 space-y-4">
+                                                <div className="flex items-center justify-between pb-2 border-b border-emerald-500/20">
+                                                    <div>
+                                                        <h4 className="text-xs font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-300">NCBA Open Banking Gateway (APIM)</h4>
+                                                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Enterprise Mobile Money Transfer (B2C), Bank Transits (EFT/IFT/PesaLink) & Statements</p>
+                                                    </div>
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase">Enable</span>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={!!localInstNcbaConfig.isOpenBankingEnabled} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, isOpenBankingEnabled: e.target.checked })} 
+                                                            className="rounded text-emerald-600 focus:ring-emerald-500" 
+                                                        />
+                                                    </label>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Open Banking User ID</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localInstNcbaConfig.openBankingUserId || ''} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, openBankingUserId: e.target.value })} 
+                                                            className="form-input font-mono text-xs" 
+                                                            placeholder="e.g. NCBA_ENT_USER" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Open Banking Password</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localInstNcbaConfig.openBankingPassword || ''} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, openBankingPassword: e.target.value })} 
+                                                            className="form-input font-mono text-xs" 
+                                                            placeholder="••••••••" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Ocp-Apim-Subscription-Key</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={localInstNcbaConfig.subscriptionKey || ''} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, subscriptionKey: e.target.value })} 
+                                                            className="form-input font-mono text-xs" 
+                                                            placeholder="32-character Azure APIM Key" 
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Debit Account Number</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localInstNcbaConfig.debitAccount || ''} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, debitAccount: e.target.value, senderCif: e.target.value.slice(0, 6) })} 
+                                                            className="form-input font-mono text-xs" 
+                                                            placeholder="e.g. 9115310018" 
+                                                        />
+                                                    </div>
+                                                    <div className="md:col-span-2">
+                                                        <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-1">Open Banking Base URL</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={localInstNcbaConfig.openBankingBaseUrl || ''} 
+                                                            onChange={(e) => setLocalInstNcbaConfig({ ...localInstNcbaConfig, openBankingBaseUrl: e.target.value })} 
+                                                            className="form-input font-mono text-xs" 
+                                                            placeholder="https://openbankingtest.api.ncbagroup.com/test/apigateway/" 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
                                                 <button 
                                                     onClick={async () => {
                                                         setIsTestingNcba(true);
                                                         try {
                                                             const res = await apiService.testNcbaAuth(localInstNcbaConfig);
                                                             if (res.success) {
-                                                                alert(`Integration Success: ${res.message || 'Authentication successful'}`);
+                                                                alert(`C2B Integration Success: ${res.message || 'Authentication successful'}`);
                                                             } else {
-                                                                alert(`Integration Failed: ${res.message || 'Check your credentials'}`);
+                                                                alert(`C2B Integration Failed: ${res.message || 'Check your credentials'}`);
                                                             }
                                                         } catch(err: any) {
                                                             alert(`Connection Error: ${err.message}`);
@@ -5192,9 +5372,31 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                         }
                                                     }}
                                                     disabled={isTestingNcba}
-                                                    className="h-12 px-6 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                                                    className="h-12 px-6 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
                                                 >
-                                                    {isTestingNcba ? 'Verifying...' : 'Test NCBA Integration'}
+                                                    {isTestingNcba ? 'Verifying...' : 'Test C2B STK Auth'}
+                                                </button>
+
+                                                <button 
+                                                    onClick={async () => {
+                                                        setIsTestingNcba(true);
+                                                        try {
+                                                            const res = await apiService.testNcbaOpenBankingAuth(localInstNcbaConfig);
+                                                            if (res.success || res.accessToken) {
+                                                                alert(`🎉 Open Banking Connected! Bearer Token issued successfully.${res.isMock ? ' (Mock Mode Active)' : ''}`);
+                                                            } else {
+                                                                alert(`Open Banking Handshake Failed: ${res.message || 'Check your User ID, Password and Subscription Key'}`);
+                                                            }
+                                                        } catch(err: any) {
+                                                            alert(`Connection Error: ${err.message}`);
+                                                        } finally {
+                                                            setIsTestingNcba(false);
+                                                        }
+                                                    }}
+                                                    disabled={isTestingNcba}
+                                                    className="h-12 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
+                                                >
+                                                    {isTestingNcba ? 'Connecting Gateway...' : 'Test Open Banking Gateway'}
                                                 </button>
                                             </div>
                                         </div>

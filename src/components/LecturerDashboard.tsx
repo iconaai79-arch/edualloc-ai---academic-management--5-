@@ -426,7 +426,9 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
     }, [myRemedialAllocations, todayDayName]);
 
     const activeRemedialSession = useMemo(() => {
-        return (remedialSessions || []).find(s => s && s.status === 'In Progress');
+        return (remedialSessions || []).find(s => 
+            s && (s.status === 'In Progress' || (typeof s.status === 'string' && s.status.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress'))
+        );
     }, [remedialSessions]);
 
     const nextUpcomingRemedial = useMemo(() => {

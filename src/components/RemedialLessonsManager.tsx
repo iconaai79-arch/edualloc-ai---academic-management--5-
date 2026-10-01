@@ -13,7 +13,7 @@ import {
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
     Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox,
-    ChevronLeft, ChevronRight, XCircle
+    ChevronLeft, ChevronRight, XCircle, Wallet
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';

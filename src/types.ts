@@ -1329,6 +1329,116 @@ export interface NcbaConfig {
     authMethod?: 'bearer' | 'basic';
     isMock?: boolean;
     environment?: 'sandbox' | 'production';
+
+    // NCBA Open Banking Enterprise fields (2026 UAT Guide)
+    openBankingUserId?: string;
+    openBankingPassword?: string;
+    subscriptionKey?: string;
+    openBankingBaseUrl?: string;
+    debitAccount?: string;
+    senderCif?: string;
+    senderCountry?: string;
+    isOpenBankingEnabled?: boolean;
+}
+
+export interface NcbaOpenBankingTokenResponse {
+    accessToken: string;
+    tokenID?: string;
+    tokenType: string;
+    tokenExpiry: string;
+    claims?: {
+        userID: string;
+    };
+}
+
+export interface NcbaB2cMpesaRequest {
+    beneficiaryName: string;
+    date?: string; // YYYY-MM-DD
+    debitAccount?: string;
+    debitAmount: string | number;
+    mobileNumber: string; // 254...
+    transactionNarration: string;
+    uniqueReferenceNumber: string;
+}
+
+export interface NcbaB2cMpesaResponse {
+    succeeded: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+        id: string;
+        channelRef: string;
+        bankRef: string;
+        message: string;
+    };
+}
+
+export interface NcbaMpesaValidationResponse {
+    succeeded: boolean;
+    statusCode: number;
+    validationId: string;
+    customerMsisdn: string;
+    minimumPaymentAmount: number;
+}
+
+export interface NcbaIftRequest {
+    country?: string;
+    transactionId?: string;
+    beneficiaryAccountName: string;
+    debitAccountNumber?: string;
+    creditAccountNumber: string;
+    currency?: string;
+    amount: string | number;
+    narration: string;
+}
+
+export interface NcbaEftRequest {
+    amount: string | number;
+    beneficiaryAccountNumber: string;
+    beneficiaryBankBic: string;
+    beneficiaryName: string;
+    currency?: string;
+    debitAccountNumber?: string;
+    narration: string;
+    senderCountry?: string;
+    transactionId?: string;
+    senderCif?: string;
+}
+
+export interface NcbaPesaLinkRequest {
+    beneficiaryAccountNumber: string;
+    beneficiaryBankBic: string; // Bank code prefixed with 00
+    beneficiaryName: string;
+    amount: string | number;
+    currency?: string;
+    narration: string;
+    senderAccountNumber?: string;
+    senderCif?: string;
+    senderCountry?: string;
+    transactionId?: string;
+}
+
+export interface NcbaMiniStatementResponse {
+    errorCode: string;
+    errorMessage: string;
+    unitId?: string;
+    accountNumber: string;
+    accountType?: number;
+    currency: string;
+    availableBalance: string;
+    miniStatementList: Array<{
+        valueDate: string;
+        uniqueTransactionLegNo: string;
+        transactionCode: string;
+        transactionCodeDescription: string;
+        transactionAmount: string;
+        creditDebitFlag: 'Credit' | 'Debit';
+        transactionCurrency: string;
+        transactionReference: string;
+        narrative: string;
+        paymentDetails: string;
+        creditReference?: string;
+    }>;
 }
 
 export interface AirtelMoneyConfig {
@@ -6546,6 +6656,7 @@ export interface RemedialSession {
     createdAt: string;
     institutionId: string;
     payoutId?: string;
+    notes?: string;
 }
 
 export interface RemedialAllocation {

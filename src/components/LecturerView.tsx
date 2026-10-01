@@ -12,7 +12,8 @@ import {
     Sparkles, Play, Square, DollarSign, QrCode, CheckCircle2, Award, Clock, 
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
     Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
-    SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle
+    SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle,
+    ChevronLeft, ChevronRight, Search, Filter
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
@@ -228,12 +229,20 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [isCancelling, setIsCancelling] = useState(false);
     const [selectedSubjectId, setSelectedSubjectId] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState('');
+    const [selectedStream, setSelectedStream] = useState('');
     const [selectedPrefectId, setSelectedPrefectId] = useState('');
     const [signingPayout, setSigningPayout] = useState<RemedialPayout | null>(null);
     const [anonymousToken, setAnonymousToken] = useState('');
     const [isScannerModalOpen, setIsScannerModalOpen] = useState(false);
     const [scannerManualToken, setScannerManualToken] = useState('');
     const [showManualOverride, setShowManualOverride] = useState(false);
+
+    // Remedial Hours Logged Table Filters & Pagination
+    const [remedialStatusFilter, setRemedialStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Approved' | 'Paid' | 'Rejected'>('all');
+    const [remedialSearchQuery, setRemedialSearchQuery] = useState('');
+    const [remedialDateFilter, setRemedialDateFilter] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
+    const [remedialCurrentPage, setRemedialCurrentPage] = useState(1);
+    const remedialPageSize = 5;
 
     // Live Hardware Camera States for Prefect Scanner
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -250,10 +259,12 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         courseId: string;
         courseName: string;
         subjectId: string;
+        stream: string;
         prefects: any[];
         primaryPrefect: any;
+        allClassPrefects: any[];
         onStart: (override?: any) => Promise<void>;
-    }>({ courseId: '', courseName: '', subjectId: '', prefects: [], primaryPrefect: null, onStart: async () => {} });
+    }>({ courseId: '', courseName: '', subjectId: '', stream: '', prefects: [], primaryPrefect: null, allClassPrefects: [], onStart: async () => {} });
     const isStartingRemedialRef = useRef<boolean>(false);
 
     const stopCamera = useCallback(() => {
@@ -467,14 +478,36 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 let matchedPrefect: any = null;
                 let errorMsg = '';
 
+                // Extract stream from token if present: prefect_remedial_token_class_{courseId}_{stream}
+                let tokenStream = '';
+                if (detectedRaw.startsWith('prefect_remedial_token_class_')) {
+                    const remainder = detectedRaw.replace('prefect_remedial_token_class_', '');
+                    if (remainder.startsWith(ctx.courseId)) {
+                        const streamPart = remainder.slice(ctx.courseId.length);
+                        if (streamPart.startsWith('_')) {
+                            tokenStream = decodeURIComponent(streamPart.slice(1));
+                        }
+                    }
+                }
+
                 if (ctx.courseId && detectedRaw.includes(expectedPrefix)) {
-                    isValid = true;
-                    matchedPrefect = ctx.primaryPrefect || ctx.prefects[0] || { id: 'prefect_verified', name: 'Class Leader / Secretary' };
+                    // Check if stream matches when a specific stream is active
+                    if (tokenStream && ctx.stream && ctx.stream !== 'All Streams' && tokenStream.toLowerCase().trim() !== ctx.stream.toLowerCase().trim()) {
+                        isValid = false;
+                        errorMsg = `Wrong Stream Badge: This card belongs to Stream ${tokenStream}, but your current lesson is for Stream ${ctx.stream}.`;
+                    } else {
+                        isValid = true;
+                        if (tokenStream) {
+                            matchedPrefect = ctx.prefects.find(p => p.stream && p.stream.toLowerCase().trim() === tokenStream.toLowerCase().trim()) || ctx.primaryPrefect;
+                        } else {
+                            matchedPrefect = ctx.primaryPrefect || ctx.prefects[0] || { id: 'prefect_verified', name: 'Class Leader / Secretary' };
+                        }
+                    }
                 } else if (detectedRaw.includes('prefect_remedial_token_class_')) {
                     isValid = false;
                     errorMsg = `Wrong Class Badge: This card belongs to another class, not ${ctx.courseName}.`;
                 } else {
-                    // Check if code matches an authorized prefect for this course
+                    // Check if code matches an authorized prefect for this course & stream
                     matchedPrefect = ctx.prefects.find(p => 
                         (p.id && detectedRaw === p.id) ||
                         (p.admissionNumber && detectedRaw.toLowerCase().includes(p.admissionNumber.toLowerCase())) ||
@@ -484,18 +517,35 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     if (matchedPrefect) {
                         isValid = true;
                     } else {
-                        // Check JSON structure
-                        try {
-                            const parsed = JSON.parse(detectedRaw);
-                            if (parsed.courseId === ctx.courseId || parsed.classId === ctx.courseId) {
-                                isValid = true;
-                                matchedPrefect = ctx.prefects.find(p => p.id === parsed.prefectId || p.id === parsed.studentId) || ctx.primaryPrefect || { id: 'prefect_verified', name: parsed.name || 'Class Leader' };
-                            }
-                        } catch (_) {}
+                        // Check if student belongs to another stream of this class
+                        const otherStreamPrefect = (ctx.allClassPrefects || []).find(p =>
+                            (p.id && detectedRaw === p.id) ||
+                            (p.admissionNumber && detectedRaw.toLowerCase().includes(p.admissionNumber.toLowerCase())) ||
+                            (p.name && detectedRaw.toLowerCase().includes(p.name.toLowerCase()))
+                        );
+
+                        if (otherStreamPrefect && otherStreamPrefect.stream && ctx.stream && ctx.stream !== 'All Streams' && otherStreamPrefect.stream.toLowerCase().trim() !== ctx.stream.toLowerCase().trim()) {
+                            isValid = false;
+                            errorMsg = `Wrong Stream Leader: ${otherStreamPrefect.rawName || otherStreamPrefect.name} is in Stream ${otherStreamPrefect.stream}, but this lesson is for Stream ${ctx.stream}.`;
+                        } else {
+                            // Check JSON structure
+                            try {
+                                const parsed = JSON.parse(detectedRaw);
+                                if (parsed.courseId === ctx.courseId || parsed.classId === ctx.courseId) {
+                                    if (parsed.stream && ctx.stream && ctx.stream !== 'All Streams' && parsed.stream.toLowerCase().trim() !== ctx.stream.toLowerCase().trim()) {
+                                        isValid = false;
+                                        errorMsg = `Wrong Stream: Badge is for Stream ${parsed.stream}, not ${ctx.stream}.`;
+                                    } else {
+                                        isValid = true;
+                                        matchedPrefect = ctx.prefects.find(p => p.id === parsed.prefectId || p.id === parsed.studentId) || ctx.primaryPrefect || { id: 'prefect_verified', name: parsed.name || 'Class Leader' };
+                                    }
+                                }
+                            } catch (_) {}
+                        }
                     }
 
-                    if (!isValid) {
-                        errorMsg = `QR Code Rejected: Not an authorized Prefect Badge or Student Card for ${ctx.courseName}.`;
+                    if (!isValid && !errorMsg) {
+                        errorMsg = `QR Code Rejected: Not an authorized Prefect or Class Secretary badge for ${ctx.courseName}${ctx.stream ? ` (${ctx.stream})` : ''}.`;
                     }
                 }
 
@@ -678,6 +728,198 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             title.includes('academic officer')
         );
     }, [user, (props as any).activeRole]);
+
+    // Helper to extract distinct streams for a class
+    const getCourseStreams = useCallback((courseId: string): string[] => {
+        if (!courseId) return [];
+        const streamSet = new Set<string>();
+        const targetCourse = courses?.find(c => c.id === courseId);
+        if (Array.isArray(targetCourse?.streams) && targetCourse.streams.length > 0) {
+            targetCourse.streams.forEach(s => s && streamSet.add(String(s).trim()));
+        }
+        if (Array.isArray(targetCourse?.levels)) {
+            targetCourse.levels.forEach(lvl => {
+                const name = String(lvl.name || '').trim();
+                if (name) streamSet.add(name);
+            });
+        }
+        (enrollments || []).forEach(enr => {
+            const isMatch = enr.courseId === courseId || 
+                (enr.metadata?.gradeLevel && targetCourse?.name && enr.metadata.gradeLevel.trim().toLowerCase() === targetCourse.name.trim().toLowerCase());
+            if (isMatch) {
+                const str = (enr.metadata?.stream || (enr as any).stream || '').trim();
+                if (str && str !== 'All Streams') streamSet.add(str);
+            }
+        });
+        (props.users || []).forEach(u => {
+            if (u.courseId === courseId || (u as any).studentClass === targetCourse?.name) {
+                const str = ((u.metadata as any)?.stream || (u as any).stream || '').trim();
+                if (str && str !== 'All Streams') streamSet.add(str);
+            }
+        });
+        (remedialAllocations || []).forEach(a => {
+            if (a.courseId === courseId || a.className === targetCourse?.name) {
+                if (a.stream && a.stream !== 'All Streams' && !a.stream.includes('+')) {
+                    streamSet.add(a.stream.trim());
+                }
+            }
+        });
+        return Array.from(streamSet).filter(Boolean).sort();
+    }, [courses, enrollments, props.users, remedialAllocations]);
+
+    // Comprehensive Registry of Appointed Prefects & Class Secretaries across School
+    const availableLeaders = useMemo(() => {
+        const list: Array<{
+            id: string;
+            name: string;
+            rawName: string;
+            role: string;
+            leadershipPosition: string;
+            courseId: string;
+            className: string;
+            stream: string;
+            admissionNumber?: string;
+        }> = [];
+        const addedIds = new Set<string>();
+
+        // 1. From props.users (prefect role or metadata leadershipPosition)
+        (props.users || []).forEach(u => {
+            if (!u) return;
+            const isPrefectRole = u.role === 'prefect' || (u.metadata as any)?.isPrefect;
+            const leadPos = ((u.metadata as any)?.leadershipPosition || (u as any).leadershipPosition || (isPrefectRole ? 'Class Prefect' : '')).trim();
+            const stream = ((u.metadata as any)?.stream || (u as any).stream || '').trim();
+            const course = courses?.find(c => c.id === u.courseId || c.name === (u.metadata as any)?.className || c.name === (u as any).studentClass);
+            const className = course?.name || (u.metadata as any)?.className || (u as any).studentClass || '';
+            const courseId = course?.id || u.courseId || '';
+
+            if (isPrefectRole || leadPos) {
+                list.push({
+                    id: u.id,
+                    name: `${u.name}${leadPos ? ` (${leadPos})` : ''}`,
+                    rawName: u.name,
+                    role: u.role || 'prefect',
+                    leadershipPosition: leadPos || 'Class Prefect',
+                    courseId,
+                    className,
+                    stream,
+                    admissionNumber: (u as any).admissionNumber || (u.metadata as any)?.admissionNumber || ''
+                });
+                addedIds.add(u.id);
+            }
+        });
+
+        // 2. From enrollments (student leaders appointed in enrollment records)
+        (enrollments || []).forEach(enr => {
+            if (!enr) return;
+            const leadPos = (enr.leadershipPosition || enr.metadata?.leadershipPosition || (enr as any)?.leadership_position || '').trim();
+            if (!leadPos) return;
+
+            const studentUser = (props.users || []).find(u => u.id === enr.userId);
+            const rawId = studentUser?.id || enr.userId || enr.id;
+            if (addedIds.has(rawId)) return;
+
+            const studentName = studentUser?.name || enr.metadata?.studentName || enr.metadata?.name || enr.metadata?.fullName || 'Student Leader';
+            const grade = enr.metadata?.gradeLevel || (studentUser as any)?.studentClass || '';
+            const stream = (enr.metadata?.stream || (studentUser as any)?.stream || '').trim();
+            const matchedCourse = courses?.find(c => 
+                c.id === enr.courseId || 
+                (c.name && grade && c.name.trim().toLowerCase() === grade.trim().toLowerCase())
+            );
+
+            list.push({
+                id: rawId,
+                name: `${studentName} (${leadPos})`,
+                rawName: studentName,
+                role: 'prefect',
+                leadershipPosition: leadPos,
+                courseId: matchedCourse?.id || enr.courseId || '',
+                className: matchedCourse?.name || grade || '',
+                stream,
+                admissionNumber: enr.admissionNumber || enr.metadata?.admissionNumber || (studentUser as any)?.admissionNumber || ''
+            });
+            addedIds.add(rawId);
+        });
+
+        // 3. Fallback: all students in that class if no leader appointed yet
+        (props.users || []).forEach(u => {
+            if (!u || addedIds.has(u.id)) return;
+            if (u.role === 'student' || !u.role) {
+                const course = courses?.find(c => c.id === u.courseId || c.name === (u.metadata as any)?.className || c.name === (u as any).studentClass);
+                const stream = ((u.metadata as any)?.stream || (u as any).stream || '').trim();
+                list.push({
+                    id: u.id,
+                    name: `${u.name} (Student)`,
+                    rawName: u.name,
+                    role: 'student',
+                    leadershipPosition: 'Student',
+                    courseId: course?.id || u.courseId || '',
+                    className: course?.name || (u.metadata as any)?.className || (u as any).studentClass || '',
+                    stream,
+                    admissionNumber: (u as any).admissionNumber || (u.metadata as any)?.admissionNumber || ''
+                });
+                addedIds.add(u.id);
+            }
+        });
+
+        return list;
+    }, [props.users, enrollments, courses]);
+
+    // Remedial Hours Logged: Sorted Newest to Oldest + Filtering + Pagination
+    const filteredAndSortedRemedialSessions = useMemo(() => {
+        // 1. Sort newest to oldest by startTime / createdAt
+        const sorted = [...(remedialSessions || [])].sort((a, b) => {
+            const timeA = new Date(a.startTime || a.createdAt || 0).getTime();
+            const timeB = new Date(b.startTime || b.createdAt || 0).getTime();
+            return timeB - timeA;
+        });
+
+        return sorted.filter(s => {
+            if (!s) return false;
+            const isProg = s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress';
+            if (remedialStatusFilter === 'In Progress' && !isProg) return false;
+            if (remedialStatusFilter === 'Prefect Confirmed' && s.status !== 'Prefect Confirmed') return false;
+            if (remedialStatusFilter === 'Pending Duty Approval' && s.status !== 'Pending Duty Approval') return false;
+            if (remedialStatusFilter === 'Approved' && s.status !== 'Approved') return false;
+            if (remedialStatusFilter === 'Paid' && s.status !== 'Paid' && s.status !== 'Cash Issued to DOS') return false;
+            if (remedialStatusFilter === 'Rejected' && !s.status?.toLowerCase().includes('reject')) return false;
+
+            // Date filter
+            if (remedialDateFilter !== 'all' && s.startTime) {
+                const sessDate = new Date(s.startTime);
+                const now = new Date();
+                if (remedialDateFilter === 'today') {
+                    if (sessDate.toDateString() !== now.toDateString()) return false;
+                } else if (remedialDateFilter === 'this_week') {
+                    const diffTime = Math.abs(now.getTime() - sessDate.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (diffDays > 7) return false;
+                } else if (remedialDateFilter === 'this_month') {
+                    if (sessDate.getMonth() !== now.getMonth() || sessDate.getFullYear() !== now.getFullYear()) return false;
+                }
+            }
+
+            // Search query
+            if (remedialSearchQuery.trim()) {
+                const q = remedialSearchQuery.toLowerCase().trim();
+                const subName = (s.subjectName || '').toLowerCase();
+                const clsName = (s.className || '').toLowerCase();
+                const prefName = (s.prefectName || '').toLowerCase();
+                const stream = (s.stream || '').toLowerCase();
+                const st = (s.status || '').toLowerCase();
+                if (!subName.includes(q) && !clsName.includes(q) && !prefName.includes(q) && !stream.includes(q) && !st.includes(q)) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }, [remedialSessions, remedialStatusFilter, remedialDateFilter, remedialSearchQuery]);
+
+    const totalRemedialPages = Math.max(1, Math.ceil(filteredAndSortedRemedialSessions.length / remedialPageSize));
+    const paginatedRemedialSessions = useMemo(() => {
+        const start = (remedialCurrentPage - 1) * remedialPageSize;
+        return filteredAndSortedRemedialSessions.slice(start, start + remedialPageSize);
+    }, [filteredAndSortedRemedialSessions, remedialCurrentPage, remedialPageSize]);
 
     // Class supervisor & leave out rights check (shared permissions)
     const canAccessLeaveOutAndSupervisor = useMemo(() => {
@@ -935,8 +1177,29 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 apiService.fetchRemedialAllocations(instId).catch(() => []),
                 apiService.fetchRemedialRateSettings(instId).catch(() => [])
             ]);
-            setRemedialSessions((sessList || []).filter((s: RemedialSession) => s && s.teacherId === user?.id));
-            setRemedialPayouts((payList || []).filter((p: RemedialPayout) => p && p.teacherId === user?.id));
+            const userTeacherSessions = (sessList || []).filter((s: RemedialSession) => 
+                s && (s.teacherId === user?.id || (s as any).teacher_id === user?.id || String(s.teacherId || '') === String(user?.id || ''))
+            );
+
+            setRemedialSessions(prev => {
+                // Preserve locally active in-progress session if server response does not yet reflect it
+                const isProg = (st?: string) => st === 'In Progress' || (typeof st === 'string' && st.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress');
+                const localActive = (prev || []).find(s => 
+                    s && isProg(s.status) && (s.teacherId === user?.id || (s as any).teacher_id === user?.id || !s.teacherId)
+                );
+                const hasServerActive = userTeacherSessions.some(s => s && isProg(s.status));
+                const list = (localActive && !hasServerActive)
+                    ? [localActive, ...userTeacherSessions.filter(s => s.id !== localActive.id)]
+                    : userTeacherSessions;
+
+                // Sort newest to oldest so active/recent sessions are always first
+                return [...list].sort((a, b) => {
+                    const timeA = new Date(a.startTime || a.createdAt || 0).getTime();
+                    const timeB = new Date(b.startTime || b.createdAt || 0).getTime();
+                    return timeB - timeA;
+                });
+            });
+            setRemedialPayouts((payList || []).filter((p: RemedialPayout) => p && (p.teacherId === user?.id || (p as any).teacher_id === user?.id)));
             setRemedialAllocations(allocList || []);
             if (ratesList && ratesList.length > 0) {
                 setRateSetting(ratesList[0]);
@@ -1031,8 +1294,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 const todayStr = new Date(session.startTime).toDateString();
                 const orphanDuplicates = (remedialSessions || []).filter(s =>
                     s.id !== session.id &&
-                    s.teacherId === session.teacherId &&
-                    s.status === 'In Progress' &&
+                    (s.teacherId === session.teacherId || (s as any).teacher_id === session.teacherId) &&
+                    (s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') &&
                     new Date(s.startTime).toDateString() === todayStr &&
                     (s.courseId === session.courseId || s.className === session.className || s.subjectId === session.subjectId)
                 );
@@ -1667,7 +1930,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     )}
 
                     {((activeTab === 'remedials') || (activeTab === 'my_timetable' && timetableSubTab === 'remedials')) && (() => {
-                        const activeSession = remedialSessions.find(s => s.status === 'In Progress');
+                        const activeSession = remedialSessions.find(s => 
+                            s && (s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress')
+                        );
 
                         // Today's Day Name
                         const todayDayName = (() => {
@@ -1708,23 +1973,34 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             return todayAllocs[0];
                         })();
 
-                        // Effective Course ID and Subject ID (auto-selected from schedule if not manually picked)
+                        // Effective Course ID, Subject ID and Stream (auto-selected from schedule if not manually picked)
                         const effectiveCourseId = selectedCourseId || todaysScheduledRemedial?.courseId || '';
                         const effectiveSubjectId = selectedSubjectId || todaysScheduledRemedial?.subjectId || '';
+                        const effectiveStream = selectedStream || (todaysScheduledRemedial?.stream && todaysScheduledRemedial.stream !== 'All Streams' ? todaysScheduledRemedial.stream : '');
 
-                        // Eligible prefects for effective course
+                        // Distinct streams available for effective class
+                        const availableClassStreams = getCourseStreams(effectiveCourseId);
+
+                        // Eligible prefects & secretaries for effective course
                         const targetCourse = courses?.find(c => c.id === effectiveCourseId);
                         const targetCourseName = targetCourse?.name?.toLowerCase().trim() || '';
 
-                        const coursePrefects = (props.users || []).filter(u => {
-                            const isStudentOrPrefect = u.role === 'student' || (u.role as string) === 'prefect';
-                            if (!isStudentOrPrefect) return false;
-                            const classMatch = u.courseId === effectiveCourseId || 
-                                ((u as any).studentClass && targetCourseName && (u as any).studentClass.toLowerCase().trim() === targetCourseName);
-                            return classMatch;
-                        });
+                        const inClassLeaders = availableLeaders.filter(l => 
+                            l.courseId === effectiveCourseId || 
+                            (l.className && targetCourseName && l.className.toLowerCase().trim() === targetCourseName)
+                        );
 
-                        // Priority prefect (appointed leader or class secretary)
+                        // Strictly prioritize leaders matching the selected stream
+                        const coursePrefects = (() => {
+                            if (effectiveStream && effectiveStream !== 'All Streams') {
+                                const sLower = effectiveStream.toLowerCase().trim();
+                                const inStream = inClassLeaders.filter(l => l.stream && l.stream.toLowerCase().trim() === sLower);
+                                if (inStream.length > 0) return inStream;
+                            }
+                            return inClassLeaders;
+                        })();
+
+                        // Priority prefect (appointed leader or class secretary matching stream)
                         const primaryPrefect = (() => {
                             if (selectedPrefectId) {
                                 const matched = coursePrefects.find(p => p.id === selectedPrefectId);
@@ -1732,7 +2008,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             }
                             if (coursePrefects.length === 0) return null;
                             const leader = coursePrefects.find(u => {
-                                const pos = ((u.metadata as any)?.leadershipPosition || (u as any).leadershipPosition || u.role || '').toLowerCase();
+                                const pos = (u.leadershipPosition || u.role || '').toLowerCase();
                                 return pos.includes('prefect') || pos.includes('secretary') || pos.includes('captain') || pos.includes('leader');
                             });
                             return leader || coursePrefects[0];
@@ -1740,7 +2016,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                         const effectivePrefectId = selectedPrefectId || primaryPrefect?.id || '';
 
-                        const handleStartRemedial = async (override?: { courseId?: string; subjectId?: string; prefectId?: string }) => {
+                        const handleStartRemedial = async (override?: { courseId?: string; subjectId?: string; prefectId?: string; stream?: string }) => {
                             if (isStartingRemedialRef.current) return;
                             isStartingRemedialRef.current = true;
                             setIsProcessingSession(true);
@@ -1748,6 +2024,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             const courseId = override?.courseId || effectiveCourseId;
                             const subjectId = override?.subjectId || effectiveSubjectId;
                             const prefectId = override?.prefectId || effectivePrefectId;
+                            const currentStream = override?.stream || effectiveStream;
 
                             if (!subjectId || !courseId) {
                                 isStartingRemedialRef.current = false;
@@ -1756,7 +2033,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             }
 
                             // Prevent duplicate session start if teacher already has an active session in progress
-                            const existingActiveSession = remedialSessions.find(s => s.teacherId === user?.id && s.status === 'In Progress');
+                            const isProgStatus = (st?: string) => st === 'In Progress' || (typeof st === 'string' && st.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress');
+                            const existingActiveSession = remedialSessions.find(s => 
+                                (s.teacherId === user?.id || (s as any).teacher_id === user?.id) && isProgStatus(s.status)
+                            );
                             if (existingActiveSession) {
                                 isStartingRemedialRef.current = false;
                                 setIsProcessingSession(false);
@@ -1793,15 +2073,15 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     return alert(`Daily Remedial Limit Reached: You have already conducted the maximum ${limitLabel} limit of ${maxLimit} remedial lesson(s) allowed per day.`);
                                 }
 
-                                const prefect = props.users?.find(u => u.id === prefectId) || primaryPrefect;
+                                const prefect = availableLeaders.find(u => u.id === prefectId) || primaryPrefect;
                                 const course = courses?.find(c => c.id === courseId);
                                 const subject = subjects?.find(s => s.id === subjectId);
 
                                 const courseName = course?.name || todaysScheduledRemedial?.className || 'Class';
                                 const subjectName = subject?.name || todaysScheduledRemedial?.subjectName || 'Subject';
-                                const stream = todaysScheduledRemedial?.stream || '';
-                                const displayClassName = stream && stream !== 'All Streams' && !courseName.includes(stream) 
-                                    ? `${courseName} (${stream})` 
+                                const displayStream = currentStream || prefect?.stream || todaysScheduledRemedial?.stream || '';
+                                const displayClassName = displayStream && displayStream !== 'All Streams' && !courseName.includes(displayStream) 
+                                    ? `${courseName} (${displayStream})` 
                                     : courseName;
 
                                 const matchedAlloc = todaysScheduledRemedial || (myRemedialAllocations || []).find(a =>
@@ -1815,16 +2095,17 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     : 60;
 
                                 const newSession: RemedialSession = {
-                                    id: `rem_${Date.now()}`,
+                                    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`,
                                     teacherId: user?.id || '',
                                     teacherName: user?.name || 'Teacher',
                                     subjectId: subjectId,
                                     subjectName: subjectName,
                                     courseId: courseId,
                                     className: displayClassName,
+                                    stream: displayStream,
                                     prefectId: prefect?.id || 'prefect_verified',
-                                    prefectName: prefect?.name || 'Class Leader / Secretary',
-                                    prefectToken: `prefect_remedial_token_class_${courseId}`,
+                                    prefectName: prefect?.rawName || prefect?.name || 'Class Leader / Secretary',
+                                    prefectToken: `prefect_remedial_token_class_${courseId}${displayStream ? `_${encodeURIComponent(displayStream)}` : ''}`,
                                     startTime: new Date().toISOString(),
                                     hours: Math.round((schedDurationMins / 60) * 100) / 100,
                                     durationHours: Math.round((schedDurationMins / 60) * 100) / 100,
@@ -1840,6 +2121,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 };
 
                                 await apiService.saveRemedialSession(newSession);
+                                // Optimistic UI: immediately show session as active so the
+                                // "Lesson In Progress" banner appears at the top before the DB round-trip
+                                const isProg = (st?: string) => st === 'In Progress' || (typeof st === 'string' && st.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress');
+                                setRemedialSessions(prev => [
+                                    newSession,
+                                    ...(prev || []).filter(s => 
+                                        s && s.id !== newSession.id &&
+                                        (!isProg(s.status) || (s.teacherId !== (user?.id || '') && (s as any).teacher_id !== (user?.id || '')))
+                                    )
+                                ]);
                                 props.onLogAction?.(`Started remedial lesson: ${subjectName} for ${displayClassName}`);
                                 setIsScannerModalOpen(false);
                                 stopCamera();
@@ -1852,7 +2143,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     ? `\n\nℹ️ Early Login Note: You logged in ${earlyMins} min(s) before scheduled start (${schedStart}). The early ${earlyMins} minute(s) will be omitted so teaching time counts from ${schedStart}.`
                                     : '';
 
-                                alert(`⚡ Remedial Lesson Started!\n\n• Class: ${displayClassName}\n• Subject: ${subjectName}\n• Prefect Sign-off: ${newSession.prefectName}\n• Started: ${new Date().toLocaleTimeString()}${schedStart ? `\n• Timetable Slot: ${schedStart} - ${schedEnd}` : ''}${earlyNote}\n\nThe session timer is now running.`);
+                                alert(`⚡ Remedial Lesson Started!\n\n• Class: ${displayClassName}\n• Subject: ${subjectName}\n• Prefect/Secretary: ${newSession.prefectName}\n• Started: ${new Date().toLocaleTimeString()}${schedStart ? `\n• Timetable Slot: ${schedStart} - ${schedEnd}` : ''}${earlyNote}\n\nThe session timer is now running.`);
                                 loadRemedialData();
                             } catch (err: any) {
                                 alert(err.message || 'Failed to start remedial session');
@@ -1867,8 +2158,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             courseId: effectiveCourseId,
                             courseName: courses?.find(c => c.id === effectiveCourseId)?.name || todaysScheduledRemedial?.className || 'Selected Class',
                             subjectId: effectiveSubjectId,
+                            stream: effectiveStream,
                             prefects: coursePrefects,
                             primaryPrefect: primaryPrefect,
+                            allClassPrefects: inClassLeaders,
                             onStart: handleStartRemedial
                         };
 
@@ -2367,7 +2660,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                         <div className="text-left sm:text-right">
                                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Class Prefect / Secretary</p>
                                                             <p className="text-xs font-black text-indigo-600 dark:text-indigo-400">
-                                                                {primaryPrefect?.name || 'Class Leader'}
+                                                                {primaryPrefect ? `${primaryPrefect.rawName || primaryPrefect.name}${primaryPrefect.leadershipPosition ? ` (${primaryPrefect.leadershipPosition})` : ''}` : 'Class Leader'}
+                                                                {primaryPrefect?.stream ? ` • Stream: ${primaryPrefect.stream}` : ''}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -2376,14 +2670,14 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     <div className="flex flex-wrap items-center gap-3">
                                                         <button
                                                             onClick={() => setIsScannerModalOpen(true)}
-                                                            className="flex-1 sm:flex-initial px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                            className="flex-1 sm:flex-initial px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                                         >
                                                             <Camera className="w-4 h-4" /> Launch Prefect Scanner to Start
                                                         </button>
 
                                                         <button
                                                             onClick={() => handleStartRemedial()}
-                                                            className="flex-1 sm:flex-initial px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                                                            className="flex-1 sm:flex-initial px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                                             title="Immediately start lesson with auto-detected class and prefect"
                                                         >
                                                             <Play className="w-4 h-4 text-emerald-400 dark:text-emerald-600" /> 1-Tap Quick Start
@@ -2391,10 +2685,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                                                         <button
                                                             onClick={() => setShowManualOverride(prev => !prev)}
-                                                            className="px-4 py-3.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                                            className="px-4 py-3.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                                         >
                                                             <SlidersHorizontal className="w-3.5 h-3.5" />
-                                                            <span>{showManualOverride ? 'Hide Override' : 'Change Class / Subject'}</span>
+                                                            <span>{showManualOverride ? 'Hide Override' : 'Change Class / Stream / Subject'}</span>
                                                             {showManualOverride ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                                         </button>
                                                     </div>
@@ -2403,7 +2697,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                                             {/* Manual Override Dropdowns (Always available when toggled or when no scheduled lesson exists today) */}
                                             {(showManualOverride || !todaysScheduledRemedial) && (
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 animate-fade-in">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end bg-slate-50 dark:bg-slate-900/40 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 animate-fade-in">
                                                     <div>
                                                         <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Subject</label>
                                                         <select 
@@ -2417,42 +2711,59 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     </div>
 
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Class Stream</label>
+                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Class / Grade</label>
                                                         <select 
                                                             value={selectedCourseId || effectiveCourseId}
-                                                            onChange={e => { setSelectedCourseId(e.target.value); setSelectedPrefectId(''); }}
+                                                            onChange={e => { setSelectedCourseId(e.target.value); setSelectedStream(''); setSelectedPrefectId(''); }}
                                                             className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
                                                         >
-                                                            <option value="">-- Stream --</option>
+                                                            <option value="">-- Class --</option>
                                                             {courses?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                                         </select>
                                                     </div>
 
                                                     <div>
-                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Prefect Present</label>
+                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Class Stream</label>
+                                                        <select 
+                                                            value={selectedStream || effectiveStream}
+                                                            onChange={e => { setSelectedStream(e.target.value); setSelectedPrefectId(''); }}
+                                                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
+                                                            disabled={!effectiveCourseId}
+                                                        >
+                                                            <option value="">-- All Streams --</option>
+                                                            {availableClassStreams.map(s => <option key={s} value={s}>Stream: {s}</option>)}
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Prefect / Secretary</label>
                                                         <select 
                                                             value={selectedPrefectId || effectivePrefectId}
                                                             onChange={e => setSelectedPrefectId(e.target.value)}
                                                             className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none dark:text-white"
                                                             disabled={!effectiveCourseId}
                                                         >
-                                                            <option value="">-- Prefect --</option>
-                                                            {coursePrefects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                            <option value="">-- Select Leader / Secretary --</option>
+                                                            {coursePrefects.map(p => (
+                                                                <option key={p.id} value={p.id}>
+                                                                    {p.name} {p.stream ? `• Stream: ${p.stream}` : ''}
+                                                                </option>
+                                                            ))}
                                                         </select>
                                                     </div>
 
-                                                    <div className="md:col-span-3 pt-3 flex items-center gap-3">
+                                                    <div className="sm:col-span-2 md:col-span-4 pt-3 flex items-center gap-3">
                                                         <button 
                                                             onClick={() => setIsScannerModalOpen(true)}
                                                             disabled={!effectiveSubjectId || !effectiveCourseId}
-                                                            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            className="px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                                         >
                                                             <Camera className="w-4 h-4" /> Launch Scanner
                                                         </button>
                                                         <button 
                                                             onClick={() => handleStartRemedial()}
                                                             disabled={!effectiveSubjectId || !effectiveCourseId}
-                                                            className="px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            className="px-6 py-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                                         >
                                                             <Play className="w-4 h-4 text-emerald-400 dark:text-emerald-600" /> Start Selected Lesson
                                                         </button>
@@ -2641,8 +2952,28 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                     let matched = null;
                                                                     let err = '';
 
+                                                                    // Extract stream from token if present: prefect_remedial_token_class_{courseId}_{stream}
+                                                                    let tokenStream = '';
+                                                                    if (raw.startsWith('prefect_remedial_token_class_')) {
+                                                                        const remainder = raw.replace('prefect_remedial_token_class_', '');
+                                                                        if (remainder.startsWith(ctx.courseId)) {
+                                                                            const streamPart = remainder.slice(ctx.courseId.length);
+                                                                            if (streamPart.startsWith('_')) {
+                                                                                tokenStream = decodeURIComponent(streamPart.slice(1));
+                                                                            }
+                                                                        }
+                                                                    }
+
                                                                     if (raw.includes(expectedPrefix)) {
-                                                                        matched = ctx.primaryPrefect || ctx.prefects[0] || { id: 'prefect_verified', name: 'Class Leader' };
+                                                                        if (tokenStream && ctx.stream && ctx.stream !== 'All Streams' && tokenStream.toLowerCase().trim() !== ctx.stream.toLowerCase().trim()) {
+                                                                            err = `Wrong Stream: This token belongs to Stream ${tokenStream}, but your current lesson is for Stream ${ctx.stream}.`;
+                                                                        } else {
+                                                                            if (tokenStream) {
+                                                                                matched = ctx.prefects.find(p => p.stream && p.stream.toLowerCase().trim() === tokenStream.toLowerCase().trim()) || ctx.primaryPrefect;
+                                                                            } else {
+                                                                                matched = ctx.primaryPrefect || ctx.prefects[0] || { id: 'prefect_verified', name: 'Class Leader / Secretary' };
+                                                                            }
+                                                                        }
                                                                     } else if (raw.includes('prefect_remedial_token_class_')) {
                                                                         err = `Wrong Class: This token belongs to another class, not ${ctx.courseName}.`;
                                                                     } else {
@@ -2652,7 +2983,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                             (p.name && raw.toLowerCase().includes(p.name.toLowerCase()))
                                                                         );
                                                                         if (!matched) {
-                                                                            err = `Token Rejected: Not an authorized Prefect for ${ctx.courseName}.`;
+                                                                            const otherStreamPrefect = (ctx.allClassPrefects || []).find(p =>
+                                                                                (p.id && raw === p.id) ||
+                                                                                (p.admissionNumber && raw.toLowerCase().includes(p.admissionNumber.toLowerCase())) ||
+                                                                                (p.name && raw.toLowerCase().includes(p.name.toLowerCase()))
+                                                                            );
+                                                                            if (otherStreamPrefect && otherStreamPrefect.stream && ctx.stream && otherStreamPrefect.stream.toLowerCase().trim() !== ctx.stream.toLowerCase().trim()) {
+                                                                                err = `Wrong Stream Leader: ${otherStreamPrefect.rawName || otherStreamPrefect.name} is in Stream ${otherStreamPrefect.stream}, but this lesson is for Stream ${ctx.stream}.`;
+                                                                            } else {
+                                                                                err = `Token Rejected: Not an authorized Prefect or Secretary for ${ctx.courseName}${ctx.stream ? ` (${ctx.stream})` : ''}.`;
+                                                                            }
                                                                         }
                                                                     }
 
@@ -2699,56 +3039,202 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
-                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider italic flex items-center gap-2">
-                                            <Clock className="w-4.5 h-4.5 text-indigo-500" /> Remedial Hours Logged
-                                        </h4>
-                                        <div className="max-h-[300px] overflow-y-auto space-y-3 custom-scrollbar">
-                                            {remedialSessions.length === 0 ? (
-                                                <p className="text-slate-400 font-bold text-xs uppercase tracking-wider py-8 text-center">No logs recorded.</p>
-                                            ) : (
-                                                remedialSessions.map(s => (
-                                                    <div key={s.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                                                        <div>
-                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase">
-                                                                {s.subjectName || subjects?.find(sub => sub.id === s.subjectId)?.name || 'Remedial Subject'}
-                                                            </p>
-                                                            <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
-                                                                {(s.className || courses?.find(c => c.id === s.courseId)?.name || 'Class')} • pref. {s.prefectName || 'Verified'}
-                                                            </p>
-                                                            <p className="text-[9px] text-slate-400 font-medium">{new Date(s.startTime).toLocaleDateString()}</p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            {s.status === 'In Progress' ? (
-                                                                <p className="text-xs font-black text-amber-500 uppercase tracking-wider">In Progress</p>
-                                                            ) : (
-                                                                <p className="text-xs font-black text-slate-900 dark:text-white">
-                                                                    {s.hours || (s as any).durationHours || (s as any).duration_hours || (s.endTime && s.startTime ? Math.max(1, Math.round(((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000) * 10) / 10) : 1)} hrs
-                                                                </p>
-                                                            )}
-                                                            <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-block mt-1 ${
-                                                                s.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                                                s.status === 'Cash Issued to DOS' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300' :
-                                                                s.status === 'Pending Operations Payout' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
-                                                                s.status === 'Pending Headteacher Approval' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
-                                                                s.status === 'Pending Duty Approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
-                                                                s.status === 'Duty Rejected - Forwarded to Headteacher' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
-                                                                s.status === 'Headteacher Rejected' ? 'bg-red-200 text-red-800 dark:bg-red-950/80 dark:text-red-300' :
-                                                                s.status === 'Approved' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
-                                                                s.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
-                                                                'bg-slate-100 text-slate-500'
-                                                            }`}>
-                                                                {s.status}
-                                                            </span>
-                                                            {s.dutyRejectionReason && (
-                                                                <p className="text-[8px] text-rose-500 font-bold mt-0.5 max-w-[160px] truncate" title={s.dutyRejectionReason}>
-                                                                    TOD Rejected: {s.dutyRejectionReason}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider italic flex items-center gap-2">
+                                                    <Clock className="w-4.5 h-4.5 text-indigo-500" /> Remedial Hours Logged
+                                                </h4>
+                                                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-mono">
+                                                    {filteredAndSortedRemedialSessions.length}
+                                                </span>
+                                            </div>
+                                            {remedialSessions.some(s => s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && (
+                                                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">
+                                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                                    Lesson In Progress
+                                                </span>
                                             )}
                                         </div>
+
+                                        {/* Filters & Search Bar */}
+                                        <div className="space-y-2 pt-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <div className="relative flex-1 min-w-[160px]">
+                                                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search class, stream, subject, prefect..."
+                                                        value={remedialSearchQuery}
+                                                        onChange={(e) => {
+                                                            setRemedialSearchQuery(e.target.value);
+                                                            setRemedialCurrentPage(1);
+                                                        }}
+                                                        className="w-full pl-8 pr-6 py-1.5 text-xs bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                    />
+                                                    {remedialSearchQuery && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setRemedialSearchQuery('');
+                                                                setRemedialCurrentPage(1);
+                                                            }}
+                                                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                <select
+                                                    value={remedialStatusFilter}
+                                                    onChange={(e) => {
+                                                        setRemedialStatusFilter(e.target.value as any);
+                                                        setRemedialCurrentPage(1);
+                                                    }}
+                                                    className="px-2.5 py-1.5 text-xs font-semibold bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                >
+                                                    <option value="all">All Statuses</option>
+                                                    <option value="In Progress">⚡ In Progress</option>
+                                                    <option value="Prefect Confirmed">Prefect Confirmed</option>
+                                                    <option value="Pending Duty Approval">Pending Duty Approval</option>
+                                                    <option value="Approved">Approved</option>
+                                                    <option value="Paid">Paid / Issued</option>
+                                                    <option value="Rejected">Rejected</option>
+                                                </select>
+
+                                                <select
+                                                    value={remedialDateFilter}
+                                                    onChange={(e) => {
+                                                        setRemedialDateFilter(e.target.value as any);
+                                                        setRemedialCurrentPage(1);
+                                                    }}
+                                                    className="px-2.5 py-1.5 text-xs font-semibold bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                >
+                                                    <option value="all">All Periods</option>
+                                                    <option value="today">Today</option>
+                                                    <option value="this_week">This Week</option>
+                                                    <option value="this_month">This Month</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="max-h-[340px] overflow-y-auto space-y-3 custom-scrollbar">
+                                            {filteredAndSortedRemedialSessions.length === 0 ? (
+                                                <div className="py-8 text-center space-y-2">
+                                                    <p className="text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                        {remedialSearchQuery || remedialStatusFilter !== 'all' || remedialDateFilter !== 'all'
+                                                            ? 'No sessions match your filter criteria.'
+                                                            : 'No remedial logs recorded yet.'}
+                                                    </p>
+                                                    {(remedialSearchQuery || remedialStatusFilter !== 'all' || remedialDateFilter !== 'all') && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setRemedialSearchQuery('');
+                                                                setRemedialStatusFilter('all');
+                                                                setRemedialDateFilter('all');
+                                                                setRemedialCurrentPage(1);
+                                                            }}
+                                                            className="text-[11px] text-indigo-500 hover:text-indigo-600 font-bold underline"
+                                                        >
+                                                            Reset Filters
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                paginatedRemedialSessions.map(s => {
+                                                    const isProgress = s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress';
+                                                    return (
+                                                        <div 
+                                                            key={s.id} 
+                                                            className={`flex justify-between items-center p-4 rounded-2xl border transition-all ${
+                                                                isProgress 
+                                                                    ? 'bg-amber-500/5 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700/60 shadow-sm' 
+                                                                    : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-700'
+                                                            }`}
+                                                        >
+                                                            <div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white uppercase">
+                                                                        {s.subjectName || subjects?.find(sub => sub.id === s.subjectId)?.name || 'Remedial Subject'}
+                                                                    </p>
+                                                                    {isProgress && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500 text-white animate-pulse">
+                                                                            Live
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
+                                                                    {(s.className || courses?.find(c => c.id === s.courseId)?.name || 'Class')}
+                                                                    {s.stream ? ` • Stream: ${s.stream}` : ''} • pref. {s.prefectName || 'Verified'}
+                                                                </p>
+                                                                <p className="text-[9px] text-slate-400 font-medium">
+                                                                    {new Date(s.startTime).toLocaleDateString()} {new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                {isProgress ? (
+                                                                    <p className="text-xs font-black text-amber-500 uppercase tracking-wider">In Progress</p>
+                                                                ) : (
+                                                                    <p className="text-xs font-black text-slate-900 dark:text-white">
+                                                                        {s.hours || (s as any).durationHours || (s as any).duration_hours || (s.endTime && s.startTime ? Math.max(1, Math.round(((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000) * 10) / 10) : 1)} hrs
+                                                                    </p>
+                                                                )}
+                                                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest inline-block mt-1 ${
+                                                                    s.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                                    s.status === 'Cash Issued to DOS' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300' :
+                                                                    s.status === 'Pending Operations Payout' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
+                                                                    s.status === 'Pending Headteacher Approval' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                                    s.status === 'Pending Duty Approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                                    s.status === 'Duty Rejected - Forwarded to Headteacher' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
+                                                                    s.status === 'Headteacher Rejected' ? 'bg-red-200 text-red-800 dark:bg-red-950/80 dark:text-red-300' :
+                                                                    s.status === 'Approved' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
+                                                                    s.status === 'Prefect Confirmed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                                    'bg-slate-100 text-slate-500'
+                                                                }`}>
+                                                                    {s.status}
+                                                                </span>
+                                                                {s.dutyRejectionReason && (
+                                                                    <p className="text-[8px] text-rose-500 font-bold mt-0.5 max-w-[160px] truncate" title={s.dutyRejectionReason}>
+                                                                        TOD Rejected: {s.dutyRejectionReason}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        {/* Pagination Controls */}
+                                        {filteredAndSortedRemedialSessions.length > remedialPageSize && (
+                                            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-700/60">
+                                                <span className="text-[11px] font-bold text-slate-400">
+                                                    Showing {Math.min((remedialCurrentPage - 1) * remedialPageSize + 1, filteredAndSortedRemedialSessions.length)}–{Math.min(remedialCurrentPage * remedialPageSize, filteredAndSortedRemedialSessions.length)} of {filteredAndSortedRemedialSessions.length}
+                                                </span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRemedialCurrentPage(prev => Math.max(1, prev - 1))}
+                                                        disabled={remedialCurrentPage <= 1}
+                                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition text-slate-600 dark:text-slate-300"
+                                                        title="Previous page"
+                                                    >
+                                                        <ChevronLeft className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 px-1 font-mono">
+                                                        {remedialCurrentPage} / {totalRemedialPages}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRemedialCurrentPage(prev => Math.min(totalRemedialPages, prev + 1))}
+                                                        disabled={remedialCurrentPage >= totalRemedialPages}
+                                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition text-slate-600 dark:text-slate-300"
+                                                        title="Next page"
+                                                    >
+                                                        <ChevronRight className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">

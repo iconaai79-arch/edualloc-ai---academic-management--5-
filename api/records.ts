@@ -4112,6 +4112,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete c.durationHours;
                     }
 
+                    // Normalize status
+                    if (c.status && typeof c.status === 'string') {
+                        const sLower = c.status.toLowerCase().replace(/[\s_-]+/g, '');
+                        if (sLower === 'inprogress') {
+                            c.status = 'In Progress';
+                        }
+                    }
+
+                    // Ensure date and day_of_week are populated
+                    if (!c.date && c.start_time) {
+                        c.date = String(c.start_time).split('T')[0];
+                    }
+                    if (!c.day_of_week && c.start_time) {
+                        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        try {
+                            c.day_of_week = days[new Date(c.start_time).getDay()];
+                        } catch (_) {}
+                    }
+
                     // Pack extended calculation/workflow columns into metadata so un-cached columns are never sent at top level
                     const EXTENDED_SESSION_KEYS = [
                         'duration_minutes', 'hours', 'scheduled_start_time', 'scheduled_end_time',
@@ -4125,13 +4144,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'operations_disbursed', 'operations_manager_name', 'operations_manager_id', 'operations_disbursed_by', 'operations_disbursed_at',
                         'cash_disbursed_to_dos_at', 'cash_voucher_ref',
                         'paid_by_dos_name', 'paid_by_dos_id', 'paid_at',
-                        'teacher_signature_data_url', 'payment_method'
+                        'teacher_signature_data_url', 'payment_method',
+                        'class_name', 'subject_name', 'teacher_name', 'prefect_token', 'stream', 'is_joint', 'joint_streams'
                     ];
 
                     const meta = typeof c.metadata === 'object' && c.metadata !== null ? { ...c.metadata } : {};
                     EXTENDED_SESSION_KEYS.forEach(k => {
                         if (c[k] !== undefined && c[k] !== null) {
                             if (meta[k] === undefined) meta[k] = c[k];
+                            // Also mirror camelCase in metadata so either access works
+                            const camelK = k.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
+                            if (meta[camelK] === undefined) meta[camelK] = c[k];
                             delete c[k];
                         }
                     });

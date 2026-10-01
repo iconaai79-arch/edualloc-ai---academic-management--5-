@@ -2481,7 +2481,10 @@ export const apiService = {
                 'staff_attendance_daily', 'student_attendance',
                 'zkteco_commands', 'zkteco_attendance_raw',
                 'sms_logs', 'sms_outbox', 'sms_gateway_logs', 'integration_logs',
-                'audit_logs', 'activity_logs'
+                'audit_logs', 'activity_logs',
+                // Remedial sessions must have a UUID id — strip any prefixed string id
+                // so Postgres generates a valid UUID via DEFAULT gen_random_uuid()
+                'school_remedial_sessions'
             ];
 
             const isValidUuid = (val: any) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -6060,6 +6063,19 @@ export const apiService = {
             return { success: false, message: "Auth Handshake Failed" };
         }
     },
+    async testNcbaOpenBankingAuth(config?: any) {
+        try {
+            const response = await fetch('/api/openBanking?action=token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config })
+            });
+            return response.json();
+        } catch (e: any) {
+            console.error("NCBA Open Banking Auth Test Failed:", e);
+            return { success: false, message: e.message || "Open Banking Handshake Failed" };
+        }
+    },
     async testFtpConnection(config?: any) {
         try {
             const token = await apiService.getAuthToken();
@@ -6771,14 +6787,46 @@ export const apiService = {
     // Remedial Module
     async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { 
         const records = await apiService.fetchModuleRecords<any>('school_remedial_sessions', instId); 
+
+        // Lookup fallbacks from cached registry tables
+        const cachedUsers = (ls.get('users') || []) as any[];
+        const cachedSubjects = (ls.get('subjects') || []) as any[];
+        const cachedCourses = (ls.get('courses') || []) as any[];
+
         return (records || []).map((raw: any) => {
-            const meta = typeof raw.metadata === 'object' && raw.metadata !== null ? raw.metadata : {};
+            let meta: any = {};
+            if (raw.metadata && typeof raw.metadata === 'object') {
+                meta = raw.metadata;
+            } else if (typeof raw.metadata === 'string') {
+                try { meta = JSON.parse(raw.metadata); } catch (_) { meta = {}; }
+            }
             const r = { ...meta, ...raw };
+
+            // Normalize status: ensure 'in_progress', 'in progress', 'InProgress' -> 'In Progress'
+            let status = r.status || meta.status || raw.status || 'In Progress';
+            if (typeof status === 'string' && status.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') {
+                status = 'In Progress';
+            }
+
+            const teacherId = r.teacherId || r.teacher_id || meta.teacherId || meta.teacher_id || raw.teacherId || raw.teacher_id || '';
+            const subjectId = r.subjectId || r.subject_id || meta.subjectId || meta.subject_id || raw.subjectId || raw.subject_id || '';
+            const courseId = r.courseId || r.course_id || meta.courseId || meta.course_id || raw.courseId || raw.course_id || '';
+
+            // Hydrate names with fallback to cached registry
+            const teacherName = r.teacherName || r.teacher_name || meta.teacherName || meta.teacher_name || raw.teacherName || raw.teacher_name || cachedUsers.find(u => u.id === teacherId)?.name || 'Teacher';
+            const subjectName = r.subjectName || r.subject_name || meta.subjectName || meta.subject_name || raw.subjectName || raw.subject_name || cachedSubjects.find(s => s.id === subjectId)?.name || 'Remedial Subject';
+            const className = r.className || r.class_name || meta.className || meta.class_name || raw.className || raw.class_name || cachedCourses.find(c => c.id === courseId)?.name || 'Class';
+            const prefectName = r.prefectName || r.prefect_name || meta.prefectName || meta.prefect_name || raw.prefectName || raw.prefect_name || 'Class Leader';
+            const prefectToken = r.prefectToken || r.prefect_token || meta.prefectToken || meta.prefect_token || raw.prefectToken || raw.prefect_token || '';
+            const startTime = r.startTime || r.start_time || meta.startTime || meta.start_time || raw.startTime || raw.start_time || '';
+            const endTime = r.endTime || r.end_time || meta.endTime || meta.end_time || raw.endTime || raw.end_time || '';
+            const stream = r.stream || meta.stream || raw.stream || '';
+
             let numH = r.hours ?? r.durationHours ?? r.duration_hours ?? meta.hours ?? meta.durationHours ?? meta.duration_hours;
             let numM = r.durationMinutes ?? r.duration_minutes ?? meta.durationMinutes ?? meta.duration_minutes;
 
-            if ((numH === undefined || numH === null || isNaN(Number(numH))) && r.startTime && r.endTime) {
-                const calc = calculateRemedialSessionDuration(r.startTime, r.endTime, {
+            if ((numH === undefined || numH === null || isNaN(Number(numH))) && startTime && endTime) {
+                const calc = calculateRemedialSessionDuration(startTime, endTime, {
                     startTime: r.scheduledStartTime ?? meta.scheduledStartTime ?? meta.scheduled_start_time,
                     endTime: r.scheduledEndTime ?? meta.scheduledEndTime ?? meta.scheduled_end_time,
                     durationMinutes: r.scheduledDurationMinutes ?? meta.scheduledDurationMinutes ?? meta.scheduled_duration_minutes
@@ -6793,6 +6841,28 @@ export const apiService = {
 
             return {
                 ...r,
+                teacherId,
+                teacher_id: teacherId,
+                teacherName,
+                teacher_name: teacherName,
+                subjectId,
+                subject_id: subjectId,
+                subjectName,
+                subject_name: subjectName,
+                courseId,
+                course_id: courseId,
+                className,
+                class_name: className,
+                stream,
+                prefectName,
+                prefect_name: prefectName,
+                prefectToken,
+                prefect_token: prefectToken,
+                startTime,
+                start_time: startTime,
+                endTime,
+                end_time: endTime,
+                status,
                 hours: numH,
                 durationHours: numH,
                 duration_hours: numH,
@@ -6826,8 +6896,39 @@ export const apiService = {
             payload.duration_hours = numH;
         }
 
-        // Pack extended calculation & approval metadata into metadata JSON
+        // Standardize status casing
+        if (payload.status && typeof payload.status === 'string') {
+            const sLower = payload.status.toLowerCase().replace(/[\s_-]+/g, '');
+            if (sLower === 'inprogress') {
+                payload.status = 'In Progress';
+            }
+        }
+
+        // Auto-fill date & dayOfWeek from startTime if missing
+        if (!payload.date && payload.startTime) {
+            payload.date = String(payload.startTime).split('T')[0];
+        }
+        if (!payload.dayOfWeek && !payload.day_of_week && payload.startTime) {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            try {
+                payload.day_of_week = days[new Date(payload.startTime).getDay()];
+                payload.dayOfWeek = payload.day_of_week;
+            } catch (_) {}
+        }
+
+        // Pack extended calculation, UI display names & approval metadata into metadata JSON
         const metaFields: Record<string, any> = {
+            teacherName: payload.teacherName || payload.teacher_name,
+            teacher_name: payload.teacherName || payload.teacher_name,
+            subjectName: payload.subjectName || payload.subject_name,
+            subject_name: payload.subjectName || payload.subject_name,
+            className: payload.className || payload.class_name,
+            class_name: payload.className || payload.class_name,
+            stream: payload.stream,
+            prefectToken: payload.prefectToken || payload.prefect_token,
+            prefect_token: payload.prefectToken || payload.prefect_token,
+            isJoint: payload.isJoint,
+            jointStreams: payload.jointStreams,
             durationMinutes: numM,
             scheduledStartTime: payload.scheduledStartTime,
             scheduledEndTime: payload.scheduledEndTime,
@@ -6877,6 +6978,25 @@ export const apiService = {
         delete payload.cashVoucherRef;
         delete payload.teacherSignatureDataUrl;
         delete payload.paymentMethod;
+
+        // Immediately update localStorage remedial_sessions so all open tabs and components see it
+        const targetInst = payload.institutionId || payload.institution_id;
+        if (targetInst) {
+            try {
+                const storageKey = `remedial_sessions_${targetInst}`;
+                const rawCached = safeLocalStorage.getItem(storageKey);
+                let list = rawCached ? JSON.parse(rawCached) : [];
+                if (!Array.isArray(list)) list = [];
+                const fullSessionItem = { ...data, ...payload, ...(payload.metadata || {}) };
+                const matchIdx = list.findIndex((s: any) => s && s.id === payload.id);
+                if (matchIdx >= 0) {
+                    list[matchIdx] = { ...list[matchIdx], ...fullSessionItem };
+                } else {
+                    list.unshift(fullSessionItem);
+                }
+                safeLocalStorage.setItem(storageKey, JSON.stringify(list));
+            } catch (_) {}
+        }
 
         await apiService.saveModuleRecord('school_remedial_sessions', payload); 
     },
