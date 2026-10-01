@@ -2034,8 +2034,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             setIsSavingSuperAdminSession(true);
+            const sessId = superAdminEditingSession.id || (superAdminEditingSession as any)._id || `remedial_sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             const updatedSession: RemedialSession = {
                 ...superAdminEditingSession,
+                id: sessId,
                 startTime: startDate.toISOString(),
                 endTime: endDate ? endDate.toISOString() : undefined,
                 hours: computedHours,

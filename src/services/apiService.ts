@@ -6872,6 +6872,9 @@ export const apiService = {
     },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { 
         const payload: any = { ...data };
+        if (!payload.id || payload.id === 'null' || payload.id === 'undefined') {
+            payload.id = (data as any)?.id || (data as any)?._id || `remedial_sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        }
         let numH = payload.hours ?? payload.durationHours ?? payload.duration_hours;
         let numM = payload.durationMinutes;
 

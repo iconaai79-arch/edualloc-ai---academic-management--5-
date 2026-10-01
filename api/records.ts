@@ -4036,6 +4036,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const normSession = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const c = { ...item };
+                    // Guarantee non-null primary key ID
+                    if (!c.id || c.id === 'null' || c.id === 'undefined') {
+                        c.id = (item as any)?.id || (item as any)?._id || `remedial_sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                    }
                     const camelMap: Record<string, string> = {
                         teacherId: 'teacher_id',
                         teacherName: 'teacher_name',
@@ -4195,6 +4199,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             } catch (_) {}
                         }
                     }
+                }
+
+                if (currentPayload) {
+                    const ensureValidId = (item: any) => {
+                        if (!item || typeof item !== 'object') return item;
+                        if (!item.id || item.id === 'null' || item.id === 'undefined') {
+                            item.id = `${moduleName}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        }
+                        return item;
+                    };
+                    currentPayload = Array.isArray(currentPayload) ? currentPayload.map(ensureValidId) : ensureValidId(currentPayload);
                 }
 
                 const queryRes: any = await executeWithTimeout(
