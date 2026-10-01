@@ -151,6 +151,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Pending Headteacher Approval' | 'Duty Rejected - Forwarded to Headteacher' | 'Headteacher Rejected' | 'Pending Operations Payout' | 'Cash Issued to DOS' | 'Approved' | 'Paid'>('all');
     
+    // Sessions Tab: Pagination & Super Admin Editing
+    const [sessionsCurrentPage, setSessionsCurrentPage] = useState<number>(1);
+    const [sessionsPageSize, setSessionsPageSize] = useState<number>(20);
+    const [superAdminEditingSession, setSuperAdminEditingSession] = useState<RemedialSession | null>(null);
+    const [editStartTime, setEditStartTime] = useState<string>('');
+    const [editEndTime, setEditEndTime] = useState<string>('');
+    const [editSessionHours, setEditSessionHours] = useState<string>('');
+    const [editSessionNotes, setEditSessionNotes] = useState<string>('');
+    const [isSavingSuperAdminSession, setIsSavingSuperAdminSession] = useState<boolean>(false);
+
+    // Super Admin detection
+    const isSuperAdmin = useMemo(() => {
+        const role = (currentUser?.role || '').toLowerCase().replace(/[\s_-]/g, '');
+        return role === 'superadmin' || !!(currentUser as any)?.isSuperAdmin || currentUser?.institutionId === 'GLOBAL';
+    }, [currentUser]);
+
     // Teacher on Duty Rejection Modal State
     const [rejectDutySession, setRejectDutySession] = useState<RemedialSession | null>(null);
     const [dutyRejectionReason, setDutyRejectionReason] = useState('');
@@ -1868,7 +1884,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         return effectiveSchoolSubjects.map(s => ({ id: s.id, name: s.name }));
     }, [remedialSubjects, effectiveSchoolSubjects]);
 
-    // Filtered Sessions for Sessions Tab
+    // Filtered Sessions for Sessions Tab - Sorted Newest to Oldest
     const filteredSessions = useMemo(() => {
         return (sessions || []).filter(session => {
             const matchesSearch = !searchQuery || 
@@ -1879,8 +1895,134 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 (session.prefectName || '').toLowerCase().includes(searchQuery.toLowerCase());
             const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
             return matchesSearch && matchesStatus;
+        }).sort((a, b) => {
+            const timeA = new Date(a.startTime || a.createdAt || 0).getTime();
+            const timeB = new Date(b.startTime || b.createdAt || 0).getTime();
+            return timeB - timeA; // newest to oldest
         });
     }, [sessions, searchQuery, statusFilter]);
+
+    // Sessions Tab: Pagination helpers
+    const totalSessionsPages = Math.max(1, Math.ceil(filteredSessions.length / sessionsPageSize));
+
+    useEffect(() => {
+        setSessionsCurrentPage(1);
+    }, [searchQuery, statusFilter, sessionsPageSize]);
+
+    const paginatedSessions = useMemo(() => {
+        const startIndex = (sessionsCurrentPage - 1) * sessionsPageSize;
+        return filteredSessions.slice(startIndex, startIndex + sessionsPageSize);
+    }, [filteredSessions, sessionsCurrentPage, sessionsPageSize]);
+
+    // Super Admin: Date formatting & duration calculation helpers
+    const toDateTimeLocalString = (dateStr?: string): string => {
+        if (!dateStr) return '';
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '';
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const year = d.getFullYear();
+            const month = pad(d.getMonth() + 1);
+            const day = pad(d.getDate());
+            const hours = pad(d.getHours());
+            const minutes = pad(d.getMinutes());
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        } catch {
+            return '';
+        }
+    };
+
+    const computeDurationFromDates = (startStr: string, endStr: string) => {
+        if (!startStr || !endStr) return { hours: 0, minutes: 0 };
+        const s = new Date(startStr).getTime();
+        const e = new Date(endStr).getTime();
+        if (isNaN(s) || isNaN(e) || e <= s) return { hours: 0, minutes: 0 };
+        const diffMinutes = Math.round((e - s) / (1000 * 60));
+        const hours = Math.round((diffMinutes / 60) * 100) / 100;
+        return { hours, minutes: diffMinutes };
+    };
+
+    const handleOpenSuperAdminEdit = (session: RemedialSession) => {
+        setSuperAdminEditingSession(session);
+        setEditStartTime(toDateTimeLocalString(session.startTime));
+        setEditEndTime(toDateTimeLocalString(session.endTime));
+        const currentH = (typeof session.hours === 'number' && !isNaN(session.hours)) 
+            ? session.hours 
+            : ((session as any).durationHours ?? (session as any).duration_hours ?? 1);
+        setEditSessionHours(String(currentH));
+        setEditSessionNotes(session.notes || '');
+    };
+
+    const handleTimeChange = (newStart: string, newEnd: string) => {
+        setEditStartTime(newStart);
+        setEditEndTime(newEnd);
+        if (newStart && newEnd) {
+            const { hours } = computeDurationFromDates(newStart, newEnd);
+            if (hours > 0) {
+                setEditSessionHours(String(hours));
+            }
+        }
+    };
+
+    const handleSaveSuperAdminSessionTimes = async () => {
+        if (!superAdminEditingSession) return;
+        if (!editStartTime) {
+            alert('Please enter a valid session Start Time.');
+            return;
+        }
+        const startDate = new Date(editStartTime);
+        if (isNaN(startDate.getTime())) {
+            alert('Invalid Start Time format.');
+            return;
+        }
+
+        let endDate: Date | undefined = undefined;
+        let computedMinutes = superAdminEditingSession.durationMinutes;
+        let computedHours = parseFloat(editSessionHours);
+
+        if (editEndTime) {
+            endDate = new Date(editEndTime);
+            if (isNaN(endDate.getTime())) {
+                alert('Invalid End Time format.');
+                return;
+            }
+            if (endDate.getTime() <= startDate.getTime()) {
+                alert('End Time must be chronologically after Start Time.');
+                return;
+            }
+            computedMinutes = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60));
+            if (isNaN(computedHours) || computedHours <= 0) {
+                computedHours = Math.round((computedMinutes / 60) * 100) / 100;
+            }
+        } else if (isNaN(computedHours) || computedHours <= 0) {
+            computedHours = 1;
+        }
+
+        try {
+            setIsSavingSuperAdminSession(true);
+            const updatedSession: RemedialSession = {
+                ...superAdminEditingSession,
+                startTime: startDate.toISOString(),
+                endTime: endDate ? endDate.toISOString() : undefined,
+                hours: computedHours,
+                durationHours: computedHours,
+                duration_hours: computedHours,
+                durationMinutes: computedMinutes,
+                date: startDate.toISOString().split('T')[0],
+                notes: editSessionNotes ? editSessionNotes.trim() : superAdminEditingSession.notes
+            };
+
+            await apiService.saveRemedialSession(updatedSession);
+            onLogAction?.(`[Super Admin] Updated session times for ${superAdminEditingSession.teacherName || 'Teacher'}: Start=${startDate.toLocaleString()}, End=${endDate ? endDate.toLocaleString() : 'N/A'}, Duration=${computedHours}hrs`);
+            alert('Remedial session start & end times updated successfully!');
+            setSuperAdminEditingSession(null);
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Failed to update session times');
+        } finally {
+            setIsSavingSuperAdminSession(false);
+        }
+    };
 
     // Detect duplicate orphaned "In Progress" sessions where another completed session exists for same teacher, class & date
     const duplicateInprogressSessions = useMemo(() => {
@@ -12003,7 +12145,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <td colSpan={6} className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No remedial hours logged.</td>
                                         </tr>
                                     ) : (
-                                        filteredSessions.map(session => (
+                                        paginatedSessions.map(session => (
                                             <tr key={session.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
                                                 <td className="p-6">
                                                     <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{session.teacherName}</p>
@@ -12064,6 +12206,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     <p className="text-[9px] text-slate-400 uppercase font-bold mt-0.5">
                                                         {new Date(session.startTime).toLocaleDateString()}
                                                     </p>
+
+                                                    {/* Super Admin Session Times (Start & End) */}
+                                                    {isSuperAdmin && (
+                                                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[10px] font-mono space-y-0.5">
+                                                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                                                                <span className="font-black text-[8px] uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1 py-0.2 rounded">Start:</span>
+                                                                <span className="font-semibold">{session.startTime ? new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                                                                <span className="font-black text-[8px] uppercase tracking-wider text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/50 px-1 py-0.2 rounded">End:</span>
+                                                                <span className="font-semibold">{session.endTime ? new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : <span className="text-amber-500 italic">Active / unset</span>}</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="p-6">
                                                     <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest italic ${
@@ -12235,10 +12391,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             <Check className="w-3.5 h-3.5" /> Ready for Payout
                                                         </span>
                                                     )}
-                                                    {session.status === 'Paid' && (
-                                                        <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-widest flex items-center gap-1 justify-end">
-                                                            <CheckCircle2 className="w-3.5 h-3.5" /> Cash Receipted
-                                                        </span>
+                                                    {isSuperAdmin && (
+                                                        <div className="mt-2 flex justify-end">
+                                                            <button
+                                                                onClick={() => handleOpenSuperAdminEdit(session)}
+                                                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-indigo-200 dark:border-indigo-800"
+                                                                title="Super Admin Only: View & Edit Start and End times"
+                                                            >
+                                                                <Pencil className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                                                Edit Start / End
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 </td>
                                             </tr>
@@ -12247,7 +12410,225 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Bar */}
+                        {filteredSessions.length > 0 && (
+                            <div className="p-4 sm:p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-bold">
+                                    <span>
+                                        Showing <span className="text-slate-900 dark:text-white font-black">{Math.min(filteredSessions.length, (sessionsCurrentPage - 1) * sessionsPageSize + 1)}</span> to <span className="text-slate-900 dark:text-white font-black">{Math.min(filteredSessions.length, sessionsCurrentPage * sessionsPageSize)}</span> of <span className="text-slate-900 dark:text-white font-black">{filteredSessions.length}</span> sessions
+                                    </span>
+                                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Per page:</span>
+                                        <select 
+                                            value={sessionsPageSize} 
+                                            onChange={e => {
+                                                setSessionsPageSize(Number(e.target.value));
+                                                setSessionsCurrentPage(1);
+                                            }}
+                                            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-bold outline-none text-slate-700 dark:text-slate-200 cursor-pointer"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={20}>20</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => setSessionsCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={sessionsCurrentPage === 1}
+                                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" /> Previous
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-1 px-1">
+                                        {Array.from({ length: totalSessionsPages }, (_, idx) => idx + 1)
+                                            .filter(page => {
+                                                if (totalSessionsPages <= 7) return true;
+                                                if (page === 1 || page === totalSessionsPages) return true;
+                                                return Math.abs(page - sessionsCurrentPage) <= 2;
+                                            })
+                                            .map((page, i, arr) => {
+                                                const showEllipsisBefore = i > 0 && page > arr[i - 1] + 1;
+                                                return (
+                                                    <React.Fragment key={page}>
+                                                        {showEllipsisBefore && <span className="px-1 text-slate-400 text-xs">...</span>}
+                                                        <button
+                                                            onClick={() => setSessionsCurrentPage(page)}
+                                                            className={`w-8 h-8 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                                                                sessionsCurrentPage === page 
+                                                                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200 dark:shadow-none' 
+                                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                                                            }`}
+                                                        >
+                                                            {page}
+                                                        </button>
+                                                    </React.Fragment>
+                                                );
+                                            })
+                                        }
+                                    </div>
+
+                                    <button
+                                        onClick={() => setSessionsCurrentPage(p => Math.min(totalSessionsPages, p + 1))}
+                                        disabled={sessionsCurrentPage === totalSessionsPages}
+                                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+                                    >
+                                        Next <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
+
+                    {/* SUPER ADMIN EDIT SESSION TIMES MODAL */}
+                    {isSuperAdmin && superAdminEditingSession && createPortal(
+                        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+                            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden transform transition-all my-8">
+                                {/* Header */}
+                                <div className="p-6 bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-indigo-500/30 rounded-2xl border border-indigo-400/20 text-indigo-200">
+                                            <Clock className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                                    Super Admin Only
+                                                </span>
+                                            </div>
+                                            <h3 className="text-base font-black uppercase tracking-tight mt-0.5">
+                                                Edit Session Start &amp; End
+                                            </h3>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setSuperAdminEditingSession(null)}
+                                        className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                                    >
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                {/* Content */}
+                                <div className="p-6 space-y-5">
+                                    {/* Session Context Banner */}
+                                    <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-black text-slate-900 dark:text-white uppercase italic">
+                                                {superAdminEditingSession.teacherName}
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                                {superAdminEditingSession.status}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                            {superAdminEditingSession.subjectName} • {superAdminEditingSession.className} {superAdminEditingSession.stream ? `(${superAdminEditingSession.stream})` : ''}
+                                        </p>
+                                    </div>
+
+                                    {/* Form fields */}
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 ml-1">
+                                                Session Start Time <span className="text-rose-500">*</span>
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={editStartTime}
+                                                onChange={e => handleTimeChange(e.target.value, editEndTime)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 ml-1">
+                                                Session End Time
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={editEndTime}
+                                                onChange={e => handleTimeChange(editStartTime, e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                            />
+                                            <p className="text-[10px] text-slate-400 mt-1 ml-1">Leave blank if the session is currently active/in progress.</p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 ml-1">
+                                                    Duration (Hours)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.25"
+                                                    min="0"
+                                                    value={editSessionHours}
+                                                    onChange={e => setEditSessionHours(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 ml-1">
+                                                    Calculated Minutes
+                                                </label>
+                                                <div className="w-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-black text-slate-600 dark:text-slate-300 font-mono">
+                                                    {editStartTime && editEndTime ? `${computeDurationFromDates(editStartTime, editEndTime).minutes} min(s)` : 'N/A'}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 ml-1">
+                                                Audit Notes / Reason
+                                            </label>
+                                            <textarea
+                                                value={editSessionNotes}
+                                                onChange={e => setEditSessionNotes(e.target.value)}
+                                                rows={2}
+                                                placeholder="Reason for adjusting session start/end time..."
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-medium outline-none focus:border-indigo-600 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSuperAdminEditingSession(null)}
+                                        disabled={isSavingSuperAdminSession}
+                                        className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveSuperAdminSessionTimes}
+                                        disabled={isSavingSuperAdminSession}
+                                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-indigo-200 dark:shadow-none transition-all flex items-center gap-2 cursor-pointer"
+                                    >
+                                        {isSavingSuperAdminSession ? (
+                                            <>
+                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Check className="w-3.5 h-3.5" /> Save Session Times
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
                 </div>
             )}
 
