@@ -1206,14 +1206,74 @@ export const buildDynamicRemedialSlots = (
     return slots;
 };
 
+export const isDayAllocation = (allocation: any, targetDay: string): boolean => {
+    if (!allocation) return false;
+    const raw = (allocation.dayOfWeek || allocation.day_of_week || '').toString().trim().toLowerCase();
+    const target = (targetDay || '').toString().trim().toLowerCase();
+    if (!raw) return false;
+    if (raw === target) return true;
+    if (target.startsWith(raw) && raw.length >= 3) return true;
+    if (raw.startsWith(target) && target.length >= 3) return true;
+    return false;
+};
+
+export const parseTimeToMinutes = (timeStr?: string): number | null => {
+    if (!timeStr || typeof timeStr !== 'string') return null;
+    const trimmed = timeStr.trim();
+    if (!trimmed.includes(':')) return null;
+    const parts = trimmed.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
+    return h * 60 + m;
+};
+
+export const isClassMatchingAllocation = (
+    a: any,
+    cls: { className?: string; stream?: string; shortCode?: string; sortKey?: string },
+    courses?: any[]
+): boolean => {
+    if (!a || !cls) return false;
+
+    // 1. Stream match
+    if (!matchAllocationStream(a, cls.stream || '')) {
+        return false;
+    }
+
+    const targetClass = (cls.className || '').trim().toLowerCase();
+    const aClass = (a.className || a.class_name || '').trim().toLowerCase();
+    const aCourse = (a.courseId || a.course_id || '').trim().toLowerCase();
+
+    if (aClass && aClass === targetClass) return true;
+    if (aCourse && aCourse === targetClass) return true;
+
+    // Match against courses list if provided
+    if (courses && Array.isArray(courses)) {
+        const found = courses.find((c: any) => 
+            (c.id && c.id.toLowerCase() === aCourse) || 
+            (c.name && c.name.toLowerCase() === aClass)
+        );
+        if (found) {
+            const fName = (found.name || found.level || '').trim().toLowerCase();
+            const fId = (found.id || '').trim().toLowerCase();
+            if (fName === targetClass || fId === targetClass) return true;
+        }
+    }
+
+    // Flexible match if names contain each other
+    if (aClass && targetClass && (aClass.includes(targetClass) || targetClass.includes(aClass))) {
+        return true;
+    }
+
+    return false;
+};
+
 export const matchSlotAllocation = (
     allocation: any,
-    slot: { startTime?: string; endTime?: string; start?: string; end?: string; periodNum?: number; isBreak?: boolean }
+    slot: { startTime?: string; endTime?: string; start?: string; end?: string; periodNum?: number; isBreak?: boolean },
+    dayContext?: string
 ): boolean => {
-    if (slot.isBreak) return false;
-
-    const sStart = slot.startTime || slot.start;
-    const sEnd = slot.endTime || slot.end;
+    if (!allocation || !slot || slot.isBreak) return false;
 
     // 1. Check periodNumber / periodNum match if specified
     const allocPeriod = (allocation as any).periodNumber ?? (allocation as any).periodNum;
@@ -1223,14 +1283,55 @@ export const matchSlotAllocation = (
         }
     }
 
-    // 2. Exact start time match
-    if (allocation.startTime && sStart && allocation.startTime === sStart) {
+    const aStartStr = (allocation.startTime || allocation.start_time || '').toString().trim();
+    if (!aStartStr) return false;
+
+    const sStartStr = (slot.startTime || slot.start || '').toString().trim();
+    const sEndStr = (slot.endTime || slot.end || '').toString().trim();
+
+    // 2. Exact start time string match (ignoring seconds)
+    const normA = aStartStr.slice(0, 5);
+    const normS = sStartStr.slice(0, 5);
+    if (normS && (normA === normS || aStartStr === sStartStr)) {
         return true;
     }
 
-    // 3. Fallback: time interval overlap
-    if (allocation.startTime && sStart && sEnd) {
-        return allocation.startTime >= sStart && allocation.startTime < sEnd;
+    const aMin = parseTimeToMinutes(aStartStr);
+    const sStartMin = parseTimeToMinutes(sStartStr);
+    const sEndMin = parseTimeToMinutes(sEndStr);
+
+    if (aMin === null) return false;
+
+    // 3. Fallback: numerical minute comparison
+    if (sStartMin !== null && sEndMin !== null) {
+        if (aMin >= sStartMin && aMin < sEndMin) {
+            return true;
+        }
+    }
+
+    // 4. Sunday specific period window handling:
+    // If this is Sunday (or slot belongs to Sunday), handle Sunday lessons cleanly
+    const isSunday = (dayContext && dayContext.toLowerCase() === 'sunday') || 
+                     isDayAllocation(allocation, 'Sunday');
+    if (isSunday) {
+        if (slot.periodNum === 1) {
+            // Sunday Period 1: morning session (starts before 11:15 or before slot's break / end)
+            const cutoffMin = sEndMin !== null ? (sEndMin + 15) : (11 * 60 + 15); // 11:15
+            if (aMin < cutoffMin || Math.abs(aMin - (sStartMin ?? (9 * 60))) <= 45) {
+                return true;
+            }
+        } else if (slot.periodNum === 2) {
+            // Sunday Period 2: post-break session (starts at or after 11:00 or within 11:00 - 14:30)
+            const cutoffMin = sStartMin !== null ? (sStartMin - 30) : (11 * 60); // 11:00
+            if (aMin >= cutoffMin && aMin <= (14 * 60 + 30)) {
+                return true;
+            }
+        }
+    }
+
+    // 5. Close start time match (within 15 minutes of slot start)
+    if (sStartMin !== null && Math.abs(aMin - sStartMin) <= 15) {
+        return true;
     }
 
     return false;
@@ -1325,9 +1426,8 @@ export const generateRemedialMasterTimetablePdf = async ({
         ];
         weekdayDays.forEach(day => {
             const matches = allocations.filter(a =>
-                a.dayOfWeek === day &&
-                (a.className === cls.className || a.courseId === cls.className) &&
-                matchAllocationStream(a, cls.stream)
+                isDayAllocation(a, day) &&
+                isClassMatchingAllocation(a, cls, courses)
             );
             if (matches.length === 0) {
                 row.push({
@@ -1370,8 +1470,8 @@ export const generateRemedialMasterTimetablePdf = async ({
         theme: 'grid',
         styles: {
             font: 'helvetica',
-            fontSize: 8.5,
-            cellPadding: 2,
+            fontSize: 8,
+            cellPadding: 1.8,
             textColor: [15, 23, 42],
             lineColor: [71, 85, 105],
             lineWidth: 0.3,
@@ -1382,7 +1482,7 @@ export const generateRemedialMasterTimetablePdf = async ({
             textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
-            fontSize: 8.5
+            fontSize: 7.5
         },
         columnStyles: {
             0: { cellWidth: 16, fontStyle: 'bold', halign: 'center', fillColor: [241, 245, 249] },
@@ -1437,10 +1537,9 @@ export const generateRemedialMasterTimetablePdf = async ({
                 return;
             }
             const matches = allocations.filter(a =>
-                a.dayOfWeek === 'Saturday' &&
-                (a.className === cls.className || a.courseId === cls.className) &&
-                matchAllocationStream(a, cls.stream) &&
-                matchSlotAllocation(a, slot)
+                isDayAllocation(a, 'Saturday') &&
+                isClassMatchingAllocation(a, cls, courses) &&
+                matchSlotAllocation(a, slot, 'Saturday')
             );
             if (matches.length === 0) {
                 row.push({
@@ -1560,10 +1659,9 @@ export const generateRemedialMasterTimetablePdf = async ({
                 return;
             }
             const matches = allocations.filter(a =>
-                a.dayOfWeek === 'Sunday' &&
-                (a.className === cls.className || a.courseId === cls.className) &&
-                matchAllocationStream(a, cls.stream) &&
-                matchSlotAllocation(a, slot)
+                isDayAllocation(a, 'Sunday') &&
+                isClassMatchingAllocation(a, cls, courses) &&
+                matchSlotAllocation(a, slot, 'Sunday')
             );
             if (matches.length === 0) {
                 row.push({
@@ -1759,9 +1857,8 @@ export const exportRemedialMasterTimetableToExcel = ({
             const rowObj: any = { 'Class / Stream': cls.shortCode, 'Full Class': cls.className + (cls.stream ? ` (${cls.stream})` : '') };
             weekdayDays.forEach(day => {
                 const matches = allocations.filter(a =>
-                    a.dayOfWeek === day &&
-                    (a.className === cls.className || a.courseId === cls.className) &&
-                    matchAllocationStream(a, cls.stream)
+                    isDayAllocation(a, day) &&
+                    isClassMatchingAllocation(a, cls, courses)
                 );
                 rowObj[day.toUpperCase()] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });
@@ -1781,10 +1878,9 @@ export const exportRemedialMasterTimetableToExcel = ({
                     return;
                 }
                 const matches = allocations.filter(a =>
-                    a.dayOfWeek === 'Saturday' &&
-                    (a.className === cls.className || a.courseId === cls.className) &&
-                    matchAllocationStream(a, cls.stream) &&
-                    matchSlotAllocation(a, slot)
+                    isDayAllocation(a, 'Saturday') &&
+                    isClassMatchingAllocation(a, cls, courses) &&
+                    matchSlotAllocation(a, slot, 'Saturday')
                 );
                 rowObj[colLabel] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });
@@ -1804,10 +1900,9 @@ export const exportRemedialMasterTimetableToExcel = ({
                     return;
                 }
                 const matches = allocations.filter(a =>
-                    a.dayOfWeek === 'Sunday' &&
-                    (a.className === cls.className || a.courseId === cls.className) &&
-                    matchAllocationStream(a, cls.stream) &&
-                    matchSlotAllocation(a, slot)
+                    isDayAllocation(a, 'Sunday') &&
+                    isClassMatchingAllocation(a, cls, courses) &&
+                    matchSlotAllocation(a, slot, 'Sunday')
                 );
                 rowObj[colLabel] = matches.map(a => `${getSubjectCode(a.subjectName, a.subjectId)} ${getTeacherCode(a.teacherId, a.teacherName, users)}`).join(', ') || '-';
             });

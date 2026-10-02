@@ -36,7 +36,10 @@ import {
     getAscSubjectColor,
     getAutomaticAcademicTermAndWeek,
     buildDynamicRemedialSlots,
-    matchSlotAllocation
+    matchSlotAllocation,
+    isDayAllocation,
+    parseTimeToMinutes,
+    isClassMatchingAllocation
 } from '../utils/remedialReportGenerator';
 
 interface RemedialLessonsManagerProps {
@@ -914,6 +917,54 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const dutyList = dutyResult.status === 'fulfilled' && Array.isArray(dutyResult.value) ? dutyResult.value : [];
             const openBalList = openBalResult.status === 'fulfilled' && Array.isArray(openBalResult.value) ? openBalResult.value : [];
 
+            const normalizeAlloc = (a: any): RemedialAllocation => {
+                if (!a) return a;
+                const rawDay = a.dayOfWeek || a.day_of_week || '';
+                let dayOfWeek = rawDay;
+                if (typeof rawDay === 'string') {
+                    const lower = rawDay.trim().toLowerCase();
+                    if (lower.startsWith('sun')) dayOfWeek = 'Sunday';
+                    else if (lower.startsWith('sat')) dayOfWeek = 'Saturday';
+                    else if (lower.startsWith('mon')) dayOfWeek = 'Monday';
+                    else if (lower.startsWith('tue')) dayOfWeek = 'Tuesday';
+                    else if (lower.startsWith('wed')) dayOfWeek = 'Wednesday';
+                    else if (lower.startsWith('thu')) dayOfWeek = 'Thursday';
+                    else if (lower.startsWith('fri')) dayOfWeek = 'Friday';
+                }
+                const rawStart = (a.startTime || a.start_time || '').trim();
+                let startTime = rawStart;
+                if (rawStart) {
+                    const parts = rawStart.split(':');
+                    if (parts.length >= 2) {
+                        startTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                    }
+                }
+                const rawEnd = (a.endTime || a.end_time || '').trim();
+                let endTime = rawEnd;
+                if (rawEnd) {
+                    const parts = rawEnd.split(':');
+                    if (parts.length >= 2) {
+                        endTime = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                    }
+                }
+                return {
+                    ...a,
+                    dayOfWeek,
+                    day_of_week: dayOfWeek,
+                    startTime,
+                    start_time: startTime,
+                    endTime,
+                    end_time: endTime,
+                    courseId: a.courseId || a.course_id || a.className || '',
+                    className: a.className || a.class_name || a.courseId || '',
+                    stream: a.stream || a.stream_name || '',
+                    teacherId: a.teacherId || a.teacher_id || '',
+                    teacherName: a.teacherName || a.teacher_name || '',
+                    subjectId: a.subjectId || a.subject_id || '',
+                    subjectName: a.subjectName || a.subject_name || '',
+                };
+            };
+
             setSessions(sessList);
             setPayouts(payList);
             setOpeningBalances(openBalList);
@@ -921,15 +972,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             // If the fetch failed or returned empty, fall back to the cached value
             // so we never wipe manually added allocations due to a transient fetch error.
             if (allocList.length > 0) {
-                setAllocations(allocList);
-                safeLocalStorage.setItem(`remedial_allocations_${institutionId}`, JSON.stringify(allocList));
+                const normalized = allocList.map(normalizeAlloc);
+                setAllocations(normalized);
+                safeLocalStorage.setItem(`remedial_allocations_${institutionId}`, JSON.stringify(normalized));
             } else if (institutionId) {
                 // Attempt to restore from cache if backend returned nothing
                 try {
                     const cachedAlloc = safeLocalStorage.getItem(`remedial_allocations_${institutionId}`);
                     if (cachedAlloc) {
                         const parsed = JSON.parse(cachedAlloc);
-                        if (Array.isArray(parsed) && parsed.length > 0) setAllocations(parsed);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setAllocations(parsed.map(normalizeAlloc));
+                        }
                     }
                 } catch (_) { /* ignore */ }
             }
@@ -1076,7 +1130,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
             if (teacherAllocationFilter === 'weekend') {
                 const prefs = teacherPreferences[teacher.id]?.preferredDays || [];
-                const hasWeekendAlloc = teacherAllocs.some(a => a.dayOfWeek === 'Saturday' || a.dayOfWeek === 'Sunday');
+                const hasWeekendAlloc = teacherAllocs.some(a => isDayAllocation(a, 'Saturday') || isDayAllocation(a, 'Sunday'));
                 const hasWeekendPref = prefs.includes('Saturday') || prefs.includes('Sunday');
                 return hasWeekendAlloc || hasWeekendPref;
             }
@@ -2599,7 +2653,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 if (allocTeacherId) {
                     const teacherSunAllocs = allocations.filter(a => {
                         if (editingAlloc && a.id === editingAlloc.id) return false;
-                        return a.teacherId === allocTeacherId && a.dayOfWeek === 'Sunday';
+                        return a.teacherId === allocTeacherId && isDayAllocation(a, 'Sunday');
                     });
                     const teacherSunLimit = maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2;
                     if (teacherSunAllocs.length >= teacherSunLimit) continue;
@@ -7137,9 +7191,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     <td style="font-weight:bold;text-align:center;background:#f8fafc;padding:6px;border:1px solid #334155;">${cls.shortCode}</td>
                     ${weekdayDays.map(day => {
                         const matches = allocations.filter(a =>
-                            a.dayOfWeek === day &&
-                            (a.className === cls.className || a.courseId === cls.className) &&
-                            matchAllocationStream(a, cls.stream)
+                            isDayAllocation(a, day) &&
+                            isClassMatchingAllocation(a, cls, combinedCourses)
                         );
                         const cell = matches.map(a => {
                             const c = getAscSubjectColor(a.subjectName, a.subjectId);
@@ -7162,10 +7215,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             return `<td style="text-align:center;font-weight:bold;background:#fef3c7;color:#92400e;padding:6px;border:1px solid #334155;">BREAK</td>`;
                         }
                         const matches = allocations.filter(a =>
-                            a.dayOfWeek === 'Saturday' &&
-                            (a.className === cls.className || a.courseId === cls.className) &&
-                            matchAllocationStream(a, cls.stream) &&
-                            matchSlotAllocation(a, slot)
+                            isDayAllocation(a, 'Saturday') &&
+                            isClassMatchingAllocation(a, cls, combinedCourses) &&
+                            matchSlotAllocation(a, slot, 'Saturday')
                         );
                         const cell = matches.map(a => {
                             const c = getAscSubjectColor(a.subjectName, a.subjectId);
@@ -7188,10 +7240,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             return `<td style="text-align:center;font-weight:bold;background:#fef3c7;color:#92400e;padding:6px;border:1px solid #334155;">BREAK</td>`;
                         }
                         const matches = allocations.filter(a =>
-                            a.dayOfWeek === 'Sunday' &&
-                            (a.className === cls.className || a.courseId === cls.className) &&
-                            matchAllocationStream(a, cls.stream) &&
-                            matchSlotAllocation(a, slot)
+                            isDayAllocation(a, 'Sunday') &&
+                            isClassMatchingAllocation(a, cls, combinedCourses) &&
+                            matchSlotAllocation(a, slot, 'Sunday')
                         );
                         const cell = matches.map(a => {
                             const c = getAscSubjectColor(a.subjectName, a.subjectId);
@@ -7428,8 +7479,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const matchAllocToSlot = (a: RemedialAllocation, slot: typeof standardSlots[0]) => {
             if (slot.isBreak || !a.startTime) return false;
             const aStart = a.startTime.trim();
+            const aMins = parseTimeToMinutes(aStart);
+            const sStartMins = slot.start ? parseTimeToMinutes(slot.start) : -1;
+            const sEndMins = slot.end ? parseTimeToMinutes(slot.end) : -1;
+
             if (aStart === slot.start) return true;
-            if (slot.start && slot.end && aStart >= slot.start && aStart < slot.end) return true;
+            if (sStartMins >= 0 && sEndMins >= 0 && aMins >= sStartMins && aMins < sEndMins) return true;
+
+            // Sunday-specific period mapping onto standard 10-period timetable
+            if (isDayAllocation(a, 'Sunday')) {
+                if (a.periodNumber === 1 && slot.periodNum === 4) return true;
+                if (a.periodNumber === 2 && (slot.periodNum === 5 || slot.periodNum === 6)) return true;
+                // Sunday morning lesson (< 11:15) maps to slot 4 (9:30-10:30)
+                if (aMins >= 480 && aMins < 675 && slot.periodNum === 4) return true;
+                // Sunday post-break lesson (>= 11:00) maps to slot 5 (11:00-12:00)
+                if (aMins >= 660 && aMins < 840 && slot.periodNum === 5) return true;
+            }
+
             if (slot.periodNum === 1 && (aStart.startsWith('06:') || aStart.startsWith('6:'))) return true;
             if (slot.periodNum === 2 && (aStart.startsWith('07:') || aStart.startsWith('7:'))) return true;
             if (slot.periodNum === 3 && (aStart.startsWith('08:') || aStart.startsWith('8:'))) return true;
@@ -7523,14 +7589,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         // Generate full HTML page for each class
         const pagesHtml = classesToRender.map(cls => {
             const classAllocs = allocations.filter(a => {
-                const matchCourse = a.courseId === cls.id || a.className === cls.name || a.courseId === cls.name;
-                const matchStream = !cls.stream || cls.stream === 'All Streams' || matchAllocationStream(a, cls.stream);
-                return matchCourse && matchStream && !a.isUnallocated && a.dayOfWeek !== 'Unallocated';
+                return !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
+                    isClassMatchingAllocation(a, { className: cls.name, stream: cls.stream }, combinedCourses);
             });
 
             // Days to display (Mo - Fr by default; add Sa, Su if allocations exist)
-            const hasSat = classAllocs.some(a => a.dayOfWeek === 'Saturday');
-            const hasSun = classAllocs.some(a => a.dayOfWeek === 'Sunday');
+            const hasSat = classAllocs.some(a => isDayAllocation(a, 'Saturday'));
+            const hasSun = classAllocs.some(a => isDayAllocation(a, 'Sunday'));
             const activeDays: { full: string; code: string }[] = [
                 { full: 'Monday', code: 'Mo' },
                 { full: 'Tuesday', code: 'Tu' },
@@ -7565,7 +7630,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         }
                     } else {
                         // Lesson Cell
-                        const matches = classAllocs.filter(a => a.dayOfWeek === day.full && matchAllocToSlot(a, slot));
+                        const matches = classAllocs.filter(a => isDayAllocation(a, day.full) && matchAllocToSlot(a, slot));
                         cellsHtml += `
                             <td style="border:1.5px solid #000000;padding:0;margin:0;vertical-align:middle;height:72px;min-height:72px;">
                                 ${renderGridCell(matches)}
@@ -7782,8 +7847,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const matchAllocToSlotAsc = useCallback((a: RemedialAllocation, slot: typeof ascStandardSlots[0]) => {
         if (slot.isBreak || !a.startTime) return false;
         const aStart = a.startTime.trim();
+        const aMins = parseTimeToMinutes(aStart);
+        const sStartMins = slot.start ? parseTimeToMinutes(slot.start) : -1;
+        const sEndMins = slot.end ? parseTimeToMinutes(slot.end) : -1;
+
         if (aStart === slot.start) return true;
-        if (slot.start && slot.end && aStart >= slot.start && aStart < slot.end) return true;
+        if (sStartMins >= 0 && sEndMins >= 0 && aMins >= sStartMins && aMins < sEndMins) return true;
+
+        // Sunday-specific period mapping onto standard 10-period timetable
+        if (isDayAllocation(a, 'Sunday')) {
+            if (a.periodNumber === 1 && slot.periodNum === 4) return true;
+            if (a.periodNumber === 2 && (slot.periodNum === 5 || slot.periodNum === 6)) return true;
+            // Sunday morning lesson (< 11:15) maps to slot 4 (9:30-10:30)
+            if (aMins >= 480 && aMins < 675 && slot.periodNum === 4) return true;
+            // Sunday post-break lesson (>= 11:00) maps to slot 5 (11:00-12:00)
+            if (aMins >= 660 && aMins < 840 && slot.periodNum === 5) return true;
+        }
+
         if (slot.periodNum === 1  && (aStart.startsWith('06:') || aStart.startsWith('6:')))  return true;
         if (slot.periodNum === 2  && (aStart.startsWith('07:') || aStart.startsWith('7:')))  return true;
         if (slot.periodNum === 3  && (aStart.startsWith('08:') || aStart.startsWith('8:')))  return true;
@@ -7821,8 +7901,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const teacherAllocs = allocations.filter(a =>
             a.teacherId === teacher.id && !a.isUnallocated && a.dayOfWeek !== 'Unallocated'
         );
-        const hasSat = teacherAllocs.some(a => a.dayOfWeek === 'Saturday');
-        const hasSun = teacherAllocs.some(a => a.dayOfWeek === 'Sunday');
+        const hasSat = teacherAllocs.some(a => isDayAllocation(a, 'Saturday'));
+        const hasSun = teacherAllocs.some(a => isDayAllocation(a, 'Sunday'));
         const activeDays: { full: string; code: string }[] = [
             { full: 'Monday', code: 'Mo' }, { full: 'Tuesday', code: 'Tu' },
             { full: 'Wednesday', code: 'We' }, { full: 'Thursday', code: 'Th' },
@@ -7839,7 +7919,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         cellsHtml += `<td rowspan="${activeDays.length}" style="width:38px;min-width:36px;max-width:42px;background:#fff;border:1.5px solid #000;text-align:center;vertical-align:middle;padding:0;"><div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:17px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#000;font-family:Arial,sans-serif;white-space:nowrap;margin:0 auto;">${slot.breakText || 'BREAK'}</div></td>`;
                     }
                 } else {
-                    const matches = teacherAllocs.filter(a => a.dayOfWeek === day.full && matchAllocToSlotAsc(a, slot));
+                    const matches = teacherAllocs.filter(a => isDayAllocation(a, day.full) && matchAllocToSlotAsc(a, slot));
                     if (matches.length === 0) {
                         cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:72px;background:#fff;"></div></td>`;
                     } else if (matches.length === 1) {
@@ -7925,11 +8005,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const buildClassTimetablePageHtml = useCallback((cls: { className: string; stream: string; shortCode: string; sortKey: string }, schoolName: string, docWeek: string, docTerm: string, docYear: string) => {
         const classAllocs = allocations.filter(a =>
             !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
-            (a.className === cls.className || a.courseId === cls.className) &&
-            matchAllocationStream(a, cls.stream)
+            isClassMatchingAllocation(a, { className: cls.className, stream: cls.stream }, combinedCourses)
         );
-        const hasSat = classAllocs.some(a => a.dayOfWeek === 'Saturday');
-        const hasSun = classAllocs.some(a => a.dayOfWeek === 'Sunday');
+        const hasSat = classAllocs.some(a => isDayAllocation(a, 'Saturday'));
+        const hasSun = classAllocs.some(a => isDayAllocation(a, 'Sunday'));
         const activeDays: { full: string; code: string }[] = [
             { full: 'Monday', code: 'Mo' }, { full: 'Tuesday', code: 'Tu' },
             { full: 'Wednesday', code: 'We' }, { full: 'Thursday', code: 'Th' },
@@ -7946,7 +8025,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         cellsHtml += `<td rowspan="${activeDays.length}" style="width:38px;min-width:36px;max-width:42px;background:#fff;border:1.5px solid #000;text-align:center;vertical-align:middle;padding:0;"><div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:17px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#000;font-family:Arial,sans-serif;white-space:nowrap;margin:0 auto;">${slot.breakText || 'BREAK'}</div></td>`;
                     }
                 } else {
-                    const matches = classAllocs.filter(a => a.dayOfWeek === day.full && matchAllocToSlotAsc(a, slot));
+                    const matches = classAllocs.filter(a => isDayAllocation(a, day.full) && matchAllocToSlotAsc(a, slot));
                     if (matches.length === 0) {
                         cellsHtml += `<td style="border:1.5px solid #000;padding:0;vertical-align:middle;height:72px;min-height:72px;"><div style="width:100%;height:72px;background:#fff;"></div></td>`;
                     } else if (matches.length === 1) {
@@ -10072,8 +10151,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const countAllocsForClass = (cls: { className: string; stream: string }) => {
                     return allocations.filter(a =>
                         !a.isUnallocated && a.dayOfWeek !== 'Unallocated' &&
-                        (a.className === cls.className || a.courseId === cls.className || (combinedCourses.find(c => c.id === a.courseId)?.name === cls.className)) &&
-                        matchAllocationStream(a, cls.stream)
+                        isClassMatchingAllocation(a, cls, combinedCourses)
                     ).length;
                 };
 
@@ -10172,8 +10250,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         }
 
                         // Check if any allocations have extra start times
-                        allocations.filter(a => a.dayOfWeek === 'Saturday' && a.startTime).forEach(a => {
-                            const match = satSlots.some(s => (!s.isBreak && a.startTime && s.startTime && s.endTime && a.startTime >= s.startTime && a.startTime < s.endTime) || a.startTime === s.startTime);
+                        allocations.filter(a => isDayAllocation(a, 'Saturday') && a.startTime).forEach(a => {
+                            const aMins = parseTimeToMinutes(a.startTime);
+                            const match = satSlots.some(s => {
+                                if (s.isBreak) return false;
+                                if (a.startTime === s.startTime) return true;
+                                const sStart = parseTimeToMinutes(s.startTime);
+                                const sEnd = parseTimeToMinutes(s.endTime);
+                                return sStart >= 0 && sEnd >= 0 && aMins >= sStart && aMins < sEnd;
+                            });
                             if (!match && a.startTime) {
                                 const endT = a.endTime || addMinutesToTime(a.startTime, 60);
                                 satSlots.push({ periodNum: satSlots.length + 1, startTime: a.startTime, endTime: endT, label: `P${satSlots.length + 1} (${a.startTime}-${endT})` });
@@ -10272,10 +10357,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         }
 
                         // STRICT: Never exceed configured maximum periods!
-                        allocations.filter(a => a.dayOfWeek === 'Sunday' && a.startTime).forEach(a => {
+                        allocations.filter(a => isDayAllocation(a, 'Sunday') && a.startTime).forEach(a => {
                             const currentPeriods = sunSlots.filter(s => !s.isBreak).length;
                             if (currentPeriods >= count) return;
-                            const match = sunSlots.some(s => (!s.isBreak && a.startTime && s.startTime && s.endTime && a.startTime >= s.startTime && a.startTime < s.endTime) || a.startTime === s.startTime);
+                            const aMins = parseTimeToMinutes(a.startTime);
+                            const match = sunSlots.some(s => {
+                                if (s.isBreak) return false;
+                                if (a.startTime === s.startTime) return true;
+                                const sStart = parseTimeToMinutes(s.startTime);
+                                const sEnd = parseTimeToMinutes(s.endTime);
+                                return sStart >= 0 && sEnd >= 0 && aMins >= sStart && aMins < sEnd;
+                            });
                             if (!match && a.startTime) {
                                 const endT = a.endTime || addMinutesToTime(a.startTime, 60);
                                 sunSlots.push({ periodNum: currentPeriods + 1, startTime: a.startTime, endTime: endT, label: `P${currentPeriods + 1} (${a.startTime}-${endT})` });
@@ -10303,40 +10395,41 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     if (slot.isBreak) return [];
                     return allocations.filter(a => {
                         if (a.isUnallocated || a.dayOfWeek === 'Unallocated' || !a.startTime) return false;
-                        if (a.dayOfWeek !== day) return false;
-                        const matchCourse = a.courseId === cls.className || a.className === cls.className;
-                        if (!matchCourse) return false;
-                        const matchStream = matchAllocationStream(a, cls.stream);
-                        if (!matchStream) return false;
+                        if (!isDayAllocation(a, day)) return false;
+                        if (!isClassMatchingAllocation(a, cls, combinedCourses)) return false;
 
                         // For weekdays: only 1 period column exists, so match ALL allocations on this day
                         const isWeekday = !['Saturday', 'Sunday'].includes(day);
                         if (isWeekday) return true;
 
+                        const aMins = parseTimeToMinutes(a.startTime);
+                        const sStartMins = slot.startTime ? parseTimeToMinutes(slot.startTime) : -1;
+                        const sEndMins = slot.endTime ? parseTimeToMinutes(slot.endTime) : -1;
+
+                        // Period number match if set
+                        if (a.periodNumber != null && a.periodNumber > 0 && a.periodNumber === slot.periodNum) {
+                            return true;
+                        }
+
                         // For Sunday with count <= 2: cleanly divide lessons into Period 1 (morning) and Period 2 (post-break)
                         const effSunCount = Math.max(1, sundayPeriodsCount ? Math.min(sundayPeriodsCount, maxSundayLessonsPerClassPerDay || sundayPeriodsCount) : (maxSundayLessonsPerClassPerDay || 2));
                         if (day === 'Sunday' && effSunCount <= 2) {
-                            const breakStart = sundayBreakStartTime || '11:00';
+                            const breakStartMins = parseTimeToMinutes(sundayBreakStartTime || '11:00');
+                            const cutoff = breakStartMins > 0 ? breakStartMins : 660;
                             if (slot.periodNum === 1) {
-                                return (a.startTime < breakStart) || a.startTime === slot.startTime;
+                                return (aMins > 0 && aMins < cutoff) || a.startTime === slot.startTime;
                             }
                             if (slot.periodNum === 2) {
-                                return (a.startTime >= breakStart) || a.startTime === slot.startTime;
+                                return (aMins > 0 && aMins >= cutoff) || a.startTime === slot.startTime;
                             }
                         }
 
-                        // For weekends: match by time window as before
-                        if (slot.startTime && slot.endTime) {
-                            if (a.startTime) {
-                                return a.startTime === slot.startTime || (a.startTime >= slot.startTime && a.startTime < slot.endTime);
-                            }
-                            return true;
-                        }
-                        if (slot.startTime) {
-                            return (a.startTime || '').startsWith(slot.startTime.slice(0, 4)) || a.startTime === slot.startTime;
-                        }
+                        // For weekends: match by numerical time window
+                        if (a.startTime === slot.startTime) return true;
+                        if (sStartMins >= 0 && sEndMins >= 0 && aMins >= sStartMins && aMins < sEndMins) return true;
+                        if (slot.startTime && a.startTime.startsWith(slot.startTime.slice(0, 4))) return true;
 
-                        return true;
+                        return false;
                     });
                 };
 
@@ -14469,9 +14562,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             </td>
                                                             {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const).map((day, dIdx) => {
                                                                 const matches = allocations.filter(a =>
-                                                                    a.dayOfWeek === day &&
-                                                                    (a.className === cls.className || a.courseId === cls.className) &&
-                                                                    matchAllocationStream(a, cls.stream)
+                                                                    isDayAllocation(a, day) &&
+                                                                    isClassMatchingAllocation(a, cls, combinedCourses)
                                                                 );
                                                                 return (
                                                                     <td key={day} className={`py-2 px-2 text-[11px] font-bold ${dIdx < 4 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
@@ -14556,10 +14648,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                             );
                                                                         }
                                                                         const matches = allocations.filter(a =>
-                                                                            a.dayOfWeek === 'Saturday' &&
-                                                                            (a.className === cls.className || a.courseId === cls.className) &&
-                                                                            matchAllocationStream(a, cls.stream) &&
-                                                                            matchSlotAllocation(a, slot)
+                                                                            isDayAllocation(a, 'Saturday') &&
+                                                                            isClassMatchingAllocation(a, cls, combinedCourses) &&
+                                                                            matchSlotAllocation(a, slot, 'Saturday')
                                                                         );
                                                                         return (
                                                                             <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < previewSatSlots.length - 1 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
@@ -14646,10 +14737,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                             );
                                                                         }
                                                                         const matches = allocations.filter(a =>
-                                                                            a.dayOfWeek === 'Sunday' &&
-                                                                            (a.className === cls.className || a.courseId === cls.className) &&
-                                                                            matchAllocationStream(a, cls.stream) &&
-                                                                            matchSlotAllocation(a, slot)
+                                                                            isDayAllocation(a, 'Sunday') &&
+                                                                            isClassMatchingAllocation(a, cls, combinedCourses) &&
+                                                                            matchSlotAllocation(a, slot, 'Sunday')
                                                                         );
                                                                         return (
                                                                             <td key={sIdx} className={`py-2 px-2 text-[11px] font-bold ${sIdx < previewSunSlots.length - 1 ? 'border-r border-slate-300 dark:border-slate-700' : ''}`}>
