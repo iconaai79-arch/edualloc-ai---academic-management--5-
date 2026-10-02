@@ -171,14 +171,32 @@ export class BankFeedsService {
         let matchedStudent: any = null;
         let confidence: IngestedTransaction['reconciliationConfidence'] = 'NONE';
 
-        // 2. Direct ADM match via BillRefNumber
+        // 2. Direct ADM match via BillRefNumber (handles compound format like 8145955-201 -> 201)
         if (cleanRef) {
+            let parsedAdm = cleanRef;
+            const compoundMatch = cleanRef.match(/^[0-9A-Za-z]{4,10}[\-_\/#\s:]+([A-Za-z0-9\/-]+)$/i);
+            if (compoundMatch && compoundMatch[1]) {
+                parsedAdm = compoundMatch[1].trim();
+            } else if (cleanRef.includes('-')) {
+                const parts = cleanRef.split('-');
+                const last = parts[parts.length - 1].trim();
+                if (last) parsedAdm = last;
+            }
+
             const refLower = cleanRef.toLowerCase();
+            const parsedLower = parsedAdm.toLowerCase();
             const refDigits = cleanRef.replace(/\D/g, '');
+            const parsedDigits = parsedAdm.replace(/\D/g, '');
+
             matchedStudent = students.find(s => {
-                const adm = (s.admissionNumber || s.admission_number || '').toLowerCase();
+                const adm = (s.admissionNumber || s.admission_number || '').toLowerCase().trim();
                 const admDigits = adm.replace(/\D/g, '');
-                return adm === refLower || (refDigits && admDigits === refDigits);
+                return adm === parsedLower || 
+                       adm === refLower || 
+                       (parsedDigits && admDigits === parsedDigits) ||
+                       (refDigits && admDigits === refDigits) ||
+                       cleanRef.endsWith('-' + adm) ||
+                       cleanRef.endsWith('/' + adm);
             });
 
             if (matchedStudent) {

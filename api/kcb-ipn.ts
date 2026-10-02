@@ -507,12 +507,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const additionalData = body.requestPayload?.additionalData || {};
         const notificationData = additionalData.notificationData || {};
 
-        // Flat format key fields resolved via robust getParam with nested fallbacks
+        // Flat format key fields resolved via robust getParam with comprehensive nested fallbacks
         const transactionReference = getParam(body, req.query, 'transactionReference') ||
+                                     getParam(body, req.query, 'transID') ||
+                                     getParam(body, req.query, 'transId') ||
+                                     getParam(body, req.query, 'TransID') ||
+                                     getParam(body, req.query, 'mpesaReceiptNumber') ||
+                                     getParam(body, req.query, 'MpesaReceiptNumber') ||
+                                     getParam(body, req.query, 'receiptNumber') ||
+                                     getParam(body, req.query, 'ReceiptNumber') ||
+                                     getParam(body, req.query, 'reference') ||
+                                     getParam(body, req.query, 'retrievalRefNo') ||
+                                     getParam(body, req.query, 'retrievalReferenceNumber') ||
                                      getParam(body, req.query, 'checkoutRequestId') ||
                                      getParam(body, req.query, 'checkoutRequestID') ||
+                                     getParam(body, req.query, 'thirdPartyTransID') ||
                                      primaryData.checkoutRequestID ||
                                      primaryData.checkoutRequestId ||
+                                     primaryData.transactionReference ||
+                                     primaryData.transID ||
+                                     primaryData.transId ||
+                                     primaryData.mpesaReceiptNumber ||
+                                     notificationData.transactionID ||
+                                     notificationData.transID ||
+                                     notificationData.transId ||
+                                     notificationData.mpesaReceiptNumber ||
+                                     notificationData.retrievalRefNo ||
                                      '';
 
         const requestId = getParam(body, req.query, 'requestId') ||
@@ -520,10 +540,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                           '';
 
         const customerReference = getParam(body, req.query, 'customerReference') ||
+                                  getParam(body, req.query, 'billRefNumber') ||
+                                  getParam(body, req.query, 'BillRefNumber') ||
+                                  getParam(body, req.query, 'billReferenceNumber') ||
                                   getParam(body, req.query, 'accountReference') ||
+                                  getParam(body, req.query, 'accountNumber') ||
+                                  getParam(body, req.query, 'accountNo') ||
                                   getParam(body, req.query, 'businessKey') ||
                                   primaryData.businessKey ||
+                                  primaryData.customerReference ||
+                                  notificationData.accountReference ||
+                                  notificationData.customerReference ||
+                                  notificationData.billReferenceNumber ||
                                   '';
+
+        // Parse compound references (e.g. "8145955-201" -> ShortCode: "8145955", ADM: "201")
+        let parsedAdmissionNumber = '';
+        let compoundPaybillPrefix = '';
+        if (customerReference) {
+            const compoundMatch = customerReference.match(/^([0-9A-Za-z]{4,10})[\-_\/#\s:]+([A-Za-z0-9\/-]+)$/i);
+            if (compoundMatch) {
+                compoundPaybillPrefix = compoundMatch[1].trim();
+                parsedAdmissionNumber = compoundMatch[2].trim();
+            } else if (customerReference.includes('-')) {
+                const parts = customerReference.split('-');
+                parsedAdmissionNumber = parts[parts.length - 1].trim();
+                compoundPaybillPrefix = parts[0].trim();
+            } else {
+                const prefixMatch = customerReference.match(/(?:ADM|ACC|STU|STUDENT|NO)[\s\-_#:\/.]*([0-9A-Za-z\/-]+)$/i);
+                if (prefixMatch && prefixMatch[1]) {
+                    parsedAdmissionNumber = prefixMatch[1].trim();
+                } else {
+                    parsedAdmissionNumber = customerReference;
+                }
+            }
+        }
 
         const creditAccountIdentifier = getParam(body, req.query, 'creditAccountIdentifier') ||
                                         getParam(body, req.query, 'creditAccountIdenti;ier') ||
@@ -536,10 +587,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                      notificationData.debitMSISDN ||
                                      '';
 
-        const customerName = getParam(body, req.query, 'customerName') ||
-                             getParam(body, req.query, 'payerName') ||
-                             `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim() ||
-                             '';
+        const rawCustomerName = getParam(body, req.query, 'customerName') ||
+                                getParam(body, req.query, 'payerName') ||
+                                getParam(body, req.query, 'senderName') ||
+                                getParam(body, req.query, 'clientName') ||
+                                getParam(body, req.query, 'debitorReference') ||
+                                getParam(body, req.query, 'beneficiaryName') ||
+                                `${getParam(body, req.query, 'firstName') || getParam(body, req.query, 'FirstName') || ''} ${getParam(body, req.query, 'lastName') || getParam(body, req.query, 'LastName') || ''}`.trim() ||
+                                `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim() ||
+                                notificationData.customerName ||
+                                notificationData.payerName ||
+                                primaryData.customerName ||
+                                '';
+        const customerName = (rawCustomerName && !/^(customer|null|none|undefined|bank depositor)$/i.test(rawCustomerName)) ? rawCustomerName : '';
 
         const transactionAmount = getParam(body, req.query, 'transactionAmount') ||
                                   getParam(body, req.query, 'amount') ||
@@ -584,6 +644,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                       primaryData.shortCode ||
                                       primaryData.short_code ||
                                       primaryData.paybill ||
+                                      compoundPaybillPrefix ||
                                       '';
 
         const tillNumber = getParam(body, req.query, 'tillNumber') ||
@@ -596,10 +657,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const originatorConversationID = header.originatorConversationID || header.conversationID || requestId || '';
         const businessKey = primaryData.businessKey || customerReference || '';
 
-        const transactionID = transactionReference || notificationData.transactionID || businessKey || `KCB_IPN_${Date.now()}`;
+        // Prioritize real alphanumeric transaction code (e.g. UJ1F48QRBS) over generic timestamp fallback
+        const transactionID = transactionReference || notificationData.transactionID || businessKey || `KCB_${Date.now()}`;
         const amount = parseFloat(transactionAmount || notificationData.transactionAmt || notificationData.amount || notificationData.transactionAmount || '0');
         const phone = customerMobileNumber || notificationData.debitMSISDN || '';
-        const payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim();
+        const payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim() || 'Parent / Depositor';
 
         // Construct normalized flat payload as requested
         const normalizedPayload = {
@@ -900,12 +962,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                // Fallback 3: Try matching student admission number in users table
+                // Fallback 3: Try matching student admission number in users table (supports extracted ADM like "201" from "8145955-201")
                 if (!invoice) {
+                    const admFilters = [
+                        `admission_number.eq.${referenceCode}`,
+                        `metadata->>admissionNumber.eq.${referenceCode}`
+                    ];
+                    if (parsedAdmissionNumber && parsedAdmissionNumber !== referenceCode) {
+                        admFilters.push(`admission_number.eq.${parsedAdmissionNumber}`);
+                        admFilters.push(`metadata->>admissionNumber.eq.${parsedAdmissionNumber}`);
+                    }
                     const { data: matchUser } = await supabase
                         .from('users')
-                        .select('id, institution_id, name')
-                        .or(`admission_number.eq.${referenceCode},metadata->>admissionNumber.eq.${referenceCode}`)
+                        .select('id, institution_id, name, parent_name, parent_phone, phone')
+                        .or(admFilters.join(','))
                         .maybeSingle();
                     if (matchUser) {
                         const { data: instData } = await supabase
@@ -914,6 +984,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             .eq('id', matchUser.institution_id)
                             .maybeSingle();
                         inst = instData;
+                        if (!customerName || customerName === 'Parent / Depositor') {
+                            customerName = matchUser.parent_name || matchUser.name;
+                            payerName = customerName;
+                        }
 
                         if (inst) {
                             // Find oldest pending standard invoice, driving school invoice, or property management invoice for this user

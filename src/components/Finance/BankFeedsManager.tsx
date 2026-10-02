@@ -177,6 +177,205 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         ];
     }, [institution, liveTransactions, lastSyncedAt]);
 
+    // ── Helper 1: Parse Admission Number from Compound References (e.g. "8145955-201" -> "201") ──
+    const parseAdmissionNumberFromRef = useCallback((rawRef: string): string => {
+        if (!rawRef) return '';
+        const clean = String(rawRef).trim();
+        if (!clean || /^(none|null|undefined)$/i.test(clean)) return '';
+
+        // Case 1: Compound delimiter format (PaybillPrefix-AdmNo, e.g. "8145955-201", "8145955/201", "8145955#201")
+        const delimiterMatch = clean.match(/^[0-9A-Za-z]{4,10}[\-_\/#\s:]+([A-Za-z0-9\/-]+)$/i);
+        if (delimiterMatch && delimiterMatch[1]) {
+            return delimiterMatch[1].trim();
+        }
+
+        // Case 2: Explicit prefix format (e.g. "ADM-201", "ACC-201", "STU-201", "NO: 201")
+        const prefixMatch = clean.match(/(?:ADM|ACC|STU|STUDENT|NO)[\s\-_#:\/.]*([0-9A-Za-z\/-]+)$/i);
+        if (prefixMatch && prefixMatch[1]) {
+            return prefixMatch[1].trim();
+        }
+
+        // Case 3: Any string with hyphen where suffix is the ADM number
+        if (clean.includes('-')) {
+            const parts = clean.split('-');
+            const lastPart = parts[parts.length - 1].trim();
+            if (lastPart) return lastPart;
+        }
+
+        return clean;
+    }, []);
+
+    // ── Helper 2: Extract Genuine Alphanumeric Transaction Code (e.g. "UJ1F48QRBS") ──
+    const extractRealTransactionCode = useCallback((row: any): string => {
+        const meta = row.metadata || {};
+        const raw = row.raw_payload || row.payload || {};
+
+        const candidates = [
+            row.mpesa_receipt_number,
+            row.receipt_number,
+            row.transaction_reference,
+            row.reference,
+            row.trans_id,
+            row.transId,
+            row.transID,
+            meta.transactionReference,
+            meta.transaction_reference,
+            meta.mpesaReceiptNumber,
+            meta.mpesa_receipt_number,
+            meta.transID,
+            meta.transId,
+            meta.TransID,
+            meta.receiptNumber,
+            meta.retrievalRefNo,
+            meta.uniqueID,
+            meta.offlineUniqueID,
+            meta.reference,
+            meta.referenceNumber,
+            raw.transactionReference,
+            raw.transaction_reference,
+            raw.transactionID,
+            raw.transID,
+            raw.transId,
+            raw.mpesaReceiptNumber,
+            raw.retrievalRefNo,
+            raw.reference,
+            row.transaction_id,
+            row.checkout_request_id,
+            row.id
+        ];
+
+        // Priority 1: Genuine alphanumeric code (e.g. UJ1F48QRBS, FT260822009, TL12345678)
+        for (const c of candidates) {
+            if (!c) continue;
+            const s = String(c).trim();
+            if (/^(txn_|kcb_ipn_|kcb_1\d{8,}|msg_|mock_|feed_)/i.test(s)) continue;
+            if (/^[A-Za-z0-9]{7,18}$/.test(s) && /[A-Za-z]/.test(s) && /\d/.test(s)) {
+                return s.toUpperCase();
+            }
+        }
+
+        // Priority 2: Extract code embedded in narration
+        const narration = String(row.narration || meta.narration || raw.narration || '').trim();
+        if (narration) {
+            const codeMatch = narration.match(/\b([A-Z0-9]{8,15})\b/);
+            if (codeMatch && /[A-Za-z]/.test(codeMatch[1]) && /\d/.test(codeMatch[1]) && !/^(kcb|bank|mpesa)/i.test(codeMatch[1])) {
+                return codeMatch[1].toUpperCase();
+            }
+        }
+
+        // Priority 3: Non-internal candidate string
+        for (const c of candidates) {
+            if (!c) continue;
+            const s = String(c).trim();
+            if (!/^(txn_|kcb_ipn_|kcb_1\d{8,}|msg_|mock_|feed_)/i.test(s) && s.length >= 6) {
+                return s.toUpperCase();
+            }
+        }
+
+        // Priority 4: Fallback
+        return row.transaction_id || row.reference || row.checkout_request_id || row.id || 'N/A';
+    }, []);
+
+    // ── Helper 3: Extract Payer Name (never returns blank or generic 'Customer' if identifiable) ──
+    const extractPayerName = useCallback((row: any, matchedStudent?: any): string => {
+        const meta = row.metadata || {};
+        const raw = row.raw_payload || row.payload || {};
+
+        const candidates = [
+            row.payer_name,
+            row.customer_name,
+            row.customerName,
+            row.payerName,
+            row.sender_name,
+            row.senderName,
+            meta.customerName,
+            meta.customer_name,
+            meta.payerName,
+            meta.payer_name,
+            meta.senderName,
+            meta.sender_name,
+            meta.clientName,
+            meta.client_name,
+            meta.firstName && `${meta.firstName} ${meta.lastName || ''}`.trim(),
+            meta.FirstName && `${meta.FirstName} ${meta.LastName || ''}`.trim(),
+            raw.customerName,
+            raw.customer_name,
+            raw.payerName,
+            raw.payer_name,
+            raw.sender_name,
+            raw.senderName,
+            raw.firstName && `${raw.firstName} ${raw.lastName || ''}`.trim(),
+            raw.FirstName && `${raw.FirstName} ${raw.LastName || ''}`.trim(),
+            row.first_name && `${row.first_name} ${row.last_name || ''}`.trim()
+        ];
+
+        for (const c of candidates) {
+            if (!c) continue;
+            const s = String(c).trim();
+            if (s && !/^(customer|none|null|undefined|bank depositor|n\/a)$/i.test(s)) {
+                return s;
+            }
+        }
+
+        // Check narration for names (e.g. "FROM MARY WANJIKU", "DEP BY JOHN DOE")
+        const narration = String(row.narration || meta.narration || raw.narration || '').trim();
+        if (narration) {
+            const fromMatch = narration.match(/(?:from|dep\s+by|by|deposit\s+from|payer:?)\s+([A-Za-z\s]{3,30})/i);
+            if (fromMatch && fromMatch[1]) {
+                const extracted = fromMatch[1].trim();
+                if (extracted.length >= 3 && !/^(kcb|bank|account|cash|mpesa|transfer)/i.test(extracted)) {
+                    return extracted;
+                }
+            }
+        }
+
+        // Matched student parent/guardian fallback
+        if (matchedStudent) {
+            const parent = matchedStudent.parentName || matchedStudent.guardianName || matchedStudent.fatherName || matchedStudent.motherName;
+            if (parent && String(parent).trim()) {
+                return String(parent).trim();
+            }
+            const sName = matchedStudent.name || matchedStudent.fullName;
+            if (sName) {
+                return `${sName} (Parent)`;
+            }
+        }
+
+        return 'Parent / Depositor';
+    }, []);
+
+    // ── Helper 4: Extract Bill / Customer Reference ──
+    const extractBillReference = useCallback((row: any): string => {
+        const meta = row.metadata || {};
+        const raw = row.raw_payload || row.payload || {};
+
+        const candidates = [
+            row.bill_ref_number,
+            row.customer_reference,
+            row.account_reference,
+            meta.billReferenceNumber,
+            meta.bill_ref_number,
+            meta.customerReference,
+            meta.customer_reference,
+            meta.accountReference,
+            meta.account_reference,
+            meta.businessKey,
+            raw.billReferenceNumber,
+            raw.customerReference,
+            raw.accountReference,
+            raw.businessKey
+        ];
+
+        for (const c of candidates) {
+            if (!c) continue;
+            const s = String(c).trim();
+            if (s && !/^(none|null|undefined)$/i.test(s)) {
+                return s;
+            }
+        }
+        return '';
+    }, []);
+
     // ── 2. Match Student & Receipt Helper ──
     const matchTransactionDetails = useCallback((
         rawRef: string,
@@ -187,6 +386,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     ) => {
         const cleanRef = String(rawRef || '').toUpperCase().trim();
         const cleanBill = String(rawBillRef || '').trim();
+        const parsedAdm = parseAdmissionNumberFromRef(cleanBill);
         const cleanPhoneDigits = String(rawPhone || '').replace(/\D/g, '').slice(-9);
 
         // 1. Direct match with system Receipts
@@ -198,25 +398,35 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         });
 
         if (matchedReceipt) {
+            const studentMatch = students.find(s => s.id === (matchedReceipt.studentId || matchedReceipt.student_id));
             return {
                 status: 'MATCHED_AND_RECEIPTED' as const,
                 matchedStudentId: matchedReceipt.studentId || matchedReceipt.student_id,
                 matchedStudentName: matchedReceipt.studentName || matchedReceipt.student_name,
-                matchedStudentAdm: matchedReceipt.admissionNumber || matchedReceipt.admission_number || cleanBill,
+                matchedStudentAdm: matchedReceipt.admissionNumber || matchedReceipt.admission_number || parsedAdm || cleanBill,
+                matchedStudent: studentMatch,
                 generatedReceiptId: matchedReceipt.id,
                 generatedReceiptNumber: matchedReceipt.receiptNumber || matchedReceipt.receipt_number,
                 confidence: 'EXACT_ADM' as const
             };
         }
 
-        // 2. Direct ADM matching against students
-        if (cleanBill && students.length > 0) {
-            const billLower = cleanBill.toLowerCase();
-            const billDigits = cleanBill.replace(/\D/g, '');
+        // 2. Direct ADM matching against students (supports 8145955-201 -> 201)
+        if ((parsedAdm || cleanBill) && students.length > 0) {
+            const admToTest = (parsedAdm || cleanBill).toLowerCase().trim();
+            const admDigits = admToTest.replace(/\D/g, '');
+            const rawLower = cleanBill.toLowerCase().trim();
+
             const studentMatch = students.find(s => {
-                const adm = String(s.admissionNumber || s.admission_number || '').toLowerCase().trim();
-                const admDigits = adm.replace(/\D/g, '');
-                return adm === billLower || (billDigits.length >= 2 && admDigits === billDigits);
+                const sAdm = String(s.admissionNumber || s.admission_number || '').toLowerCase().trim();
+                const sAdmDigits = sAdm.replace(/\D/g, '');
+
+                if (sAdm && sAdm === admToTest) return true;
+                if (admDigits.length >= 1 && sAdmDigits === admDigits) return true;
+                if (sAdm && sAdm === rawLower) return true;
+                if (sAdm && (cleanBill.endsWith('-' + sAdm) || cleanBill.endsWith('/' + sAdm))) return true;
+
+                return false;
             });
 
             if (studentMatch) {
@@ -224,7 +434,8 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     status: 'MATCHED_AND_RECEIPTED' as const,
                     matchedStudentId: studentMatch.id,
                     matchedStudentName: studentMatch.name || studentMatch.fullName,
-                    matchedStudentAdm: studentMatch.admissionNumber || studentMatch.admission_number,
+                    matchedStudentAdm: studentMatch.admissionNumber || studentMatch.admission_number || parsedAdm,
+                    matchedStudent: studentMatch,
                     generatedReceiptId: undefined,
                     generatedReceiptNumber: undefined,
                     confidence: 'EXACT_ADM' as const
@@ -246,6 +457,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     matchedStudentId: studentMatch.id,
                     matchedStudentName: studentMatch.name || studentMatch.fullName,
                     matchedStudentAdm: studentMatch.admissionNumber || studentMatch.admission_number,
+                    matchedStudent: studentMatch,
                     generatedReceiptId: undefined,
                     generatedReceiptNumber: undefined,
                     confidence: 'EXACT_PHONE' as const
@@ -271,6 +483,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                         matchedStudentId: candidate.id,
                         matchedStudentName: candidate.name || candidate.fullName,
                         matchedStudentAdm: candidate.admissionNumber || candidate.admission_number,
+                        matchedStudent: candidate,
                         generatedReceiptId: undefined,
                         generatedReceiptNumber: undefined,
                         confidence: 'NAME_MATCH' as const
@@ -284,14 +497,15 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             status: 'UNMATCHED_SUSPENSE' as const,
             matchedStudentId: undefined,
             matchedStudentName: undefined,
-            matchedStudentAdm: undefined,
+            matchedStudentAdm: parsedAdm || undefined,
+            matchedStudent: undefined,
             generatedReceiptId: undefined,
             generatedReceiptNumber: undefined,
             confidence: 'NONE' as const
         };
-    }, [receipts, students]);
+    }, [receipts, students, parseAdmissionNumberFromRef]);
 
-    // ── 3. Fetch Real Transactions From DB ──
+    // ── 3. Fetch Real Transactions From DB with Smart Deduplication ──
     const fetchRealTransactions = useCallback(async () => {
         if (!institution?.id) return;
         setIsRefreshing(true);
@@ -309,9 +523,19 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
 
             // Process mpesa_transactions (contains KCB, M-Pesa, etc.)
             (mpesaRes || []).forEach((row: any) => {
-                const ref = row.transaction_id || row.checkout_request_id || row.id;
-                if (!ref || seenRefs.has(ref)) return;
-                seenRefs.add(ref);
+                const realRef = extractRealTransactionCode(row);
+                const billRef = extractBillReference(row);
+                const phone = row.phone_number || row.customer_mobile_number || row.msisdn || '';
+                const amount = Number(row.amount) || 0;
+
+                // Smart deduplication: Avoid duplicate entries if bank_transactions or double-logged
+                if (realRef && !realRef.startsWith('N/A') && seenRefs.has(realRef)) return;
+                if (realRef && !realRef.startsWith('N/A')) seenRefs.add(realRef);
+
+                const timeKey = String(row.created_at || row.timestamp || '').slice(0, 16);
+                const dedupSig = `${amount}_${phone || billRef}_${timeKey}`;
+                if (seenRefs.has(dedupSig)) return;
+                if (amount > 0 && (phone || billRef)) seenRefs.add(dedupSig);
 
                 const rawProvider = String(row.provider || '').toLowerCase();
                 let provider: IngestedTransaction['provider'] = 'MPESA_DARAJA';
@@ -320,18 +544,14 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 else if (rawProvider.includes('equity')) provider = 'EQUITY_JENGA';
                 else if (rawProvider.includes('ncba')) provider = 'NCBA_DIRECT';
 
-                const billRef = row.bill_ref_number || row.customer_reference || row.metadata?.billReferenceNumber || '';
-                const payerName = row.payer_name || row.customer_name || (row.first_name ? `${row.first_name} ${row.last_name || ''}`.trim() : 'Customer');
-                const phone = row.phone_number || row.customer_mobile_number || row.msisdn || '';
-                const amount = Number(row.amount) || 0;
-
-                const matchInfo = matchTransactionDetails(ref, billRef, payerName, phone, amount);
+                const matchInfo = matchTransactionDetails(realRef, billRef, '', phone, amount);
+                const payerName = extractPayerName(row, matchInfo.matchedStudent);
 
                 aggregated.push({
-                    id: row.id || `txn_${ref}`,
+                    id: row.id || `txn_${realRef}`,
                     institutionId: instId,
                     provider,
-                    transactionReference: ref,
+                    transactionReference: realRef,
                     billReferenceNumber: billRef,
                     payerName,
                     payerPhone: phone,
@@ -351,9 +571,20 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
 
             // Process bank_transactions
             (bankRes || []).forEach((row: any) => {
-                const ref = row.reference || row.id;
-                if (!ref || seenRefs.has(ref)) return;
-                seenRefs.add(ref);
+                const realRef = extractRealTransactionCode(row);
+                const payload = row.payload || {};
+                const billRef = extractBillReference(row);
+                const phone = payload.phoneNumber || payload.phone || '';
+                const amount = Number(row.amount) || 0;
+
+                // Smart deduplication against mpesa_transactions
+                if (realRef && !realRef.startsWith('N/A') && seenRefs.has(realRef)) return;
+                if (realRef && !realRef.startsWith('N/A')) seenRefs.add(realRef);
+
+                const timeKey = String(row.created_at || row.transaction_date || '').slice(0, 16);
+                const dedupSig = `${amount}_${phone || billRef}_${timeKey}`;
+                if (seenRefs.has(dedupSig)) return;
+                if (amount > 0 && (phone || billRef)) seenRefs.add(dedupSig);
 
                 const bankName = String(row.bank_name || '').toLowerCase();
                 let provider: IngestedTransaction['provider'] = 'KCB_BUNI';
@@ -363,19 +594,14 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 else if (bankName.includes('ncba')) provider = 'NCBA_DIRECT';
                 else if (bankName.includes('mpesa') || bankName.includes('daraja')) provider = 'MPESA_DARAJA';
 
-                const payload = row.payload || {};
-                const billRef = payload.billReferenceNumber || payload.customerReference || payload.accountReference || '';
-                const payerName = row.sender_name || payload.payerName || 'Bank Depositor';
-                const phone = payload.phoneNumber || payload.phone || '';
-                const amount = Number(row.amount) || 0;
-
-                const matchInfo = matchTransactionDetails(ref, billRef, payerName, phone, amount);
+                const matchInfo = matchTransactionDetails(realRef, billRef, '', phone, amount);
+                const payerName = extractPayerName(row, matchInfo.matchedStudent);
 
                 aggregated.push({
-                    id: row.id || `txn_${ref}`,
+                    id: row.id || `txn_${realRef}`,
                     institutionId: instId,
                     provider,
-                    transactionReference: ref,
+                    transactionReference: realRef,
                     billReferenceNumber: billRef,
                     payerName,
                     payerPhone: phone,
@@ -395,20 +621,21 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
 
             // Process bank_feed_transactions
             (feedRes || []).forEach((row: any) => {
-                const ref = row.transaction_reference || row.id;
-                if (!ref || seenRefs.has(ref)) return;
-                seenRefs.add(ref);
-
-                const billRef = row.bill_reference_number || '';
-                const payerName = row.payer_name || 'Customer';
+                const realRef = extractRealTransactionCode(row);
+                const billRef = extractBillReference(row);
                 const amount = Number(row.amount) || 0;
-                const matchInfo = matchTransactionDetails(ref, billRef, payerName, '', amount);
+
+                if (realRef && !realRef.startsWith('N/A') && seenRefs.has(realRef)) return;
+                if (realRef && !realRef.startsWith('N/A')) seenRefs.add(realRef);
+
+                const matchInfo = matchTransactionDetails(realRef, billRef, '', '', amount);
+                const payerName = extractPayerName(row, matchInfo.matchedStudent);
 
                 aggregated.push({
-                    id: row.id || `txn_${ref}`,
+                    id: row.id || `txn_${realRef}`,
                     institutionId: instId,
                     provider: (row.provider as any) || 'KCB_BUNI',
-                    transactionReference: ref,
+                    transactionReference: realRef,
                     billReferenceNumber: billRef,
                     payerName,
                     amount,
@@ -435,7 +662,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, [institution?.id, matchTransactionDetails]);
+    }, [institution?.id, matchTransactionDetails, extractRealTransactionCode, extractBillReference, extractPayerName]);
 
     // Initial load
     useEffect(() => {
@@ -1001,9 +1228,18 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                                 </td>
                                                 <td className="px-6 py-3.5">
                                                     <span className="font-bold text-slate-800 dark:text-slate-200 block">{txn.payerName}</span>
-                                                    <span className="font-mono text-[10px] text-slate-400">
-                                                        Acc: "{txn.billReferenceNumber || 'None'}" {txn.payerPhone ? `· ${txn.payerPhone}` : ''}
-                                                    </span>
+                                                    <div className="font-mono text-[10px] text-slate-400 flex flex-wrap items-center gap-1 mt-0.5">
+                                                        <span>Acc:</span>
+                                                        <strong className="text-slate-700 dark:text-slate-300 font-bold">
+                                                            "{parseAdmissionNumberFromRef(txn.billReferenceNumber || '') || txn.billReferenceNumber || 'None'}"
+                                                        </strong>
+                                                        {parseAdmissionNumberFromRef(txn.billReferenceNumber || '') && 
+                                                         txn.billReferenceNumber && 
+                                                         parseAdmissionNumberFromRef(txn.billReferenceNumber || '') !== txn.billReferenceNumber && (
+                                                            <span className="text-[9px] text-slate-400 font-mono">({txn.billReferenceNumber})</span>
+                                                        )}
+                                                        {txn.payerPhone ? `· ${txn.payerPhone}` : ''}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-3.5 font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
                                                     KSh {txn.amount.toLocaleString()}
