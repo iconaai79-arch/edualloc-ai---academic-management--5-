@@ -7365,6 +7365,9 @@ export const apiService = {
     },
     async saveRemedialSubject(data: Partial<RemedialSubject>): Promise<void> { await apiService.saveModuleRecord('school_remedial_subjects', data); },
     async deleteRemedialSubject(id: string): Promise<void> { await apiService.deleteModuleRecord('school_remedial_subjects', id); },
+    async fetchRemedialDutyRoster(instId?: string): Promise<RemedialWeekendDuty[]> { return apiService.fetchModuleRecords('school_remedial_duty_roster', instId); },
+    async saveRemedialDuty(data: Partial<RemedialWeekendDuty>): Promise<void> { await apiService.saveModuleRecord('school_remedial_duty_roster', data); },
+    async deleteRemedialDuty(id: string): Promise<void> { await apiService.deleteModuleRecord('school_remedial_duty_roster', id); },
     // Corporate Invoicing & Billing Services
     async fetchInvoiceClients(instId?: string): Promise<InvoiceClient[]> { return apiService.fetchModuleRecords('invoice_clients', instId); },
     async saveInvoiceClient(data: Partial<InvoiceClient>): Promise<void> { await apiService.saveModuleRecord('invoice_clients', data); },

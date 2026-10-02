@@ -123,7 +123,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [tenantSubjects, fetchedSchoolSubjects, targetInstitutionId]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'teachers' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+    const [activeTab, setActiveTab] = useState<'teachers' | 'duty' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+
+    // Tab: Teachers on Duty (TOD) Management States
+    const [dutySearchQuery, setDutySearchQuery] = useState('');
+    const [dutyTypeFilter, setDutyTypeFilter] = useState<'all' | 'weekend' | 'weekday'>('all');
+    const [dutyWeekFilter, setDutyWeekFilter] = useState<string>('all');
+    const [dutyDayFilter, setDutyDayFilter] = useState<string>('all');
+    const [dutyViewMode, setDutyViewMode] = useState<'cards' | 'table'>('table');
+    const [showDutyPendingQueue, setShowDutyPendingQueue] = useState<boolean>(true);
 
     // Tab: Prefects & Class Secretaries Management States
     const [prefectSearchQuery, setPrefectSearchQuery] = useState('');
@@ -4149,6 +4157,152 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         } else {
             handleSaveWeekendDuty();
         }
+    };
+
+    // Delete Duty Roster Entry
+    const handleDeleteDutyRecord = async (duty: RemedialWeekendDuty) => {
+        if (!window.confirm(`Are you sure you want to remove ${duty.teacherName} from the duty roster for ${duty.weekLabel || 'the selected week'}?`)) {
+            return;
+        }
+        try {
+            await apiService.deleteRemedialDuty(duty.id);
+            const updated = weekendDutyRoster.filter(d => d.id !== duty.id);
+            setWeekendDutyRoster(updated);
+            safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(updated));
+            onLogAction?.(`Removed ${duty.teacherName} from duty roster (${duty.weekLabel || 'duty'})`);
+        } catch (err: any) {
+            alert(err.message || 'Failed to remove duty assignment');
+        }
+    };
+
+    // Print Duty Roster Sheet
+    const handlePrintDutyRoster = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Please allow popups to print the duty roster.');
+            return;
+        }
+        const filteredRoster = weekendDutyRoster.filter(r => {
+            if (dutyTypeFilter === 'weekend' && r.dutyType === 'weekday') return false;
+            if (dutyTypeFilter === 'weekday' && r.dutyType !== 'weekday') return false;
+            if (dutyWeekFilter !== 'all' && (r.weekLabel || '').toUpperCase() !== dutyWeekFilter.toUpperCase()) return false;
+            if (dutyDayFilter !== 'all') {
+                if (r.dutyType === 'weekday') {
+                    if ((r.weekdayDay || '').toLowerCase() !== dutyDayFilter.toLowerCase()) return false;
+                } else {
+                    if (!['Saturday', 'Sunday'].map(d => d.toLowerCase()).includes(dutyDayFilter.toLowerCase())) return false;
+                }
+            }
+            if (dutySearchQuery) {
+                const q = dutySearchQuery.toLowerCase();
+                const matchName = (r.teacherName || '').toLowerCase().includes(q);
+                const matchCode = (r.teacherCode || '').toLowerCase().includes(q);
+                const matchClass = (r.className || '').toLowerCase().includes(q);
+                const matchSub = (r.subjectName || '').toLowerCase().includes(q);
+                if (!matchName && !matchCode && !matchClass && !matchSub) return false;
+            }
+            return true;
+        });
+
+        const rowsHtml = filteredRoster.map((r, idx) => {
+            const isWkday = r.dutyType === 'weekday';
+            const dayText = isWkday ? (r.weekdayDay || 'Weekday') : 'Saturday & Sunday';
+            const timeText = isWkday 
+                ? `${r.weekdayStartTime || '16:00'} - ${r.weekdayEndTime || '18:00'}`
+                : `Sat: ${saturdayStartTime || '08:00'} - 13:00 / Sun: ${sundayStartTime || '09:00'} - 13:00`;
+            const payText = isWkday
+                ? `KES ${r.dutyPayRate || weekdayDutyFlatRate || 200} (Flat/Day)`
+                : 'Tariff / Hourly';
+
+            return `
+                <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+                    <td style="padding: 8px 10px; text-align: center; font-weight: bold;">${idx + 1}</td>
+                    <td style="padding: 8px 10px; font-weight: bold;">${r.weekLabel || 'WEEK 1'}</td>
+                    <td style="padding: 8px 10px;"><span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; background: ${isWkday ? '#e0e7ff; color: #3730a3;' : '#fef3c7; color: #92400e;'}">${isWkday ? 'WEEKDAY' : 'WEEKEND'}</span></td>
+                    <td style="padding: 8px 10px; font-weight: bold;">${r.teacherName} ${r.teacherCode ? `(${r.teacherCode})` : ''}</td>
+                    <td style="padding: 8px 10px;">${dayText}</td>
+                    <td style="padding: 8px 10px; font-family: monospace;">${timeText}</td>
+                    <td style="padding: 8px 10px;">${r.className || 'General'} – ${r.subjectName || 'Remedial General'}</td>
+                    <td style="padding: 8px 10px; font-weight: bold;">${payText}</td>
+                </tr>
+            `;
+        }).join('');
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Teachers on Duty Roster – ${currentInstitution?.name || 'Academic Institution'}</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #0f172a; }
+                    h2 { margin: 0 0 4px; text-transform: uppercase; font-size: 18px; }
+                    p { margin: 0 0 16px; color: #64748b; font-size: 12px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+                    th { background: #0f172a; color: #fff; text-align: left; padding: 8px 10px; font-size: 10px; text-transform: uppercase; }
+                </style>
+            </head>
+            <body>
+                <h2>${currentInstitution?.name || 'Academic Management System'}</h2>
+                <p>Remedials Teachers on Duty (TOD) Roster — Generated on ${new Date().toLocaleDateString('en-GB')}</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="text-align: center;">#</th>
+                            <th>Academic Week</th>
+                            <th>Duty Type</th>
+                            <th>Teacher on Duty</th>
+                            <th>Duty Day</th>
+                            <th>Hours / Window</th>
+                            <th>Scope (Class / Subject)</th>
+                            <th>Tariff / Remuneration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml || '<tr><td colspan="8" style="text-align: center; padding: 20px; color: #94a3b8;">No duty assignments recorded</td></tr>'}
+                    </tbody>
+                </table>
+                <script>
+                    window.onload = function() { window.print(); }
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
+    // Export Duty Roster to CSV
+    const handleExportDutyRosterCsv = () => {
+        const filteredRoster = weekendDutyRoster.filter(r => {
+            if (dutyTypeFilter === 'weekend' && r.dutyType === 'weekday') return false;
+            if (dutyTypeFilter === 'weekday' && r.dutyType !== 'weekday') return false;
+            if (dutyWeekFilter !== 'all' && (r.weekLabel || '').toUpperCase() !== dutyWeekFilter.toUpperCase()) return false;
+            return true;
+        });
+
+        const headers = ['#', 'Week', 'Duty Type', 'Teacher Name', 'Teacher Code', 'Duty Day', 'Start Time', 'End Time', 'Class', 'Subject', 'Pay Rate', 'Pay Type'];
+        const rows = filteredRoster.map((r, i) => [
+            i + 1,
+            r.weekLabel || 'WEEK 1',
+            r.dutyType === 'weekday' ? 'Weekday' : 'Weekend',
+            `"${(r.teacherName || '').replace(/"/g, '""')}"`,
+            r.teacherCode || '',
+            r.dutyType === 'weekday' ? (r.weekdayDay || 'Monday') : 'Saturday & Sunday',
+            r.dutyType === 'weekday' ? (r.weekdayStartTime || '16:00') : (saturdayStartTime || '08:00'),
+            r.dutyType === 'weekday' ? (r.weekdayEndTime || '18:00') : (sundayEndTime || '13:00'),
+            `"${(r.className || 'General').replace(/"/g, '""')}"`,
+            `"${(r.subjectName || 'General Remedials').replace(/"/g, '""')}"`,
+            r.dutyPayRate || (r.dutyType === 'weekday' ? (weekdayDutyFlatRate || 200) : 0),
+            r.dutyPayType || (r.dutyType === 'weekday' ? 'flat' : 'hourly')
+        ]);
+
+        const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `remedial_duty_roster_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     // Open Create Allocation Modal
@@ -8349,7 +8503,41 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             )}
                         </button>
 
-                        {/* PREFECTS & SECRETARIES TAB (Directly after Teachers) */}
+                        {/* TEACHERS ON DUTY (TOD) TAB */}
+                        <button 
+                            onClick={() => setActiveTab('duty')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'duty' 
+                                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'duty' ? 'bg-white/20 text-white' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <UserCheck className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Teachers on Duty</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'duty' ? 'text-amber-100' : 'text-slate-400'}`}>Duty roster &amp; approvals</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                {sessions.filter(s => s.status === 'Prefect Confirmed').length > 0 && (
+                                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" title="Pending TOD Approvals" />
+                                )}
+                                {weekendDutyRoster.length > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                        activeTab === 'duty' ? 'bg-white text-amber-700' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300'
+                                    }`}>
+                                        {weekendDutyRoster.length}
+                                    </span>
+                                )}
+                            </div>
+                        </button>
+
+                        {/* PREFECTS & SECRETARIES TAB (Directly after Teachers on Duty) */}
                         <button 
                             onClick={() => setActiveTab('prefects')}
                             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
@@ -8983,6 +9171,597 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* TAB: TEACHERS ON DUTY (TOD) MANAGEMENT HUB */}
+            {activeTab === 'duty' && (() => {
+                const pendingDutySessions = sessions.filter(s => s.status === 'Prefect Confirmed');
+                const weekendCount = weekendDutyRoster.filter(r => r.dutyType === 'weekend' || !r.dutyType).length;
+                const weekdayCount = weekendDutyRoster.filter(r => r.dutyType === 'weekday').length;
+                const distinctWeeks = Array.from(new Set(weekendDutyRoster.map(r => r.weekLabel || 'WEEK 1')));
+
+                const filteredRoster = weekendDutyRoster.filter(r => {
+                    if (dutyTypeFilter === 'weekend' && r.dutyType === 'weekday') return false;
+                    if (dutyTypeFilter === 'weekday' && r.dutyType !== 'weekday') return false;
+                    if (dutyWeekFilter !== 'all' && (r.weekLabel || '').toUpperCase() !== dutyWeekFilter.toUpperCase()) return false;
+                    if (dutyDayFilter !== 'all') {
+                        if (r.dutyType === 'weekday') {
+                            if ((r.weekdayDay || '').toLowerCase() !== dutyDayFilter.toLowerCase()) return false;
+                        } else {
+                            if (!['Saturday', 'Sunday'].map(d => d.toLowerCase()).includes(dutyDayFilter.toLowerCase())) return false;
+                        }
+                    }
+                    if (dutySearchQuery) {
+                        const q = dutySearchQuery.toLowerCase();
+                        const matchName = (r.teacherName || '').toLowerCase().includes(q);
+                        const matchCode = (r.teacherCode || '').toLowerCase().includes(q);
+                        const matchClass = (r.className || '').toLowerCase().includes(q);
+                        const matchSub = (r.subjectName || '').toLowerCase().includes(q);
+                        const matchDay = (r.weekdayDay || '').toLowerCase().includes(q);
+                        if (!matchName && !matchCode && !matchClass && !matchSub && !matchDay) return false;
+                    }
+                    return true;
+                });
+
+                return (
+                    <div className="space-y-6 animate-fade-in">
+                        {/* Top Header Banner */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                        <UserCheck className="w-5 h-5 text-amber-500" /> Teachers on Duty (TOD) Roster &amp; Operations
+                                    </h4>
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300">
+                                        {weekendDutyRoster.length} Appointments
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Coordinate daily and weekend teachers on duty, manage roster allocations, and verify completed remedial lessons.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={handlePrintDutyRoster}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-black text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                >
+                                    <Printer className="w-3.5 h-3.5" /> Print Roster
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleExportDutyRosterCsv}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-black text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                >
+                                    <Download className="w-3.5 h-3.5" /> Export CSV
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setDutyModalType('weekend');
+                                        setIsDutyModalOpen(true);
+                                    }}
+                                    className="flex-1 md:flex-none px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                >
+                                    <Plus className="w-4 h-4" /> Appoint Teacher on Duty
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* KPI Summary Cards */}
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Total Duty Entries</span>
+                                    <Calendar className="w-4 h-4 text-amber-500" />
+                                </div>
+                                <p className="text-xl font-black text-slate-900 dark:text-white font-mono">{weekendDutyRoster.length}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Across all academic weeks</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Weekend Duty</span>
+                                    <Award className="w-4 h-4 text-orange-500" />
+                                </div>
+                                <p className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">{weekendCount}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Saturday &amp; Sunday</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Weekday Duty</span>
+                                    <Clock className="w-4 h-4 text-indigo-500" />
+                                </div>
+                                <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{weekdayCount}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Monday through Friday</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Pending TOD Reviews</span>
+                                    <ShieldCheck className="w-4 h-4 text-rose-500" />
+                                </div>
+                                <p className={`text-xl font-black font-mono ${pendingDutySessions.length > 0 ? 'text-rose-600 dark:text-rose-400 animate-pulse' : 'text-emerald-600'}`}>
+                                    {pendingDutySessions.length}
+                                </p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Awaiting Stage 2 verification</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Weekday Flat Tariff</span>
+                                    <Banknote className="w-4 h-4 text-emerald-500" />
+                                </div>
+                                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">KES {weekdayDutyFlatRate || 200}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Daily rate per teacher</p>
+                            </div>
+                        </div>
+
+                        {/* STAGE 2: PENDING DUTY VERIFICATIONS QUEUE (If any) */}
+                        {pendingDutySessions.length > 0 && (
+                            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border-2 border-amber-300 dark:border-amber-800/80 rounded-3xl p-5 shadow-sm space-y-4">
+                                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md shadow-amber-500/30 shrink-0">
+                                            <ShieldCheck className="w-5 h-5 animate-bounce" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                                                Stage 2: Pending Teacher on Duty Verifications ({pendingDutySessions.length})
+                                            </h4>
+                                            <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5">
+                                                These lessons have been confirmed by class prefects and now require Teacher on Duty sign-off before Headteacher approval.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowDutyPendingQueue(prev => !prev)}
+                                        className="text-xs font-black text-amber-800 dark:text-amber-300 hover:underline uppercase tracking-wider cursor-pointer"
+                                    >
+                                        {showDutyPendingQueue ? 'Hide Queue' : 'Show Queue'}
+                                    </button>
+                                </div>
+
+                                {showDutyPendingQueue && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                                        {pendingDutySessions.map(sess => (
+                                            <div
+                                                key={sess.id}
+                                                className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 shadow-xs space-y-3"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div>
+                                                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300">
+                                                            {sess.subjectName || 'Remedial Subject'}
+                                                        </span>
+                                                        <h5 className="text-xs font-black text-slate-900 dark:text-white mt-1">
+                                                            {sess.teacherName}
+                                                        </h5>
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                                                            {sess.className} • {sess.stream || 'All Streams'}
+                                                        </p>
+                                                    </div>
+                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                                        {sess.hours || 1} hr
+                                                    </span>
+                                                </div>
+
+                                                <div className="text-[10px] text-slate-500 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800 space-y-0.5">
+                                                    <p><span className="font-bold text-slate-700 dark:text-slate-300">Date:</span> {sess.date}</p>
+                                                    <p><span className="font-bold text-slate-700 dark:text-slate-300">Prefect Confirmed:</span> {sess.prefectConfirmedBy || 'Prefect'} ({sess.prefectConfirmedRole || 'Prefect'})</p>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 pt-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleApproveDutySession(sess)}
+                                                        className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs active:scale-95"
+                                                    >
+                                                        <Check className="w-3.5 h-3.5" /> Approve as TOD
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRejectDutySession(sess);
+                                                            setDutyRejectionReason('');
+                                                        }}
+                                                        className="px-3 py-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                                                    >
+                                                        Reject
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Search and Filters Bar */}
+                        <div className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                            <div className="relative flex-1">
+                                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                                <input
+                                    type="text"
+                                    value={dutySearchQuery}
+                                    onChange={e => setDutySearchQuery(e.target.value)}
+                                    placeholder="Search by teacher name, staff code, week, class, or day..."
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl pl-10 pr-4 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white placeholder:text-slate-400"
+                                />
+                                {dutySearchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setDutySearchQuery('')}
+                                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {/* Duty Type Filter */}
+                                <select
+                                    value={dutyTypeFilter}
+                                    onChange={e => setDutyTypeFilter(e.target.value as any)}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                >
+                                    <option value="all">All Duty Types</option>
+                                    <option value="weekend">🌅 Weekend (Sat &amp; Sun)</option>
+                                    <option value="weekday">📅 Weekday (Mon–Fri)</option>
+                                </select>
+
+                                {/* Academic Week Filter */}
+                                <select
+                                    value={dutyWeekFilter}
+                                    onChange={e => setDutyWeekFilter(e.target.value)}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                >
+                                    <option value="all">All Weeks</option>
+                                    {Array.from({ length: 14 }, (_, i) => `WEEK ${i + 1}`).map(wk => (
+                                        <option key={wk} value={wk}>{wk}</option>
+                                    ))}
+                                </select>
+
+                                {/* Day Filter */}
+                                <select
+                                    value={dutyDayFilter}
+                                    onChange={e => setDutyDayFilter(e.target.value)}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl px-3 py-2.5 text-xs font-bold outline-none focus:border-amber-500 dark:text-white"
+                                >
+                                    <option value="all">All Days</option>
+                                    <option value="Saturday">Saturday</option>
+                                    <option value="Sunday">Sunday</option>
+                                    <option value="Monday">Monday</option>
+                                    <option value="Tuesday">Tuesday</option>
+                                    <option value="Wednesday">Wednesday</option>
+                                    <option value="Thursday">Thursday</option>
+                                    <option value="Friday">Friday</option>
+                                </select>
+
+                                {/* View Switcher */}
+                                <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDutyViewMode('table')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                            dutyViewMode === 'table'
+                                                ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        Table
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDutyViewMode('cards')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                            dutyViewMode === 'cards'
+                                                ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs'
+                                                : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        Cards
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Roster Content: Table Mode */}
+                        {dutyViewMode === 'table' && (
+                            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-xs border-collapse">
+                                        <thead className="bg-slate-50 dark:bg-slate-900/60 text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700">
+                                            <tr>
+                                                <th className="py-3.5 px-4 text-center w-12">#</th>
+                                                <th className="py-3.5 px-4">Academic Week</th>
+                                                <th className="py-3.5 px-4">Duty Type</th>
+                                                <th className="py-3.5 px-4">Teacher on Duty</th>
+                                                <th className="py-3.5 px-4">Duty Day &amp; Hours</th>
+                                                <th className="py-3.5 px-4">Assigned Scope</th>
+                                                <th className="py-3.5 px-4">Remuneration Tariff</th>
+                                                <th className="py-3.5 px-4 text-center">Timetable Status</th>
+                                                <th className="py-3.5 px-4 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 font-medium">
+                                            {filteredRoster.map((duty, idx) => {
+                                                const isWkday = duty.dutyType === 'weekday';
+                                                const teacherUser = tenantUsers.find(u => u.id === duty.teacherId);
+                                                const dayLabel = isWkday ? (duty.weekdayDay || 'Weekday') : 'Saturday & Sunday';
+                                                const timeRange = isWkday
+                                                    ? `${duty.weekdayStartTime || '16:00'} – ${duty.weekdayEndTime || '18:00'}`
+                                                    : `Sat ${saturdayStartTime || '08:00'} / Sun ${sundayStartTime || '09:00'}`;
+
+                                                // Check if teacher has allocations on this day
+                                                const hasAlloc = allocations.some(a => {
+                                                    if (a.teacherId !== duty.teacherId) return false;
+                                                    if (isWkday) {
+                                                        return isDayAllocation(a, duty.weekdayDay || 'Monday');
+                                                    }
+                                                    return isDayAllocation(a, 'Saturday') || isDayAllocation(a, 'Sunday');
+                                                });
+
+                                                return (
+                                                    <tr key={duty.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/30 transition-colors">
+                                                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">
+                                                            {idx + 1}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">
+                                                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-black font-mono bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                                                                {duty.weekLabel || 'WEEK 1'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            {isWkday ? (
+                                                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 flex items-center gap-1 w-max">
+                                                                    <Clock className="w-3 h-3" /> Weekday
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 flex items-center gap-1 w-max">
+                                                                    <Award className="w-3 h-3" /> Weekend
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center justify-center font-black text-xs shrink-0">
+                                                                    {(duty.teacherName || 'T')[0]}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-black text-slate-900 dark:text-white text-xs">
+                                                                        {duty.teacherName}
+                                                                    </p>
+                                                                    <p className="text-[10px] text-slate-400">
+                                                                        Code: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{duty.teacherCode || teacherCodes[duty.teacherId] || 'TOD'}</span>
+                                                                        {teacherUser?.role ? ` • ${teacherUser.role}` : ''}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <p className="font-black text-slate-800 dark:text-slate-200">{dayLabel}</p>
+                                                            <p className="text-[10px] font-mono text-slate-500">{timeRange}</p>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            <p className="font-bold text-slate-800 dark:text-slate-200">{duty.className || 'General Remedials'}</p>
+                                                            <p className="text-[10px] text-slate-400">{duty.subjectName || 'Remedial Duty Session'}</p>
+                                                        </td>
+                                                        <td className="py-3.5 px-4">
+                                                            {isWkday ? (
+                                                                <div>
+                                                                    <p className="font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                                                                        KES {duty.dutyPayRate || weekdayDutyFlatRate || 200}
+                                                                    </p>
+                                                                    <p className="text-[9px] text-slate-400 uppercase font-bold">
+                                                                        {duty.dutyPayType === 'hourly' ? 'Hourly Tariff' : 'Flat Daily Rate'}
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <div>
+                                                                    <p className="font-black text-amber-600 dark:text-amber-400 font-mono">
+                                                                        Standard Tariff
+                                                                    </p>
+                                                                    <p className="text-[9px] text-slate-400 uppercase font-bold">
+                                                                        Per Remedial Lesson
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-center">
+                                                            {hasAlloc ? (
+                                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center gap-1 w-max mx-auto">
+                                                                    <Check className="w-3 h-3" /> Allocated
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 w-max mx-auto block">
+                                                                    Duty Only
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3.5 px-4 text-right">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteDutyRecord(duty)}
+                                                                className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                                                title="Delete Duty Entry"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Roster Content: Cards Mode */}
+                        {dutyViewMode === 'cards' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredRoster.map(duty => {
+                                    const isWkday = duty.dutyType === 'weekday';
+                                    const teacherUser = tenantUsers.find(u => u.id === duty.teacherId);
+                                    const dayLabel = isWkday ? (duty.weekdayDay || 'Weekday') : 'Saturday & Sunday';
+                                    const timeRange = isWkday
+                                        ? `${duty.weekdayStartTime || '16:00'} – ${duty.weekdayEndTime || '18:00'}`
+                                        : `Sat ${saturdayStartTime || '08:00'} / Sun ${sundayStartTime || '09:00'}`;
+
+                                    return (
+                                        <div
+                                            key={duty.id}
+                                            className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 p-5 shadow-xs flex flex-col justify-between space-y-4 hover:shadow-md transition-shadow"
+                                        >
+                                            <div className="space-y-3">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-black font-mono bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                                                        {duty.weekLabel || 'WEEK 1'}
+                                                    </span>
+                                                    {isWkday ? (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                                                            📅 Weekday Duty
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                                                            🌅 Weekend Duty
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center font-black text-sm shadow-md shadow-amber-500/20 shrink-0">
+                                                        {(duty.teacherName || 'T')[0]}
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="font-black text-slate-900 dark:text-white text-xs">
+                                                            {duty.teacherName}
+                                                        </h5>
+                                                        <p className="text-[10px] text-slate-400">
+                                                            Code: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{duty.teacherCode || teacherCodes[duty.teacherId] || 'TOD'}</span>
+                                                            {teacherUser?.role ? ` • ${teacherUser.role}` : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">Schedule</span>
+                                                        <span className="font-black text-slate-800 dark:text-slate-200">{dayLabel}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">Hours</span>
+                                                        <span className="font-mono text-[11px] text-slate-600 dark:text-slate-300">{timeRange}</span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">Scope</span>
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{duty.className || 'General'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between">
+                                                <div>
+                                                    <span className="text-[9px] font-black uppercase text-slate-400 block">Tariff</span>
+                                                    <p className="font-black text-emerald-600 dark:text-emerald-400 font-mono text-xs">
+                                                        {isWkday ? `KES ${duty.dutyPayRate || weekdayDutyFlatRate || 200}/day` : 'Standard Hourly'}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteDutyRecord(duty)}
+                                                    className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                                    title="Delete Duty Entry"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Empty State */}
+                        {filteredRoster.length === 0 && (
+                            <div className="bg-white dark:bg-slate-800 p-12 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 text-center space-y-4">
+                                <div className="w-16 h-16 bg-amber-50 dark:bg-amber-950/40 text-amber-500 rounded-3xl flex items-center justify-center mx-auto">
+                                    <UserCheck className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">No Duty Teachers Found</h4>
+                                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                                        No teachers on duty match your current filters. Appoint teachers on duty for weekdays or weekends to manage the roster.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setDutyModalType('weekend');
+                                        setIsDutyModalOpen(true);
+                                    }}
+                                    className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 active:scale-95 transition-all inline-flex items-center gap-2 cursor-pointer"
+                                >
+                                    <Plus className="w-4 h-4" /> Appoint First Teacher on Duty
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Operational Guidelines & Workflow Helper */}
+                        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-3xl shadow-sm border border-slate-700 space-y-4">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-amber-500/20 text-amber-400 rounded-xl">
+                                    <ShieldCheck className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-400">
+                                        Teachers on Duty (TOD) 3-Stage Remedial Verification Architecture
+                                    </h4>
+                                    <p className="text-[11px] text-slate-300">
+                                        Ensure accountability and transparent remunerations across weekday and weekend remedial programs.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs pt-1">
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 font-black text-amber-300">
+                                        <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-900 flex items-center justify-center text-[10px]">1</span>
+                                        <span>Stage 1: Prefect Verification</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                                        Class Prefect or Subject Secretary scans the teacher's QR code or confirms student attendance right in class when the session begins.
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 font-black text-orange-300">
+                                        <span className="w-5 h-5 rounded-full bg-orange-500 text-slate-900 flex items-center justify-center text-[10px]">2</span>
+                                        <span>Stage 2: TOD Review</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                                        The appointed Teacher on Duty reviews the completed lesson logs in this hub and verifies lesson delivery and duration.
+                                    </p>
+                                </div>
+
+                                <div className="bg-white/5 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                                    <div className="flex items-center gap-2 font-black text-emerald-300">
+                                        <span className="w-5 h-5 rounded-full bg-emerald-500 text-slate-900 flex items-center justify-center text-[10px]">3</span>
+                                        <span>Stage 3: Headteacher Sign-off</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                                        Headteacher / Principal reviews verified hours and authorizes disbursements from the institutional float wallet or cash payout.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* TAB: PREFECTS & CLASS SECRETARIES PER CLASS AND STREAM */}
             {activeTab === 'prefects' && (
