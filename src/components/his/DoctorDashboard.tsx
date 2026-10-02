@@ -473,7 +473,7 @@ export function DoctorDashboard({
     const [dbQueueCalls, setDbQueueCalls] = useState<any[]>([]);
     const [dbAppointments, setDbAppointments] = useState<any[]>([]);
     const [isSyncingQueue, setIsSyncingQueue] = useState(false);
-    const [queueFilter, setQueueFilter] = useState<'all' | 'waiting' | 'in-consultation' | 'scheduled' | 'completed'>('all');
+    const [queueFilter, setQueueFilter] = useState<'all' | 'waiting' | 'in-consultation' | 'on-hold' | 'scheduled' | 'completed'>('all');
 
     // Live sync queue state and appointments from Database (his_queue_calls & his_appointments)
     const loadClinicalQueue = React.useCallback(async () => {
@@ -1875,7 +1875,7 @@ export function DoctorDashboard({
                                                         <span className="text-[9px] font-black text-slate-400 uppercase">{q.patient?.gender || 'Adult'}</span>
                                                         <span className="text-slate-300 dark:text-slate-600">•</span>
                                                         <span className="text-[9px] font-mono font-black text-indigo-500 uppercase bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-200/50 dark:border-indigo-800/30">
-                                                            {q.patient?.admissionNumber || q.patient?.customPatientId || q.patient?.patientNumber || q.complaint}
+                                                            {(q.patient as any)?.admissionNumber || (q.patient as any)?.customPatientId || (q.patient as any)?.patientNumber || q.complaint}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -1899,7 +1899,7 @@ export function DoctorDashboard({
                                                 ) : (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleCallPatient(q.patient)}
+                                                        onClick={() => handleCallPatient(q.patient as any)}
                                                         className="px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
                                                         title="Call patient name into room and open consultation"
                                                     >
@@ -1909,7 +1909,7 @@ export function DoctorDashboard({
 
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleOpenSoapModal(q.patient)}
+                                                    onClick={() => handleOpenSoapModal(q.patient as any)}
                                                     className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-wider shadow-md flex items-center gap-1 transition-all cursor-pointer"
                                                 >
                                                     <span>🩺 EMR Notes</span>

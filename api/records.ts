@@ -1150,7 +1150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['student_enrollments', 'school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParam))) {
+                } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
                 }
                 return q;
@@ -1289,10 +1289,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = ['users', 'students', 'student_enrollments', 'receipts', 'invoices',
+            const CHUNK_SIZE = ['users', 'students', 'receipts', 'invoices',
                 'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters'].includes(moduleName) 
                 ? 1000 
-                : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
+                : (['student_enrollments', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
                     : (['inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
@@ -1318,7 +1318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             };
 
-            const buildFastBaseQuery = () => {
+            const buildFastBaseQuery = (skipOrdering: boolean = false) => {
                 let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
                 if (isStudentsAlias) {
                     q = q.eq('role', 'student');
@@ -1346,7 +1346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (strVal) q = q.eq(key, strVal);
                     }
                 });
-                return applyModuleOrdering(q);
+                return skipOrdering ? q : applyModuleOrdering(q);
             };
 
             // Prepare conditions for Direct SQL Fallback
@@ -1530,7 +1530,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
                             console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
-                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(), offset, offset + Math.min(finalLimit, 500) - 1), 4000)
+                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), offset, offset + Math.min(finalLimit, 500) - 1), 4000)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
                         data = res?.data || [];
@@ -1555,13 +1555,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                                 const fastBatch = Math.max(100, Math.floor(batchSize / 2));
                                 effectiveBatchSize = fastBatch;
-                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(), currentOffset, currentOffset + fastBatch - 1), 6000)
+                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), currentOffset, currentOffset + fastBatch - 1), 6000)
                                     .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
 
                                 // If half-batch still timed out at offset 0, try a lightweight single-batch limit query
                                 if (res?.error && currentOffset === 0) {
                                     console.warn(`[API GET] Retrying '${moduleName}' with single unpaginated limit query...`);
-                                    res = await executeWithTimeout(buildFastBaseQuery().limit(Math.min(finalLimit, 500)), 6000)
+                                    res = await executeWithTimeout(buildFastBaseQuery(true).limit(Math.min(finalLimit, 500)), 6000)
                                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                                 }
                             }

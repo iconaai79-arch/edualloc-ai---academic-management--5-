@@ -2174,7 +2174,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="text"
                                             value={invoiceSettings.invoicePrefix}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, invoicePrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, invoicePrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
                                             maxLength={6}
                                             placeholder="INV"
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black uppercase outline-none focus:border-indigo-500/50 transition-all font-mono"
@@ -2185,7 +2185,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={invoiceSettings.invoiceStartNumber}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, invoiceStartNumber: Math.max(1, Number(e.target.value)) }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, invoiceStartNumber: Math.max(1, Number(e.target.value)) }))}
                                             min={1}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all font-mono"
                                         />
@@ -2208,7 +2208,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="text"
                                             value={invoiceSettings.receiptPrefix}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, receiptPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, receiptPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
                                             maxLength={6}
                                             placeholder="RCT"
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black uppercase outline-none focus:border-emerald-500/50 transition-all font-mono"
@@ -2219,7 +2219,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={invoiceSettings.receiptStartNumber}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, receiptStartNumber: Math.max(1, Number(e.target.value)) }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, receiptStartNumber: Math.max(1, Number(e.target.value)) }))}
                                             min={1}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-emerald-500/50 transition-all font-mono"
                                         />
@@ -2242,7 +2242,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="text"
                                             value={invoiceSettings.claimPrefix}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, claimPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, claimPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') }))}
                                             maxLength={6}
                                             placeholder="CLM"
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black uppercase outline-none focus:border-violet-500/50 transition-all font-mono"
@@ -2253,7 +2253,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={invoiceSettings.claimStartNumber}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, claimStartNumber: Math.max(1, Number(e.target.value)) }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, claimStartNumber: Math.max(1, Number(e.target.value)) }))}
                                             min={1}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-violet-500/50 transition-all font-mono"
                                         />
@@ -2275,7 +2275,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Currency</label>
                                         <select
                                             value={invoiceSettings.currency}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, currency: e.target.value }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, currency: e.target.value }))}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all"
                                         >
                                             <option value="KES">KES — Kenyan Shilling</option>
@@ -2291,7 +2291,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="text"
                                             value={invoiceSettings.financialYear}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, financialYear: e.target.value }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, financialYear: e.target.value }))}
                                             placeholder="2025"
                                             maxLength={4}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all font-mono"
@@ -2302,7 +2302,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <input
                                             type="number"
                                             value={invoiceSettings.paymentTermsDays}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, paymentTermsDays: Math.max(0, Number(e.target.value)) }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, paymentTermsDays: Math.max(0, Number(e.target.value)) }))}
                                             min={0}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all"
                                         />
@@ -2311,7 +2311,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Number Padding (digits)</label>
                                         <select
                                             value={invoiceSettings.zeroPadLength}
-                                            onChange={e => setInvoiceSettings(s => ({ ...s, zeroPadLength: Number(e.target.value) }))}
+                                            onChange={e => setInvoiceSettings((s: any) => ({ ...s, zeroPadLength: Number(e.target.value) }))}
                                             className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-black outline-none focus:border-indigo-500/50 transition-all"
                                         >
                                             <option value={3}>3 digits (e.g. 001)</option>
@@ -2332,7 +2332,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
                                                 <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{toggle.desc}</p>
                                             </div>
                                             <button
-                                                onClick={() => setInvoiceSettings(s => ({ ...s, [toggle.key]: !s[toggle.key as keyof typeof s] }))}
+                                                onClick={() => setInvoiceSettings((s: any) => ({ ...s, [toggle.key]: !s[toggle.key as keyof typeof s] }))}
                                                 className={`relative w-12 h-6 rounded-full transition-all flex-shrink-0 ${
                                                     (invoiceSettings as any)[toggle.key] ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-white/10'
                                                 }`}

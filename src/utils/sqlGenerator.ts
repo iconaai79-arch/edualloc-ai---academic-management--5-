@@ -3410,8 +3410,10 @@ CREATE INDEX IF NOT EXISTS idx_users_inst_role ON public.users(institution_id, r
 CREATE INDEX IF NOT EXISTS idx_users_inst_role_status ON public.users(institution_id, role, status);
 CREATE INDEX IF NOT EXISTS idx_users_inst_branch ON public.users(institution_id, branch_id);
 CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id ON public.student_enrollments(institution_id);
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id_composite ON public.student_enrollments(institution_id, id ASC);
 CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_status ON public.student_enrollments(institution_id, status);
 CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_user ON public.student_enrollments(institution_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.student_enrollments(institution_id, created_at DESC);
 
 `;
 

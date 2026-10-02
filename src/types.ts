@@ -1987,6 +1987,8 @@ export interface MpesaTransaction {
     status: TransactionStatus;
     metadata?: any;
     checkoutRequestId?: string;
+    receiptNumber?: string;
+    type?: string;
     provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im' | 'bank';
     paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit' | 'bank_transfer' | 'qr_code';
     referenceId?: string;
@@ -7320,7 +7322,7 @@ export interface HISNBUAdmission {
     feedingMode: 'EBM (Expressed Breast Milk)' | 'Nasogastric Tube' | 'Cup / Spoon' | 'Total Parenteral Nutrition (IV)' | string;
     apgar1Min?: number;
     apgar5Min?: number;
-    dailyWeights: { date: string; weightKg: number; gainGrams?: number; temp?: number; feedMl?: number; feedingVolumeMl?: number }[];
+    dailyWeights: { date: string; weightKg: number; gainGrams?: number; temp?: number; feedMl?: number; feedingVolumeMl?: number; notes?: string }[];
     status: 'Admitted' | 'KMC' | 'Discharged' | 'Referred' | 'Active Inpatient';
     dischargeDate?: string;
     dischargedBy?: string;

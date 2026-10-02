@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     BankFeedsService,
     BankFeedAccount,
     IngestedTransaction,
     DEFAULT_BANK_FEED_ACCOUNTS
 } from '../../services/bankFeedsService';
+import { apiService } from '../../services/apiService';
+import { supabase } from '../../lib/supabase';
 import {
     ArrowPathIcon,
     BuildingLibraryIcon,
@@ -17,7 +19,13 @@ import {
     SparklesIcon,
     XIcon as XMarkIcon,
     FunnelIcon,
-    ArrowTrendingUpIcon
+    ArrowTrendingUpIcon,
+    MagnifyingGlassIcon,
+    KcbIcon,
+    CoopIcon,
+    NcbaIcon,
+    MpesaIcon,
+    CheckCircleIcon
 } from '../icons';
 
 interface BankFeedsManagerProps {
@@ -37,11 +45,454 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     onReceiptCreated,
     onLogAction
 }) => {
-    const [accounts, setAccounts] = useState<BankFeedAccount[]>(DEFAULT_BANK_FEED_ACCOUNTS);
-    const [transactions, setTransactions] = useState<IngestedTransaction[]>([
+    const [liveTransactions, setLiveTransactions] = useState<IngestedTransaction[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+    const [showDemoPreview, setShowDemoPreview] = useState<boolean>(false);
+    const [lastSyncedAt, setLastSyncedAt] = useState<string>(new Date().toISOString());
+
+    // Search and filtering
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterStatus, setFilterStatus] = useState<'ALL' | 'MATCHED' | 'SUSPENSE'>('ALL');
+    const [providerFilter, setProviderFilter] = useState<string>('ALL');
+    const [activeTab, setActiveTab] = useState<'live_feed' | 'accounts' | 'reconciliation'>('live_feed');
+
+    // Suspense assignment modal
+    const [suspenseTargetTxn, setSuspenseTargetTxn] = useState<IngestedTransaction | null>(null);
+    const [selectedStudentForSuspense, setSelectedStudentForSuspense] = useState<string>('');
+    const [isAssigningSuspense, setIsAssigningSuspense] = useState<boolean>(false);
+
+    // Simulation states
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [simTransId, setSimTransId] = useState(`KCB${Math.floor(100000 + Math.random() * 900000)}`);
+    const [simAmount, setSimAmount] = useState('4500');
+    const [simBillRef, setSimBillRef] = useState(students[0]?.admissionNumber || students[0]?.admission_number || '3175');
+    const [simPhone, setSimPhone] = useState('254712345678');
+    const [simPayer, setSimPayer] = useState(students[0]?.name || students[0]?.fullName || 'Mary Wanjiku');
+    const [simProvider, setSimProvider] = useState<'KCB_BUNI' | 'MPESA_DARAJA' | 'EQUITY_JENGA' | 'COOP_CONNECT'>('KCB_BUNI');
+    const [isProcessingSim, setIsProcessingSim] = useState(false);
+
+    // ── 1. Dynamic Bank Accounts Resolution ──
+    const accounts = useMemo<BankFeedAccount[]>(() => {
+        if (!institution) return DEFAULT_BANK_FEED_ACCOUNTS;
+
+        const kcbConfig = institution.kcbConfig || institution.kcb_config || {};
+        const mpesaConfig = institution.mpesaConfig || institution.mpesa_config || {};
+
+        const isKcbActive = Boolean(
+            kcbConfig.appKey || 
+            kcbConfig.shortCode || 
+            kcbConfig.short_code || 
+            kcbConfig.tillNumber || 
+            kcbConfig.accountNumber ||
+            kcbConfig.account_number ||
+            kcbConfig.enabled === true
+        );
+
+        const isMpesaActive = Boolean(
+            mpesaConfig.shortCode || 
+            mpesaConfig.short_code || 
+            mpesaConfig.paybillNumber || 
+            mpesaConfig.paybill_number ||
+            mpesaConfig.consumerKey
+        );
+
+        // Calculate live volumes for each provider from liveTransactions
+        const kcbVolume = liveTransactions
+            .filter(t => t.provider === 'KCB_BUNI' && t.status === 'MATCHED_AND_RECEIPTED')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const mpesaVolume = liveTransactions
+            .filter(t => t.provider === 'MPESA_DARAJA' && t.status === 'MATCHED_AND_RECEIPTED')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const coopVolume = liveTransactions
+            .filter(t => t.provider === 'COOP_CONNECT' && t.status === 'MATCHED_AND_RECEIPTED')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const equityVolume = liveTransactions
+            .filter(t => t.provider === 'EQUITY_JENGA' && t.status === 'MATCHED_AND_RECEIPTED')
+            .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+
+        const kcbShortCode = kcbConfig.shortCode || kcbConfig.short_code || kcbConfig.tillNumber || kcbConfig.till_number || '';
+        const kcbAccNo = kcbConfig.accountNumber || kcbConfig.account_number || kcbShortCode || '1109482019';
+
+        const mpesaShortCode = mpesaConfig.shortCode || mpesaConfig.short_code || mpesaConfig.paybillNumber || mpesaConfig.paybill_number || '522522';
+
+        return [
+            {
+                id: 'feed_kcb_bank',
+                institutionId: institution.id || '',
+                provider: 'KCB_BUNI',
+                accountName: kcbConfig.accountName || `${institution.name || 'School'} KCB Account`,
+                accountNumber: kcbAccNo,
+                paybillOrTillNumber: kcbShortCode || undefined,
+                balance: kcbVolume,
+                currency: 'KES',
+                status: isKcbActive ? 'ACTIVE' : 'DISCONNECTED',
+                lastSyncedAt,
+                isDefault: isKcbActive,
+                credentialsConfigured: isKcbActive
+            },
+            {
+                id: 'feed_mpesa_paybill',
+                institutionId: institution.id || '',
+                provider: 'MPESA_DARAJA',
+                accountName: mpesaConfig.accountName || `${institution.name || 'School'} M-Pesa Paybill`,
+                accountNumber: mpesaShortCode,
+                paybillOrTillNumber: mpesaShortCode,
+                balance: mpesaVolume,
+                currency: 'KES',
+                status: isMpesaActive ? 'ACTIVE' : 'DISCONNECTED',
+                lastSyncedAt,
+                isDefault: !isKcbActive && isMpesaActive,
+                credentialsConfigured: isMpesaActive
+            },
+            {
+                id: 'feed_coop_bank',
+                institutionId: institution.id || '',
+                provider: 'COOP_CONNECT',
+                accountName: 'Co-operative Bank Direct Feed',
+                accountNumber: institution.coopConfig?.accountNumber || '01129000458100',
+                balance: coopVolume,
+                currency: 'KES',
+                status: institution.coopConfig?.accountNumber ? 'ACTIVE' : 'DISCONNECTED',
+                lastSyncedAt,
+                isDefault: false,
+                credentialsConfigured: Boolean(institution.coopConfig?.accountNumber)
+            },
+            {
+                id: 'feed_equity_bank',
+                institutionId: institution.id || '',
+                provider: 'EQUITY_JENGA',
+                accountName: 'Equity Bank Jenga Gateway',
+                accountNumber: institution.equityConfig?.accountNumber || '0810294820194',
+                balance: equityVolume,
+                currency: 'KES',
+                status: institution.equityConfig?.accountNumber ? 'ACTIVE' : 'DISCONNECTED',
+                lastSyncedAt,
+                isDefault: false,
+                credentialsConfigured: Boolean(institution.equityConfig?.accountNumber)
+            }
+        ];
+    }, [institution, liveTransactions, lastSyncedAt]);
+
+    // ── 2. Match Student & Receipt Helper ──
+    const matchTransactionDetails = useCallback((
+        rawRef: string,
+        rawBillRef: string,
+        rawPayerName: string,
+        rawPhone: string,
+        rawAmount: number
+    ) => {
+        const cleanRef = String(rawRef || '').toUpperCase().trim();
+        const cleanBill = String(rawBillRef || '').trim();
+        const cleanPhoneDigits = String(rawPhone || '').replace(/\D/g, '').slice(-9);
+
+        // 1. Direct match with system Receipts
+        const matchedReceipt = receipts.find(r => {
+            const relId = String(r.relatedTransactionId || r.related_transaction_id || '').toUpperCase().trim();
+            const rNum = String(r.receiptNumber || r.receipt_number || '').toUpperCase().trim();
+            const remarks = String(r.remarks || '').toUpperCase();
+            return (cleanRef && (relId === cleanRef || rNum === cleanRef || remarks.includes(cleanRef)));
+        });
+
+        if (matchedReceipt) {
+            return {
+                status: 'MATCHED_AND_RECEIPTED' as const,
+                matchedStudentId: matchedReceipt.studentId || matchedReceipt.student_id,
+                matchedStudentName: matchedReceipt.studentName || matchedReceipt.student_name,
+                matchedStudentAdm: matchedReceipt.admissionNumber || matchedReceipt.admission_number || cleanBill,
+                generatedReceiptId: matchedReceipt.id,
+                generatedReceiptNumber: matchedReceipt.receiptNumber || matchedReceipt.receipt_number,
+                confidence: 'EXACT_ADM' as const
+            };
+        }
+
+        // 2. Direct ADM matching against students
+        if (cleanBill && students.length > 0) {
+            const billLower = cleanBill.toLowerCase();
+            const billDigits = cleanBill.replace(/\D/g, '');
+            const studentMatch = students.find(s => {
+                const adm = String(s.admissionNumber || s.admission_number || '').toLowerCase().trim();
+                const admDigits = adm.replace(/\D/g, '');
+                return adm === billLower || (billDigits.length >= 2 && admDigits === billDigits);
+            });
+
+            if (studentMatch) {
+                return {
+                    status: 'MATCHED_AND_RECEIPTED' as const,
+                    matchedStudentId: studentMatch.id,
+                    matchedStudentName: studentMatch.name || studentMatch.fullName,
+                    matchedStudentAdm: studentMatch.admissionNumber || studentMatch.admission_number,
+                    generatedReceiptId: undefined,
+                    generatedReceiptNumber: undefined,
+                    confidence: 'EXACT_ADM' as const
+                };
+            }
+        }
+
+        // 3. Fallback: Phone matching
+        if (cleanPhoneDigits.length >= 9 && students.length > 0) {
+            const studentMatch = students.find(s => {
+                const p1 = String(s.parentPhone || s.parent_phone || s.phone || '').replace(/\D/g, '').slice(-9);
+                const p2 = String(s.guardianPhone || s.fatherPhone || s.motherPhone || '').replace(/\D/g, '').slice(-9);
+                return p1 === cleanPhoneDigits || p2 === cleanPhoneDigits;
+            });
+
+            if (studentMatch) {
+                return {
+                    status: 'MATCHED_AND_RECEIPTED' as const,
+                    matchedStudentId: studentMatch.id,
+                    matchedStudentName: studentMatch.name || studentMatch.fullName,
+                    matchedStudentAdm: studentMatch.admissionNumber || studentMatch.admission_number,
+                    generatedReceiptId: undefined,
+                    generatedReceiptNumber: undefined,
+                    confidence: 'EXACT_PHONE' as const
+                };
+            }
+        }
+
+        // 4. Fallback: Multi-word name matching
+        if (rawPayerName && rawPayerName.length >= 5 && students.length > 0) {
+            const cleanPayer = rawPayerName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+            const tokens = cleanPayer.split(/\s+/).filter(t => t.length >= 2);
+            if (tokens.length >= 2) {
+                const candidateMatches = students.filter(s => {
+                    const sName = String(s.name || s.fullName || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+                    const sTokens = sName.split(/\s+/).filter(t => t.length >= 2);
+                    return tokens.every(t => sTokens.includes(t)) || sName === cleanPayer;
+                });
+
+                if (candidateMatches.length === 1) {
+                    const candidate = candidateMatches[0];
+                    return {
+                        status: 'MATCHED_AND_RECEIPTED' as const,
+                        matchedStudentId: candidate.id,
+                        matchedStudentName: candidate.name || candidate.fullName,
+                        matchedStudentAdm: candidate.admissionNumber || candidate.admission_number,
+                        generatedReceiptId: undefined,
+                        generatedReceiptNumber: undefined,
+                        confidence: 'NAME_MATCH' as const
+                    };
+                }
+            }
+        }
+
+        // 5. Unmatched
+        return {
+            status: 'UNMATCHED_SUSPENSE' as const,
+            matchedStudentId: undefined,
+            matchedStudentName: undefined,
+            matchedStudentAdm: undefined,
+            generatedReceiptId: undefined,
+            generatedReceiptNumber: undefined,
+            confidence: 'NONE' as const
+        };
+    }, [receipts, students]);
+
+    // ── 3. Fetch Real Transactions From DB ──
+    const fetchRealTransactions = useCallback(async () => {
+        if (!institution?.id) return;
+        setIsRefreshing(true);
+
+        try {
+            const instId = institution.id;
+            const [mpesaRes, bankRes, feedRes] = await Promise.all([
+                apiService.fetchModuleRecords<any>('mpesa_transactions', instId, undefined, { order: 'created_at.desc', limit: 300 }).catch(() => []),
+                apiService.fetchModuleRecords<any>('bank_transactions', instId, undefined, { order: 'created_at.desc', limit: 300 }).catch(() => []),
+                apiService.fetchModuleRecords<any>('bank_feed_transactions', instId, undefined, { order: 'created_at.desc', limit: 300 }).catch(() => [])
+            ]);
+
+            const aggregated: IngestedTransaction[] = [];
+            const seenRefs = new Set<string>();
+
+            // Process mpesa_transactions (contains KCB, M-Pesa, etc.)
+            (mpesaRes || []).forEach((row: any) => {
+                const ref = row.transaction_id || row.checkout_request_id || row.id;
+                if (!ref || seenRefs.has(ref)) return;
+                seenRefs.add(ref);
+
+                const rawProvider = String(row.provider || '').toLowerCase();
+                let provider: IngestedTransaction['provider'] = 'MPESA_DARAJA';
+                if (rawProvider.includes('kcb')) provider = 'KCB_BUNI';
+                else if (rawProvider.includes('coop')) provider = 'COOP_CONNECT';
+                else if (rawProvider.includes('equity')) provider = 'EQUITY_JENGA';
+                else if (rawProvider.includes('ncba')) provider = 'NCBA_DIRECT';
+
+                const billRef = row.bill_ref_number || row.customer_reference || row.metadata?.billReferenceNumber || '';
+                const payerName = row.payer_name || row.customer_name || (row.first_name ? `${row.first_name} ${row.last_name || ''}`.trim() : 'Customer');
+                const phone = row.phone_number || row.customer_mobile_number || row.msisdn || '';
+                const amount = Number(row.amount) || 0;
+
+                const matchInfo = matchTransactionDetails(ref, billRef, payerName, phone, amount);
+
+                aggregated.push({
+                    id: row.id || `txn_${ref}`,
+                    institutionId: instId,
+                    provider,
+                    transactionReference: ref,
+                    billReferenceNumber: billRef,
+                    payerName,
+                    payerPhone: phone,
+                    amount,
+                    transactionDate: row.timestamp || row.created_at || new Date().toISOString().split('T')[0],
+                    status: matchInfo.status,
+                    matchedStudentId: matchInfo.matchedStudentId,
+                    matchedStudentName: matchInfo.matchedStudentName,
+                    matchedStudentAdm: matchInfo.matchedStudentAdm,
+                    generatedReceiptId: matchInfo.generatedReceiptId,
+                    generatedReceiptNumber: matchInfo.generatedReceiptNumber,
+                    reconciliationConfidence: matchInfo.confidence,
+                    rawPayload: row.raw_payload || row.metadata,
+                    createdAt: row.created_at || row.timestamp || new Date().toISOString()
+                });
+            });
+
+            // Process bank_transactions
+            (bankRes || []).forEach((row: any) => {
+                const ref = row.reference || row.id;
+                if (!ref || seenRefs.has(ref)) return;
+                seenRefs.add(ref);
+
+                const bankName = String(row.bank_name || '').toLowerCase();
+                let provider: IngestedTransaction['provider'] = 'KCB_BUNI';
+                if (bankName.includes('kcb')) provider = 'KCB_BUNI';
+                else if (bankName.includes('coop') || bankName.includes('co-op')) provider = 'COOP_CONNECT';
+                else if (bankName.includes('equity')) provider = 'EQUITY_JENGA';
+                else if (bankName.includes('ncba')) provider = 'NCBA_DIRECT';
+                else if (bankName.includes('mpesa') || bankName.includes('daraja')) provider = 'MPESA_DARAJA';
+
+                const payload = row.payload || {};
+                const billRef = payload.billReferenceNumber || payload.customerReference || payload.accountReference || '';
+                const payerName = row.sender_name || payload.payerName || 'Bank Depositor';
+                const phone = payload.phoneNumber || payload.phone || '';
+                const amount = Number(row.amount) || 0;
+
+                const matchInfo = matchTransactionDetails(ref, billRef, payerName, phone, amount);
+
+                aggregated.push({
+                    id: row.id || `txn_${ref}`,
+                    institutionId: instId,
+                    provider,
+                    transactionReference: ref,
+                    billReferenceNumber: billRef,
+                    payerName,
+                    payerPhone: phone,
+                    amount,
+                    transactionDate: row.transaction_date || row.created_at || new Date().toISOString().split('T')[0],
+                    status: matchInfo.status,
+                    matchedStudentId: matchInfo.matchedStudentId,
+                    matchedStudentName: matchInfo.matchedStudentName,
+                    matchedStudentAdm: matchInfo.matchedStudentAdm,
+                    generatedReceiptId: matchInfo.generatedReceiptId,
+                    generatedReceiptNumber: matchInfo.generatedReceiptNumber,
+                    reconciliationConfidence: matchInfo.confidence,
+                    rawPayload: payload,
+                    createdAt: row.created_at || row.transaction_date || new Date().toISOString()
+                });
+            });
+
+            // Process bank_feed_transactions
+            (feedRes || []).forEach((row: any) => {
+                const ref = row.transaction_reference || row.id;
+                if (!ref || seenRefs.has(ref)) return;
+                seenRefs.add(ref);
+
+                const billRef = row.bill_reference_number || '';
+                const payerName = row.payer_name || 'Customer';
+                const amount = Number(row.amount) || 0;
+                const matchInfo = matchTransactionDetails(ref, billRef, payerName, '', amount);
+
+                aggregated.push({
+                    id: row.id || `txn_${ref}`,
+                    institutionId: instId,
+                    provider: (row.provider as any) || 'KCB_BUNI',
+                    transactionReference: ref,
+                    billReferenceNumber: billRef,
+                    payerName,
+                    amount,
+                    transactionDate: row.created_at || new Date().toISOString().split('T')[0],
+                    status: matchInfo.status,
+                    matchedStudentId: matchInfo.matchedStudentId,
+                    matchedStudentName: matchInfo.matchedStudentName,
+                    matchedStudentAdm: matchInfo.matchedStudentAdm,
+                    generatedReceiptId: matchInfo.generatedReceiptId,
+                    generatedReceiptNumber: matchInfo.generatedReceiptNumber,
+                    reconciliationConfidence: matchInfo.confidence,
+                    createdAt: row.created_at || new Date().toISOString()
+                });
+            });
+
+            // Sort newest first
+            aggregated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+            setLiveTransactions(aggregated);
+            setLastSyncedAt(new Date().toISOString());
+        } catch (err) {
+            console.error('[BankFeedsManager] Failed to fetch real transactions:', err);
+        } finally {
+            setIsLoading(false);
+            setIsRefreshing(false);
+        }
+    }, [institution?.id, matchTransactionDetails]);
+
+    // Initial load
+    useEffect(() => {
+        fetchRealTransactions();
+    }, [fetchRealTransactions]);
+
+    // ── 4. Supabase Realtime Listener ──
+    useEffect(() => {
+        if (!supabase || !institution?.id) return;
+        const instId = institution.id;
+
+        const channel = supabase.channel(`bank_feeds_realtime_${instId}`)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'mpesa_transactions', filter: `institution_id=eq.${instId}` },
+                () => {
+                    fetchRealTransactions();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'bank_transactions', filter: `institution_id=eq.${instId}` },
+                () => {
+                    fetchRealTransactions();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [institution?.id, fetchRealTransactions]);
+
+    // Sample data used ONLY when user explicitly toggles preview
+    const samplePreviewData: IngestedTransaction[] = useMemo(() => [
+        {
+            id: 'txn_kcb_preview_1',
+            institutionId: institution?.id || '',
+            provider: 'KCB_BUNI',
+            transactionReference: 'KCB8940219X',
+            billReferenceNumber: students[0]?.admissionNumber || students[0]?.admission_number || '3175',
+            payerName: 'David Omondi',
+            payerPhone: '0722000000',
+            amount: 8500,
+            transactionDate: new Date().toISOString().split('T')[0],
+            status: 'MATCHED_AND_RECEIPTED',
+            matchedStudentId: students[0]?.id || 'st_1',
+            matchedStudentName: students[0]?.name || students[0]?.fullName || 'Student One',
+            matchedStudentAdm: students[0]?.admissionNumber || students[0]?.admission_number || '3175',
+            generatedReceiptId: 'rec_sample_kcb',
+            generatedReceiptNumber: 'RCPT-KCB-101',
+            reconciliationConfidence: 'EXACT_ADM',
+            createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString()
+        },
         {
             id: 'txn_mpesa_sample_1',
-            institutionId: institution.id,
+            institutionId: institution?.id || '',
             provider: 'MPESA_DARAJA',
             transactionReference: 'UH92KLP8X2',
             billReferenceNumber: '3175',
@@ -57,39 +508,52 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             generatedReceiptNumber: 'RCPT-1301',
             reconciliationConfidence: 'EXACT_ADM',
             createdAt: new Date(Date.now() - 1000 * 60 * 12).toISOString()
-        },
-        {
-            id: 'txn_coop_sample_2',
-            institutionId: institution.id,
-            provider: 'COOP_CONNECT',
-            transactionReference: 'FT260822009',
-            billReferenceNumber: '3031',
-            payerName: 'Rodgers Kipchirchir',
-            amount: 12500,
-            transactionDate: new Date().toISOString().split('T')[0],
-            status: 'MATCHED_AND_RECEIPTED',
-            matchedStudentId: 'st_2',
-            matchedStudentName: 'Rodgers Kipchirchir',
-            matchedStudentAdm: '3031',
-            generatedReceiptId: 'rec_sample_2',
-            generatedReceiptNumber: 'RCPT-1302',
-            reconciliationConfidence: 'EXACT_ADM',
-            createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString()
         }
-    ]);
+    ], [institution?.id, students]);
 
-    const [isSimulating, setIsSimulating] = useState(false);
-    const [simTransId, setSimTransId] = useState(`TXN${Math.floor(100000 + Math.random() * 900000)}`);
-    const [simAmount, setSimAmount] = useState('4500');
-    const [simBillRef, setSimBillRef] = useState(students[0]?.admissionNumber || students[0]?.admission_number || '3175');
-    const [simPhone, setSimPhone] = useState('254712345678');
-    const [simPayer, setSimPayer] = useState(students[0]?.name || 'Mary Wanjiku');
-    const [simProvider, setSimProvider] = useState<'MPESA_DARAJA' | 'EQUITY_JENGA' | 'COOP_CONNECT' | 'KCB_BUNI'>('MPESA_DARAJA');
-    const [isProcessingSim, setIsProcessingSim] = useState(false);
-    const [filterStatus, setFilterStatus] = useState<'ALL' | 'MATCHED' | 'SUSPENSE'>('ALL');
-    const [activeTab, setActiveTab] = useState<'live_feed' | 'accounts' | 'reconciliation'>('live_feed');
+    // Active transactions list: prefer live transactions; fallback to sample ONLY if user toggles demo preview
+    const transactions = useMemo(() => {
+        if (showDemoPreview) {
+            return samplePreviewData;
+        }
+        return liveTransactions;
+    }, [showDemoPreview, samplePreviewData, liveTransactions]);
 
-    // ── Simulate Incoming C2B Webhook ──
+    // ── Filtered Transactions ──
+    const filteredTxns = useMemo(() => {
+        return transactions.filter(t => {
+            if (filterStatus === 'MATCHED' && t.status !== 'MATCHED_AND_RECEIPTED') return false;
+            if (filterStatus === 'SUSPENSE' && t.status !== 'UNMATCHED_SUSPENSE') return false;
+            if (providerFilter !== 'ALL' && t.provider !== providerFilter) return false;
+
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase().trim();
+                const ref = String(t.transactionReference || '').toLowerCase();
+                const bill = String(t.billReferenceNumber || '').toLowerCase();
+                const payer = String(t.payerName || '').toLowerCase();
+                const studentName = String(t.matchedStudentName || '').toLowerCase();
+                const studentAdm = String(t.matchedStudentAdm || '').toLowerCase();
+                const phone = String(t.payerPhone || '').toLowerCase();
+                return ref.includes(q) || bill.includes(q) || payer.includes(q) || studentName.includes(q) || studentAdm.includes(q) || phone.includes(q);
+            }
+
+            return true;
+        });
+    }, [transactions, filterStatus, providerFilter, searchQuery]);
+
+    const totalIngestedVolume = useMemo(() => {
+        return transactions.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+    }, [transactions]);
+
+    const matchedCount = useMemo(() => {
+        return transactions.filter(t => t.status === 'MATCHED_AND_RECEIPTED').length;
+    }, [transactions]);
+
+    const suspenseCount = useMemo(() => {
+        return transactions.filter(t => t.status === 'UNMATCHED_SUSPENSE').length;
+    }, [transactions]);
+
+    // ── Simulate Incoming Inflow ──
     const handleTriggerWebhookSimulation = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!simAmount || Number(simAmount) <= 0) {
@@ -111,37 +575,51 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             });
 
             if (res.success) {
-                setTransactions(prev => [res.transaction, ...prev]);
+                // Ensure provider matches simulation selection
+                const newTxn = { ...res.transaction, provider: simProvider };
 
-                // Update account balance
-                setAccounts(prev => prev.map(a => {
-                    if (a.provider === simProvider) {
-                        return { ...a, balance: a.balance + Number(simAmount), lastSyncedAt: new Date().toISOString() };
-                    }
-                    return a;
-                }));
+                // Persist into mpesa_transactions table
+                try {
+                    await apiService.saveModuleRecord('mpesa_transactions', {
+                        id: newTxn.id,
+                        transaction_id: newTxn.transactionReference,
+                        institution_id: institution.id,
+                        amount: newTxn.amount,
+                        phone_number: newTxn.payerPhone,
+                        payer_name: newTxn.payerName,
+                        status: 'completed',
+                        provider: simProvider === 'KCB_BUNI' ? 'kcb' : 'mpesa',
+                        bill_ref_number: newTxn.billReferenceNumber,
+                        customer_reference: newTxn.billReferenceNumber,
+                        created_at: newTxn.createdAt
+                    });
+                } catch (persistErr) {
+                    console.warn('[BankFeedsManager] Could not persist simulated transaction to DB:', persistErr);
+                }
 
-                if (onReceiptCreated && res.transaction.generatedReceiptId) {
+                setLiveTransactions(prev => [newTxn, ...prev]);
+
+                if (onReceiptCreated && newTxn.generatedReceiptId) {
                     onReceiptCreated({
-                        id: res.transaction.generatedReceiptId,
-                        receiptNumber: res.transaction.generatedReceiptNumber,
-                        studentId: res.transaction.matchedStudentId,
-                        studentName: res.transaction.matchedStudentName,
-                        amountPaid: res.transaction.amount,
-                        paymentMethod: 'M-Pesa',
-                        paymentDate: res.transaction.transactionDate,
-                        relatedTransactionId: res.transaction.transactionReference,
-                        remarks: `Automated C2B Ingestion: ${res.transaction.transactionReference}`
+                        id: newTxn.generatedReceiptId,
+                        receiptNumber: newTxn.generatedReceiptNumber,
+                        studentId: newTxn.matchedStudentId,
+                        studentName: newTxn.matchedStudentName,
+                        amountPaid: newTxn.amount,
+                        paymentMethod: simProvider === 'KCB_BUNI' ? 'KCB Direct' : 'M-Pesa',
+                        paymentDate: newTxn.transactionDate,
+                        relatedTransactionId: newTxn.transactionReference,
+                        remarks: `Automated Ingestion Feed: ${newTxn.transactionReference}`
                     });
                 }
 
                 if (onLogAction) {
-                    onLogAction(`Processed live payment feed: ${res.transaction.transactionReference} for KSh ${Number(simAmount).toLocaleString()}`);
+                    onLogAction(`Processed ${simProvider.replace('_', ' ')} feed: ${newTxn.transactionReference} for KSh ${Number(simAmount).toLocaleString()}`);
                 }
 
-                alert(`✓ Webhook Ingestion Successful!\n\n${res.message}`);
+                alert(`✓ Inflow Ingestion Successful!\n\n${res.message}`);
                 setIsSimulating(false);
-                setSimTransId(`TXN${Math.floor(100000 + Math.random() * 900000)}`);
+                setSimTransId(`${simProvider === 'KCB_BUNI' ? 'KCB' : 'TXN'}${Math.floor(100000 + Math.random() * 900000)}`);
             }
         } catch (err: any) {
             console.error('Webhook simulation failed:', err);
@@ -151,24 +629,101 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         }
     };
 
-    // ── Filtered Transactions ──
-    const filteredTxns = useMemo(() => {
-        if (filterStatus === 'MATCHED') {
-            return transactions.filter(t => t.status === 'MATCHED_AND_RECEIPTED');
-        }
-        if (filterStatus === 'SUSPENSE') {
-            return transactions.filter(t => t.status === 'UNMATCHED_SUSPENSE');
-        }
-        return transactions;
-    }, [transactions, filterStatus]);
+    // ── Manual Suspense Linking ──
+    const handleResolveSuspense = async () => {
+        if (!suspenseTargetTxn || !selectedStudentForSuspense) return;
+        const targetStudent = students.find(s => s.id === selectedStudentForSuspense);
+        if (!targetStudent) return;
 
-    const totalIngestedVolume = useMemo(() => {
-        return transactions.reduce((sum, t) => sum + t.amount, 0);
-    }, [transactions]);
+        setIsAssigningSuspense(true);
+        try {
+            const receiptNumber = `RCPT-${suspenseTargetTxn.transactionReference.slice(-4)}-${Date.now().toString().slice(-4)}`;
+            const receiptId = `rec_feed_${Date.now()}`;
 
-    const matchedCount = useMemo(() => {
-        return transactions.filter(t => t.status === 'MATCHED_AND_RECEIPTED').length;
-    }, [transactions]);
+            // Save new receipt
+            await apiService.saveModuleRecord('receipts', {
+                id: receiptId,
+                receipt_number: receiptNumber,
+                student_id: targetStudent.id,
+                student_name: targetStudent.name || targetStudent.fullName,
+                admission_number: targetStudent.admissionNumber || targetStudent.admission_number,
+                amount_paid: suspenseTargetTxn.amount,
+                payment_date: new Date().toISOString().split('T')[0],
+                payment_method: suspenseTargetTxn.provider === 'KCB_BUNI' ? 'KCB IPN' : 'M-Pesa',
+                related_transaction_id: suspenseTargetTxn.transactionReference,
+                institution_id: institution.id,
+                remarks: `Manual reconciliation from ${suspenseTargetTxn.provider} Suspense queue`
+            });
+
+            // Update live transaction state
+            setLiveTransactions(prev => prev.map(t => {
+                if (t.id === suspenseTargetTxn.id) {
+                    return {
+                        ...t,
+                        status: 'MATCHED_AND_RECEIPTED',
+                        matchedStudentId: targetStudent.id,
+                        matchedStudentName: targetStudent.name || targetStudent.fullName,
+                        matchedStudentAdm: targetStudent.admissionNumber || targetStudent.admission_number,
+                        generatedReceiptId: receiptId,
+                        generatedReceiptNumber: receiptNumber,
+                        reconciliationConfidence: 'MANUAL'
+                    };
+                }
+                return t;
+            }));
+
+            if (onReceiptCreated) {
+                onReceiptCreated({
+                    id: receiptId,
+                    receiptNumber,
+                    studentId: targetStudent.id,
+                    studentName: targetStudent.name || targetStudent.fullName,
+                    amountPaid: suspenseTargetTxn.amount,
+                    paymentMethod: suspenseTargetTxn.provider === 'KCB_BUNI' ? 'KCB Direct' : 'M-Pesa',
+                    paymentDate: new Date().toISOString().split('T')[0],
+                    relatedTransactionId: suspenseTargetTxn.transactionReference,
+                    remarks: `Manual reconciliation for ${suspenseTargetTxn.transactionReference}`
+                });
+            }
+
+            if (onLogAction) {
+                onLogAction(`Manually resolved suspense payment ${suspenseTargetTxn.transactionReference} for student ${targetStudent.name}`);
+            }
+
+            alert(`✓ Transaction assigned to ${targetStudent.name}! Receipt ${receiptNumber} created.`);
+            setSuspenseTargetTxn(null);
+            setSelectedStudentForSuspense('');
+        } catch (err: any) {
+            console.error('Failed to link suspense transaction:', err);
+            alert('Failed to link transaction: ' + (err.message || 'Unknown error'));
+        } finally {
+            setIsAssigningSuspense(false);
+        }
+    };
+
+    const isKcbConnected = useMemo(() => {
+        const kcbConfig = institution?.kcbConfig || institution?.kcb_config || {};
+        return Boolean(
+            kcbConfig.appKey || 
+            kcbConfig.shortCode || 
+            kcbConfig.short_code || 
+            kcbConfig.tillNumber || 
+            kcbConfig.accountNumber ||
+            kcbConfig.account_number ||
+            kcbConfig.enabled === true
+        );
+    }, [institution]);
+
+    const activeConnectorsCount = useMemo(() => {
+        return accounts.filter(a => a.status === 'ACTIVE').length;
+    }, [accounts]);
+
+    const activeConnectorNames = useMemo(() => {
+        return accounts
+            .filter(a => a.status === 'ACTIVE')
+            .map(a => a.provider.replace('_', ' '))
+            .join(', ') || 'None';
+    }, [accounts]);
 
     return (
         <div className="space-y-6">
@@ -177,21 +732,38 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 <div className="absolute -right-10 -bottom-10 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                             <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                                <SignalIcon className="w-3.5 h-3.5 animate-pulse" /> Live Real-Time Gateway
+                                <SignalIcon className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                                {isKcbConnected ? 'KCB Gateway Connected' : 'Live Real-Time Gateway'}
                             </span>
                             <span className="px-3 py-1 bg-white/10 text-slate-300 rounded-full text-[10px] font-black uppercase tracking-widest">
                                 M-Pesa Daraja &amp; Multi-Bank APIs
                             </span>
+                            {showDemoPreview && (
+                                <span className="px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse">
+                                    Demo Preview Active
+                                </span>
+                            )}
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-black tracking-tight">Direct Banking &amp; Payment Feeds</h2>
                         <p className="text-slate-400 text-xs sm:text-sm mt-1 max-w-2xl">
-                            Continuous real-time ingestion from M-Pesa C2B, Co-op Bank, Equity Bank, and KCB. Instant $O(1)$ auto-receipting and automatic ledger credits.
+                            Continuous real-time ingestion from KCB Buni, M-Pesa C2B, Co-op Bank, and Equity Bank. Instant automated receipting and ledger crediting.
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => fetchRealTransactions()}
+                            disabled={isRefreshing}
+                            className="px-4 py-2.5 bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs uppercase tracking-wider rounded-xl active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                            title="Refresh live bank transactions from database"
+                        >
+                            <ArrowPathIcon className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-400' : ''}`} />
+                            <span>{isRefreshing ? 'Refreshing...' : 'Refresh Feed'}</span>
+                        </button>
+
                         <button
                             type="button"
                             onClick={() => setIsSimulating(true)}
@@ -209,7 +781,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                         <p className="text-lg sm:text-xl font-black text-emerald-400 mt-0.5">
                             KSh {totalIngestedVolume.toLocaleString()}
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-1">{transactions.length} Total Webhook Events</p>
+                        <p className="text-[10px] text-slate-400 mt-1">{transactions.length} Total Events</p>
                     </div>
                     <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 border border-slate-700/50">
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Auto-Matched Rate</p>
@@ -221,195 +793,416 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 border border-slate-700/50">
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Active Bank Connectors</p>
                         <p className="text-lg sm:text-xl font-black text-indigo-400 mt-0.5">
-                            {accounts.filter(a => a.status === 'ACTIVE').length} / {accounts.length}
+                            {activeConnectorsCount} / {accounts.length}
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-1">M-Pesa, Co-op, Equity, KCB</p>
+                        <p className="text-[10px] text-slate-400 mt-1 truncate" title={activeConnectorNames}>
+                            {activeConnectorNames}
+                        </p>
                     </div>
                     <div className="bg-slate-800/50 backdrop-blur rounded-2xl p-4 border border-slate-700/50">
                         <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Suspense Queue</p>
-                        <p className="text-lg sm:text-xl font-black text-amber-400 mt-0.5">
-                            {transactions.filter(t => t.status === 'UNMATCHED_SUSPENSE').length} Unmatched
+                        <p className={`text-lg sm:text-xl font-black mt-0.5 ${suspenseCount > 0 ? 'text-amber-400' : 'text-slate-300'}`}>
+                            {suspenseCount} Unmatched
                         </p>
-                        <p className="text-[10px] text-slate-400 mt-1">Awaiting Manual Resolution</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Awaiting Student Matching</p>
                     </div>
                 </div>
             </div>
 
             {/* ── Sub-Navigation Tabs ── */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 w-fit">
-                {[
-                    { id: 'live_feed', label: 'Live Payment Stream', icon: SignalIcon },
-                    { id: 'accounts', label: 'Connected Bank Accounts', icon: BuildingLibraryIcon },
-                ].map(tab => {
-                    const Icon = tab.icon;
-                    const active = activeTab === tab.id;
-                    return (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 w-fit">
+                    {[
+                        { id: 'live_feed', label: 'Live Payment Stream', icon: SignalIcon },
+                        { id: 'accounts', label: 'Connected Bank Accounts', icon: BuildingLibraryIcon },
+                    ].map(tab => {
+                        const Icon = tab.icon;
+                        const active = activeTab === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => setActiveTab(tab.id as any)}
+                                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
+                                    active
+                                        ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                            >
+                                <Icon className="w-4 h-4" />
+                                <span>{tab.label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Demo preview toggle */}
+                <div className="flex items-center gap-2">
+                    {liveTransactions.length === 0 && (
                         <button
-                            key={tab.id}
                             type="button"
-                            onClick={() => setActiveTab(tab.id as any)}
-                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
-                                active
-                                    ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm'
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                            onClick={() => setShowDemoPreview(prev => !prev)}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                                showDemoPreview
+                                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-300'
+                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
                             }`}
                         >
-                            <Icon className="w-4 h-4" />
-                            <span>{tab.label}</span>
+                            {showDemoPreview ? '✕ Exit Demo Preview' : '👁 Preview Sample Stream'}
                         </button>
-                    );
-                })}
+                    )}
+                </div>
             </div>
 
             {/* ── TAB 1: LIVE PAYMENT STREAM ── */}
             {activeTab === 'live_feed' && (
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    {/* Filter and Search Bar */}
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <h3 className="text-base font-black text-slate-900 dark:text-white">Real-Time Ingestion Stream</h3>
-                            <p className="text-xs text-slate-400 mt-0.5">Live events ingested via M-Pesa C2B and bank webhooks</p>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-base font-black text-slate-900 dark:text-white">Real-Time Ingestion Stream</h3>
+                                {isKcbConnected && (
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 font-mono text-[9px] font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                                        KCB Live Listener
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">Live webhook events ingested via KCB Buni, M-Pesa C2B, and connected bank APIs</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            {(['ALL', 'MATCHED', 'SUSPENSE'] as const).map(st => (
-                                <button
-                                    key={st}
-                                    type="button"
-                                    onClick={() => setFilterStatus(st)}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                                        filterStatus === st
-                                            ? 'bg-emerald-600 text-white shadow-md'
-                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                                    }`}
-                                >
-                                    {st}
-                                </button>
-                            ))}
+
+                        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                            {/* Search */}
+                            <div className="relative flex-1 md:w-60">
+                                <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search ref, ADM, payer..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
+
+                            {/* Status Filter */}
+                            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                                {(['ALL', 'MATCHED', 'SUSPENSE'] as const).map(st => (
+                                    <button
+                                        key={st}
+                                        type="button"
+                                        onClick={() => setFilterStatus(st)}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            filterStatus === st
+                                                ? 'bg-emerald-600 text-white shadow-sm'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {st}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
-                            <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                    <th className="px-6 py-3.5">Provider · Reference</th>
-                                    <th className="px-6 py-3.5">Payer / Account Key</th>
-                                    <th className="px-6 py-3.5">Amount</th>
-                                    <th className="px-6 py-3.5">Matched Student</th>
-                                    <th className="px-6 py-3.5">Receipt #</th>
-                                    <th className="px-6 py-3.5 text-center">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {filteredTxns.map(txn => (
-                                    <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                        <td className="px-6 py-3.5">
-                                            <div className="flex items-center gap-2">
-                                                {txn.provider === 'MPESA_DARAJA' ? (
-                                                    <span className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-                                                        <DevicePhoneMobileIcon className="w-4 h-4" />
-                                                    </span>
-                                                ) : (
-                                                    <span className="p-1.5 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-                                                        <BuildingLibraryIcon className="w-4 h-4" />
-                                                    </span>
-                                                )}
-                                                <div>
-                                                    <span className="font-mono font-black text-slate-900 dark:text-white block">
-                                                        {txn.transactionReference}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-400">
-                                                        {new Date(txn.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {txn.provider.replace('_', ' ')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-3.5">
-                                            <span className="font-bold text-slate-800 dark:text-slate-200 block">{txn.payerName}</span>
-                                            <span className="font-mono text-[10px] text-slate-400">
-                                                Acc: "{txn.billReferenceNumber || 'None'}" {txn.payerPhone ? `· ${txn.payerPhone}` : ''}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-3.5 font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
-                                            KSh {txn.amount.toLocaleString()}
-                                        </td>
-                                        <td className="px-6 py-3.5">
-                                            {txn.matchedStudentName ? (
-                                                <div>
-                                                    <span className="font-bold text-slate-900 dark:text-white block">
-                                                        {txn.matchedStudentName}
-                                                    </span>
-                                                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                                                        ADM {txn.matchedStudentAdm} ({txn.reconciliationConfidence})
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-[10px] text-amber-600 font-bold">
-                                                    ⚠ Unmatched (In Suspense)
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-3.5">
-                                            {txn.generatedReceiptNumber ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                    🧾 {txn.generatedReceiptNumber}
-                                                </span>
-                                            ) : (
-                                                <span className="text-[10px] text-slate-400 italic">No receipt</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-3.5 text-center">
-                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                txn.status === 'MATCHED_AND_RECEIPTED'
-                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300'
-                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300'
-                                            }`}>
-                                                {txn.status === 'MATCHED_AND_RECEIPTED' ? '✓ Auto-Receipted' : '⚠ Suspense'}
-                                            </span>
-                                        </td>
+                    {/* Active State / Stream Table */}
+                    {isLoading ? (
+                        <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
+                            <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                            <p className="text-xs font-bold uppercase tracking-wider">Connecting to Real-Time Payment Feeds...</p>
+                        </div>
+                    ) : filteredTxns.length === 0 ? (
+                        <div className="py-16 px-6 text-center">
+                            <div className="w-16 h-16 rounded-3xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mx-auto mb-4">
+                                <SignalIcon className="w-8 h-8 animate-pulse" />
+                            </div>
+                            <h4 className="text-base font-black text-slate-900 dark:text-white">
+                                {isKcbConnected ? 'KCB Gateway Connected & Listening' : 'Real-Time Feeds Active'}
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1.5 leading-relaxed">
+                                {isKcbConnected 
+                                    ? `Your school's KCB integration is configured and active. As soon as a parent makes a payment via your KCB Paybill, Till, or Bank Transfer, it will appear here in real time with automated O(1) receipting.`
+                                    : `No live transactions recorded yet. Live payment events from your connected payment gateways will stream here automatically.`
+                                }
+                            </p>
+
+                            <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSimulating(true)}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                                >
+                                    <SparklesIcon className="w-4 h-4" />
+                                    <span>Simulate Test Payment</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDemoPreview(true)}
+                                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold active:scale-95 transition-all cursor-pointer"
+                                >
+                                    Preview Sample Data
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                        <th className="px-6 py-3.5">Provider · Reference</th>
+                                        <th className="px-6 py-3.5">Payer / Account Key</th>
+                                        <th className="px-6 py-3.5">Amount</th>
+                                        <th className="px-6 py-3.5">Matched Student</th>
+                                        <th className="px-6 py-3.5">Receipt #</th>
+                                        <th className="px-6 py-3.5 text-center">Status</th>
+                                        <th className="px-6 py-3.5 text-right">Actions</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {filteredTxns.map(txn => {
+                                        const isKcb = txn.provider === 'KCB_BUNI';
+                                        const isMpesa = txn.provider === 'MPESA_DARAJA';
+                                        const isCoop = txn.provider === 'COOP_CONNECT';
+                                        const isEquity = txn.provider === 'EQUITY_JENGA';
+
+                                        return (
+                                            <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <td className="px-6 py-3.5">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <span className={`p-2 rounded-xl flex items-center justify-center ${
+                                                            isKcb 
+                                                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800' 
+                                                                : isMpesa 
+                                                                    ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400' 
+                                                                    : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400'
+                                                        }`}>
+                                                            {isMpesa ? (
+                                                                <DevicePhoneMobileIcon className="w-4 h-4" />
+                                                            ) : (
+                                                                <BuildingLibraryIcon className="w-4 h-4" />
+                                                            )}
+                                                        </span>
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="font-mono font-black text-slate-900 dark:text-white block">
+                                                                    {txn.transactionReference}
+                                                                </span>
+                                                                {isKcb && (
+                                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 font-mono text-[9px] font-black">
+                                                                        KCB
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                                                                {new Date(txn.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {txn.provider.replace('_', ' ')}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3.5">
+                                                    <span className="font-bold text-slate-800 dark:text-slate-200 block">{txn.payerName}</span>
+                                                    <span className="font-mono text-[10px] text-slate-400">
+                                                        Acc: "{txn.billReferenceNumber || 'None'}" {txn.payerPhone ? `· ${txn.payerPhone}` : ''}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3.5 font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
+                                                    KSh {txn.amount.toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-3.5">
+                                                    {txn.matchedStudentName ? (
+                                                        <div>
+                                                            <span className="font-bold text-slate-900 dark:text-white block">
+                                                                {txn.matchedStudentName}
+                                                            </span>
+                                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                ADM {txn.matchedStudentAdm || 'Matched'} {txn.reconciliationConfidence ? `(${txn.reconciliationConfidence})` : ''}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-900">
+                                                            <ExclamationTriangleIcon className="w-3 h-3" />
+                                                            Unmatched (Suspense)
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-3.5">
+                                                    {txn.generatedReceiptNumber ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                            🧾 {txn.generatedReceiptNumber}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 italic">Pending receipt</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-3.5 text-center">
+                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                        txn.status === 'MATCHED_AND_RECEIPTED'
+                                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+                                                    }`}>
+                                                        {txn.status === 'MATCHED_AND_RECEIPTED' ? '✓ Auto-Receipted' : '⚠ Suspense'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-3.5 text-right whitespace-nowrap">
+                                                    {txn.status === 'UNMATCHED_SUSPENSE' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSuspenseTargetTxn(txn);
+                                                                setSelectedStudentForSuspense(students[0]?.id || '');
+                                                            }}
+                                                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all cursor-pointer"
+                                                        >
+                                                            Link Student
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] font-bold text-slate-400">Reconciled</span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             )}
 
             {/* ── TAB 2: CONNECTED BANK ACCOUNTS ── */}
             {activeTab === 'accounts' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {accounts.map(acc => (
-                        <div key={acc.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 space-y-4 shadow-sm hover:border-emerald-500/40 transition-all">
-                            <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                                        {acc.provider === 'MPESA_DARAJA' ? <DevicePhoneMobileIcon className="w-6 h-6" /> : <BuildingLibraryIcon className="w-6 h-6" />}
+                    {accounts.map(acc => {
+                        const isKcb = acc.provider === 'KCB_BUNI';
+                        const isMpesa = acc.provider === 'MPESA_DARAJA';
+                        const isActive = acc.status === 'ACTIVE';
+
+                        return (
+                            <div key={acc.id} className={`bg-white dark:bg-slate-900 rounded-3xl border p-6 space-y-4 shadow-sm transition-all ${
+                                isActive 
+                                    ? 'border-emerald-500/40 hover:border-emerald-500' 
+                                    : 'border-slate-200 dark:border-slate-800 opacity-80'
+                            }`}>
+                                <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
+                                            isActive
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400'
+                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                        }`}>
+                                            {isMpesa ? <DevicePhoneMobileIcon className="w-6 h-6" /> : <BuildingLibraryIcon className="w-6 h-6" />}
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-1.5">
+                                                <h4 className="text-base font-black text-slate-900 dark:text-white">{acc.accountName}</h4>
+                                                {isKcb && isActive && (
+                                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-black uppercase">
+                                                        KCB Buni
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-slate-400 font-mono mt-0.5">
+                                                {acc.paybillOrTillNumber ? `Paybill/ShortCode: ${acc.paybillOrTillNumber}` : `Acc No: ${acc.accountNumber}`}
+                                            </p>
+                                        </div>
                                     </div>
+
+                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
+                                        isActive
+                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
+                                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                    }`}>
+                                        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />}
+                                        {isActive ? 'ACTIVE' : 'DISCONNECTED'}
+                                    </span>
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-end">
                                     <div>
-                                        <h4 className="text-base font-black text-slate-900 dark:text-white">{acc.accountName}</h4>
-                                        <p className="text-xs text-slate-400 font-mono">
-                                            {acc.paybillOrTillNumber ? `Paybill: ${acc.paybillOrTillNumber}` : `Acc No: ${acc.accountNumber}`}
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Ingested Volume</p>
+                                        <p className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
+                                            KSh {acc.balance.toLocaleString()}
                                         </p>
                                     </div>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        Last checked: {new Date(acc.lastSyncedAt).toLocaleTimeString()}
+                                    </span>
                                 </div>
-                                <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                                    {acc.status}
-                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* ── MODAL: Suspense Resolver (Link to Student) ── */}
+            {suspenseTargetTxn && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+                            <div>
+                                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                                    <CheckBadgeIcon className="w-5 h-5 text-amber-500" />
+                                    Link Suspense Transaction
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Ref: <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{suspenseTargetTxn.transactionReference}</span> · KSh {suspenseTargetTxn.amount.toLocaleString()}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSuspenseTargetTxn(null)}
+                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                            >
+                                <XMarkIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-800 dark:text-amber-300">
+                                <p className="font-bold">Payer: {suspenseTargetTxn.payerName}</p>
+                                <p className="font-mono text-[11px] mt-0.5">Account Key Entered: "{suspenseTargetTxn.billReferenceNumber || 'None'}"</p>
                             </div>
 
-                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-end">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Real-Time Ledger Balance</p>
-                                    <p className="text-xl font-black font-mono text-slate-900 dark:text-white mt-0.5">
-                                        KSh {acc.balance.toLocaleString()}
-                                    </p>
-                                </div>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                    Last synced: {new Date(acc.lastSyncedAt).toLocaleTimeString()}
-                                </span>
+                            <div>
+                                <label className="block text-xs font-black uppercase text-slate-500 mb-1">Select Matching Student</label>
+                                <select
+                                    value={selectedStudentForSuspense}
+                                    onChange={(e) => setSelectedStudentForSuspense(e.target.value)}
+                                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="">-- Choose student --</option>
+                                    {students.map(s => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name || s.fullName} (ADM: {s.admissionNumber || s.admission_number || 'N/A'}) - {s.class || s.gradeLevel || ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setSuspenseTargetTxn(null)}
+                                    className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleResolveSuspense}
+                                    disabled={isAssigningSuspense || !selectedStudentForSuspense}
+                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-2"
+                                >
+                                    {isAssigningSuspense ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <CheckCircleIcon className="w-4 h-4" />
+                                    )}
+                                    <span>Create Receipt &amp; Credit Ledger</span>
+                                </button>
                             </div>
                         </div>
-                    ))}
+                    </div>
                 </div>
             )}
 
@@ -423,7 +1216,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                     <SparklesIcon className="w-5 h-5 text-emerald-500" />
                                     Live Inflow Webhook Simulator
                                 </h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Test real-time C2B validation and auto-receipting</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Test real-time KCB Buni or M-Pesa C2B validation and auto-receipting</p>
                             </div>
                             <button
                                 type="button"
@@ -442,10 +1235,10 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                     onChange={(e) => setSimProvider(e.target.value as any)}
                                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                                 >
-                                    <option value="MPESA_DARAJA">📱 M-Pesa C2B Paybill (522522)</option>
+                                    <option value="KCB_BUNI">🏦 KCB Bank Buni Gateway</option>
+                                    <option value="MPESA_DARAJA">📱 M-Pesa C2B Paybill</option>
                                     <option value="COOP_CONNECT">🏦 Co-operative Bank Direct Feed</option>
                                     <option value="EQUITY_JENGA">🏦 Equity Bank Jenga API</option>
-                                    <option value="KCB_BUNI">🏦 KCB Bank Buni Gateway</option>
                                 </select>
                             </div>
 
@@ -479,7 +1272,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                     onChange={(e) => setSimBillRef(e.target.value)}
                                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
                                 />
-                                <p className="text-[10px] text-slate-400 mt-1">This is the account number entered by the parent on their phone</p>
+                                <p className="text-[10px] text-slate-400 mt-1">This is the account number entered by the parent during payment</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">

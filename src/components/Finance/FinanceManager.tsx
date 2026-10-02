@@ -9619,10 +9619,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => {
-                                                                                    setReceiptTransferTarget(entry.data);
+                                                                                    setReceiptTransferTarget((entry as any).data || entry);
                                                                                     setTransferStudentSearch('');
                                                                                     setTransferTargetStudent(null);
-                                                                                    setTransferReason(`Reallocated from ${balPrevStudent.name} (${balPrevResolvedAdmNo})`);
+                                                                                    setTransferReason(`Reallocated from ${(balPrevStudent as any)?.name} (${balPrevResolvedAdmNo})`);
                                                                                 }}
                                                                                 className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-indigo-200 shadow-xs cursor-pointer active:scale-95"
                                                                                 title="Transfer this receipt to another student"
@@ -21297,7 +21297,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     <BoardingHouseholdBalanceManager
                                         currentUser={props.currentUser}
                                         currentInstitution={props.institution}
-                                        onLogAction={props.onLogAction}
+                                        onLogAction={props.onLogAction ? ((action: string) => Promise.resolve(props.onLogAction!(action))) : undefined}
                                     />
                                 </div>
                             )}
@@ -22135,6 +22135,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             const totalCbRecords = activeCbList.length;
                                             const totalCbPages = isCbAll ? 1 : Math.ceil(totalCbRecords / cbPerPage) || 1;
                                             const paginatedCbList = isCbAll ? activeCbList : activeCbList.slice((cbCurrentPage - 1) * cbPerPage, cbCurrentPage * cbPerPage);
+
+                                            const cbTotalDebit = activeCbList.reduce((acc: number, d: any) => acc + (Number(d.debit) || 0), 0);
+                                            const cbTotalCredit = activeCbList.reduce((acc: number, d: any) => acc + (Number(d.credit) || 0), 0);
+                                            const cbNetBalance = cbTotalDebit - cbTotalCredit;
 
                                             return (
                                                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/60 shadow-sm p-8 space-y-6">
@@ -24399,7 +24403,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <span className="text-xl">📄</span>
                                                             <div>
                                                                 <h4 className="text-base font-black">Official PDF Document Viewer</h4>
-                                                                <p className="text-[10px] text-slate-400 font-semibold">{(selectedStudent || balPrevStudent)?.name} · Statement of Account</p>
+                                                                <p className="text-[10px] text-slate-400 font-semibold">{selectedStudent?.name} · Statement of Account</p>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3">
@@ -24418,7 +24422,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     </button>
                                                                     <a
                                                                         href={createBlobUrlFromPdfData(stmtPdfDataUri)}
-                                                                        download={`Statement_${((selectedStudent || balPrevStudent)?.name || 'Student').replace(/\s+/g, '_')}.pdf`}
+                                                                        download={`Statement_${(selectedStudent?.name || 'Student').replace(/\s+/g, '_')}.pdf`}
                                                                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
                                                                     >
                                                                         📥 Download PDF
@@ -24600,7 +24604,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 userName={props.currentUser?.name || props.currentUser?.email || 'Finance Officer'}
                 currentUser={props.currentUser}
                 onReceiptCreated={(r: any) => {
-                    if (props.onReceiptCreated) props.onReceiptCreated(r);
+                    if ((props as any).onReceiptCreated) (props as any).onReceiptCreated(r);
                 }}
                 onRefreshData={props.onRefreshData}
                 onLogAction={props.onLogAction}
@@ -25445,7 +25449,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 {onScreenReceiptModal.receipt && (
                                     <button
                                         onClick={() => {
-                                            handlePrintEposThermalReceipt(onScreenReceiptModal.receipt);
+                                            if (onScreenReceiptModal.receipt) handlePrintEposThermalReceipt(onScreenReceiptModal.receipt);
                                             closeReceiptPreview();
                                         }}
                                         className="px-4 py-2.5 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border border-emerald-500/30 flex items-center gap-2"
