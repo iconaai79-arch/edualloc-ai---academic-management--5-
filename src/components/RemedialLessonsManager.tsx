@@ -7,6 +7,7 @@ import { SchoolFloatWalletCard } from './Finance/SchoolFloatWalletCard';
 import { walletService } from '../services/walletService';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
+import { BuySMSModal } from './BuySMSModal';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     AlertCircle, Trash2, Shield, Eye, EyeOff, Award, BookOpen, Layers, UserCheck,
@@ -14,7 +15,7 @@ import {
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
     Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox,
-    ChevronLeft, ChevronRight, XCircle, Wallet
+    ChevronLeft, ChevronRight, XCircle, Wallet, MessageSquare, Phone, MessageCircle
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
@@ -123,7 +124,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [tenantSubjects, fetchedSchoolSubjects, targetInstitutionId]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'teachers' | 'duty' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+    const [activeTab, setActiveTab] = useState<'teachers' | 'duty' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'communication' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+
+    // Tab: Remedials Communication Hub States
+    const [commAudience, setCommAudience] = useState<'teachers' | 'duty' | 'prefects' | 'parents' | 'custom'>('teachers');
+    const [commChannel, setCommChannel] = useState<'sms' | 'whatsapp'>('sms');
+    const [commParentCourseFilter, setCommParentCourseFilter] = useState<string>('all');
+    const [commCustomPhones, setCommCustomPhones] = useState<string>('');
+    const [commSelectedTeacherIds, setCommSelectedTeacherIds] = useState<string[]>([]);
+    const [commSelectedPrefectIds, setCommSelectedPrefectIds] = useState<string[]>([]);
+    const [commMessageTemplate, setCommMessageTemplate] = useState<string>('teacher_schedule');
+    const [commMessageText, setCommMessageText] = useState<string>('');
+    const [isSendingComm, setIsSendingComm] = useState<boolean>(false);
+    const [commLogs, setCommLogs] = useState<any[]>([]);
+    const [commLogSearch, setCommLogSearch] = useState<string>('');
+    const [commLogFilterType, setCommLogFilterType] = useState<string>('all');
+    const [isBuySmsOpen, setIsBuySmsOpen] = useState<boolean>(false);
+    const [smsBalance, setSmsBalance] = useState<number>(currentInstitution?.smsBalance || 0);
 
     // Tab: Teachers on Duty (TOD) Management States
     const [dutySearchQuery, setDutySearchQuery] = useState('');
@@ -4303,6 +4320,419 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    // Helper: GSM vs Unicode SMS calculation
+    const calculateSmsParts = (msg: string) => {
+        const isUnicode = /[^\u0000-\u007F\u0080-\u00FF€]/.test(msg);
+        const charCount = msg.length;
+        if (charCount === 0) return { count: 0, characters: 0, limit: isUnicode ? 70 : 160, isUnicode };
+        if (isUnicode) {
+            if (charCount <= 70) return { count: 1, characters: charCount, limit: 70, isUnicode };
+            return { count: Math.ceil(charCount / 67), characters: charCount, limit: 67, isUnicode };
+        } else {
+            if (charCount <= 160) return { count: 1, characters: charCount, limit: 160, isUnicode };
+            return { count: Math.ceil(charCount / 153), characters: charCount, limit: 153, isUnicode };
+        }
+    };
+
+    // Helper: Normalize Kenyan/International phone numbers
+    const formatKenyanPhone = (raw: string): string => {
+        let clean = (raw || '').replace(/\D/g, '');
+        if (clean.startsWith('0')) clean = '254' + clean.slice(1);
+        else if ((clean.startsWith('7') || clean.startsWith('1')) && clean.length === 9) clean = '254' + clean;
+        return clean;
+    };
+
+    // Communication Templates
+    const COMM_TEMPLATES = [
+        {
+            id: 'teacher_schedule',
+            title: '📢 Teacher Remedial Schedule',
+            target: 'teachers',
+            text: 'Dear {TeacherName}, your remedial lessons this week: {Schedule}. Please report punctually. {SchoolName}'
+        },
+        {
+            id: 'duty_notice',
+            title: '🛡️ Teacher on Duty Notice',
+            target: 'duty',
+            text: 'Dear {TeacherName}, you are appointed as Teacher on Duty for {WeekLabel} ({Schedule}). Kindly supervise the remedial sessions and verify attendance. {SchoolName}'
+        },
+        {
+            id: 'prefect_alert',
+            title: '🔔 Prefect Lesson Verification Alert',
+            target: 'prefects',
+            text: 'Hello {PrefectName}, please ensure all remedial lessons for {ClassName} are scanned and verified upon teacher arrival today. {SchoolName}'
+        },
+        {
+            id: 'parent_schedule',
+            title: '📅 Parent Remedial Classes Notice',
+            target: 'parents',
+            text: 'Dear Parent/Guardian, remedial lessons for {ClassName} will take place on {Schedule}. Please ensure your child attends on time. {SchoolName}'
+        },
+        {
+            id: 'parent_fee',
+            title: '💳 Parent Remedial Fee Balance',
+            target: 'parents',
+            text: 'Dear Parent of {StudentName}, your outstanding remedial fee balance is KES {Balance}. Kindly remit via M-PESA to support tuition. {SchoolName}'
+        },
+        {
+            id: 'custom',
+            title: '✍️ Custom Message',
+            target: 'all',
+            text: ''
+        }
+    ];
+
+    // Target Lists for Communication
+    const commTeachersList = useMemo(() => {
+        return (tenantUsers || [])
+            .filter(u => !u.role || ['teacher', 'admin', 'headteacher', 'principal', 'staff'].includes(u.role.toLowerCase()))
+            .map(u => {
+                const phone = (u.phoneNumber || (u as any).phone || (u as any).phone_number || '').trim();
+                const teacherAllocations = allocations.filter(a => a.teacherId === u.id);
+                const scheduleSummary = teacherAllocations.length > 0
+                    ? teacherAllocations.map(a => `${a.dayOfWeek || a.day_of_week || 'Day'}: ${a.className} (${a.startTime || ''}-${a.endTime || ''})`).join('; ')
+                    : 'No timetable slots assigned';
+                return {
+                    id: u.id,
+                    name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.name || 'Teacher',
+                    code: teacherCodes[u.id] || u.staffId || 'TCH',
+                    phone,
+                    allocCount: teacherAllocations.length,
+                    scheduleSummary,
+                };
+            });
+    }, [tenantUsers, allocations, teacherCodes]);
+
+    const commDutyList = useMemo(() => {
+        return weekendDutyRoster.map(duty => {
+            const u = tenantUsers.find(user => user.id === duty.teacherId);
+            const phone = (u?.phoneNumber || (u as any)?.phone || '').trim();
+            const schedule = duty.dutyType === 'weekday'
+                ? `${duty.weekdayDay || 'Weekday'} (${duty.weekdayStartTime || '16:00'} - ${duty.weekdayEndTime || '18:00'})`
+                : `Sat & Sun (${saturdayStartTime || '08:00'} - 13:00)`;
+            return {
+                id: duty.id,
+                teacherId: duty.teacherId,
+                name: duty.teacherName,
+                code: duty.teacherCode || teacherCodes[duty.teacherId] || 'TOD',
+                weekLabel: duty.weekLabel || 'WEEK 1',
+                day: duty.dutyType === 'weekday' ? (duty.weekdayDay || 'Weekday') : 'Weekend',
+                schedule,
+                phone,
+            };
+        });
+    }, [weekendDutyRoster, tenantUsers, teacherCodes, saturdayStartTime]);
+
+    const commPrefectsList = useMemo(() => {
+        return prefectsList.map(pref => {
+            const phone = (pref.contactPhone || pref.phoneNumber || '').trim();
+            return {
+                id: pref.id,
+                name: pref.studentName,
+                role: pref.role === 'secretary' ? 'Subject Secretary' : 'Class Prefect',
+                className: pref.className,
+                stream: pref.stream,
+                phone,
+            };
+        });
+    }, [prefectsList]);
+
+    const commParentsList = useMemo(() => {
+        const list: {
+            studentId: string;
+            studentName: string;
+            parentName: string;
+            phone: string;
+            courseId: string;
+            className: string;
+            stream: string;
+            balance: number;
+        }[] = [];
+        const seen = new Set<string>();
+
+        (enrollments || []).forEach(enr => {
+            const phone = (enr.parentPhone || (enr as any).parent_phone || (enr as any).guardianPhone || (enr as any).guardian_phone || enr.phoneNumber || '').trim();
+            if (!phone) return;
+            const normalized = formatKenyanPhone(phone);
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+
+            const course = combinedCourses.find(c => c.id === enr.courseId);
+            const inv = invoices.find(i => i.studentId === enr.studentId || (i as any).student_id === enr.studentId);
+            const balance = inv ? ((inv.amount || 0) - (inv.paidAmount || (inv as any).paid_amount || 0)) : 0;
+
+            list.push({
+                studentId: enr.studentId || enr.id,
+                studentName: `${enr.firstName || ''} ${enr.lastName || ''}`.trim() || 'Student',
+                parentName: (enr as any).parentName || (enr as any).guardianName || 'Parent/Guardian',
+                phone,
+                courseId: enr.courseId || '',
+                className: course?.name || 'Class',
+                stream: enr.stream || '',
+                balance: Math.max(0, balance),
+            });
+        });
+
+        return list;
+    }, [enrollments, combinedCourses, invoices]);
+
+    // Handle template switch
+    const handleApplyCommTemplate = (templateId: string) => {
+        setCommMessageTemplate(templateId);
+        const tpl = COMM_TEMPLATES.find(t => t.id === templateId);
+        if (tpl && tpl.text) {
+            setCommMessageText(tpl.text);
+            if (tpl.target !== 'all' && tpl.target !== commAudience) {
+                setCommAudience(tpl.target as any);
+            }
+        }
+    };
+
+    // Quick Compose to single Teacher
+    const handleQuickSmsToTeacher = (teacher: { id: string; name: string; phone?: string; scheduleSummary?: string }) => {
+        setActiveTab('communication');
+        setCommAudience('teachers');
+        setCommSelectedTeacherIds([teacher.id]);
+        setCommMessageTemplate('teacher_schedule');
+        const sch = teacher.scheduleSummary || 'Check remedial timetable';
+        setCommMessageText(`Dear ${teacher.name}, your remedial lessons this week: ${sch}. Please report promptly. ${currentInstitution?.name || 'School'}`);
+    };
+
+    // Quick Compose to single Duty Teacher
+    const handleQuickSmsToDuty = (duty: RemedialWeekendDuty) => {
+        setActiveTab('communication');
+        setCommAudience('duty');
+        setCommMessageTemplate('duty_notice');
+        const sch = duty.dutyType === 'weekday'
+            ? `${duty.weekdayDay || 'Weekday'} (${duty.weekdayStartTime || '16:00'} - ${duty.weekdayEndTime || '18:00'})`
+            : `Sat & Sun (${saturdayStartTime || '08:00'} - 13:00)`;
+        setCommMessageText(`Dear ${duty.teacherName}, you are appointed as Teacher on Duty for ${duty.weekLabel || 'the week'} (${sch}). Kindly supervise the remedial sessions. ${currentInstitution?.name || 'School'}`);
+    };
+
+    // Quick Compose to Prefect
+    const handleQuickSmsToPrefect = (pref: { id: string; name: string; className: string }) => {
+        setActiveTab('communication');
+        setCommAudience('prefects');
+        setCommSelectedPrefectIds([pref.id]);
+        setCommMessageTemplate('prefect_alert');
+        setCommMessageText(`Hello ${pref.name}, please ensure all remedial lessons for ${pref.className} are scanned and verified upon teacher arrival today. ${currentInstitution?.name || 'School'}`);
+    };
+
+    // Send Remedials Broadcast
+    const handleSendRemedialComm = async () => {
+        if (!commMessageText.trim()) {
+            alert('Please compose a message before sending.');
+            return;
+        }
+
+        // Determine target recipient items with phone numbers
+        let targets: { name: string; phone: string; type: string; meta?: any }[] = [];
+
+        if (commAudience === 'teachers') {
+            const pool = commSelectedTeacherIds.length > 0
+                ? commTeachersList.filter(t => commSelectedTeacherIds.includes(t.id))
+                : commTeachersList;
+            targets = pool.filter(t => t.phone.length > 0).map(t => ({
+                name: t.name,
+                phone: t.phone,
+                type: 'teacher',
+                meta: { schedule: t.scheduleSummary, code: t.code }
+            }));
+        } else if (commAudience === 'duty') {
+            targets = commDutyList.filter(d => d.phone.length > 0).map(d => ({
+                name: d.name,
+                phone: d.phone,
+                type: 'duty',
+                meta: { schedule: d.schedule, week: d.weekLabel }
+            }));
+        } else if (commAudience === 'prefects') {
+            const pool = commSelectedPrefectIds.length > 0
+                ? commPrefectsList.filter(p => commSelectedPrefectIds.includes(p.id))
+                : commPrefectsList;
+            targets = pool.filter(p => p.phone.length > 0).map(p => ({
+                name: p.name,
+                phone: p.phone,
+                type: 'prefect',
+                meta: { className: p.className, role: p.role }
+            }));
+        } else if (commAudience === 'parents') {
+            let pool = commParentsList;
+            if (commParentCourseFilter !== 'all') {
+                pool = pool.filter(p => p.courseId === commParentCourseFilter);
+            }
+            targets = pool.filter(p => p.phone.length > 0).map(p => ({
+                name: p.parentName,
+                phone: p.phone,
+                type: 'parent',
+                meta: { studentName: p.studentName, className: p.className, balance: p.balance }
+            }));
+        } else if (commAudience === 'custom') {
+            const parsedPhones = commCustomPhones
+                .split(/[\n,;]+/)
+                .map(p => p.trim())
+                .filter(p => p.length > 5);
+            targets = parsedPhones.map(phone => ({
+                name: 'Custom Recipient',
+                phone,
+                type: 'custom'
+            }));
+        }
+
+        if (targets.length === 0) {
+            alert('No valid recipients with phone numbers found for the selected audience.');
+            return;
+        }
+
+        const smsParts = calculateSmsParts(commMessageText);
+        const requiredUnits = targets.length * smsParts.count;
+
+        // Channel: WhatsApp Direct Share / Web Dispatch
+        if (commChannel === 'whatsapp') {
+            const first = targets[0];
+            const cleanPhone = formatKenyanPhone(first.phone);
+            const resolvedMsg = commMessageText
+                .replace(/{TeacherName}/g, first.name)
+                .replace(/{PrefectName}/g, first.name)
+                .replace(/{StudentName}/g, first.meta?.studentName || first.name)
+                .replace(/{ClassName}/g, first.meta?.className || 'Class')
+                .replace(/{Schedule}/g, first.meta?.schedule || 'Remedial timetable')
+                .replace(/{WeekLabel}/g, first.meta?.week || 'Week')
+                .replace(/{Balance}/g, first.meta?.balance?.toLocaleString() || '0')
+                .replace(/{SchoolName}/g, currentInstitution?.name || 'Academic Institution');
+
+            const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(resolvedMsg)}`;
+            window.open(url, '_blank');
+
+            // Log WhatsApp dispatch
+            const newLog = {
+                id: `comm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                institutionId,
+                recipientName: first.name,
+                recipientPhone: first.phone,
+                recipientType: first.type,
+                message: resolvedMsg,
+                channel: 'whatsapp',
+                status: 'sent',
+                sentAt: new Date().toISOString(),
+                sentBy: currentUser?.name || 'Administrator',
+                costUnits: 0
+            };
+            const updatedLogs = [newLog, ...commLogs];
+            setCommLogs(updatedLogs);
+            safeLocalStorage.setItem(`remedial_comm_logs_${institutionId}`, JSON.stringify(updatedLogs));
+            apiService.saveModuleRecord('school_remedial_sms_logs', newLog).catch(() => {});
+            onLogAction?.(`Dispatched remedial WhatsApp to ${first.name} (${first.phone})`);
+            return;
+        }
+
+        // Channel: SMS Dispatch via apiService
+        if (!window.confirm(`Send SMS to ${targets.length} recipient(s)? This will consume approximately ${requiredUnits} SMS units (${smsParts.count} page(s) per message).`)) {
+            return;
+        }
+
+        setIsSendingComm(true);
+        try {
+            const schoolName = currentInstitution?.name || 'Academic Institution';
+            let sentCount = 0;
+            let failCount = 0;
+            const newLogEntries: any[] = [];
+
+            // Personalized dispatch loop
+            for (const tgt of targets) {
+                const resolvedMsg = commMessageText
+                    .replace(/{TeacherName}/g, tgt.name)
+                    .replace(/{PrefectName}/g, tgt.name)
+                    .replace(/{StudentName}/g, tgt.meta?.studentName || tgt.name)
+                    .replace(/{ClassName}/g, tgt.meta?.className || 'Class')
+                    .replace(/{Schedule}/g, tgt.meta?.schedule || 'Remedials')
+                    .replace(/{WeekLabel}/g, tgt.meta?.week || 'Week')
+                    .replace(/{Balance}/g, tgt.meta?.balance?.toLocaleString() || '0')
+                    .replace(/{SchoolName}/g, schoolName);
+
+                const cleanPhone = formatKenyanPhone(tgt.phone);
+
+                try {
+                    const res = await apiService.sendSms(
+                        cleanPhone,
+                        resolvedMsg,
+                        currentInstitution?.smsConfig,
+                        smsParts.count,
+                        institutionId
+                    );
+                    if (res && res.success === false) {
+                        failCount++;
+                    } else {
+                        sentCount++;
+                    }
+                    newLogEntries.push({
+                        id: `comm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        institutionId,
+                        recipientName: tgt.name,
+                        recipientPhone: tgt.phone,
+                        recipientType: tgt.type,
+                        message: resolvedMsg,
+                        channel: 'sms',
+                        status: res && res.success === false ? 'failed' : 'sent',
+                        sentAt: new Date().toISOString(),
+                        sentBy: currentUser?.name || 'Administrator',
+                        costUnits: smsParts.count
+                    });
+                } catch (sendErr) {
+                    failCount++;
+                    newLogEntries.push({
+                        id: `comm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        institutionId,
+                        recipientName: tgt.name,
+                        recipientPhone: tgt.phone,
+                        recipientType: tgt.type,
+                        message: resolvedMsg,
+                        channel: 'sms',
+                        status: 'failed',
+                        sentAt: new Date().toISOString(),
+                        sentBy: currentUser?.name || 'Administrator',
+                        costUnits: 0
+                    });
+                }
+            }
+
+            // Update local balance
+            const updatedBalance = Math.max(0, smsBalance - (sentCount * smsParts.count));
+            setSmsBalance(updatedBalance);
+            if (currentInstitution) {
+                currentInstitution.smsBalance = updatedBalance;
+            }
+
+            // Update logs
+            const updatedLogs = [...newLogEntries, ...commLogs].slice(0, 100);
+            setCommLogs(updatedLogs);
+            safeLocalStorage.setItem(`remedial_comm_logs_${institutionId}`, JSON.stringify(updatedLogs));
+
+            // Persist logs in background
+            if (newLogEntries.length > 0) {
+                apiService.saveModuleRecord('school_remedial_sms_logs', newLogEntries).catch(() => {});
+            }
+
+            onLogAction?.(`Sent ${sentCount} remedial SMS messages (${failCount} failed)`);
+            alert(`Remedial SMS Campaign completed: ${sentCount} sent successfully${failCount > 0 ? `, ${failCount} failed` : ''}.`);
+        } catch (err: any) {
+            alert(err.message || 'Failed to dispatch remedial SMS campaign.');
+        } finally {
+            setIsSendingComm(false);
+        }
+    };
+
+    // Clear Communication History Logs
+    const handleClearCommLogs = async () => {
+        if (!window.confirm('Are you sure you want to clear the remedial communication log history?')) {
+            return;
+        }
+        setCommLogs([]);
+        safeLocalStorage.removeItem(`remedial_comm_logs_${institutionId}`);
+        try {
+            await apiService.deleteModuleRecord('school_remedial_sms_logs', institutionId);
+        } catch (_) {}
     };
 
     // Open Create Allocation Modal
@@ -8699,6 +9129,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </button>
 
+                        {/* REMEDIALS COMMUNICATION & SMS HUB TAB */}
+                        <button 
+                            onClick={() => setActiveTab('communication')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'communication' 
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'communication' ? 'bg-white/20 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <MessageSquare className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Communication &amp; SMS</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'communication' ? 'text-emerald-100' : 'text-slate-400'}`}>Staff &amp; parent alerts</p>
+                                </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                activeTab === 'communication' ? 'bg-white text-emerald-700' : 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                                {smsBalance} SMS
+                            </span>
+                        </button>
+
                         <button 
                             onClick={() => setActiveTab('rates')}
                             className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
@@ -9143,13 +9600,31 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </p>
                                         </div>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => handleOpenCreateAllocationForTeacher(teacher.id)}
-                                            className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 text-white font-black text-[10px] uppercase tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
-                                        >
-                                            <Plus className="w-3.5 h-3.5" /> Allocate
-                                        </button>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const commT = commTeachersList.find(t => t.id === teacher.id);
+                                                    handleQuickSmsToTeacher({
+                                                        id: teacher.id,
+                                                        name: teacher.name || 'Teacher',
+                                                        phone: teacher.phoneNumber || (teacher as any).phone,
+                                                        scheduleSummary: commT?.scheduleSummary
+                                                    });
+                                                }}
+                                                className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] hover:bg-emerald-100 transition-colors flex items-center gap-1 cursor-pointer"
+                                                title="Send Remedial SMS Schedule to this Teacher"
+                                            >
+                                                <MessageSquare className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenCreateAllocationForTeacher(teacher.id)}
+                                                className="px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 text-white font-black text-[10px] uppercase tracking-wider hover:bg-slate-800 transition-all flex items-center gap-1.5 active:scale-95 shadow-sm cursor-pointer"
+                                            >
+                                                <Plus className="w-3.5 h-3.5" /> Allocate
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -9583,14 +10058,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             )}
                                                         </td>
                                                         <td className="py-3.5 px-4 text-right">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleDeleteDutyRecord(duty)}
-                                                                className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                                                                title="Delete Duty Entry"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleQuickSmsToDuty(duty)}
+                                                                    className="p-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                                                    title="Send SMS Duty Notice to this TOD"
+                                                                >
+                                                                    <MessageSquare className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteDutyRecord(duty)}
+                                                                    className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                                                    title="Delete Duty Entry"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
@@ -9671,14 +10156,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         {isWkday ? `KES ${duty.dutyPayRate || weekdayDutyFlatRate || 200}/day` : 'Standard Hourly'}
                                                     </p>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteDutyRecord(duty)}
-                                                    className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                                                    title="Delete Duty Entry"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleQuickSmsToDuty(duty)}
+                                                        className="p-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                                        title="Send SMS Duty Notice to this TOD"
+                                                    >
+                                                        <MessageSquare className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteDutyRecord(duty)}
+                                                        className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                                        title="Delete Duty Entry"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -13901,6 +14396,529 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* TAB: REMEDIALS COMMUNICATION & DISPATCH HUB */}
+            {activeTab === 'communication' && (() => {
+                const teachersWithPhone = commTeachersList.filter(t => t.phone.length > 0);
+                const dutyWithPhone = commDutyList.filter(d => d.phone.length > 0);
+                const prefectsWithPhone = commPrefectsList.filter(p => p.phone.length > 0);
+                let parentsTargetPool = commParentsList;
+                if (commParentCourseFilter !== 'all') {
+                    parentsTargetPool = parentsTargetPool.filter(p => p.courseId === commParentCourseFilter);
+                }
+
+                // Calculate selected target count
+                let activeRecipientCount = 0;
+                if (commAudience === 'teachers') {
+                    activeRecipientCount = commSelectedTeacherIds.length > 0
+                        ? commTeachersList.filter(t => commSelectedTeacherIds.includes(t.id) && t.phone.length > 0).length
+                        : teachersWithPhone.length;
+                } else if (commAudience === 'duty') {
+                    activeRecipientCount = dutyWithPhone.length;
+                } else if (commAudience === 'prefects') {
+                    activeRecipientCount = commSelectedPrefectIds.length > 0
+                        ? commPrefectsList.filter(p => commSelectedPrefectIds.includes(p.id) && p.phone.length > 0).length
+                        : prefectsWithPhone.length;
+                } else if (commAudience === 'parents') {
+                    activeRecipientCount = parentsTargetPool.length;
+                } else if (commAudience === 'custom') {
+                    activeRecipientCount = commCustomPhones.split(/[\n,;]+/).map(p => p.trim()).filter(p => p.length > 5).length;
+                }
+
+                const smsParts = calculateSmsParts(commMessageText);
+                const requiredUnits = activeRecipientCount * smsParts.count;
+                const hasSufficientUnits = smsBalance >= requiredUnits;
+
+                // Sample preview text resolution
+                const sampleName = commAudience === 'teachers' ? (teachersWithPhone[0]?.name || 'Teacher Mwangi')
+                    : commAudience === 'duty' ? (dutyWithPhone[0]?.name || 'TOD Otieno')
+                    : commAudience === 'prefects' ? (prefectsWithPhone[0]?.name || 'Prefect Kamau')
+                    : (parentsTargetPool[0]?.parentName || 'Parent / Guardian');
+
+                const samplePreview = commMessageText
+                    .replace(/{TeacherName}/g, sampleName)
+                    .replace(/{PrefectName}/g, sampleName)
+                    .replace(/{StudentName}/g, parentsTargetPool[0]?.studentName || 'Student Faith')
+                    .replace(/{ClassName}/g, 'Form 4 East')
+                    .replace(/{Schedule}/g, 'Sat 08:00–13:00 / Sun 09:00–13:00')
+                    .replace(/{WeekLabel}/g, 'WEEK 1')
+                    .replace(/{Balance}/g, '1,500')
+                    .replace(/{SchoolName}/g, currentInstitution?.name || 'Academic Institution');
+
+                // Filtered logs
+                const filteredCommLogs = commLogs.filter(log => {
+                    if (commLogFilterType !== 'all' && log.recipientType !== commLogFilterType) return false;
+                    if (commLogSearch) {
+                        const q = commLogSearch.toLowerCase();
+                        const matchName = (log.recipientName || '').toLowerCase().includes(q);
+                        const matchPhone = (log.recipientPhone || '').toLowerCase().includes(q);
+                        const matchMsg = (log.message || '').toLowerCase().includes(q);
+                        if (!matchName && !matchPhone && !matchMsg) return false;
+                    }
+                    return true;
+                });
+
+                return (
+                    <div className="space-y-6 animate-fade-in">
+                        {/* Top Header Banner */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                                        <MessageSquare className="w-5 h-5 text-emerald-500" /> Remedials Communication &amp; SMS Dispatch Hub
+                                    </h4>
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300">
+                                        {smsBalance} SMS Credits
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Send targeted SMS broadcasts, duty notices, timetable reminders, prefect QR alerts, and parent balance notifications.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBuySmsOpen(true)}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                    <CreditCard className="w-3.5 h-3.5" /> Top Up SMS
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearCommLogs}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:text-rose-600 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> Clear History
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Top KPI Cards Row */}
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">SMS Balance</span>
+                                    <CreditCard className="w-4 h-4 text-emerald-500" />
+                                </div>
+                                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono">{smsBalance}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Available broadcast credits</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Staff Contacts</span>
+                                    <Users className="w-4 h-4 text-blue-500" />
+                                </div>
+                                <p className="text-xl font-black text-slate-900 dark:text-white font-mono">{teachersWithPhone.length}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Teachers with valid phone</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Teachers on Duty</span>
+                                    <UserCheck className="w-4 h-4 text-amber-500" />
+                                </div>
+                                <p className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono">{dutyWithPhone.length}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Rostered duty teachers</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Prefects / Leaders</span>
+                                    <ShieldCheck className="w-4 h-4 text-indigo-500" />
+                                </div>
+                                <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono">{prefectsWithPhone.length}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Class &amp; stream leaders</p>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 shadow-xs">
+                                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Enrolled Parents</span>
+                                    <Megaphone className="w-4 h-4 text-purple-500" />
+                                </div>
+                                <p className="text-xl font-black text-purple-600 dark:text-purple-400 font-mono">{commParentsList.length}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Reachable guardian phones</p>
+                            </div>
+                        </div>
+
+                        {/* Main 2-Column Workstation */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            {/* Left Column: Compose & Dispatch Studio (7 Cols) */}
+                            <div className="lg:col-span-7 space-y-6">
+                                <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-5">
+                                    {/* Audience Selection Tabs */}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                                            Step 1: Choose Target Audience
+                                        </label>
+                                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                            {[
+                                                { id: 'teachers', label: 'Teachers', icon: Users, count: teachersWithPhone.length },
+                                                { id: 'duty', label: 'Duty Staff', icon: UserCheck, count: dutyWithPhone.length },
+                                                { id: 'prefects', label: 'Prefects', icon: ShieldCheck, count: prefectsWithPhone.length },
+                                                { id: 'parents', label: 'Parents', icon: Megaphone, count: commParentsList.length },
+                                                { id: 'custom', label: 'Custom', icon: Phone, count: null },
+                                            ].map(item => {
+                                                const Icon = item.icon;
+                                                const isSelected = commAudience === item.id;
+                                                return (
+                                                    <button
+                                                        key={item.id}
+                                                        type="button"
+                                                        onClick={() => setCommAudience(item.id as any)}
+                                                        className={`p-3 rounded-2xl border transition-all text-left flex flex-col justify-between cursor-pointer ${
+                                                            isSelected
+                                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-900 dark:text-emerald-200 shadow-xs'
+                                                                : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <Icon className={`w-4 h-4 ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
+                                                            {item.count !== null && (
+                                                                <span className="text-[10px] font-mono font-black">{item.count}</span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[11px] font-black uppercase tracking-wider">{item.label}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Audience Context Filters */}
+                                    {commAudience === 'teachers' && (
+                                        <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="font-black text-slate-700 dark:text-slate-300">Recipient Scope:</span>
+                                                <span className="text-[11px] font-bold text-slate-500">
+                                                    {commSelectedTeacherIds.length === 0 ? `All (${teachersWithPhone.length}) Teachers` : `${commSelectedTeacherIds.length} Selected`}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCommSelectedTeacherIds([])}
+                                                    className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase transition-colors cursor-pointer ${
+                                                        commSelectedTeacherIds.length === 0
+                                                            ? 'bg-emerald-600 text-white'
+                                                            : 'bg-white dark:bg-slate-800 text-slate-600 border border-slate-200 dark:border-slate-700'
+                                                    }`}
+                                                >
+                                                    All Teachers
+                                                </button>
+                                                {teachersWithPhone.map(t => {
+                                                    const isChecked = commSelectedTeacherIds.includes(t.id);
+                                                    return (
+                                                        <button
+                                                            key={t.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCommSelectedTeacherIds(prev =>
+                                                                    isChecked ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                                                );
+                                                            }}
+                                                            className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition-colors cursor-pointer ${
+                                                                isChecked
+                                                                    ? 'bg-emerald-600 text-white font-black'
+                                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                                            }`}
+                                                        >
+                                                            {t.name} ({t.code})
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {commAudience === 'parents' && (
+                                        <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-800 dark:text-slate-200">Filter by Class / Form</p>
+                                                <p className="text-[10px] text-slate-400">Target parents of a specific class or send to all classes</p>
+                                            </div>
+                                            <select
+                                                value={commParentCourseFilter}
+                                                onChange={e => setCommParentCourseFilter(e.target.value)}
+                                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-emerald-500"
+                                            >
+                                                <option value="all">All Classes ({commParentsList.length} parents)</option>
+                                                {combinedCourses.map(c => {
+                                                    const count = commParentsList.filter(p => p.courseId === c.id).length;
+                                                    return (
+                                                        <option key={c.id} value={c.id}>
+                                                            {c.name} ({count} parents)
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {commAudience === 'custom' && (
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                                                Enter Custom Phone Numbers (comma or newline separated)
+                                            </label>
+                                            <textarea
+                                                rows={2}
+                                                value={commCustomPhones}
+                                                onChange={e => setCommCustomPhones(e.target.value)}
+                                                placeholder="0712345678, 0798765432, 254700000000..."
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 text-xs font-mono font-bold outline-none focus:border-emerald-500"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Channel Selector */}
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                                            Step 2: Choose Delivery Channel
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCommChannel('sms')}
+                                                className={`p-3 rounded-2xl border transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider cursor-pointer ${
+                                                    commChannel === 'sms'
+                                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                        : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                <MessageSquare className="w-4 h-4" /> SMS Broadcast (Automated)
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCommChannel('whatsapp')}
+                                                className={`p-3 rounded-2xl border transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-wider cursor-pointer ${
+                                                    commChannel === 'whatsapp'
+                                                        ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                                                        : 'bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                <MessageCircle className="w-4 h-4" /> WhatsApp Direct Link
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Pre-built Templates */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                Step 3: Select or Customize Template
+                                            </label>
+                                            <span className="text-[10px] font-bold text-slate-400">Click to apply</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {COMM_TEMPLATES.map(tpl => (
+                                                <button
+                                                    key={tpl.id}
+                                                    type="button"
+                                                    onClick={() => handleApplyCommTemplate(tpl.id)}
+                                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                                        commMessageTemplate === tpl.id
+                                                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black shadow-xs'
+                                                            : 'bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                                                    }`}
+                                                >
+                                                    {tpl.title}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Message Textarea */}
+                                    <div className="space-y-2">
+                                        <textarea
+                                            rows={5}
+                                            value={commMessageText}
+                                            onChange={e => setCommMessageText(e.target.value)}
+                                            placeholder="Compose your remedial announcement or notification here..."
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-xs font-medium outline-none focus:border-emerald-500 leading-relaxed dark:text-white"
+                                        />
+
+                                        {/* Dynamic Tags Helper Buttons */}
+                                        <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                            <span className="font-black text-slate-400 uppercase">Insert Dynamic Tag:</span>
+                                            {['{TeacherName}', '{PrefectName}', '{StudentName}', '{ClassName}', '{Schedule}', '{WeekLabel}', '{Balance}', '{SchoolName}'].map(tag => (
+                                                <button
+                                                    key={tag}
+                                                    type="button"
+                                                    onClick={() => setCommMessageText(prev => prev ? `${prev} ${tag}` : tag)}
+                                                    className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 hover:bg-emerald-50 hover:text-emerald-700 font-mono text-[9px] font-bold transition-colors cursor-pointer"
+                                                >
+                                                    {tag}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Cost & Parts Status Banner */}
+                                    <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                                        <div className="space-y-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                    {commMessageText.length} characters
+                                                </span>
+                                                <span className="text-slate-400">•</span>
+                                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                    {smsParts.count} SMS Page{smsParts.count !== 1 ? 's' : ''} ({smsParts.limit} chars/page)
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400">
+                                                Est. Required: <span className="font-mono font-bold text-slate-900 dark:text-white">{requiredUnits} SMS credits</span> for {activeRecipientCount} recipient(s)
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {commChannel === 'sms' && (
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                    hasSufficientUnits ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                                                }`}>
+                                                    {hasSufficientUnits ? 'Units Sufficient' : 'Insufficient Units'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Dispatch Button */}
+                                    <button
+                                        type="button"
+                                        disabled={isSendingComm || activeRecipientCount === 0 || !commMessageText.trim()}
+                                        onClick={handleSendRemedialComm}
+                                        className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/25 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                    >
+                                        {isSendingComm ? (
+                                            <>
+                                                <RefreshCw className="w-4 h-4 animate-spin" /> Dispatching Broadcast...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Send className="w-4 h-4" />
+                                                Dispatch {commChannel === 'sms' ? 'SMS' : 'WhatsApp'} to {activeRecipientCount} Recipient{activeRecipientCount !== 1 ? 's' : ''}
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Right Column: Live Message Preview & Recent Logs (5 Cols) */}
+                            <div className="lg:col-span-5 space-y-6">
+                                {/* Live SMS Preview Mockup */}
+                                <div className="bg-slate-900 text-white p-5 rounded-3xl shadow-sm border border-slate-800 space-y-3">
+                                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">Live Device Preview</span>
+                                        </div>
+                                        <span className="text-[10px] font-mono text-slate-400">
+                                            Sender: {currentInstitution?.smsConfig?.senderId || 'EDUAI'}
+                                        </span>
+                                    </div>
+
+                                    <div className="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/60 space-y-2">
+                                        <p className="text-[11px] text-emerald-400 font-bold uppercase">Incoming Message</p>
+                                        <p className="text-xs leading-relaxed text-slate-100 font-sans whitespace-pre-wrap">
+                                            {samplePreview || 'Start typing in the composer to preview your message in real-time...'}
+                                        </p>
+                                        <div className="pt-2 flex items-center justify-between text-[9px] text-slate-400 border-t border-slate-700/40">
+                                            <span>To: {sampleName}</span>
+                                            <span>Just now</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Outbox & Communication Logs */}
+                                <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <h5 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                                            <Inbox className="w-4 h-4 text-emerald-500" /> Dispatched Remedial History ({commLogs.length})
+                                        </h5>
+                                    </div>
+
+                                    {/* Log search and filters */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="relative flex-1">
+                                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                            <input
+                                                type="text"
+                                                value={commLogSearch}
+                                                onChange={e => setCommLogSearch(e.target.value)}
+                                                placeholder="Search log history..."
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-[11px] outline-none"
+                                            />
+                                        </div>
+                                        <select
+                                            value={commLogFilterType}
+                                            onChange={e => setCommLogFilterType(e.target.value)}
+                                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-[11px] font-bold outline-none"
+                                        >
+                                            <option value="all">All Groups</option>
+                                            <option value="teacher">Teachers</option>
+                                            <option value="duty">Duty Staff</option>
+                                            <option value="prefect">Prefects</option>
+                                            <option value="parent">Parents</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Log entries */}
+                                    <div className="divide-y divide-slate-100 dark:divide-slate-700/60 max-h-96 overflow-y-auto pr-1">
+                                        {filteredCommLogs.map((log: any) => (
+                                            <div key={log.id} className="py-3 space-y-1.5 text-xs">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-black text-slate-900 dark:text-white">
+                                                        {log.recipientName}
+                                                    </span>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                                        log.status === 'sent' || log.status === 'delivered'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600'
+                                                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600'
+                                                    }`}>
+                                                        {log.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                                                    {log.message}
+                                                </p>
+                                                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                                                    <span>{log.recipientPhone} • {log.channel?.toUpperCase()}</span>
+                                                    <span>{new Date(log.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {filteredCommLogs.length === 0 && (
+                                            <div className="py-8 text-center text-slate-400 text-xs">
+                                                No communication logs found.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Buy SMS Modal */}
+                        {isBuySmsOpen && (
+                            <BuySMSModal
+                                isOpen={isBuySmsOpen}
+                                onClose={() => setIsBuySmsOpen(false)}
+                                onPurchaseComplete={(purchasedUnits) => {
+                                    setSmsBalance(prev => prev + purchasedUnits);
+                                    if (currentInstitution) currentInstitution.smsBalance = (currentInstitution.smsBalance || 0) + purchasedUnits;
+                                    setIsBuySmsOpen(false);
+                                    alert(`Successfully credited ${purchasedUnits} SMS units to institutional wallet.`);
+                                }}
+                                mpesaConfig={currentInstitution?.mpesaConfig}
+                                institutionId={institutionId || ''}
+                                institutionCode={currentInstitution?.code || ''}
+                                institutionName={currentInstitution?.name || 'Institution'}
+                                smsUnitPrice={currentInstitution?.smsUnitPrice || 1.0}
+                            />
+                        )}
+                    </div>
+                );
+            })()}
 
             {/* TAB: RATES & CONFIG */}
             {activeTab === 'rates' && (
