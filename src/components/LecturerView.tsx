@@ -2233,7 +2233,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     teacherPreferences: rateSetting?.teacherPreferences,
                                     classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
                                     maxLessonsPerDay: rateSetting?.maxLessonsPerDay ?? 1,
-                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2
+                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2,
+                                    strictSubjectMatch: rateSetting?.strictSubjectMatchOnly ?? true,
+                                    strictGradeMatch: rateSetting?.strictGradeMatchOnly ?? true,
+                                    allowAdjacentGrade: rateSetting?.allowAdjacentGradeSubstitution ?? false
                                 });
 
                                 const updatedAlloc: RemedialAllocation = {
@@ -2307,7 +2310,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     teacherPreferences: rateSetting?.teacherPreferences,
                                     classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
                                     maxLessonsPerDay: rateSetting?.maxLessonsPerDay ?? 1,
-                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2
+                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2,
+                                    strictSubjectMatch: rateSetting?.strictSubjectMatchOnly ?? true,
+                                    strictGradeMatch: rateSetting?.strictGradeMatchOnly ?? true,
+                                    allowAdjacentGrade: rateSetting?.allowAdjacentGradeSubstitution ?? false
                                 });
 
                                 const updated: RemedialAllocation = {

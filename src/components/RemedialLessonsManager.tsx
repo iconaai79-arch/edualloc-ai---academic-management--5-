@@ -18,7 +18,7 @@ import {
     ChevronLeft, ChevronRight, XCircle, Wallet, MessageSquare, Phone, MessageCircle
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher } from '../utils/remedialSubstitutionUtils';
+import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher, extractGradeLevel, isSubjectEquivalent } from '../utils/remedialSubstitutionUtils';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import {
     generateTeacherPayoutLedgerPdf,
@@ -586,7 +586,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const cached = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_inc_break_${institutionId}`) : null;
         return cached !== null ? cached === 'true' : true;
     });
-    const [teacherPreferences, setTeacherPreferences] = useState<Record<string, { preferredDays: string[]; maxLessonsPerWeek?: number; notes?: string }>>({});
+    const [teacherPreferences, setTeacherPreferences] = useState<Record<string, TeacherDayPreference>>({});
+    const [strictSubjectMatchOnly, setStrictSubjectMatchOnly] = useState<boolean>(true);
+    const [strictGradeMatchOnly, setStrictGradeMatchOnly] = useState<boolean>(true);
+    const [allowAdjacentGradeSubstitution, setAllowAdjacentGradeSubstitution] = useState<boolean>(false);
     const [isSavingTeacherPrefs, setIsSavingTeacherPrefs] = useState(false);
     const [lastSavedPrefsTime, setLastSavedPrefsTime] = useState<string | null>(null);
     const [isSavingTimings, setIsSavingTimings] = useState(false);
@@ -643,7 +646,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [editingTeacherCodeId, setEditingTeacherCodeId] = useState<string | null>(null);
     const [tempTeacherCode, setTempTeacherCode] = useState<string>('');
     const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
-    const [teacherAllocationFilter, setTeacherAllocationFilter] = useState<'all' | 'allocated' | 'unallocated' | 'weekend'>('all');
+    const [teacherAllocationFilter, setTeacherAllocationFilter] = useState<'all' | 'allocated' | 'unallocated' | 'weekend' | 'eligible' | 'ineligible'>('all');
 
     // Substitution / Reassignment State
     const [reassigningAlloc, setReassigningAlloc] = useState<RemedialAllocation | null>(null);
@@ -866,6 +869,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         setCancellationCutoffHours(r.cancellationCutoffHours ?? r.cancellation_cutoff_hours ?? r.metadata?.cancellationCutoffHours ?? 3);
         setConfirmationTimeoutMinutes(r.confirmationTimeoutMinutes ?? r.confirmation_timeout_minutes ?? r.metadata?.confirmationTimeoutMinutes ?? 45);
+        setStrictSubjectMatchOnly(r.strictSubjectMatchOnly ?? r.metadata?.strictSubjectMatchOnly ?? true);
+        setStrictGradeMatchOnly(r.strictGradeMatchOnly ?? r.metadata?.strictGradeMatchOnly ?? true);
+        setAllowAdjacentGradeSubstitution(r.allowAdjacentGradeSubstitution ?? r.metadata?.allowAdjacentGradeSubstitution ?? false);
     };
 
     // Load Data with optimistic caching and instantaneous unblocking
@@ -1158,6 +1164,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const hasWeekendAlloc = teacherAllocs.some(a => isDayAllocation(a, 'Saturday') || isDayAllocation(a, 'Sunday'));
                 const hasWeekendPref = prefs.includes('Saturday') || prefs.includes('Sunday');
                 return hasWeekendAlloc || hasWeekendPref;
+            }
+            if (teacherAllocationFilter === 'eligible') {
+                return teacherPreferences[teacher.id]?.isEligible !== false;
+            }
+            if (teacherAllocationFilter === 'ineligible') {
+                return teacherPreferences[teacher.id]?.isEligible === false;
             }
             return true;
         });
@@ -3185,6 +3197,116 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         saveTeacherPreferencesLive(nextPrefs);
     };
 
+    // Toggle teacher remedial & substitution pool eligibility
+    const handleToggleTeacherEligibility = (teacherId: string) => {
+        const existing = teacherPreferences[teacherId] || { preferredDays: [] };
+        const currentEligible = existing.isEligible !== false;
+        const nextPrefs = {
+            ...teacherPreferences,
+            [teacherId]: {
+                ...existing,
+                isEligible: !currentEligible
+            }
+        };
+        saveTeacherPreferencesLive(nextPrefs);
+    };
+
+    // Auto-sync teacher subject & grade qualifications from active allocations, curriculum allocations & user profile
+    const handleAutoSyncTeacherQualifications = (targetTeacherId?: string) => {
+        const targetIds = targetTeacherId ? [targetTeacherId] : teachersList.map(t => t.id);
+        const updatedPrefs = { ...teacherPreferences };
+
+        targetIds.forEach(tId => {
+            const currentPref = updatedPrefs[tId] || { preferredDays: [] };
+
+            // 1. Discover subjects and grades from existing remedial allocations
+            const teacherRemAllocs = allocations.filter(a => a.teacherId === tId && a.status !== 'Cancelled');
+            const subjectsSet = new Set<string>(currentPref.authorizedSubjects || []);
+            const gradesSet = new Set<string>(currentPref.authorizedGrades || []);
+
+            teacherRemAllocs.forEach(a => {
+                if (a.subjectName) subjectsSet.add(a.subjectName.trim());
+                const grade = extractGradeLevel(a.className || a.courseId || '');
+                if (grade) gradesSet.add(grade);
+            });
+
+            // 2. Discover from Master Timetable classSubjectAllocations if available
+            const classSubjAlloc = (currentInstitution as any)?.classSubjectAllocations || {};
+            Object.entries(classSubjAlloc).forEach(([courseOrClass, subjMap]: [string, any]) => {
+                if (subjMap && typeof subjMap === 'object') {
+                    Object.entries(subjMap).forEach(([subjNameOrId, assignedTeacherId]) => {
+                        if (assignedTeacherId === tId) {
+                            subjectsSet.add(subjNameOrId);
+                            const grade = extractGradeLevel(courseOrClass);
+                            if (grade) gradesSet.add(grade);
+                        }
+                    });
+                }
+            });
+
+            // 3. Discover from Teacher user metadata if present
+            const u = tenantUsers.find(user => user.id === tId);
+            if (u) {
+                const metaSubjs = (u.metadata as any)?.subjects || (u.metadata as any)?.subjectIds || [];
+                if (Array.isArray(metaSubjs)) metaSubjs.forEach(s => subjectsSet.add(String(s).trim()));
+                const metaGrades = (u.metadata as any)?.classes || (u.metadata as any)?.grades || [];
+                if (Array.isArray(metaGrades)) metaGrades.forEach(g => {
+                    const extracted = extractGradeLevel(String(g));
+                    if (extracted) gradesSet.add(extracted);
+                });
+            }
+
+            updatedPrefs[tId] = {
+                ...currentPref,
+                isEligible: currentPref.isEligible !== false,
+                authorizedSubjects: Array.from(subjectsSet),
+                authorizedGrades: Array.from(gradesSet)
+            };
+        });
+
+        saveTeacherPreferencesLive(updatedPrefs);
+        alert(targetTeacherId ? 'Successfully auto-synced teacher subject & grade qualifications!' : `Successfully auto-synced qualifications for ${targetIds.length} teachers!`);
+    };
+
+    // Toggle specific authorized subject for a teacher
+    const handleToggleTeacherAuthorizedSubject = (teacherId: string, subjectName: string) => {
+        const existing = teacherPreferences[teacherId] || { preferredDays: [] };
+        const currentSubjs = existing.authorizedSubjects || [];
+        const isPresent = currentSubjs.some(s => isSubjectEquivalent(s, subjectName));
+        const newSubjs = isPresent
+            ? currentSubjs.filter(s => !isSubjectEquivalent(s, subjectName))
+            : [...currentSubjs, subjectName];
+
+        const nextPrefs = {
+            ...teacherPreferences,
+            [teacherId]: {
+                ...existing,
+                authorizedSubjects: newSubjs
+            }
+        };
+        saveTeacherPreferencesLive(nextPrefs);
+    };
+
+    // Toggle specific authorized grade for a teacher
+    const handleToggleTeacherAuthorizedGrade = (teacherId: string, gradeName: string) => {
+        const existing = teacherPreferences[teacherId] || { preferredDays: [] };
+        const currentGrades = existing.authorizedGrades || [];
+        const targetG = extractGradeLevel(gradeName);
+        const isPresent = currentGrades.some(g => extractGradeLevel(g) === targetG);
+        const newGrades = isPresent
+            ? currentGrades.filter(g => extractGradeLevel(g) !== targetG)
+            : [...currentGrades, targetG];
+
+        const nextPrefs = {
+            ...teacherPreferences,
+            [teacherId]: {
+                ...existing,
+                authorizedGrades: newGrades
+            }
+        };
+        saveTeacherPreferencesLive(nextPrefs);
+    };
+
     const timingSaveTimerRef = useRef<any>(null);
 
     // Save Rate Settings (internal implementation with optional silence & overrides)
@@ -3292,6 +3414,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 cancellation_cutoff_hours: cancellationCutoffHours,
                 confirmationTimeoutMinutes,
                 confirmation_timeout_minutes: confirmationTimeoutMinutes,
+                strictSubjectMatchOnly,
+                strict_subject_match_only: strictSubjectMatchOnly,
+                strictGradeMatchOnly,
+                strict_grade_match_only: strictGradeMatchOnly,
+                allowAdjacentGradeSubstitution,
+                allow_adjacent_grade_substitution: allowAdjacentGradeSubstitution,
                 teacherPreferences,
                 teacher_preferences: teacherPreferences,
                 weekendBreakStartTime: effSatBreakStart,
@@ -3452,15 +3580,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 teacherPreferences,
                 classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
                 maxLessonsPerDay,
-                maxWeekendLessonsPerDay
+                maxWeekendLessonsPerDay,
+                strictSubjectMatchOnly,
+                strictGradeMatchOnly,
+                allowAdjacentGradeSubstitution
             });
 
             if (!bestCandidate) {
-                alert('No qualified substitute teacher is currently available without timetable collisions or exceeding daily lesson limits.');
+                alert(`No qualified substitute teacher is currently available for ${alloc.subjectName} (${alloc.className}) under current qualification and collision policies.`);
                 return;
             }
 
-            const confirmMsg = `Auto-Assign Substitute:\n\nTop Candidate: ${bestCandidate.name}\nSubject Match: ${rankedCandidates[0]?.isSubjectMatch ? 'Yes' : 'No'}\nPriority Score: ${rankedCandidates[0]?.score}\nReasons: ${rankedCandidates[0]?.reasons.join(', ')}\n\nAssign ${bestCandidate.name} as pending substitute with a ${confirmationTimeoutMinutes}-minute confirmation deadline?`;
+            const topMatch = rankedCandidates[0];
+            const confirmMsg = `Auto-Assign Substitute:\n\nTop Candidate: ${bestCandidate.name}\nSubject Qualified: ${topMatch?.isSubjectMatch ? '✓ Yes' : '✗ No'}\nGrade Qualified: ${topMatch?.isGradeMatch ? '✓ Yes' : '✗ No'}\nPriority Score: ${topMatch?.score}\nReasons: ${topMatch?.reasons.join(', ')}\n\nAssign ${bestCandidate.name} as pending substitute with a ${confirmationTimeoutMinutes}-minute confirmation deadline?`;
             if (!window.confirm(confirmMsg)) return;
 
             const updated: RemedialAllocation = {
@@ -3490,7 +3622,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const targetTeacher = teachersList.find(t => t.id === targetTeacherId);
         if (!targetTeacher) return;
 
-        if (!window.confirm(`Directly assign ${targetTeacher.name} as the confirmed teacher for ${alloc.subjectName} on ${alloc.dayOfWeek} at ${alloc.startTime}?`)) return;
+        // Check qualification status for manual override alert
+        const qual = isTeacherQualifiedForLesson({
+            teacher: targetTeacher,
+            targetSubject: alloc.subjectName || '',
+            targetClassOrGrade: alloc.className || alloc.courseId || '',
+            teacherPreferences,
+            classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+            strictSubjectMatchOnly,
+            strictGradeMatchOnly,
+            allowAdjacentGradeSubstitution
+        });
+
+        if (!qual.qualified) {
+            const warningMsg = `⚠️ Qualification Warning:\n${targetTeacher.name} does NOT meet the strict qualification requirements for ${alloc.subjectName} (${alloc.className}):\n- ${qual.reasons.join('\n- ')}\n\nDo you want to override and assign anyway?`;
+            if (!window.confirm(warningMsg)) return;
+        } else {
+            if (!window.confirm(`Directly assign ${targetTeacher.name} as the confirmed teacher for ${alloc.subjectName} on ${alloc.dayOfWeek} at ${alloc.startTime}?`)) return;
+        }
 
         try {
             setLoading(true);
@@ -9357,11 +9506,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                            {(['all', 'allocated', 'unallocated', 'weekend'] as const).map(tabKey => (
+                            {(['all', 'allocated', 'unallocated', 'weekend', 'eligible', 'ineligible'] as const).map(tabKey => (
                                 <button
                                     key={tabKey}
                                     onClick={() => setTeacherAllocationFilter(tabKey)}
-                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                                         teacherAllocationFilter === tabKey
                                             ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
                                             : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -9371,8 +9520,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     {tabKey === 'allocated' && `Allocated (${teachersList.filter(t => allocations.some(a => a.teacherId === t.id)).length})`}
                                     {tabKey === 'unallocated' && `Unassigned (${teachersList.filter(t => !allocations.some(a => a.teacherId === t.id)).length})`}
                                     {tabKey === 'weekend' && 'Weekend Staff'}
+                                    {tabKey === 'eligible' && `Eligible (${teachersList.filter(t => teacherPreferences[t.id]?.isEligible !== false).length})`}
+                                    {tabKey === 'ineligible' && `Excluded (${teachersList.filter(t => teacherPreferences[t.id]?.isEligible === false).length})`}
                                 </button>
                             ))}
+
+                            <button
+                                type="button"
+                                onClick={() => handleAutoSyncTeacherQualifications()}
+                                className="px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                                title="Auto-detect and sync teaching subjects and grades from timetable allocations"
+                            >
+                                <Sparkles className="w-3.5 h-3.5" /> Auto-Sync Qualifications
+                            </button>
 
                             <button
                                 type="button"
@@ -9480,6 +9640,71 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             )}
                                         </div>
                                     </div>
+                                    {/* Teacher Qualification & Eligibility Bar */}
+                                    {(() => {
+                                        const pref = teacherPreferences[teacher.id] || { preferredDays: [] };
+                                        const isEligible = pref.isEligible !== false;
+                                        const authSubjs = pref.authorizedSubjects || [];
+                                        const authGrades = pref.authorizedGrades || [];
+
+                                        return (
+                                            <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 space-y-2">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleTeacherEligibility(teacher.id)}
+                                                            className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer ${
+                                                                isEligible
+                                                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                                                                    : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                                            }`}
+                                                            title="Toggle remedial teaching & substitution eligibility"
+                                                        >
+                                                            {isEligible ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                                                            {isEligible ? 'Eligible Staff' : 'Excluded Pool'}
+                                                        </button>
+
+                                                        {pref.preferredDays && pref.preferredDays.length > 0 && (
+                                                            <span className="px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[8px] font-black uppercase border border-indigo-100 dark:border-indigo-900/50">
+                                                                {pref.preferredDays.length} Pref Days
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAutoSyncTeacherQualifications(teacher.id)}
+                                                        className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors flex items-center gap-1 text-[9px] font-bold cursor-pointer"
+                                                        title="Auto-sync this teacher's subjects and grades from timetable allocations"
+                                                    >
+                                                        <Sparkles className="w-3 h-3 text-indigo-500" /> Sync Quals
+                                                    </button>
+                                                </div>
+
+                                                {/* Authorized Subjects & Grades Chips */}
+                                                <div className="flex flex-wrap items-center gap-1">
+                                                    {authSubjs.length > 0 ? (
+                                                        authSubjs.map((s, idx) => (
+                                                            <span key={idx} className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[8px] font-black uppercase border border-blue-200 dark:border-blue-900">
+                                                                {s}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-[9px] text-slate-400 italic">No subject qualifications listed (open)</span>
+                                                    )}
+
+                                                    {authGrades.length > 0 && (
+                                                        authGrades.map((g, idx) => (
+                                                            <span key={idx} className="px-1.5 py-0.5 rounded-md bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[8px] font-black uppercase border border-violet-200 dark:border-violet-900">
+                                                                {g}
+                                                            </span>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Middle Section: Allocated Remedial Subjects & Classes */}
                                     <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
@@ -15625,6 +15850,125 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </div>
                     </div>
 
+                    {/* STRICT SUBJECT & GRADE QUALIFICATION POLICIES */}
+                    <div className="col-span-1 md:col-span-2 bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 p-8 rounded-3xl border border-indigo-500/30 shadow-2xl text-white space-y-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-indigo-500/20 pb-5">
+                            <div>
+                                <div className="flex items-center gap-2.5">
+                                    <span className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                                        <GraduationCap className="w-6 h-6" />
+                                    </span>
+                                    <div>
+                                        <h4 className="text-base font-black text-white uppercase tracking-wider">
+                                            Teacher Subject &amp; Grade Qualification Policies
+                                        </h4>
+                                        <p className="text-xs text-indigo-200/70 mt-0.5">
+                                            Enforce pedagogical specialization rules during automatic timetable generation, DOS manual reassignment, and smart teacher substitution.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => handleAutoSyncTeacherQualifications()}
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg transition-all flex items-center gap-2 cursor-pointer shrink-0"
+                                title="Scan active timetable & curriculum allocations to auto-detect authorized subjects & classes"
+                            >
+                                <Sparkles className="w-4 h-4" /> Auto-Sync All Qualifications
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                            {/* Toggle 1: Strict Subject Match */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-indigo-400/40 transition-all flex flex-col justify-between space-y-4">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 flex items-center gap-1.5">
+                                            <BookOpen className="w-4 h-4 text-indigo-400" /> Subject Integrity
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = !strictSubjectMatchOnly;
+                                                setStrictSubjectMatchOnly(next);
+                                                handleDebouncedTimingsSave({ strictSubjectMatchOnly: next });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${strictSubjectMatchOnly ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${strictSubjectMatchOnly ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                    <h5 className="text-sm font-black text-white mt-2">Strict Subject Match Only</h5>
+                                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                                        Substitutes and allocated teachers MUST teach or be authorized for the exact subject. Prevents chemistry teachers being assigned to literature.
+                                    </p>
+                                </div>
+                                <div className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-white/5 text-indigo-300 w-fit">
+                                    {strictSubjectMatchOnly ? '✓ Strict Enforced' : '⚪ Open / Cross-Subject'}
+                                </div>
+                            </div>
+
+                            {/* Toggle 2: Strict Grade Match */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-violet-400/40 transition-all flex flex-col justify-between space-y-4">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-violet-300 flex items-center gap-1.5">
+                                            <GraduationCap className="w-4 h-4 text-violet-400" /> Form / Grade Level
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = !strictGradeMatchOnly;
+                                                setStrictGradeMatchOnly(next);
+                                                handleDebouncedTimingsSave({ strictGradeMatchOnly: next });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${strictGradeMatchOnly ? 'bg-violet-600' : 'bg-slate-700'}`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${strictGradeMatchOnly ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                    <h5 className="text-sm font-black text-white mt-2">Strict Grade Match Only</h5>
+                                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                                        Enforce that teachers must teach or be authorized for the specific class level (e.g., Form 4 KCSE classes restricted to Form 4 staff).
+                                    </p>
+                                </div>
+                                <div className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-white/5 text-violet-300 w-fit">
+                                    {strictGradeMatchOnly ? '✓ Grade Restricted' : '⚪ Any Grade Level'}
+                                </div>
+                            </div>
+
+                            {/* Toggle 3: Adjacent Grade Substitution */}
+                            <div className="p-5 rounded-2xl bg-white/5 border border-white/10 hover:border-emerald-400/40 transition-all flex flex-col justify-between space-y-4">
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300 flex items-center gap-1.5">
+                                            <Shuffle className="w-4 h-4 text-emerald-400" /> Flexibility Rule
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = !allowAdjacentGradeSubstitution;
+                                                setAllowAdjacentGradeSubstitution(next);
+                                                handleDebouncedTimingsSave({ allowAdjacentGradeSubstitution: next });
+                                            }}
+                                            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${allowAdjacentGradeSubstitution ? 'bg-emerald-600' : 'bg-slate-700'}`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${allowAdjacentGradeSubstitution ? 'right-1' : 'left-1'}`} />
+                                        </button>
+                                    </div>
+                                    <h5 className="text-sm font-black text-white mt-2">Adjacent Grade Fallback</h5>
+                                    <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                                        When exact-grade teachers are unavailable, allow staff teaching adjacent forms (e.g., Form 3 teacher subbing for Form 4) to be scored next in line.
+                                    </p>
+                                </div>
+                                <div className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-white/5 text-emerald-300 w-fit">
+                                    {allowAdjacentGradeSubstitution ? '✓ Fallback Allowed' : '⚪ Exact Only'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Teacher Remedial Preferred Days & Availability Matrix */}
                     <div className="col-span-1 md:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-xl space-y-6">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-5">
@@ -15685,11 +16029,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             key={teacher.id}
                                             className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all"
                                         >
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-2">
+                                            <div className="min-w-0 space-y-1">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <p className="text-xs font-black text-slate-900 dark:text-white uppercase truncate">
                                                         {teacher.name}
                                                     </p>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleTeacherEligibility(teacher.id)}
+                                                        className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase cursor-pointer transition-all ${
+                                                            prefs?.isEligible !== false
+                                                                ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200'
+                                                                : 'bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-200'
+                                                        }`}
+                                                        title="Click to toggle remedial eligibility"
+                                                    >
+                                                        {prefs?.isEligible !== false ? '✓ Eligible' : '🚫 Excluded'}
+                                                    </button>
+
                                                     <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
                                                         selectedDays.length === 0
                                                             ? 'bg-slate-200 dark:bg-slate-800 text-slate-500'
@@ -15699,8 +16057,37 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     }`}>
                                                         {selectedDays.length === 0 ? 'Any Day Available' : `${selectedDays.length} Day${selectedDays.length === 1 ? '' : 's'} Selected`}
                                                     </span>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAutoSyncTeacherQualifications(teacher.id)}
+                                                        className="p-1 rounded text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-[8px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                                        title="Sync qualifications from timetable"
+                                                    >
+                                                        <Sparkles className="w-2.5 h-2.5 text-indigo-500" /> Sync Quals
+                                                    </button>
                                                 </div>
-                                                <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+
+                                                {/* Authorized Subjects & Grades Chips */}
+                                                <div className="flex flex-wrap items-center gap-1">
+                                                    {(prefs?.authorizedSubjects && prefs.authorizedSubjects.length > 0) ? (
+                                                        prefs.authorizedSubjects.map((s, idx) => (
+                                                            <span key={idx} className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[8px] font-bold uppercase border border-blue-200 dark:border-blue-900">
+                                                                {s}
+                                                            </span>
+                                                        ))
+                                                    ) : (
+                                                        <span className="text-[8px] text-slate-400 italic">No subject qualifications listed</span>
+                                                    )}
+
+                                                    {prefs?.authorizedGrades && prefs.authorizedGrades.map((g, idx) => (
+                                                        <span key={idx} className="px-1 py-0.5 rounded bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 text-[8px] font-bold uppercase border border-violet-200 dark:border-violet-900">
+                                                            {g}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
+                                                <p className="text-[9px] text-slate-400 font-mono">
                                                     {teacher.email || `ID: ${(teacher.id || '').slice(-8)}`}
                                                 </p>
                                             </div>
@@ -17601,21 +17988,102 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             );
                         })()}
 
-                        {/* Teacher */}
-                        <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">Teacher</label>
-                            <select
-                                value={allocTeacherId}
-                                onChange={e => setAllocTeacherId(e.target.value)}
-                                required
-                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                            >
-                                <option value="">-- Select Teacher --</option>
-                                {teachersList.map(u => (
-                                    <option key={u.id} value={u.id}>{u.name}</option>
-                                ))}
-                            </select>
-                        </div>
+                        {/* Teacher with Qualifications Grouping */}
+                        {(() => {
+                            const selectedCourse = combinedCourses.find(c => c.id === allocCourseId);
+                            const targetClassName = selectedCourse?.name || '';
+                            
+                            // Check qualifications for all teachers
+                            const evaluatedTeachers = teachersList.map(u => {
+                                const qual = isTeacherQualifiedForLesson({
+                                    teacher: u,
+                                    targetSubject: allocSubjectName,
+                                    targetClassOrGrade: targetClassName,
+                                    teacherPreferences,
+                                    classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+                                    strictSubjectMatchOnly,
+                                    strictGradeMatchOnly,
+                                    allowAdjacentGradeSubstitution
+                                });
+                                return { teacher: u, qual };
+                            });
+
+                            const qualifiedTeachers = evaluatedTeachers.filter(x => x.qual.qualified);
+                            const otherTeachers = evaluatedTeachers.filter(x => !x.qual.qualified);
+                            const selectedTeacherEval = evaluatedTeachers.find(x => x.teacher.id === allocTeacherId);
+
+                            return (
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Teacher</label>
+                                        {allocSubjectName && (
+                                            <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">
+                                                {qualifiedTeachers.length} Qualified for {allocSubjectName}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <select
+                                        value={allocTeacherId}
+                                        onChange={e => setAllocTeacherId(e.target.value)}
+                                        required
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    >
+                                        <option value="">-- Select Teacher --</option>
+                                        {allocSubjectName ? (
+                                            <>
+                                                {qualifiedTeachers.length > 0 && (
+                                                    <optgroup label="✓ Qualified For This Subject & Grade">
+                                                        {qualifiedTeachers.map(({ teacher, qual }) => (
+                                                            <option key={teacher.id} value={teacher.id}>
+                                                                ✓ {teacher.name} ({qual.primarySubject || allocSubjectName})
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                                {otherTeachers.length > 0 && (
+                                                    <optgroup label="⚠️ Other Teachers (Unmatched Subject/Grade)">
+                                                        {otherTeachers.map(({ teacher, qual }) => (
+                                                            <option key={teacher.id} value={teacher.id}>
+                                                                ⚠️ {teacher.name} ({qual.reasons[0] || 'Unmatched Subject'})
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                )}
+                                            </>
+                                        ) : (
+                                            teachersList.map(u => (
+                                                <option key={u.id} value={u.id}>{u.name}</option>
+                                            ))
+                                        )}
+                                    </select>
+
+                                    {/* Qualification & Policy Alert */}
+                                    {selectedTeacherEval && allocSubjectName && (
+                                        <div className={`mt-2 p-2.5 rounded-xl border text-[10px] flex items-center gap-2 ${
+                                            selectedTeacherEval.qual.qualified
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
+                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800'
+                                        }`}>
+                                            {selectedTeacherEval.qual.qualified ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                            ) : (
+                                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                            )}
+                                            <div>
+                                                <span className="font-bold">
+                                                    {selectedTeacherEval.qual.qualified ? 'Authorized Specialist: ' : 'Policy Warning: '}
+                                                </span>
+                                                <span>
+                                                    {selectedTeacherEval.qual.qualified
+                                                        ? `${selectedTeacherEval.teacher.name} teaches ${selectedTeacherEval.qual.primarySubject || allocSubjectName} and is authorized for this level.`
+                                                        : selectedTeacherEval.qual.reasons.join('. ')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Day of Week */}
                         <div>
@@ -18050,23 +18518,116 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
                         </div>
 
-                        {/* Option 2: Direct Manual Override */}
-                        <div className="space-y-3">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                    Option 2: Direct Teacher Assignment
-                                </label>
-                                <select
-                                    value={reassignTeacherId}
-                                    onChange={e => setReassignTeacherId(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
-                                >
-                                    <option value="">-- Choose Target Teacher --</option>
-                                    {teachersList.map(t => (
-                                        <option key={t.id} value={t.id}>{t.name} ({t.role || 'Teacher'})</option>
-                                    ))}
-                                </select>
-                            </div>
+                        {/* Option 2: Direct Manual Override with Qualification Intelligence */}
+                        {(() => {
+                            const allocSubj = reassigningAlloc?.subjectName || (reassigningAlloc as any)?.subject_name || '';
+                            const allocCls = reassigningAlloc?.className || (reassigningAlloc as any)?.class_name || '';
+
+                            const evaluatedCandidates = teachersList.map(t => {
+                                const qual = isTeacherQualifiedForLesson({
+                                    teacher: t,
+                                    targetSubject: allocSubj,
+                                    targetClassOrGrade: allocCls,
+                                    teacherPreferences,
+                                    classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+                                    strictSubjectMatchOnly,
+                                    strictGradeMatchOnly,
+                                    allowAdjacentGradeSubstitution
+                                });
+
+                                // Check if teacher has collision at this slot
+                                const hasCollision = isTeacherBusyAtSlot(
+                                    t.id,
+                                    reassigningAlloc?.dayOfWeek || (reassigningAlloc as any)?.day_of_week,
+                                    reassigningAlloc?.startTime || (reassigningAlloc as any)?.start_time,
+                                    reassigningAlloc?.endTime || (reassigningAlloc as any)?.end_time,
+                                    reassigningAlloc?.id
+                                );
+
+                                return { teacher: t, qual, hasCollision };
+                            });
+
+                            const qualifiedCandidates = evaluatedCandidates.filter(c => c.qual.qualified && !c.hasCollision);
+                            const otherCandidates = evaluatedCandidates.filter(c => !c.qual.qualified || c.hasCollision);
+                            const selectedCandidate = evaluatedCandidates.find(c => c.teacher.id === reassignTeacherId);
+
+                            return (
+                                <div className="space-y-3">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                Option 2: Direct Teacher Assignment
+                                            </label>
+                                            <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400">
+                                                {qualifiedCandidates.length} Available Specialists
+                                            </span>
+                                        </div>
+                                        <select
+                                            value={reassignTeacherId}
+                                            onChange={e => setReassignTeacherId(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        >
+                                            <option value="">-- Choose Target Teacher --</option>
+                                            {qualifiedCandidates.length > 0 && (
+                                                <optgroup label="✓ Qualified & Available Specialists">
+                                                    {qualifiedCandidates.map(({ teacher, qual }) => (
+                                                        <option key={teacher.id} value={teacher.id}>
+                                                            ✓ {teacher.name} ({qual.primarySubject || allocSubj})
+                                                        </option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
+                                            {otherCandidates.length > 0 && (
+                                                <optgroup label="⚠️ Other Teachers (Requires Policy Override)">
+                                                    {otherCandidates.map(({ teacher, qual, hasCollision }) => {
+                                                        const warnTag = hasCollision
+                                                            ? 'COLLISION'
+                                                            : qual.reasons[0] || 'Unmatched';
+                                                        return (
+                                                            <option key={teacher.id} value={teacher.id}>
+                                                                ⚠️ {teacher.name} [{warnTag}]
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </optgroup>
+                                            )}
+                                        </select>
+                                    </div>
+
+                                    {/* Selected Candidate Qualification Indicator */}
+                                    {selectedCandidate && (
+                                        <div className={`p-3 rounded-xl border text-[10.5px] flex items-start gap-2.5 ${
+                                            selectedCandidate.qual.qualified && !selectedCandidate.hasCollision
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800'
+                                                : selectedCandidate.hasCollision
+                                                ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800'
+                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800'
+                                        }`}>
+                                            {selectedCandidate.qual.qualified && !selectedCandidate.hasCollision ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                            ) : selectedCandidate.hasCollision ? (
+                                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                            ) : (
+                                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                            )}
+                                            <div>
+                                                <span className="font-bold">
+                                                    {selectedCandidate.qual.qualified && !selectedCandidate.hasCollision
+                                                        ? 'Subject Specialist Approved: '
+                                                        : selectedCandidate.hasCollision
+                                                        ? 'Timetable Collision Detected: '
+                                                        : 'Specialization Warning: '}
+                                                </span>
+                                                <span>
+                                                    {selectedCandidate.hasCollision
+                                                        ? `${selectedCandidate.teacher.name} already has an active remedial slot at this time.`
+                                                        : selectedCandidate.qual.qualified
+                                                        ? `${selectedCandidate.teacher.name} is qualified to teach ${allocSubj} in ${allocCls}.`
+                                                        : selectedCandidate.qual.reasons.join('. ')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
 
                             <button
                                 type="button"
@@ -18077,6 +18638,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <UserCheck className="w-4 h-4" /> Directly Assign Selected Teacher
                             </button>
                         </div>
+                    );
+                })()}
                     </div>
                 </div>
             </div>

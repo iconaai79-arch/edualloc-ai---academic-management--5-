@@ -12,7 +12,10 @@ export interface CandidateScore {
     score: number;
     reasons: string[];
     isSubjectMatch: boolean;
+    isGradeMatch: boolean;
     isPreferredDay: boolean;
+    matchedSubject?: string;
+    matchedGrade?: string;
 }
 
 /**
@@ -174,9 +177,82 @@ export const isAcademicTeacher = (u: any): boolean => {
 };
 
 /**
+ * Normalizes a class or course name to standard grade representation (e.g. "Form 4", "Grade 8", "PP2", "Year 11")
+ */
+export function extractGradeLevel(name: string): string {
+    if (!name) return '';
+    const clean = name.trim();
+    const formMatch = clean.match(/\b(form|f)\s*([1-4])\b/i);
+    if (formMatch) return `Form ${formMatch[2]}`;
+    const gradeMatch = clean.match(/\b(grade|g|std|standard|class)\s*([0-9]{1,2})\b/i);
+    if (gradeMatch) return `Grade ${gradeMatch[2]}`;
+    const ppMatch = clean.match(/\b(pp\s*[1-2]|playgroup|ecde|ecd|nursery|reception)\b/i);
+    if (ppMatch) return ppMatch[1].toUpperCase().replace(/\s+/g, '');
+    const yearMatch = clean.match(/\b(year|yr)\s*([0-9]{1,2})\b/i);
+    if (yearMatch) return `Year ${yearMatch[2]}`;
+    return clean;
+}
+
+/**
+ * Checks if two grade levels are adjacent (e.g. Form 3 and Form 4, or Grade 7 and Grade 8)
+ */
+export function isAdjacentGrade(grade1: string, grade2: string): boolean {
+    if (!grade1 || !grade2) return false;
+    const g1 = extractGradeLevel(grade1);
+    const g2 = extractGradeLevel(grade2);
+    if (g1.toLowerCase() === g2.toLowerCase()) return true;
+
+    const num1 = parseInt(g1.replace(/\D/g, ''), 10);
+    const num2 = parseInt(g2.replace(/\D/g, ''), 10);
+    if (!isNaN(num1) && !isNaN(num2)) {
+        const type1 = g1.replace(/[0-9\s]/g, '').toLowerCase();
+        const type2 = g2.replace(/[0-9\s]/g, '').toLowerCase();
+        if (type1 === type2 && Math.abs(num1 - num2) === 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Normalizes subject names for fuzzy matching (e.g. "Mathematics" and "Maths", "Chemistry" and "Chem")
+ */
+export function isSubjectEquivalent(subj1: string, subj2: string): boolean {
+    if (!subj1 || !subj2) return false;
+    const s1 = subj1.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const s2 = subj2.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (s1 === s2) return true;
+
+    const aliases: Record<string, string[]> = {
+        math: ['mathematics', 'maths', 'puremath', 'generalmath'],
+        chem: ['chemistry'],
+        bio: ['biology'],
+        phys: ['physics'],
+        hist: ['history', 'historygovernment', 'government'],
+        geo: ['geography'],
+        cre: ['christianreligiouseducation', 'religiouseducation', 'ire', 'islamicreligiouseducation', 'hre'],
+        eng: ['english', 'englishlanguage', 'literature', 'englishliterature'],
+        kisw: ['kiswahili', 'swahili', 'fasihi'],
+        biz: ['businessstudies', 'business', 'commerce', 'accounting', 'economics'],
+        agri: ['agriculture'],
+        comp: ['computerstudies', 'computerscience', 'ict'],
+        french: ['francais']
+    };
+
+    for (const [key, list] of Object.entries(aliases)) {
+        const fullGroup = [key, ...list];
+        const match1 = fullGroup.some(item => s1.includes(item) || item.includes(s1));
+        const match2 = fullGroup.some(item => s2.includes(item) || item.includes(s2));
+        if (match1 && match2) return true;
+    }
+    return false;
+}
+
+/**
  * Priority-based auto-reassignment engine:
- * Evaluates all candidate teachers in the school, checks collisions and quota limits,
- * scores subject competence and preferred day availability, and ranks the candidates.
+ * Evaluates candidate teachers in the school, strictly verifies remedial eligibility,
+ * checks subject competence & grade/class level qualifications, timetable collisions,
+ * daily quota limits, preferred day availability, and workload fairness.
  */
 export function rankSubstituteCandidates(params: {
     allocation: RemedialAllocation;
@@ -187,6 +263,10 @@ export function rankSubstituteCandidates(params: {
     classSubjectAllocations?: any;
     maxLessonsPerDay?: number;
     maxWeekendLessonsPerDay?: number;
+    strictSubjectMatch?: boolean;
+    strictGradeMatch?: boolean;
+    allowAdjacentGrade?: boolean;
+    strictDayMatch?: boolean;
 }): { bestCandidate: User | null; rankedCandidates: CandidateScore[] } {
     const {
         allocation,
@@ -196,11 +276,19 @@ export function rankSubstituteCandidates(params: {
         teacherPreferences = {},
         classSubjectAllocations = {},
         maxLessonsPerDay = 1,
-        maxWeekendLessonsPerDay = 2
+        maxWeekendLessonsPerDay = 2,
+        strictSubjectMatch = true,
+        strictGradeMatch = true,
+        allowAdjacentGrade = false,
+        strictDayMatch = false
     } = params;
 
     const isWeekend = ['Saturday', 'Sunday'].includes(allocation.dayOfWeek);
     const dailyQuota = isWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
+
+    // Target allocation Subject & Grade level
+    const targetSubject = (allocation.subjectName || allocation.subjectId || '').trim();
+    const targetGrade = extractGradeLevel(allocation.className || allocation.courseId || '');
 
     // Normalize teacher preferences map
     const prefsMap: Record<string, TeacherDayPreference> = Array.isArray(teacherPreferences)
@@ -228,7 +316,24 @@ export function rankSubstituteCandidates(params: {
             continue;
         }
 
-        // 1. Collision check with existing confirmed allocations
+        // 1. Explicit Remedial Eligibility Check
+        const teacherPref = prefsMap[teacher.id];
+        if (teacherPref?.isEligible === false) {
+            continue; // Excluded from remedial program by administration
+        }
+        const teacherMeta = teacher.metadata || {};
+        if (teacherMeta.remedialEligible === false || teacherMeta.isRemedialEligible === false) {
+            continue;
+        }
+
+        // 2. Preferred Day Availability Check
+        const preferredDays = teacherPref?.preferredDays || [];
+        const isPreferredDay = preferredDays.includes(allocation.dayOfWeek);
+        if (strictDayMatch && preferredDays.length > 0 && !isPreferredDay) {
+            continue; // Teacher has strictly set availability and this day is not included
+        }
+
+        // 3. Collision check with existing confirmed allocations on this day
         const teacherAllocationsToday = allAllocations.filter(a =>
             a.id !== allocation.id &&
             a.status !== 'Cancelled' &&
@@ -244,62 +349,109 @@ export function rankSubstituteCandidates(params: {
             continue; // Cannot substitute due to timetable collision
         }
 
-        // 2. Quota check: ensure teacher won't exceed maximum daily remedial sessions
+        // 4. Daily Quota Check: ensure teacher won't exceed maximum daily remedial sessions
         if (teacherAllocationsToday.length >= dailyQuota) {
             continue; // Reached maximum allowed remedial lessons on this day
         }
 
-        // 3. Score calculation
-        let score = 100;
-        const reasons: string[] = [];
+        // 5. Subject Competence Discovery & Matching
+        const authorizedSubjects = teacherPref?.authorizedSubjects || [];
+        const teacherSubjectsInMeta = (teacherMeta.subjects || teacherMeta.subjectIds || []) as string[];
 
-        // A. Subject Competence Matching
-        let isSubjectMatch = false;
+        // Find all subjects this teacher already teaches in remedial allocations
+        const teacherRemedialAllocations = allAllocations.filter(a =>
+            a.teacherId === teacher.id && a.status !== 'Cancelled'
+        );
+        const teachesInRemedials = teacherRemedialAllocations.some(a =>
+            isSubjectEquivalent(a.subjectName || a.subjectId || '', targetSubject)
+        );
 
-        // Check classSubjectAllocations (institution level allocation map)
+        // Check classSubjectAllocations (master curriculum allocation map)
         const courseAllocations = classSubjectAllocations[allocation.courseId] || classSubjectAllocations[allocation.className || ''] || {};
-        const teachesExactClass = courseAllocations[allocation.subjectId] === teacher.id;
+        const teachesExactClass = courseAllocations[allocation.subjectId] === teacher.id ||
+            courseAllocations[targetSubject] === teacher.id;
 
-        // Check across any course in classSubjectAllocations
-        let teachesSubjectSomewhere = false;
+        let teachesSubjectInMasterTimetable = false;
         Object.values(classSubjectAllocations).forEach((subjMap: any) => {
-            if (subjMap && subjMap[allocation.subjectId] === teacher.id) {
-                teachesSubjectSomewhere = true;
+            if (subjMap && (subjMap[allocation.subjectId] === teacher.id || subjMap[targetSubject] === teacher.id)) {
+                teachesSubjectInMasterTimetable = true;
             }
         });
 
-        // Check teacher metadata / departments
-        const teacherSubjects = (teacher.metadata as any)?.subjects || (teacher.metadata as any)?.subjectIds || [];
-        const teachesInProfile = teacherSubjects.includes(allocation.subjectId) || teacherSubjects.includes(allocation.subjectName);
-        const matchesDepartment = (teacher as any).departmentId && (allocation as any).departmentId && (teacher as any).departmentId === (allocation as any).departmentId;
+        const isAuthSubjectMatch = authorizedSubjects.some(s => isSubjectEquivalent(s, targetSubject));
+        const isMetaSubjectMatch = teacherSubjectsInMeta.some(s => isSubjectEquivalent(s, targetSubject));
+        const matchesDepartment = (teacher as any).departmentId && (allocation as any).departmentId &&
+            (teacher as any).departmentId === (allocation as any).departmentId;
+
+        const isSubjectMatch = teachesExactClass ||
+            isAuthSubjectMatch ||
+            teachesInRemedials ||
+            teachesSubjectInMasterTimetable ||
+            isMetaSubjectMatch;
+
+        // Disqualify if strictSubjectMatch is enabled and teacher doesn't teach this subject
+        if (strictSubjectMatch && !isSubjectMatch && !matchesDepartment) {
+            continue; // Not qualified for this subject
+        }
+
+        // 6. Grade / Class Level Qualification Check
+        const authorizedGrades = teacherPref?.authorizedGrades || [];
+        const teacherGradesInMeta = (teacherMeta.classes || teacherMeta.grades || []) as string[];
+
+        // Extract grades teacher currently teaches in remedial allocations
+        const teacherRemedialGrades = teacherRemedialAllocations.map(a =>
+            extractGradeLevel(a.className || a.courseId || '')
+        ).filter(Boolean);
+
+        // Check if teacher matches the target grade level
+        const isExactGradeAuth = authorizedGrades.some(g => extractGradeLevel(g) === targetGrade);
+        const isExactGradeRemedial = teacherRemedialGrades.some(g => g === targetGrade);
+        const isExactGradeMeta = teacherGradesInMeta.some(g => extractGradeLevel(g) === targetGrade);
+        const isExactGradeTimetable = teachesExactClass;
+
+        const isGradeMatch = isExactGradeAuth || isExactGradeRemedial || isExactGradeMeta || isExactGradeTimetable;
+        const isAdjacentGradeMatch = allowAdjacentGrade && (
+            authorizedGrades.some(g => isAdjacentGrade(g, targetGrade)) ||
+            teacherRemedialGrades.some(g => isAdjacentGrade(g, targetGrade))
+        );
+
+        // If teacher has explicit authorized grades or remedial teaching history, enforce grade match
+        const hasDefinedGradeQualifications = authorizedGrades.length > 0 || teacherRemedialGrades.length > 0 || teacherGradesInMeta.length > 0;
+        if (strictGradeMatch && hasDefinedGradeQualifications && !isGradeMatch && !isAdjacentGradeMatch) {
+            continue; // Not qualified to teach this grade level (e.g. Form 1 teacher attempting Form 4)
+        }
+
+        // 7. Score Calculation
+        let score = 100;
+        const reasons: string[] = [];
 
         if (teachesExactClass) {
-            score += 120;
-            reasons.push('Assigned subject teacher for this stream (+120)');
-            isSubjectMatch = true;
-        } else if (teachesSubjectSomewhere || teachesInProfile) {
-            score += 70;
-            reasons.push('Teaches this subject in other streams (+70)');
-            isSubjectMatch = true;
-        } else if (matchesDepartment) {
+            score += 150;
+            reasons.push('Assigned curriculum teacher for this stream (+150)');
+        } else if (isSubjectMatch && isGradeMatch) {
+            score += 100;
+            reasons.push(`Teaches ${targetSubject} in ${targetGrade} (+100)`);
+        } else if (isSubjectMatch && isAdjacentGradeMatch) {
+            score += 50;
+            reasons.push(`Teaches ${targetSubject} in adjacent grade (+50)`);
+        } else if (isSubjectMatch) {
             score += 40;
-            reasons.push('Same department as subject (+40)');
+            reasons.push(`Verified teacher for ${targetSubject} (+40)`);
+        } else if (matchesDepartment) {
+            score += 20;
+            reasons.push('Same department (+20)');
         }
 
-        // B. Day Preference Matching
-        const teacherPref = prefsMap[teacher.id];
-        const preferredDays = teacherPref?.preferredDays || [];
-        const isPreferredDay = preferredDays.includes(allocation.dayOfWeek);
-
+        // Day preference boost / penalty
         if (isPreferredDay) {
             score += 50;
-            reasons.push(`Day ${allocation.dayOfWeek} is in teacher's preferred schedule (+50)`);
+            reasons.push(`Day ${allocation.dayOfWeek} is in preferred schedule (+50)`);
         } else if (preferredDays.length > 0) {
-            score -= 20;
-            reasons.push(`Teacher has preferred days, but not ${allocation.dayOfWeek} (-20)`);
+            score -= 25;
+            reasons.push(`Preferred days exist, but not ${allocation.dayOfWeek} (-25)`);
         }
 
-        // C. Workload Balancing (fairness penalty)
+        // Workload Balancing (fairness penalty)
         const teacherAllAllocationsCount = allAllocations.filter(a =>
             a.status !== 'Cancelled' &&
             (a.teacherId === teacher.id || a.substituteTeacherId === teacher.id)
@@ -321,7 +473,10 @@ export function rankSubstituteCandidates(params: {
             score,
             reasons,
             isSubjectMatch,
-            isPreferredDay
+            isGradeMatch: isGradeMatch || isAdjacentGradeMatch,
+            isPreferredDay,
+            matchedSubject: targetSubject,
+            matchedGrade: targetGrade
         });
     }
 

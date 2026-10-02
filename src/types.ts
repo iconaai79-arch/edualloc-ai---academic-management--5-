@@ -6792,6 +6792,9 @@ export interface TeacherDayPreference {
     preferredDays: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | string)[];
     maxLessonsPerWeek?: number;
     notes?: string;
+    isEligible?: boolean;                // Whether teacher is in the remedial & substitution pool (default: true)
+    authorizedSubjects?: string[];       // Specific subjects teacher is authorized to teach/substitute (e.g. ['Mathematics', 'Physics'])
+    authorizedGrades?: string[];         // Specific grades/forms teacher is authorized to teach/substitute (e.g. ['Form 3', 'Form 4'])
 }
 
 export interface RemedialTimetableApproval {
@@ -6818,6 +6821,9 @@ export interface RemedialRateSetting {
     hourlyRate: number;
     weekdayHourlyRate?: number;
     weekendHourlyRate?: number;
+    strictSubjectMatchOnly?: boolean;
+    strictGradeMatchOnly?: boolean;
+    allowAdjacentGradeSubstitution?: boolean;
     weekdayDutyFlatRate?: number;
     weekday_duty_flat_rate?: number;
     weekdayStartTime?: string;
