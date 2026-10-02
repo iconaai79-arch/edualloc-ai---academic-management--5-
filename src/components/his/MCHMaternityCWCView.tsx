@@ -958,7 +958,7 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                     Record ANC Visit #{(selectedAncRecord.visits?.length || 0) + 1} (MOH 405)
                                 </h3>
                                 <p className="text-[9px] text-emerald-100 uppercase tracking-widest font-black">
-                                    Mother: {selectedAncRecord.motherName} • Gestation: ~{calculateGestationWeeks(selectedAncRecord.lmp)} Wks • EDD: {selectedAncRecord.edd}
+                                    Mother: {selectedAncRecord.motherName} • Gestation: ~{calculateGestationWeeks(selectedAncRecord.lmp || '')} Wks • EDD: {selectedAncRecord.edd}
                                 </p>
                             </div>
                             <button onClick={() => setIsRecordAncVisitModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">
@@ -990,12 +990,12 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 date,
                                 gestationWeeks,
                                 fundalHeightCm,
-                                presentation,
+                                presentation: presentation as any,
                                 fetalHeartRateBpm,
                                 bloodPressure,
                                 weightKg,
-                                urinalysisProtein,
-                                urinalysisGlucose,
+                                urinalysisProtein: urinalysisProtein as any,
+                                urinalysisGlucose: urinalysisGlucose as any,
                                 ifasSupplied,
                                 iptpDose,
                                 ttVaccineGiven,
@@ -1022,11 +1022,11 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 </div>
                                 <div>
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Gestation (Weeks) *</label>
-                                    <input type="number" name="gestationWeeks" defaultValue={calculateGestationWeeks(selectedAncRecord.lmp) || 24} min={4} max={42} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                                    <input type="number" name="gestationWeeks" defaultValue={calculateGestationWeeks(selectedAncRecord.lmp || '') || 24} min={4} max={42} required className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
                                 </div>
                                 <div>
                                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Fundal Height (cm)</label>
-                                    <input type="number" name="fundalHeightCm" defaultValue={calculateGestationWeeks(selectedAncRecord.lmp) || 24} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
+                                    <input type="number" name="fundalHeightCm" defaultValue={calculateGestationWeeks(selectedAncRecord.lmp || '') || 24} className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs font-bold text-white outline-none focus:border-emerald-500" />
                                 </div>
                             </div>
 
@@ -1160,8 +1160,8 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 deliveryDate,
                                 deliveryTime,
                                 gestationWeeks,
-                                deliveryMode,
-                                episiotomyTear,
+                                deliveryMode: deliveryMode as any,
+                                episiotomyTear: episiotomyTear as any,
                                 bloodLossMl,
                                 oxytocinGiven: true,
                                 placentaComplete: true,
@@ -1170,7 +1170,7 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 apgar1Min,
                                 apgar5Min,
                                 resuscitationDone: false,
-                                babyStatus,
+                                babyStatus: babyStatus as any,
                                 deliveredBy: userName || 'Attending Midwife / Obstetrician',
                                 notes
                             };
@@ -1330,7 +1330,7 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 doseNumber: 1,
                                 ageMilestone: milestone,
                                 dateGiven,
-                                site,
+                                site: site as any,
                                 administeredBy: userName || 'Nurse on Duty'
                             };
 
@@ -1476,12 +1476,13 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 incubatorCribNumber,
                                 phototherapyActive: phototherapy,
                                 kmcCandidate: gestationWeeks < 37,
-                                feedingMode,
-                                status: 'Active Inpatient',
+                                feedingMode: feedingMode as any,
+                                status: 'Active Inpatient' as any,
                                 dailyWeights: [
                                     {
                                         date: new Date().toISOString().slice(0, 10),
                                         weightKg: birthWeightKg,
+                                        feedMl: 15,
                                         feedingVolumeMl: 15,
                                         notes: 'Admission baseline weight recorded'
                                     }
@@ -1566,7 +1567,7 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                             <div>
                                 <h3 className="text-lg font-black text-white uppercase italic">Log NBU Weight &amp; Feeds</h3>
                                 <p className="text-[9px] text-amber-100 uppercase tracking-widest font-black">
-                                    {selectedNbuAdmission.babyName} • Bay: {selectedNbuAdmission.incubatorCribNumber}
+                                    {selectedNbuAdmission.babyName} • Bay: {selectedNbuAdmission.incubatorCribNumber || (selectedNbuAdmission as any).incubatorBay}
                                 </p>
                             </div>
                             <button onClick={() => setIsRecordNbuWeightModalOpen(false)} className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-xl cursor-pointer">

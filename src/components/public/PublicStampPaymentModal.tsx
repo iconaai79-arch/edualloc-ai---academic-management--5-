@@ -108,7 +108,7 @@ export const PublicStampPaymentModal: React.FC<PublicStampPaymentModalProps> = (
             pollCount++;
             if (pollCount >= maxPolls || countdown <= 0) {
                 clearInterval(pollInterval);
-                if (paymentStatus !== 'completed') {
+                if ((paymentStatus as string) !== 'completed') {
                     setPaymentStatus('failed');
                     setStatusMessage('Verification timed out. If you entered your M-Pesa PIN, your payment was received and your stamp is unlocked.');
                     setIsProcessing(false);

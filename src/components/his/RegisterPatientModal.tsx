@@ -655,7 +655,7 @@ export function RegisterPatientModal({ isOpen, onClose, onRegister, users = [], 
                                     <select
                                         className="w-full bg-slate-50 dark:bg-white/5 border-2 border-transparent focus:border-indigo-500/50 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none transition-all shadow-inner appearance-none text-slate-900 dark:text-white"
                                         value={formData.gender}
-                                        onChange={e => setFormData({ ...formData, gender: e.target.value })}
+                                        onChange={e => setFormData({ ...formData, gender: e.target.value as 'Male' | 'Female' | 'Other' })}
                                     >
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>

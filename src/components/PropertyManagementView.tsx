@@ -2491,7 +2491,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             AccountNumber: selectedInvoice.invoiceNumber,
                             PaymentAmount: parseFloat(simulatedAmount),
                             InstitutionCode: currentInstitution.code || '210001918',
-                            AccountName: selectedTenantForCoopAction.name,
+                            AccountName: selectedTenantForCoopAction?.name || 'Tenant',
                             TransactionDate: new Date().toISOString()
                         }
                     })
@@ -7737,9 +7737,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const renderVerticalMenu = () => {
         // Computed counts for badges
-        const openTicketsCount = tickets.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled').length;
+        const openTicketsCount = tickets.filter(t => (t.status as any) !== 'Completed' && (t.status as any) !== 'Cancelled' && (t.status as any) !== 'Closed' && (t.status as any) !== 'Resolved').length;
         const vacantUnitsCount = units.filter(u => u.status === 'Vacant').length;
-        const unpaidInvoicesCount = invoices.filter(i => i.status === 'Sent' || i.status === 'Partially Paid').length;
+        const unpaidInvoicesCount = invoices.filter(i => (i.status as any) === 'Sent' || (i.status as any) === 'Partially Paid' || (i.status as any) === 'Draft' || (i.status as any) === 'Overdue').length;
         const newInquiriesCount = inquiries.filter(i => i.status === 'New').length;
         const activeLeasesCount = leases.filter(l => l.status === 'Active').length;
 

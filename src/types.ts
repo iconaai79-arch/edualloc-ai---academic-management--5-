@@ -388,6 +388,7 @@ export interface User {
     farmerId?: string;
     riderId?: string;
     driverType?: 'staff' | 'private';
+    nationalId?: string;
     smsBalance?: number;
     subscriptionStatus?: 'active' | 'expired' | 'none';
     subscriptionExpiry?: string;
@@ -658,6 +659,8 @@ export interface Institution {
     institutionCode?: string;
     themeColor?: string;
     logoUrl?: string | null;
+    headerImageUrl?: string | null;
+    stampUrl?: string | null;
     footerImageUrl?: string | null;
     letterheadConfig?: LetterheadConfig;
     location?: { latitude: number; longitude: number };
@@ -1352,24 +1355,32 @@ export interface NcbaOpenBankingTokenResponse {
 }
 
 export interface NcbaB2cMpesaRequest {
-    beneficiaryName: string;
+    beneficiaryName?: string;
     date?: string; // YYYY-MM-DD
     debitAccount?: string;
-    debitAmount: string | number;
+    debitAmount?: string | number;
+    amount?: string | number;
     mobileNumber: string; // 254...
-    transactionNarration: string;
-    uniqueReferenceNumber: string;
+    transactionNarration?: string;
+    paymentReason?: string;
+    uniqueReferenceNumber?: string;
+    reference?: string;
+    currency?: string;
+    institutionId?: string;
 }
 
 export interface NcbaB2cMpesaResponse {
-    succeeded: boolean;
-    statusCode: number;
-    message: string;
+    succeeded?: boolean;
+    success?: boolean;
+    statusCode?: number;
+    message?: string;
+    referenceNumber?: string;
+    transactionId?: string;
     data?: {
-        id: string;
-        channelRef: string;
-        bankRef: string;
-        message: string;
+        id?: string;
+        channelRef?: string;
+        bankRef?: string;
+        message?: string;
     };
 }
 
@@ -1552,6 +1563,8 @@ export interface CompanyDetails {
         items?: ShowcaseItem[];
     };
     footerImageUrl?: string | null;
+    headerImageUrl?: string | null;
+    stampUrl?: string | null;
     applicationTitle?: string;
     themeColor?: string;
     subscriptionConfig: SubscriptionConfig;
@@ -1974,7 +1987,7 @@ export interface MpesaTransaction {
     status: TransactionStatus;
     metadata?: any;
     checkoutRequestId?: string;
-    provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im';
+    provider: 'mpesa' | 'airtel' | 'intasend' | 'ncba' | 'equity' | 'im' | 'bank';
     paymentMethod: 'stk_push' | 'paybill' | 'till' | 'wallet' | 'direct_debit' | 'bank_transfer' | 'qr_code';
     referenceId?: string;
 }
@@ -4122,6 +4135,7 @@ export interface HISPatient {
     recordedBy?: string;
     admissionNumber?: string;
     admission_number?: string;
+    opNumber?: string;
     gradeLevel?: string;
     stream?: string;
     guardianName?: string;
@@ -7266,6 +7280,7 @@ export interface HISGrowthRecord {
     feedingType?: 'Exclusive Breastfeeding' | 'Mixed Feeding' | 'Complementary Weaning';
     vitAGiven?: boolean;
     dewormed?: boolean;
+    nutritionalStatus?: string;
 }
 
 export interface HISCWCRecord {
@@ -7299,13 +7314,14 @@ export interface HISNBUAdmission {
     currentWeightKg: number;
     gestationWeeks?: number;
     incubatorBay?: string;
+    incubatorCribNumber?: string;
     phototherapyActive: boolean;
     cpapOxygenActive: boolean;
-    feedingMode: 'EBM (Expressed Breast Milk)' | 'Nasogastric Tube' | 'Cup / Spoon' | 'Total Parenteral Nutrition (IV)';
+    feedingMode: 'EBM (Expressed Breast Milk)' | 'Nasogastric Tube' | 'Cup / Spoon' | 'Total Parenteral Nutrition (IV)' | string;
     apgar1Min?: number;
     apgar5Min?: number;
-    dailyWeights: { date: string; weightKg: number; gainGrams?: number; temp?: number; feedMl?: number }[];
-    status: 'Admitted' | 'KMC' | 'Discharged' | 'Referred';
+    dailyWeights: { date: string; weightKg: number; gainGrams?: number; temp?: number; feedMl?: number; feedingVolumeMl?: number }[];
+    status: 'Admitted' | 'KMC' | 'Discharged' | 'Referred' | 'Active Inpatient';
     dischargeDate?: string;
     dischargedBy?: string;
     notes?: string;

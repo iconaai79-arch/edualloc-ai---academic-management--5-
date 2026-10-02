@@ -578,14 +578,19 @@ export class WalletService {
                         if (stored && (stored.isOpenBankingEnabled || stored.subscriptionKey)) {
                             const b2cRes = await ncbaOpenBankingService.sendB2cMpesaPayment({
                                 mobileNumber: formattedPhone,
+                                debitAmount: data.net_disbursed_mpesa,
                                 amount: data.net_disbursed_mpesa,
+                                beneficiaryName: (data as any)?.teacher_name || 'Teacher',
                                 currency: 'KES',
+                                transactionNarration: notes || 'Teacher Wallet Withdrawal',
                                 paymentReason: notes || 'Teacher Wallet Withdrawal',
                                 institutionId: institutionId,
+                                uniqueReferenceNumber: extRef,
                                 reference: extRef
                             });
-                            if (b2cRes?.referenceNumber || b2cRes?.transactionId) {
-                                b2cNotice = ` (NCBA Ref: ${b2cRes.referenceNumber || b2cRes.transactionId})`;
+                            const b2cRef = b2cRes?.referenceNumber || b2cRes?.transactionId || b2cRes?.data?.channelRef || b2cRes?.data?.bankRef || b2cRes?.data?.id;
+                            if (b2cRef) {
+                                b2cNotice = ` (NCBA Ref: ${b2cRef})`;
                             }
                         }
                     } catch (b2cErr: any) {

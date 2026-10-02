@@ -269,7 +269,7 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                 phoneNumber: '',
                 institutionId: rec.institutionId || inst?.id || '',
                 timestamp: rec.paymentDate || new Date().toISOString(),
-                status: 'Completed',
+                status: 'completed',
                 type: 'Paybill',
                 description: rec.paidFor || 'Official Payment Receipt'
             };

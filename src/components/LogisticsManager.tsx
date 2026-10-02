@@ -1170,7 +1170,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         if (targetRoles.some(tr => tr === roleStr)) return true;
 
         if (Array.isArray(u.roles)) {
-            if (u.roles.some(r => targetRoles.includes(String(r).toLowerCase()))) return true;
+            if (u.roles.some((r: any) => targetRoles.includes(String(r).toLowerCase()))) return true;
         } else if (typeof u.roles === 'string' && u.roles.trim()) {
             const raw = u.roles.toLowerCase();
             if (targetRoles.some(tr => raw.includes(tr))) return true;

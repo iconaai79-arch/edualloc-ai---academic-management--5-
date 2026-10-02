@@ -194,7 +194,7 @@ export function HISConfigView({ institutionId, users = [], demoStaff, onStaffUpd
     });
 
     // ── Invoice & Receipt Numbering State ────────────────────────────────────
-    const [invoiceSettings, setInvoiceSettings] = useState(() => {
+    const [invoiceSettings, setInvoiceSettings] = useState<any>(() => {
         try {
             const saved = localStorage.getItem(`his_billing_settings_${institutionId}`);
             if (saved) return JSON.parse(saved);

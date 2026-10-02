@@ -6176,7 +6176,7 @@ export const SettingsManager: React.FC<SettingsManagerProps> = (props) => {
                                                 };
 
                                                 try {
-                                                    await whatsappService.saveConfig(payload);
+                                                    await whatsappService.saveConfig(payload as any);
                                                 } catch (apiErr) {
                                                     console.warn('[SettingsManager WA] Server API save notice:', apiErr);
                                                 }
