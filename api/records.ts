@@ -1296,16 +1296,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? 500
                     : (['inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
-                        : (['visitors', 'security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
-                            ? 250
-                            : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000)))));
+                        : (['visitors', 'building_visitor_logs'].includes(moduleName)
+                            ? 100
+                            : (['security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
+                                ? 250
+                                : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000)))))));
             let data: any[] = [];
             let error: any = null;
 
             // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 10s for heavy/bulk modules; 6s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments'].includes(moduleName) ? 10000 : 6000);
+                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts'].includes(moduleName) ? 10000 : 6000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const timeoutPromise = new Promise<never>((_, reject) => {
@@ -1498,8 +1500,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'finance_numbering_configs', 'bursary_disbursements',
                     // Absence & request modules
                     'student_absence_requests', 'absence_requests', 'time_off_requests',
-                    // Logging & diagnostic modules
+                    // Logging, visitor & security modules
                     'integration_logs', 'sms_gateway_logs', 'sms_logs',
+                    'visitors', 'building_visitor_logs', 'security_alerts',
                 ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
@@ -3901,6 +3904,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normAllocationRequest) : normAllocationRequest(currentPayload);
             }
 
+            // Normalize vote_heads: map camelCase → snake_case DB columns and strip un-cached timestamp columns
+            if (moduleName === 'vote_heads' || targetDbTable === 'vote_heads') {
+                const normVoteHead = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId   && !c.institution_id)    { c.institution_id   = c.institutionId;   delete c.institutionId; }
+                    if (c.allocatedAmount !== undefined && c.allocated_amount === undefined) { c.allocated_amount = Number(c.allocatedAmount) || 0; delete c.allocatedAmount; }
+                    if (c.amountSpent     !== undefined && c.amount_spent === undefined)     { c.amount_spent     = Number(c.amountSpent) || 0;     delete c.amountSpent; }
+                    if (c.academicYearId  && !c.academic_year_id)  { c.academic_year_id  = c.academicYearId;  delete c.academicYearId; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    delete c.timestamp;
+                    delete c.metadata;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normVoteHead) : normVoteHead(currentPayload);
+            }
+
+            // Normalize fee_structures: map camelCase → snake_case DB columns and strip un-cached timestamp columns
+            if (moduleName === 'fee_structures' || targetDbTable === 'fee_structures') {
+                const normFeeStructure = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId  && !c.institution_id)   { c.institution_id  = c.institutionId;  delete c.institutionId; }
+                    if (c.academicYearId && !c.academic_year_id) { c.academic_year_id = c.academicYearId; delete c.academicYearId; }
+                    if (c.courseId       && !c.course_id)        { c.course_id       = c.courseId;       delete c.courseId; }
+                    if (c.voteHeadId     && !c.vote_head_id)     { c.vote_head_id     = c.voteHeadId;     delete c.voteHeadId; }
+                    if (c.applicableTo   && !c.applicable_to)    { c.applicable_to   = c.applicableTo;   delete c.applicableTo; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    delete c.timestamp;
+                    delete c.metadata;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normFeeStructure) : normFeeStructure(currentPayload);
+            }
+
+            // Normalize financial_periods: map camelCase → snake_case DB columns and strip un-cached timestamp columns
+            if (moduleName === 'financial_periods' || targetDbTable === 'financial_periods') {
+                const normFinancialPeriod = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.startDate     && !c.start_date)     { c.start_date     = c.startDate;     delete c.startDate; }
+                    if (c.endDate       && !c.end_date)       { c.end_date       = c.endDate;       delete c.endDate; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    delete c.timestamp;
+                    delete c.metadata;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normFinancialPeriod) : normFinancialPeriod(currentPayload);
+            }
+
             // Normalize institutions: map camelCase → snake_case DB columns and delete camelCase keys
             // to prevent PGRST204 schema cache stale retries on un-cached columns like isSuspendedForBilling,
             // subscriptionEndsAt, trialEndsAt, billingModel, etc.
@@ -5485,6 +5548,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.createdAt;
                     delete copy.updatedAt;
                     currentUpdateData = copy;
+                } else if ((moduleName === 'vote_heads' || targetDbTable === 'vote_heads') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const c = { ...currentUpdateData };
+                    if (c.institutionId   && !c.institution_id)    { c.institution_id   = c.institutionId;   delete c.institutionId; }
+                    if (c.allocatedAmount !== undefined && c.allocated_amount === undefined) { c.allocated_amount = Number(c.allocatedAmount) || 0; delete c.allocatedAmount; }
+                    if (c.amountSpent     !== undefined && c.amount_spent === undefined)     { c.amount_spent     = Number(c.amountSpent) || 0;     delete c.amountSpent; }
+                    if (c.academicYearId  && !c.academic_year_id)  { c.academic_year_id  = c.academicYearId;  delete c.academicYearId; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    delete c.timestamp;
+                    delete c.metadata;
+                    currentUpdateData = c;
+                } else if ((moduleName === 'fee_structures' || targetDbTable === 'fee_structures') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const c = { ...currentUpdateData };
+                    if (c.institutionId  && !c.institution_id)   { c.institution_id  = c.institutionId;  delete c.institutionId; }
+                    if (c.academicYearId && !c.academic_year_id) { c.academic_year_id = c.academicYearId; delete c.academicYearId; }
+                    if (c.courseId       && !c.course_id)        { c.course_id       = c.courseId;       delete c.courseId; }
+                    if (c.voteHeadId     && !c.vote_head_id)     { c.vote_head_id     = c.voteHeadId;     delete c.voteHeadId; }
+                    if (c.applicableTo   && !c.applicable_to)    { c.applicable_to   = c.applicableTo;   delete c.applicableTo; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    delete c.timestamp;
+                    delete c.metadata;
+                    currentUpdateData = c;
+                } else if ((moduleName === 'financial_periods' || targetDbTable === 'financial_periods') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const c = { ...currentUpdateData };
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.startDate     && !c.start_date)     { c.start_date     = c.startDate;     delete c.startDate; }
+                    if (c.endDate       && !c.end_date)       { c.end_date       = c.endDate;       delete c.endDate; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    delete c.timestamp;
+                    delete c.metadata;
+                    currentUpdateData = c;
                 }
                 let data: any = null;
                 let error: any = null;

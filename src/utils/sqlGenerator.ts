@@ -672,7 +672,9 @@ CREATE TABLE IF NOT EXISTS vote_heads (
     amount_spent DECIMAL(15, 2) DEFAULT 0,
     academic_year_id TEXT,
     priority INTEGER,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS financial_periods (
@@ -681,7 +683,9 @@ CREATE TABLE IF NOT EXISTS financial_periods (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     status TEXT DEFAULT 'inactive',
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS fee_structures (
@@ -694,7 +698,9 @@ CREATE TABLE IF NOT EXISTS fee_structures (
     vote_head_id TEXT REFERENCES vote_heads(id) ON DELETE SET NULL,
     priority INTEGER,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    applicable_to TEXT DEFAULT 'all'
+    applicable_to TEXT DEFAULT 'all',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS mpesa_transactions (
