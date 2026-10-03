@@ -19,7 +19,7 @@ import { XIcon } from '../icons/XIcon';
 import { GenerateReportCardsWizardModal } from './GenerateReportCardsWizardModal';
 import { ModernStudentProgressGraph, ProgressPeriodRecord } from './ModernStudentProgressGraph';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
 import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream } from '../../utils/academicUtils';
 import * as XLSX from 'xlsx';
 
@@ -165,7 +165,8 @@ export const FuturisticReportCardView: React.FC<FuturisticReportCardViewProps> =
                         });
                         const updated = Array.from(existingMap.values());
                         try {
-                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(updated));
+                            const compact = updated.length > 50 ? updated.slice(0, 50) : updated;
+                            safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(compact));
                         } catch(e) {}
                         return updated;
                     });

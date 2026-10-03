@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import type { Assessment, AssessmentMark, User, Subject, ActivityLog, Institution, Course, AcademicLevel } from '../../types';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
 import { GridIcon } from '../icons/GridIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -219,7 +219,8 @@ export const AcademicReportsHub: React.FC<AcademicReportsHubProps> = ({
                         });
                         const updated = Array.from(existingMap.values());
                         try {
-                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(updated));
+                            const compact = updated.length > 50 ? updated.slice(0, 50) : updated;
+                            safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(compact));
                         } catch(e) {}
                         return updated;
                     });

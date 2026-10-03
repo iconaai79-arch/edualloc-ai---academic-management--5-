@@ -162,8 +162,10 @@ import {
     Filter,
     History,
     Database,
-    Zap
+    Zap,
+    Activity
 } from 'lucide-react';
+import { SystemLatencyMonitor } from './telemetry/SystemLatencyMonitor';
 
 export interface SuperAdminViewProps {
     institutions: Institution[];
@@ -581,7 +583,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const { success, error: toastError } = useToast();
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing' | 'expenses'>(() => {
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing' | 'expenses' | 'latency'>(() => {
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
         if (view === 'showroom' || params.get('showroom')) return 'auto_marketplace';
@@ -1824,6 +1826,7 @@ Please change it after login.`;
         { key: 'reports', label: 'Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
         { key: 'portal_links', label: 'Portal Links', icon: <GlobeAltIcon className="w-5 h-5 mr-2 text-emerald-500" /> },
         { key: 'expenses', label: 'Expense Manager', icon: <CreditCardIcon className="w-5 h-5 mr-2 text-rose-500" /> },
+        { key: 'latency', label: 'System Latency', icon: <Activity className="w-5 h-5 mr-2 text-cyan-400" /> },
     ];
 
 
@@ -2221,7 +2224,13 @@ Please change it after login.`;
                                 </div>
                                 <h3 className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">Registry Load</h3>
                                 <div className="flex flex-col">
-                                    <p className="text-5xl font-black text-indigo-500 tracking-tighter">{(props.allocations || []).length}</p>
+                                    <p className="text-5xl font-black text-indigo-500 tracking-tighter">
+                                        {Math.max(
+                                            (props.allocations || []).length,
+                                            (props.subjects || []).length,
+                                            (props.courses || []).length
+                                        )}
+                                    </p>
                                     <p className="text-[10px] font-black text-indigo-400/60 uppercase tracking-widest mt-2">
                                         Active Academic Units
                                     </p>
@@ -6953,6 +6962,9 @@ Please change it after login.`;
                         institutions={institutions}
                         onLogAction={onLogAction}
                     />
+                )}
+                {activeTab === 'latency' && (
+                    <SystemLatencyMonitor />
                 )}
             </main>
 

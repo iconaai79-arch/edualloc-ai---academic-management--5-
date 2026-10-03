@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course, AcademicLevel } from '../../types';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
 import { ChartPieIcon } from '../icons/ChartPieIcon';
 import { GridIcon } from '../icons/GridIcon';
 import { CheckCircleIcon } from '../icons/CheckCircleIcon';
@@ -374,7 +374,8 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
                     if (enrRecords && Array.isArray(enrRecords) && enrRecords.length > 0) {
                         setEnrollmentsRegistry(enrRecords);
                         try {
-                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(enrRecords));
+                            const compact = enrRecords.length > 50 ? enrRecords.slice(0, 50) : enrRecords;
+                            safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(compact));
                         } catch (e) {}
                     } else if (stRecords && Array.isArray(stRecords) && stRecords.length > 0) {
                         setEnrollmentsRegistry(stRecords);

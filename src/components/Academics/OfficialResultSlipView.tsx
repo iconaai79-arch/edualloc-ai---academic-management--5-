@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
 import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream } from '../../utils/academicUtils';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { BookOpenIcon } from '../icons/BookOpenIcon';
@@ -194,7 +194,8 @@ export const OfficialResultSlipView: React.FC<OfficialResultSlipViewProps> = ({
                 if (enrList && Array.isArray(enrList) && enrList.length > 0) {
                     setEnrollmentsRegistry(enrList);
                     try {
-                        localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(enrList));
+                        const compact = enrList.length > 50 ? enrList.slice(0, 50) : enrList;
+                        safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(compact));
                     } catch (e) {}
                 } else if (stList && Array.isArray(stList) && stList.length > 0) {
                     setEnrollmentsRegistry(stList);

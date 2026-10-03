@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import type { Assessment, AssessmentMark, User, Subject, Institution, Course } from '../../types';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
 import { resolveRealStudentStream, resolveRealStudentClass, resolveRealStudentAdmNo, extractClassAndStream, normalizeStreamName } from '../../utils/academicUtils';
 import { generateExamOverviewPdf } from '../../utils/examOverviewPdfGenerator';
 import { PrinterIcon } from '../icons/PrinterIcon';
@@ -164,7 +164,8 @@ export const ExamOverviewDashboard: React.FC<ExamOverviewDashboardProps> = ({
                         });
                         const updated = Array.from(existingMap.values());
                         try {
-                            localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(updated));
+                            const compact = updated.length > 50 ? updated.slice(0, 50) : updated;
+                            safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(compact));
                         } catch(e) {}
                         return updated;
                     });

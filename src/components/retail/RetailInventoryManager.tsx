@@ -14,7 +14,7 @@ import { ImageIcon } from '../icons/ImageIcon';
 import { UploadIcon as Upload } from '../icons/UploadIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 import { TruckIcon as Truck } from '../icons/TruckIcon';
-import { apiService, toCamelCase } from '../../services/apiService';
+import { apiService, safeLocalStorage, toCamelCase } from '../../services/apiService';
 import { localDb } from '../../services/localDb';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 import { AddPharmacyInventoryModal } from '../his/AddPharmacyInventoryModal';
@@ -613,7 +613,9 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
 
             if (normalized.length > 0 && institutionId) {
                 try {
-                    localStorage.setItem(`eduai_retail_inventory_${institutionId}`, JSON.stringify(normalized));
+                    localDb.bulkPut('retail_inventory_items', normalized).catch(() => {});
+                    const compact = normalized.length > 50 ? normalized.slice(0, 50) : normalized;
+                    safeLocalStorage.setItem(`eduai_retail_inventory_${institutionId}`, JSON.stringify(compact));
                 } catch (_) {}
             }
 

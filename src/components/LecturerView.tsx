@@ -691,7 +691,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     setEnrollments(records);
                     if (effectiveInstId) {
                         try {
-                            localStorage.setItem(`eduai_student_enrollments_${effectiveInstId}`, JSON.stringify(records));
+                            const compact = records.length > 50 ? records.slice(0, 50) : records;
+                            safeLocalStorage.setItem(`eduai_student_enrollments_${effectiveInstId}`, JSON.stringify(compact));
                         } catch (_) {}
                     }
                 }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
 import { extractClassAndStream, resolveRealStudentStream, resolveRealStudentClass, normalizeStreamName, naturalClassSort, extractStreamOnly, isDemoClassName } from '../../utils/academicUtils';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -1869,7 +1869,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 if (effectiveEnrs.length > 0) {
                     setEnrollmentsRegistry(effectiveEnrs);
                     try {
-                        localStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(effectiveEnrs));
+                        const compact = effectiveEnrs.length > 50 ? effectiveEnrs.slice(0, 50) : effectiveEnrs;
+                        safeLocalStorage.setItem(`eduai_student_enrollments_${currentInstitution.id}`, JSON.stringify(compact));
                     } catch (e) {}
                 }
 

@@ -3,7 +3,7 @@ import type { User, Assessment, AssessmentMark, Subject, Course } from '../types
 import { PlusIcon } from './icons/PlusIcon';
 import { XIcon } from './icons/XIcon';
 import { resolveRealStudentClass, naturalClassSort, extractClassAndStream, normalizeStreamName } from '../utils/academicUtils';
-import { apiService } from '../services/apiService';
+import { apiService, safeLocalStorage } from '../services/apiService';
 import { 
     ChevronRight, ChevronDown, 
     Search, Sparkles, AlertCircle, Printer, Download,
@@ -615,7 +615,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
                 setEnrollmentsRegistry(effective);
                 if (instId) {
                     try {
-                        localStorage.setItem(`eduai_student_enrollments_${instId}`, JSON.stringify(effective));
+                        const compact = effective.length > 50 ? effective.slice(0, 50) : effective;
+                        safeLocalStorage.setItem(`eduai_student_enrollments_${instId}`, JSON.stringify(compact));
                     } catch (_) {}
                 }
             }

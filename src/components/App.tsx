@@ -3,7 +3,7 @@ import { Header } from './Header';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
-import { apiService, initSupabaseClient, setSessionUser, toCamelCase } from '../services/apiService';
+import { apiService, safeLocalStorage, initSupabaseClient, setSessionUser, toCamelCase } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify, formatPhoneNumber } from '../utils/stringUtils';
@@ -1071,7 +1071,7 @@ export const App: React.FC = () => {
         const reqList = Array.isArray(requests) ? requests : [];
         if (isSchoolContext) {
             // On Primary & Secondary schools, lessons allocated to teachers are automatically approved for timetable upon allocation!
-            return reqList.filter(r => r && (r.lecturerId || r.status === 'approved' || r.status === 'hod_approved')).map(r => ({ ...r, status: 'approved' as const }));
+            return reqList.filter(r => r && (r.lecturerId || (r as any).teacherId || (r as any).lecturer_id || (r as any).teacher_id || r.status === 'approved' || r.status === 'hod_approved' || !r.status)).map(r => ({ ...r, status: 'approved' as const }));
         }
         return reqList.filter(r => r && (r.status === 'approved' || r.status === 'hod_approved' || r.status === 'change_request_pending' || r.status === 'deallocation_pending'));
     }, [requests, isSchoolContext]);
@@ -1424,9 +1424,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             existingLs.forEach((i: any) => i && i.id && map.set(i.id, i));
                             insts.forEach((i: any) => i && i.id && map.set(i.id, i));
                             const merged = Array.from(map.values());
-                            localStorage.setItem('institutions', JSON.stringify(merged));
+                            safeLocalStorage.setItem('institutions', JSON.stringify(merged));
                         } else {
-                            localStorage.setItem('institutions', JSON.stringify(insts));
+                            safeLocalStorage.setItem('institutions', JSON.stringify(insts));
                         }
                     } catch (_) {}
                 }
@@ -1641,6 +1641,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     s = await localDb.getAll('subjects').catch(() => []);
                     c = await localDb.getAll('courses').catch(() => []);
                     a = await localDb.getAll('allocation_requests').catch(() => []);
+                    if (!a || a.length === 0) {
+                        const localSubjAllocs = await localDb.getAll('subject_allocations').catch(() => []);
+                        if (localSubjAllocs && localSubjAllocs.length > 0) {
+                            a = localSubjAllocs.map((sa: any) => ({
+                                id: sa.id || `alloc_${sa.institutionId || ''}_${sa.className || ''}_${sa.subjectName || ''}`.replace(/\s+/g, '_'),
+                                subjectId: sa.subjectId || sa.subjectName,
+                                lecturerId: sa.teacherId || sa.lecturerId || '',
+                                institutionId: sa.institutionId || '',
+                                status: 'approved',
+                                timestamp: sa.createdAt || new Date().toISOString(),
+                                priority: 'high',
+                                academicYearId: '',
+                                semesterId: ''
+                            }));
+                        }
+                    }
                     ay = await localDb.getAll('academic_years').catch(() => []);
                     sem = await localDb.getAll('semesters').catch(() => []);
                     r = await localDb.getAll('rooms').catch(() => []);
@@ -1699,6 +1715,27 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         localStorage.setItem(classAllocKey, JSON.stringify(currentStore));
                     }
                 } catch(e) {}
+            }
+            if (!a || a.length === 0) {
+                try {
+                    const savedSubjAllocs = (instIdForAlloc ? localStorage.getItem(`eduai_subject_allocations_${instIdForAlloc}`) : null) || localStorage.getItem('eduai_subject_allocations');
+                    if (savedSubjAllocs) {
+                        const parsed = JSON.parse(savedSubjAllocs);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            a = parsed.map((sa: any) => ({
+                                id: sa.id || `alloc_${sa.institutionId || ''}_${sa.className || ''}_${sa.subjectName || ''}`.replace(/\s+/g, '_'),
+                                subjectId: sa.subjectId || sa.subjectName,
+                                lecturerId: sa.teacherId || sa.lecturerId || '',
+                                institutionId: sa.institutionId || instIdForAlloc || '',
+                                status: 'approved',
+                                timestamp: sa.createdAt || new Date().toISOString(),
+                                priority: 'high',
+                                academicYearId: '',
+                                semesterId: ''
+                            }));
+                        }
+                    }
+                } catch (_) {}
             }
             setRequests(a || []);
             setAcademicYears(ay || []);
@@ -1978,7 +2015,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                     if (resolvedStudentEnrollments.length === 0) {
                         try {
-                            const cached = localStorage.getItem(`eduai_student_enrollments_${instKeyEnr}`) || localStorage.getItem(`eduai_student_enrollments_${cleanInstKey}`);
+                            const cached = safeLocalStorage.getItem(`eduai_student_enrollments_${cleanInstKey}`) || 
+                                           safeLocalStorage.getItem(`eduai_student_enrollments_${instKeyEnr}`) || 
+                                           localStorage.getItem(`eduai_student_enrollments_${cleanInstKey}`) || 
+                                           localStorage.getItem(`eduai_student_enrollments_${instKeyEnr}`);
                             if (cached) {
                                 const parsed = JSON.parse(cached);
                                 if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1990,11 +2030,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         }
                     }
                 } else if (resolvedStudentEnrollments.length > 0 && cleanInstKey) {
+                    // 1. Persist the FULL dataset to IndexedDB for unbounded offline capability
                     try {
-                        localStorage.setItem(`eduai_student_enrollments_${instKeyEnr}`, JSON.stringify(resolvedStudentEnrollments));
-                        localStorage.setItem(`eduai_student_enrollments_${cleanInstKey}`, JSON.stringify(resolvedStudentEnrollments));
+                        localDb.bulkPut('student_enrollments', resolvedStudentEnrollments).catch(() => {});
+                    } catch (_) {}
+
+                    // 2. Safely cache a lightweight slice (up to 50 records) in safeLocalStorage without exhausting 5MB quota
+                    try {
+                        const maxCacheCap = 50;
+                        const compactSlice = resolvedStudentEnrollments.slice(0, maxCacheCap);
+                        safeLocalStorage.setItem(`eduai_student_enrollments_${cleanInstKey}`, JSON.stringify(compactSlice));
+                        // Clean up redundant duplicate key if any
+                        if (instKeyEnr && instKeyEnr !== cleanInstKey) {
+                            try { localStorage.removeItem(`eduai_student_enrollments_${instKeyEnr}`); } catch (_) {}
+                        }
                     } catch (err) {
-                        console.warn('[App] Failed caching student_enrollments:', err);
+                        console.warn('[App] Failed caching student_enrollments slice:', err);
                     }
                 }
                 setStudentEnrollments(resolvedStudentEnrollments);
@@ -2437,7 +2488,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                     if (mergedRetailInventory.length === 0) {
                         try {
-                            const cached = localStorage.getItem(`eduai_retail_inventory_${instKeyInv}`) || localStorage.getItem(`eduai_retail_inventory_${cleanInstKeyInv}`);
+                            const cached = safeLocalStorage.getItem(`eduai_retail_inventory_${cleanInstKeyInv}`) || 
+                                           safeLocalStorage.getItem(`eduai_retail_inventory_${instKeyInv}`) || 
+                                           localStorage.getItem(`eduai_retail_inventory_${cleanInstKeyInv}`) || 
+                                           localStorage.getItem(`eduai_retail_inventory_${instKeyInv}`);
                             if (cached) {
                                 const parsed = JSON.parse(cached);
                                 if (Array.isArray(parsed) && parsed.length > 0) {
@@ -2454,11 +2508,21 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         }
                     }
                 } else if (mergedRetailInventory.length > 0 && cleanInstKeyInv) {
+                    // 1. Persist the FULL dataset to IndexedDB
                     try {
-                        localStorage.setItem(`eduai_retail_inventory_${instKeyInv}`, JSON.stringify(mergedRetailInventory));
-                        localStorage.setItem(`eduai_retail_inventory_${cleanInstKeyInv}`, JSON.stringify(mergedRetailInventory));
+                        localDb.bulkPut('retail_inventory_items', mergedRetailInventory).catch(() => {});
+                    } catch (_) {}
+
+                    // 2. Safely cache a lightweight slice (up to 50 records) in safeLocalStorage
+                    try {
+                        const maxCacheCap = 50;
+                        const compactSlice = mergedRetailInventory.slice(0, maxCacheCap);
+                        safeLocalStorage.setItem(`eduai_retail_inventory_${cleanInstKeyInv}`, JSON.stringify(compactSlice));
+                        if (instKeyInv && instKeyInv !== cleanInstKeyInv) {
+                            try { localStorage.removeItem(`eduai_retail_inventory_${instKeyInv}`); } catch (_) {}
+                        }
                     } catch (err) {
-                        console.warn('[App] Failed caching retail inventory:', err);
+                        console.warn('[App] Failed caching retail inventory slice:', err);
                     }
                 }
 

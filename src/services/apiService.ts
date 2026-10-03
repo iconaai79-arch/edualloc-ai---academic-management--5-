@@ -227,39 +227,74 @@ const _tableMemoryCache = new Map<string, any[]>();
 export const safeLocalStorage = {
     freeSpace: () => {
         try {
+            if (typeof window === 'undefined' || !window.localStorage) return;
             const evictableKeys = Object.keys(localStorage).filter(k => 
                 !k.includes('active_session') && 
-                !k.includes('super_admin') &&
+                !k.includes('super_admin') && 
                 !k.includes('current_user') && 
-                !k.includes('credentials') &&
+                !k.includes('credentials') && 
                 !k.includes('token') && 
-                !k.includes('auth') &&
+                !k.includes('auth') && 
                 (
                     k.includes('_cache') || 
                     k.includes('_backup') || 
                     k.includes('_history') || 
                     k.includes('_logs') || 
-                    k.includes('_outbox') ||
+                    k.includes('_outbox') || 
                     k.startsWith('eduai_') || 
                     k.startsWith('ds_') || 
                     k.startsWith('temp_')
                 )
             );
-            // Evict the largest 25 bloated keys to free up plenty of headroom
+            // Evict bloated keys to free up headroom
             const keySizes = evictableKeys.map(k => ({ key: k, size: (localStorage.getItem(k) || '').length }));
             keySizes.sort((a, b) => b.size - a.size);
-            for (const item of keySizes.slice(0, 25)) {
-                localStorage.removeItem(item.key);
+            for (const item of keySizes.slice(0, 30)) {
+                try { localStorage.removeItem(item.key); } catch (_) {}
             }
         } catch (e) {}
+    },
+    cleanupBloat: () => {
+        try {
+            if (typeof window === 'undefined' || !window.localStorage) return;
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (!key) continue;
+                // Never remove critical auth/session tokens
+                if (key.includes('active_session') || key.includes('token') || key.includes('auth') || key.includes('credentials')) {
+                    continue;
+                }
+                // Strip legacy bloated array caches from localStorage (these are persisted in IndexedDB)
+                if (
+                    key.startsWith('eduai_student_enrollments_') ||
+                    key.startsWith('eduai_retail_inventory_') ||
+                    key.startsWith('eduai_students_') ||
+                    key.startsWith('eduai_invoices_') ||
+                    key.startsWith('eduai_receipts_') ||
+                    key.startsWith('eduai_books_') ||
+                    key.startsWith('eduai_exam_units_')
+                ) {
+                    const val = localStorage.getItem(key);
+                    // Any single large cache key over 80KB is purged from localStorage
+                    if (val && val.length > 80000) {
+                        keysToRemove.push(key);
+                    }
+                }
+            }
+            keysToRemove.forEach(k => {
+                try { localStorage.removeItem(k); } catch (_) {}
+            });
+        } catch (_) {}
     },
     setItem: (key: string, value: string) => {
         // Unconditionally preserve in memory fallback for instant synchronous retrieval
         _storageMemoryFallback.set(key, value);
 
-        // If the payload is unusually large (>250KB), avoid exhausting the browser's 5MB synchronous localStorage.
+        // If the payload is unusually large (>100KB), avoid exhausting the browser's 5MB synchronous localStorage.
         // The value is preserved in memory and persisted via IndexedDB.
-        if (value.length > 250000) {
+        if (value.length > 100000) {
+            try { localStorage.removeItem(key); } catch (_) {}
             return;
         }
 
@@ -277,13 +312,13 @@ export const safeLocalStorage = {
                         k !== key && 
                         !k.includes('session') && 
                         !k.includes('token') && 
-                        !k.includes('auth') &&
+                        !k.includes('auth') && 
                         !k.includes('credentials')
                     );
                     const sizes = allKeys.map(k => ({ k, len: (localStorage.getItem(k) || '').length }));
                     sizes.sort((a, b) => b.len - a.len);
-                    for (const s of sizes.slice(0, 15)) {
-                        localStorage.removeItem(s.k);
+                    for (const s of sizes.slice(0, 20)) {
+                        try { localStorage.removeItem(s.k); } catch (_) {}
                     }
                     localStorage.setItem(key, value);
                 } catch (finalErr) {
@@ -306,6 +341,11 @@ export const safeLocalStorage = {
         _storageMemoryFallback.delete(key);
     }
 };
+
+// Immediate eager startup cleanup to recover any previously exhausted localStorage quota
+try {
+    safeLocalStorage.cleanupBloat();
+} catch (_) {}
 
 // Local Storage Helper with memory caching, safe localStorage slicing, and IndexedDB persistence
 const ls = {
@@ -342,8 +382,8 @@ const ls = {
                     localDb.bulkPut(table, data).catch(() => {});
                 } catch (_) {}
 
-                // 3. For localStorage: store a lightweight recent slice (max 100 items) so 5MB browser quota is never exceeded
-                const maxLsCap = 100;
+                // 3. For localStorage: store a lightweight recent slice (max 50 items) so 5MB browser quota is never exceeded
+                const maxLsCap = 50;
                 const trimmedData = data.length > maxLsCap ? data.slice(-maxLsCap) : data;
                 safeLocalStorage.setItem(`eduai_${table}`, JSON.stringify(trimmedData));
             } else if (data && typeof data === 'object') {
@@ -5094,7 +5134,45 @@ export const apiService = {
             });
         }
     },
-    async fetchAllocations(institutionId?: string): Promise<AllocationRequest[]> { return apiService.fetchModuleRecords('allocation_requests', institutionId); },
+    async fetchAllocations(institutionId?: string): Promise<AllocationRequest[]> {
+        try {
+            const [allocationRequests, subjectAllocations] = await Promise.all([
+                apiService.fetchModuleRecords<AllocationRequest>('allocation_requests', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('subject_allocations', institutionId).catch(() => [])
+            ]);
+
+            const map = new Map<string, AllocationRequest>();
+            (allocationRequests || []).forEach(req => {
+                if (req && req.id) map.set(req.id, req);
+            });
+
+            (subjectAllocations || []).forEach((sa: any) => {
+                if (!sa) return;
+                const allocId = sa.id || `alloc_${sa.institutionId || ''}_${sa.className || ''}_${sa.subjectName || ''}`.replace(/\s+/g, '_');
+                if (!map.has(allocId)) {
+                    map.set(allocId, {
+                        id: allocId,
+                        subjectId: sa.subjectId || sa.subjectCode || sa.subjectName || allocId,
+                        lecturerId: sa.teacherId || sa.lecturerId || '',
+                        institutionId: sa.institutionId || institutionId || '',
+                        status: 'approved',
+                        timestamp: sa.createdAt || new Date().toISOString(),
+                        priority: 'high',
+                        academicYearId: sa.academicYearId || '',
+                        semesterId: sa.semesterId || sa.term || '',
+                        lessonStructure: sa.lessonsPerWeek ? [{ durationMinutes: 40, periodsPerWeek: sa.lessonsPerWeek }] : undefined,
+                        preferences: {
+                            courseLevelSelections: sa.className ? { [sa.className]: [sa.subjectName || sa.subjectId] } : {}
+                        }
+                    } as AllocationRequest);
+                }
+            });
+
+            return Array.from(map.values());
+        } catch (_) {
+            return apiService.fetchModuleRecords('allocation_requests', institutionId);
+        }
+    },
     async saveAllocation(data: Partial<AllocationRequest>): Promise<void> { await apiService.saveModuleRecord('allocation_requests', data); },
     async fetchCompanySettings(): Promise<CompanyDetails | null> {
         if (!_supabase) {

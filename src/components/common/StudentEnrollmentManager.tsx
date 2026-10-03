@@ -46,8 +46,8 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
-import { isSuperAdminUser } from '../../types';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
+import { localDb } from '../../services/localDb';
 import { generateEventReportPdf, generateStudentIdCardPdf, generateLeaveOutSheetPdf, generateClassListPdf } from '../../services/pdfService';
 import Webcam from 'react-webcam';
 import { ExcelSmartImporter } from './ExcelSmartImporter';
@@ -1194,8 +1194,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setTimeout(() => {
                 try {
                     if (instKey) {
-                        const json = JSON.stringify(hydrated.slice(0, 1500));
-                        localStorage.setItem(`eduai_student_enrollments_${instKey}`, json);
+                        localDb.bulkPut('student_enrollments', hydrated).catch(() => {});
+                        const json = JSON.stringify(hydrated.slice(0, 50));
+                        safeLocalStorage.setItem(`eduai_student_enrollments_${instKey}`, json);
                     }
                 } catch (e) {}
             }, 100);

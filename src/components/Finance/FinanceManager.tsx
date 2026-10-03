@@ -37,7 +37,8 @@ import { PhotoIcon } from '../icons/PhotoIcon';
 import { WalletIcon } from '../icons/WalletIcon';
 import { RetailRequisitions } from '../retail/RetailRequisitions';
 import { ProcurementHub } from './ProcurementHub';
-import { apiService } from '../../services/apiService';
+import { apiService, safeLocalStorage } from '../../services/apiService';
+import { localDb } from '../../services/localDb';
 import { FinancialAuditDashboard } from './FinancialAuditDashboard';
 import { AnnualReportWizard } from './AnnualReportWizard';
 import { CpaReportingDashboard } from './CpaReportingDashboard';
@@ -487,7 +488,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         });
                         const mergedList = Array.from(map.values());
                         try {
-                            localStorage.setItem(`eduai_student_enrollments_${props.institution.id}`, JSON.stringify(mergedList));
+                            localDb.bulkPut('student_enrollments', mergedList).catch(() => {});
+                            const compact = mergedList.length > 50 ? mergedList.slice(0, 50) : mergedList;
+                            safeLocalStorage.setItem(`eduai_student_enrollments_${props.institution.id}`, JSON.stringify(compact));
                         } catch (_) {}
                         return mergedList;
                     });
