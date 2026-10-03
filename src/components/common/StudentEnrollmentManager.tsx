@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { User, StudentEnrollment, Institution, CourseLevel, Subject, Visitor, AcademicLevel, Role, Course, CompanyDetails } from '../../types';
+import { isSuperAdminUser } from '../../types';
 import { apiService, safeLocalStorage } from '../../services/apiService';
 import { localDb } from '../../services/localDb';
 import { generateEventReportPdf, generateStudentIdCardPdf, generateLeaveOutSheetPdf, generateClassListPdf } from '../../services/pdfService';
