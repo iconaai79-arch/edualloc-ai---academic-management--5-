@@ -1911,7 +1911,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         setOpeningBalancePage(1);
     }, [openingBalanceSearch, openingBalanceClassFilter, openingBalanceStatusFilter]);
 
+    const modifiedOpeningBalancesRef = useRef<Set<string>>(new Set());
+    const [unsavedOpeningBalancesCount, setUnsavedOpeningBalancesCount] = useState<number>(0);
+    const currentInstitutionIdRef = useRef<string>(props.institution?.id || '');
+
     const handleOpeningBalanceChange = useCallback((studentId: string, amount: number) => {
+        modifiedOpeningBalancesRef.current.add(studentId);
+        setUnsavedOpeningBalancesCount(modifiedOpeningBalancesRef.current.size);
         setOpeningBalancesMap(prev => {
             if (prev[studentId] === amount) return prev;
             return {
@@ -1946,15 +1952,40 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     useEffect(() => {
         if (!mergedStudents || mergedStudents.length === 0) return;
-        setOpeningBalancesMap(prev => {
-            const newMap: Record<string, number> = {};
+
+        // If active institution changed, re-initialize from scratch
+        const activeInstId = props.institution?.id || '';
+        if (activeInstId !== currentInstitutionIdRef.current) {
+            currentInstitutionIdRef.current = activeInstId;
+            modifiedOpeningBalancesRef.current.clear();
+            setUnsavedOpeningBalancesCount(0);
+            const resetMap: Record<string, number> = {};
             mergedStudents.forEach((s: any) => {
-                const rawOb = extractStudentOpeningBalance(s);
-                newMap[s.id] = rawOb !== undefined ? rawOb : (prev[s.id] ?? 0);
+                resetMap[s.id] = extractStudentOpeningBalance(s);
             });
-            return newMap;
+            setOpeningBalancesMap(resetMap);
+            return;
+        }
+
+        // Preserve all modified / imported / existing values in prev state;
+        // only populate newly discovered students from branch merges.
+        setOpeningBalancesMap(prev => {
+            let hasNewStudents = false;
+            const newMap: Record<string, number> = { ...prev };
+            mergedStudents.forEach((s: any) => {
+                // If student balance was modified by user or imported from Excel, NEVER overwrite!
+                if (modifiedOpeningBalancesRef.current.has(s.id)) {
+                    return;
+                }
+                // If student is not yet tracked in map, initialize them
+                if (newMap[s.id] === undefined) {
+                    newMap[s.id] = extractStudentOpeningBalance(s);
+                    hasNewStudents = true;
+                }
+            });
+            return hasNewStudents ? newMap : prev;
         });
-    }, [mergedStudents, extractStudentOpeningBalance]);
+    }, [mergedStudents, extractStudentOpeningBalance, props.institution?.id]);
 
     // Importer State
     const [showImporter, setShowImporter] = useState(false);
@@ -2315,18 +2346,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
-    const handleSaveOpeningBalances = async () => {
+    const handleSaveOpeningBalances = async (balancesToPersist?: Record<string, number>) => {
         if (!canEditOpeningBalances) {
             alert("Permission Denied: Only Reseller, Director, and Group Admin are authorized to edit opening balances.");
             return;
         }
         setIsSavingBalances(true);
         try {
+            const activeBalances = balancesToPersist || openingBalancesMap;
+            const allStudentsPool = studentListForOpeningBalances;
             // Find all students whose opening balance was modified
-            const studentsToUpdate = props.students.filter(s => {
-                const originalBalance = s.metadata?.openingBalance || 0;
-                const newBalance = openingBalancesMap[s.id] || 0;
-                return originalBalance !== newBalance;
+            const studentsToUpdate = allStudentsPool.filter(s => {
+                const originalBalance = extractStudentOpeningBalance(s);
+                const newBalance = activeBalances[s.id] !== undefined ? activeBalances[s.id] : originalBalance;
+                return Math.abs(originalBalance - newBalance) > 0.001 || modifiedOpeningBalancesRef.current.has(s.id);
             });
 
             if (studentsToUpdate.length > 0) {
@@ -2335,24 +2368,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 for (let i = 0; i < studentsToUpdate.length; i += chunkSize) {
                     const chunk = studentsToUpdate.slice(i, i + chunkSize);
                     await Promise.all(chunk.map(student => {
+                        const newBal = activeBalances[student.id] !== undefined ? activeBalances[student.id] : (extractStudentOpeningBalance(student) || 0);
                         const updatedMetadata = {
                             ...(student.metadata || {}),
-                            openingBalance: openingBalancesMap[student.id] || 0
+                            openingBalance: newBal,
+                            opening_balance: newBal
                         };
+                        // Synchronously update local in-memory student object so subsequent renders see the saved balance immediately
+                        if (student.metadata) {
+                            student.metadata.openingBalance = newBal;
+                            student.metadata.opening_balance = newBal;
+                        }
                         return apiService.updateModuleRecord('users', student.id, {
                             metadata: updatedMetadata
                         });
                     }));
                 }
                 
+                modifiedOpeningBalancesRef.current.clear();
+                setUnsavedOpeningBalancesCount(0);
+
                 if (props.onRefreshData) {
                     await props.onRefreshData();
                 }
             }
 
-            alert("Opening balances saved successfully! The ledger profiles have been updated.");
+            alert(`Opening balances saved successfully! Updated ${studentsToUpdate.length} student ledger profile(s).`);
             if (props.onLogAction) {
-                await props.onLogAction("Updated student opening balances in ledger settings");
+                await props.onLogAction(`Updated ${studentsToUpdate.length} student opening balances in ledger settings`);
             }
         } catch (e: any) {
             alert("Failed to save opening balances: " + (e.message || e));
@@ -3083,7 +3126,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         reader.readAsArrayBuffer(selectedFile);
     };
 
-    const handleConfirmImportBalances = () => {
+    const handleConfirmImportBalances = async (autoSaveNow: boolean = false) => {
         if (!importerMappings.identifier || !importerMappings.balance) {
             alert("Please map both the Student Identifier and Balance columns.");
             return;
@@ -3184,6 +3227,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             if (matchedStudent) {
                 newBalancesMap[matchedStudent.id] = rawBal;
+                modifiedOpeningBalancesRef.current.add(matchedStudent.id);
                 matchCount++;
             } else {
                 skipCount++;
@@ -3191,11 +3235,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
 
         setOpeningBalancesMap(newBalancesMap);
-        alert(`Import complete! Matched and updated ${matchCount} students. Skipped ${skipCount} unmatched rows. Don't forget to click 'Save Changes' to persist updates!`);
+        setUnsavedOpeningBalancesCount(modifiedOpeningBalancesRef.current.size);
         
         setImporterFile(null);
         setImporterStep('upload');
         setShowImporter(false);
+
+        if (autoSaveNow) {
+            await handleSaveOpeningBalances(newBalancesMap);
+        } else {
+            alert(`Import complete! Matched and loaded ${matchCount} student opening balance(s). Skipped ${skipCount} unmatched rows. Your imported balances are now reflected on the dashboard and in the table. Click 'Save Changes' to permanently persist them to the database.`);
+        }
     };
 
     const handleSaveBranding = async () => {
@@ -16121,7 +16171,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 {/* Action Buttons & Save Header */}
                                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pt-2 border-t border-slate-100 dark:border-slate-800/60">
                                     <div>
-                                        <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Opening Balances</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Opening Balances</h3>
+                                            {unsavedOpeningBalancesCount > 0 && (
+                                                <span className="px-2.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50 rounded-lg text-[10px] font-black uppercase tracking-wider animate-pulse flex items-center gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                                    {unsavedOpeningBalancesCount} Unsaved
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-slate-500 font-medium">Type values directly or upload an Excel sheet. Edits are buffered instantly without freezing the browser.</p>
                                     </div>
                                     <div className="flex gap-2 flex-wrap items-center">
@@ -16155,7 +16213,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </>
                                         )}
                                         <button 
-                                            onClick={handleSaveOpeningBalances}
+                                            onClick={() => handleSaveOpeningBalances()}
                                             disabled={isSavingBalances || !canEditOpeningBalances}
                                             className="px-6 py-2.5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer flex items-center gap-2"
                                         >
@@ -18798,21 +18856,36 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             </div>
                                         </div>
 
-                                        <div className="pt-4 border-t border-slate-100 dark:border-slate-850 flex gap-4">
+                                        <div className="pt-4 border-t border-slate-100 dark:border-slate-850 flex flex-col sm:flex-row gap-3">
                                             <button 
                                                 type="button"
                                                 onClick={() => { setImporterFile(null); setImporterStep('upload'); }}
-                                                className="flex-1 py-3 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider text-center"
+                                                className="py-3 px-4 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 rounded-xl font-bold text-xs uppercase tracking-wider text-center"
                                             >
                                                 Back
                                             </button>
                                             <button 
                                                 type="button"
-                                                onClick={handleConfirmImportBalances}
-                                                disabled={!importerMappings.identifier || !importerMappings.balance}
-                                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md disabled:opacity-50"
+                                                onClick={() => handleConfirmImportBalances(false)}
+                                                disabled={!importerMappings.identifier || !importerMappings.balance || isSavingBalances}
+                                                className="flex-1 py-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm border border-indigo-200 dark:border-indigo-800 disabled:opacity-50 text-center"
                                             >
-                                                Apply Import
+                                                Apply to Table
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleConfirmImportBalances(true)}
+                                                disabled={!importerMappings.identifier || !importerMappings.balance || isSavingBalances}
+                                                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md disabled:opacity-50 flex items-center justify-center gap-1.5"
+                                            >
+                                                {isSavingBalances ? (
+                                                    <span>Saving...</span>
+                                                ) : (
+                                                    <>
+                                                        <CheckIcon className="w-4 h-4" />
+                                                        <span>Apply &amp; Save Now</span>
+                                                    </>
+                                                )}
                                             </button>
                                         </div>
                                     </div>
