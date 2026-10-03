@@ -271,7 +271,10 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                 timestamp: rec.paymentDate || new Date().toISOString(),
                 status: 'completed',
                 type: 'Paybill',
-                description: rec.paidFor || 'Official Payment Receipt'
+                description: rec.paidFor || 'Official Payment Receipt',
+                payerName: '',
+                provider: 'M-Pesa',
+                paymentMethod: 'M-Pesa'
             };
 
             await downloadReceiptPdf(

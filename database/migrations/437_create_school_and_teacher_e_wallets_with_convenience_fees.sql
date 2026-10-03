@@ -161,6 +161,7 @@ RETURNS TABLE (
 ) 
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_config RECORD;
@@ -211,6 +212,7 @@ CREATE OR REPLACE FUNCTION public.topup_institution_wallet(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_wallet RECORD;
@@ -304,6 +306,7 @@ CREATE OR REPLACE FUNCTION public.disburse_payout_to_teacher_wallet(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_inst_wallet RECORD;
@@ -469,6 +472,7 @@ CREATE OR REPLACE FUNCTION public.withdraw_teacher_wallet_mpesa(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_teacher_wallet RECORD;

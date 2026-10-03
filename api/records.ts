@@ -1152,6 +1152,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('payment_date', { ascending: false }).order('id', { ascending: false });
                 } else if (['invoices'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
+                } else if (['commission_withdrawal_requests'].includes(moduleName)) {
+                    q = q.order('requested_at', { ascending: false }).order('id', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
@@ -1500,6 +1502,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'payment_date.desc';
             } else if (['invoices'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
+            } else if (['commission_withdrawal_requests'].includes(moduleName)) {
+                defaultOrderBy = 'requested_at.desc';
             } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
@@ -1530,7 +1534,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions',
                     'finance_numbering_configs', 'bursary_disbursements',
                     // Absence & request modules
-                    'student_absence_requests', 'absence_requests', 'time_off_requests',
+                    'student_absence_requests', 'absence_requests', 'time_off_requests', 'commission_withdrawal_requests',
                     // Logging, visitor & security modules
                     'integration_logs', 'sms_gateway_logs', 'sms_logs',
                     'visitors', 'building_visitor_logs', 'security_alerts',
@@ -3957,6 +3961,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return c;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normVoteHead) : normVoteHead(currentPayload);
+            }
+
+            // Normalize courses: map camelCase → snake_case DB columns, ensure levels and streams are synchronized
+            if (moduleName === 'courses' || targetDbTable === 'courses') {
+                const normCourse = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.departmentId && !c.department_id) { c.department_id = c.departmentId; delete c.departmentId; }
+                    if (c.academicLevelId && !c.academic_level_id) { c.academic_level_id = c.academicLevelId; delete c.academicLevelId; }
+                    if (c.shortName && !c.short_name) { c.short_name = c.shortName; delete c.shortName; }
+                    if (c.curriculumType && !c.curriculum_type) { c.curriculum_type = c.curriculumType; delete c.curriculumType; }
+                    if (c.scheduleProfileId && !c.schedule_profile_id) { c.schedule_profile_id = c.scheduleProfileId; delete c.scheduleProfileId; }
+
+                    // Ensure levels is a valid array of course levels
+                    let lvlList = Array.isArray(c.levels) ? c.levels : [];
+                    if (typeof c.levels === 'string') {
+                        try { lvlList = JSON.parse(c.levels); } catch(_) { lvlList = []; }
+                    }
+                    let streamList = Array.isArray(c.streams) ? c.streams : [];
+                    if (typeof c.streams === 'string') {
+                        try { streamList = JSON.parse(c.streams); } catch(_) { streamList = []; }
+                    }
+
+                    const combinedStreamNames = Array.from(new Set([
+                        ...lvlList.map((l: any) => l?.name).filter(Boolean),
+                        ...streamList.filter(Boolean)
+                    ]));
+
+                    const existingLevelNames = new Set(lvlList.map((l: any) => String(l?.name || '').toLowerCase().trim()));
+                    const finalLevels = [...lvlList];
+                    combinedStreamNames.forEach((sName: string) => {
+                        if (!existingLevelNames.has(sName.toLowerCase().trim())) {
+                            finalLevels.push({
+                                id: `lvl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                                name: sName,
+                                subjectIds: [],
+                                subjectMetadata: []
+                            });
+                            existingLevelNames.add(sName.toLowerCase().trim());
+                        }
+                    });
+
+                    c.levels = finalLevels;
+                    c.streams = combinedStreamNames;
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normCourse) : normCourse(currentPayload);
             }
 
             // Normalize fee_structures: map camelCase → snake_case DB columns and strip un-cached timestamp columns

@@ -276,9 +276,12 @@ export const SynergyHub: React.FC<SynergyHubProps> = ({
         if (!input || !input.trim() || isCommenting[postId]) return;
 
         setIsCommenting(prev => ({ ...prev, [postId]: true }));
-        const commentData: Partial<SynergyComment> = {
+        const postObj = posts.find(p => p.id === postId);
+        const instId = postObj?.institutionId || (postObj as any)?.institution_id || currentUser.institutionId;
+        const commentData: any = {
             id: `comm_${Date.now()}`,
             postId,
+            institutionId: instId,
             authorId: currentUser.id,
             authorName: currentUser.name,
             authorRole: role === 'teacher' ? 'Class Teacher' : 'Parent',

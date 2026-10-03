@@ -340,6 +340,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return [];
     });
 
+    const [localCourses, setLocalCourses] = useState<Course[]>(props.courses || []);
+    const effectiveCourses = useMemo(() => {
+        return (localCourses && localCourses.length > 0) ? localCourses : (props.courses || []);
+    }, [localCourses, props.courses]);
+
     const printElementViaIframe = useCallback((elementId: string) => {
         const el = document.getElementById(elementId);
         if (!el) {
@@ -457,12 +462,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const fetchEnrollments = async () => {
             if (!props.institution?.id) return;
             try {
-                const [enrRes, stuRes] = await Promise.allSettled([
+                const [enrRes, stuRes, courseRes] = await Promise.allSettled([
                     apiService.fetchModuleRecords('student_enrollments', props.institution.id),
-                    apiService.fetchModuleRecords('students', props.institution.id)
+                    apiService.fetchModuleRecords('students', props.institution.id),
+                    apiService.fetchModuleRecords<Course>('courses', props.institution.id)
                 ]);
                 const loadedEnrs = enrRes.status === 'fulfilled' && Array.isArray(enrRes.value) ? enrRes.value : [];
                 const loadedStus = stuRes.status === 'fulfilled' && Array.isArray(stuRes.value) ? stuRes.value : [];
+                const loadedCourses = courseRes.status === 'fulfilled' && Array.isArray(courseRes.value) ? courseRes.value : [];
+                if (isMounted && loadedCourses.length > 0) {
+                    setLocalCourses(loadedCourses);
+                }
                 const combined = [...loadedEnrs, ...loadedStus];
                 if (isMounted && combined.length > 0) {
                     setEnrollments(prev => {
@@ -765,7 +775,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const getStudentClassName = useCallback((s: any): string => {
         if (!s) return 'Unclassified';
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
-        const res = resolveRealStudentClass(s, allEnrs, props.courses, '');
+        const res = resolveRealStudentClass(s, allEnrs, effectiveCourses, '');
         if (res && res !== 'Unclassified' && res !== '—') return res;
 
         // Check invoices for this student
@@ -793,13 +803,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         if (sName) {
             const enrByName = allEnrs.find((e: any) => e && String(e.student_name || e.studentName || e.name || '').trim().toLowerCase() === sName);
             if (enrByName) {
-                const enrCls = resolveRealStudentClass(enrByName, allEnrs, props.courses, '');
+                const enrCls = resolveRealStudentClass(enrByName, allEnrs, effectiveCourses, '');
                 if (enrCls && enrCls !== 'Unclassified') return enrCls;
             }
         }
 
         return 'Unclassified';
-    }, [enrollments, allBranchEnrollments, props.courses, props.invoices, allBranchInvoices, cleanId]);
+    }, [enrollments, allBranchEnrollments, effectiveCourses, props.invoices, allBranchInvoices, cleanId]);
 
     const studentClassGroup = useCallback((s: any): string => {
         return getStudentClassName(s);
@@ -808,9 +818,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const getStudentStream = useCallback((s: any): string => {
         if (!s) return '—';
         const allEnrs = [...(enrollments || []), ...(allBranchEnrollments || [])];
-        const stream = resolveRealStudentStream(s, allEnrs);
-        return stream || '—';
-    }, [enrollments, allBranchEnrollments]);
+        const stream = resolveRealStudentStream(s, allEnrs, effectiveCourses);
+        return (stream && stream !== '—') ? stream : '—';
+    }, [enrollments, allBranchEnrollments, effectiveCourses]);
 
     const isStudentBoarder = useCallback((s: any): boolean => {
         if (!s) return false;
@@ -840,7 +850,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const norm = normalizeClassName(c);
             if (norm && norm !== 'Unclassified') set.add(norm);
         });
-        (props.courses || []).forEach((co: any) => {
+        (effectiveCourses || []).forEach((co: any) => {
             const c = co.name || co.title || co.code;
             const norm = normalizeClassName(c);
             if (norm && norm !== 'Unclassified') set.add(norm);
@@ -857,7 +867,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             list.push('Unclassified');
         }
         return list;
-    }, [props.students, enrollments, props.feeStructures, props.courses, props.invoices, getStudentClassName]);
+    }, [props.students, enrollments, props.feeStructures, effectiveCourses, props.invoices, getStudentClassName]);
 
     const getAllDistinctStreams = useCallback((filterClass?: string): string[] => {
         const set = new Set<string>();
@@ -1828,7 +1838,6 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [settingsSubTab, setSettingsSubTab] = useState<'opening_balance' | 'grades_streams' | 'academic_calendar' | 'financial_year' | 'accounts_grants' | 'fee_structure_builder' | 'user_permissions' | 'branding' | 'numbering'>('opening_balance');
 
     // Grades & Streams local states
-    const [localCourses, setLocalCourses] = useState<Course[]>([]);
     const [selectedGradeForStreams, setSelectedGradeForStreams] = useState<Course | null>(null);
     const [newGradeName, setNewGradeName] = useState('');
     const [newGradeCode, setNewGradeCode] = useState('');
@@ -1839,6 +1848,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [newStreamName, setNewStreamName] = useState('');
     const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
     const [editStreamName, setEditStreamName] = useState('');
+
+    useEffect(() => {
+        if (props.courses && props.courses.length > 0) {
+            setLocalCourses(props.courses);
+            if (selectedGradeForStreams) {
+                const refreshed = props.courses.find(c => c.id === selectedGradeForStreams.id);
+                if (refreshed) setSelectedGradeForStreams(refreshed);
+            }
+        }
+    }, [props.courses]);
 
     // State for audit sub-tabs
     const [auditSubTab, setAuditSubTab] = useState<'cpa_general_ledger' | 'ai_sentinel' | 'audit_dashboard' | 'annual_report'>('cpa_general_ledger');
@@ -3842,11 +3861,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     adm = utilAdm;
                 }
             }
-            let cls = resolveRealStudentClass(s, mergedEnrollments, props.courses, '');
+            let cls = resolveRealStudentClass(s, mergedEnrollments, effectiveCourses, '');
             if (!cls || cls === 'Unclassified' || cls === '—') {
                 cls = getStudentClassName(s);
             }
-            const stream = resolveRealStudentStream(s, mergedEnrollments);
+            const stream = resolveRealStudentStream(s, mergedEnrollments, effectiveCourses);
 
             // Collect all student identifier variants for robust matching
             const studentIds = new Set<string>();
@@ -4099,7 +4118,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm]);
+    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm, effectiveCourses, getStudentClassName, getStudentStream]);
 
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
@@ -8029,8 +8048,20 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 fetchNumberingConfigs();
             } else if (settingsSubTab === 'grades_streams') {
                 apiService.fetchModuleRecords<Course>('courses', props.institution.id)
-                    .then(res => setLocalCourses(res || []))
-                    .catch(err => console.error("Failed to load courses:", err));
+                    .then(res => {
+                        const coursesList = (res && res.length > 0) ? res : (props.courses || []);
+                        setLocalCourses(coursesList);
+                        if (selectedGradeForStreams) {
+                            const updatedMatch = coursesList.find(c => c.id === selectedGradeForStreams.id);
+                            if (updatedMatch) setSelectedGradeForStreams(updatedMatch);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Failed to load courses:", err);
+                        if (props.courses && props.courses.length > 0) {
+                            setLocalCourses(props.courses);
+                        }
+                    });
             }
         }
     }, [activeTab, settingsSubTab, props.institution.id]);
@@ -16371,24 +16402,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     if (!newGradeName || !newGradeCode) return alert("Please fill in both fields.");
                                                     const newCourse: Course = {
                                                         id: `course_${Date.now()}`,
-                                                        name: newGradeName,
-                                                        code: newGradeCode,
+                                                        name: newGradeName.trim(),
+                                                        code: newGradeCode.trim(),
                                                         institutionId: props.institution.id,
                                                         departmentId: '',
                                                         academicLevelId: '',
-                                                        levels: []
+                                                        levels: [],
+                                                        streams: []
                                                     };
                                                     try {
                                                         await apiService.saveModuleRecord('courses', newCourse);
+                                                        setLocalCourses(prev => [...(prev || []), newCourse]);
                                                         const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
-                                                        setLocalCourses(updated || []);
+                                                        if (updated && updated.length > 0) {
+                                                            setLocalCourses(updated);
+                                                        }
                                                         setIsCreatingGrade(false);
                                                         setNewGradeName('');
                                                         setNewGradeCode('');
+                                                        props.onRefreshData?.();
                                                         alert("Grade added successfully!");
-                                                    } catch (err) {
+                                                    } catch (err: any) {
                                                         console.error("Failed to add grade:", err);
-                                                        alert("Failed to add grade.");
+                                                        alert(`Failed to add grade: ${err?.message || 'Unknown error'}`);
                                                     }
                                                 }}
                                                 className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20"
@@ -16430,20 +16466,34 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
                                                                     />
                                                                 </div>
-                                                                <div className="flex gap-2">
+                                                                 <div className="flex gap-2">
                                                                     <button 
                                                                         onClick={async () => {
                                                                             if (!editGradeName || !editGradeCode) return alert("Fill in fields.");
+                                                                            const fullCourse: Course = {
+                                                                                ...course,
+                                                                                name: editGradeName.trim(),
+                                                                                code: editGradeCode.trim(),
+                                                                                institutionId: props.institution.id
+                                                                            };
                                                                             try {
-                                                                                await apiService.updateModuleRecord('courses', course.id, { name: editGradeName, code: editGradeCode });
-                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
-                                                                                setLocalCourses(updated || []);
+                                                                                await apiService.saveModuleRecord('courses', fullCourse);
+                                                                                setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
                                                                                 setEditingGradeId(null);
                                                                                 if (selectedGradeForStreams?.id === course.id) {
-                                                                                    setSelectedGradeForStreams(updated.find(c => c.id === course.id) || null);
+                                                                                    setSelectedGradeForStreams(fullCourse);
                                                                                 }
-                                                                            } catch (err) {
-                                                                                console.error(err);
+                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                if (updated && updated.length > 0) {
+                                                                                    setLocalCourses(updated);
+                                                                                    if (selectedGradeForStreams?.id === course.id) {
+                                                                                        setSelectedGradeForStreams(updated.find(c => c.id === course.id) || null);
+                                                                                    }
+                                                                                }
+                                                                                props.onRefreshData?.();
+                                                                            } catch (err: any) {
+                                                                                console.error("Failed to update grade:", err);
+                                                                                alert(`Failed to update grade: ${err?.message || 'Unknown error'}`);
                                                                             }
                                                                         }}
                                                                         className="px-3 py-1 bg-emerald-600 text-white rounded text-[10px] font-bold"
@@ -16481,13 +16531,16 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     if (!window.confirm("Are you sure you want to delete this grade?")) return;
                                                                     try {
                                                                         await apiService.deleteModuleRecord('courses', course.id);
-                                                                        const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
-                                                                        setLocalCourses(updated || []);
+                                                                        setLocalCourses(prev => (prev || []).filter(c => c.id !== course.id));
                                                                         if (selectedGradeForStreams?.id === course.id) {
                                                                             setSelectedGradeForStreams(null);
                                                                         }
-                                                                    } catch (err) {
-                                                                        console.error(err);
+                                                                        const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                        setLocalCourses(updated || []);
+                                                                        props.onRefreshData?.();
+                                                                    } catch (err: any) {
+                                                                        console.error("Failed to delete grade:", err);
+                                                                        alert(`Failed to delete grade: ${err?.message || 'Unknown error'}`);
                                                                     }
                                                                 }}
                                                                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"
@@ -16539,23 +16592,47 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 />
                                                 <button 
                                                     onClick={async () => {
-                                                        if (!newStreamName) return alert("Enter stream name.");
+                                                        const trimmedStream = newStreamName.trim();
+                                                        if (!trimmedStream) return alert("Enter stream name.");
+                                                        
+                                                        // Prevent duplicate streams for this course
+                                                        const existingLevels = selectedGradeForStreams.levels || [];
+                                                        if (existingLevels.some(l => l.name.toLowerCase() === trimmedStream.toLowerCase())) {
+                                                            return alert(`Stream "${trimmedStream}" already exists for this grade.`);
+                                                        }
+
                                                         const newLevel = {
-                                                            id: `lvl_${Date.now()}`,
-                                                            name: newStreamName,
+                                                            id: `lvl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                                                            name: trimmedStream,
                                                             subjectIds: [],
                                                             subjectMetadata: []
                                                         };
-                                                        const updatedLevels = [...(selectedGradeForStreams.levels || []), newLevel];
+                                                        const updatedLevels = [...existingLevels, newLevel];
+                                                        const updatedStreams = Array.from(new Set([...(selectedGradeForStreams.streams || []), trimmedStream]));
+                                                        
+                                                        const fullCourse: Course = {
+                                                            ...selectedGradeForStreams,
+                                                            levels: updatedLevels,
+                                                            streams: updatedStreams,
+                                                            institutionId: props.institution.id
+                                                        };
+
                                                         try {
-                                                            await apiService.updateModuleRecord('courses', selectedGradeForStreams.id, { levels: updatedLevels });
-                                                            const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
-                                                            setLocalCourses(updated || []);
-                                                            const activeCourse = updated.find(c => c.id === selectedGradeForStreams.id);
-                                                            if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                            await apiService.saveModuleRecord('courses', fullCourse);
+                                                            setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
+                                                            setSelectedGradeForStreams(fullCourse);
                                                             setNewStreamName('');
-                                                        } catch (err) {
-                                                            console.error(err);
+
+                                                            const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                            if (updated && updated.length > 0) {
+                                                                setLocalCourses(updated);
+                                                                const activeCourse = updated.find(c => c.id === fullCourse.id);
+                                                                if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                            }
+                                                            props.onRefreshData?.();
+                                                        } catch (err: any) {
+                                                            console.error("Failed to save stream:", err);
+                                                            alert(`Failed to save stream: ${err?.message || 'Unknown error'}`);
                                                         }
                                                     }}
                                                     className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-500/20 whitespace-nowrap"
@@ -16580,19 +16657,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     />
                                                                     <button 
                                                                         onClick={async () => {
-                                                                            if (!editStreamName) return;
+                                                                            const trimmed = editStreamName.trim();
+                                                                            if (!trimmed) return;
                                                                             const updatedLevels = (selectedGradeForStreams.levels || []).map(l => 
-                                                                                l.id === lvl.id ? { ...l, name: editStreamName } : l
+                                                                                l.id === lvl.id ? { ...l, name: trimmed } : l
                                                                             );
+                                                                            const updatedStreams = updatedLevels.map(l => l.name);
+                                                                            const fullCourse: Course = {
+                                                                                ...selectedGradeForStreams,
+                                                                                levels: updatedLevels,
+                                                                                streams: updatedStreams,
+                                                                                institutionId: props.institution.id
+                                                                            };
+
                                                                             try {
-                                                                                await apiService.updateModuleRecord('courses', selectedGradeForStreams.id, { levels: updatedLevels });
-                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
-                                                                                setLocalCourses(updated || []);
-                                                                                const activeCourse = updated.find(c => c.id === selectedGradeForStreams.id);
-                                                                                if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                                                await apiService.saveModuleRecord('courses', fullCourse);
+                                                                                setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
+                                                                                setSelectedGradeForStreams(fullCourse);
                                                                                 setEditingStreamId(null);
-                                                                            } catch (err) {
-                                                                                console.error(err);
+
+                                                                                const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
+                                                                                if (updated && updated.length > 0) {
+                                                                                    setLocalCourses(updated);
+                                                                                    const activeCourse = updated.find(c => c.id === fullCourse.id);
+                                                                                    if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                                                }
+                                                                                props.onRefreshData?.();
+                                                                            } catch (err: any) {
+                                                                                console.error("Failed to update stream:", err);
+                                                                                alert(`Failed to update stream: ${err?.message || 'Unknown error'}`);
                                                                             }
                                                                         }}
                                                                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all"
@@ -16623,14 +16716,29 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             onClick={async () => {
                                                                                 if (!window.confirm("Are you sure you want to delete this stream?")) return;
                                                                                 const updatedLevels = (selectedGradeForStreams.levels || []).filter(l => l.id !== lvl.id);
+                                                                                const updatedStreams = updatedLevels.map(l => l.name);
+                                                                                const fullCourse: Course = {
+                                                                                    ...selectedGradeForStreams,
+                                                                                    levels: updatedLevels,
+                                                                                    streams: updatedStreams,
+                                                                                    institutionId: props.institution.id
+                                                                                };
+
                                                                                 try {
-                                                                                    await apiService.updateModuleRecord('courses', selectedGradeForStreams.id, { levels: updatedLevels });
+                                                                                    await apiService.saveModuleRecord('courses', fullCourse);
+                                                                                    setLocalCourses(prev => (prev || []).map(c => c.id === fullCourse.id ? fullCourse : c));
+                                                                                    setSelectedGradeForStreams(fullCourse);
+
                                                                                     const updated = await apiService.fetchModuleRecords<Course>('courses', props.institution.id);
-                                                                                    setLocalCourses(updated || []);
-                                                                                    const activeCourse = updated.find(c => c.id === selectedGradeForStreams.id);
-                                                                                    if (activeCourse) setSelectedGradeForStreams(activeCourse);
-                                                                                } catch (err) {
-                                                                                    console.error(err);
+                                                                                    if (updated && updated.length > 0) {
+                                                                                        setLocalCourses(updated);
+                                                                                        const activeCourse = updated.find(c => c.id === fullCourse.id);
+                                                                                        if (activeCourse) setSelectedGradeForStreams(activeCourse);
+                                                                                    }
+                                                                                    props.onRefreshData?.();
+                                                                                } catch (err: any) {
+                                                                                    console.error("Failed to delete stream:", err);
+                                                                                    alert(`Failed to delete stream: ${err?.message || 'Unknown error'}`);
                                                                                 }
                                                                             }}
                                                                             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-rose-600 rounded-lg transition-colors"

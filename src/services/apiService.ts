@@ -1713,6 +1713,12 @@ export const apiService = {
                 }
                 if (module === 'courses' && Array.isArray(finalResult)) {
                     finalResult.forEach((course: any) => {
+                        if (typeof course.levels === 'string') {
+                            try { course.levels = JSON.parse(course.levels); } catch (_) { course.levels = []; }
+                        }
+                        if (typeof course.streams === 'string') {
+                            try { course.streams = JSON.parse(course.streams); } catch (_) { course.streams = []; }
+                        }
                         if (Array.isArray(course.levels)) {
                             course.levels = course.levels.map((l: any) => {
                                 const rawIds = [...(l.subjectIds || []), ...((l as any).subject_ids || [])];
@@ -1733,6 +1739,9 @@ export const apiService = {
                                 };
                             });
                         }
+                        const levelStreams = Array.isArray(course.levels) ? course.levels.map((l: any) => l.name).filter(Boolean) : [];
+                        const explicitStreams = Array.isArray(course.streams) ? course.streams.filter(Boolean) : [];
+                        course.streams = Array.from(new Set([...explicitStreams, ...levelStreams]));
                     });
                 }
                 if (module === 'his_patients' && Array.isArray(finalResult)) {
@@ -1750,11 +1759,58 @@ export const apiService = {
                 }
                 if (module === 'student_enrollments' && Array.isArray(finalResult)) {
                     finalResult.forEach((enr: any) => {
-                        const meta = typeof enr.metadata === 'object' && enr.metadata !== null ? enr.metadata : {};
+                        let meta = enr.metadata;
+                        if (typeof meta === 'string') {
+                            try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                            enr.metadata = meta;
+                        }
+                        if (typeof meta !== 'object' || meta === null) meta = {};
+
+                        const clsVal = enr.className || enr.class_name || enr.gradeLevel || enr.grade_level || meta.className || meta.class_name || meta.gradeLevel || meta.grade_level;
+                        if (clsVal) {
+                            enr.className = clsVal;
+                            enr.class_name = clsVal;
+                            enr.gradeLevel = clsVal;
+                            enr.grade_level = clsVal;
+                        }
+                        const strmVal = enr.stream || enr.streamName || enr.stream_name || enr.classStream || meta.stream || meta.streamName || meta.stream_name || meta.classStream;
+                        if (strmVal) {
+                            enr.stream = strmVal;
+                            enr.streamName = strmVal;
+                            enr.stream_name = strmVal;
+                        }
+                        if (!enr.fullName && (meta.fullName || meta.name || meta.full_name)) {
+                            enr.fullName = meta.fullName || meta.name || meta.full_name;
+                        }
                         const leadPos = enr.leadershipPosition || enr.leadership_position || meta.leadershipPosition || meta.leadership_position || '';
                         if (leadPos) {
                             enr.leadershipPosition = leadPos;
                             enr.leadership_position = leadPos;
+                        }
+                    });
+                }
+                if (['users', 'students'].includes(module) && Array.isArray(finalResult)) {
+                    finalResult.forEach((u: any) => {
+                        let meta = u.metadata;
+                        if (typeof meta === 'string') {
+                            try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                            u.metadata = meta;
+                        }
+                        if (typeof meta !== 'object' || meta === null) meta = {};
+
+                        const clsVal = u.className || u.class_name || u.class || u.gradeLevel || u.grade_level || meta.className || meta.class_name || meta.class || meta.gradeLevel || meta.grade_level;
+                        if (clsVal) {
+                            u.className = clsVal;
+                            u.class_name = clsVal;
+                            u.class = clsVal;
+                            u.gradeLevel = clsVal;
+                            u.grade_level = clsVal;
+                        }
+                        const strmVal = u.stream || u.streamName || u.stream_name || u.classStream || meta.stream || meta.streamName || meta.stream_name || meta.classStream;
+                        if (strmVal) {
+                            u.stream = strmVal;
+                            u.streamName = strmVal;
+                            u.stream_name = strmVal;
                         }
                     });
                 }
@@ -2724,6 +2780,34 @@ export const apiService = {
 
             if (module === 'event_pins') {
                 delete item.metadata;
+            }
+
+            if (module === 'courses') {
+                const lvlList = Array.isArray(item.levels) ? item.levels : [];
+                const streamList = Array.isArray(item.streams) ? item.streams : [];
+                const combinedStreamNames = Array.from(new Set([
+                    ...lvlList.map((l: any) => l?.name).filter(Boolean),
+                    ...streamList.filter(Boolean)
+                ]));
+                const existingLevelNames = new Set(lvlList.map((l: any) => String(l?.name || '').toLowerCase().trim()));
+                const synthesizedLevels = [...lvlList];
+                combinedStreamNames.forEach((sName: string) => {
+                    if (!existingLevelNames.has(sName.toLowerCase().trim())) {
+                        synthesizedLevels.push({
+                            id: `lvl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                            name: sName,
+                            subjectIds: [],
+                            subjectMetadata: []
+                        });
+                        existingLevelNames.add(sName.toLowerCase().trim());
+                    }
+                });
+                item.levels = synthesizedLevels;
+                item.streams = combinedStreamNames;
+                delete item.created_at;
+                delete item.createdAt;
+                delete item.updated_at;
+                delete item.updatedAt;
             }
 
             if (module === 'institution_module_states') {

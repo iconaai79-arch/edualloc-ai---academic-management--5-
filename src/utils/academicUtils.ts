@@ -631,28 +631,45 @@ export const resolveRealStudentClass = (
     }
 
     // 2. Check enrollments
+    let matchedEnr: any = null;
     if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
-        const sId = student.id || student.userId || student.user_id;
-        const enr = enrollments.find((e: any) => e && (e.userId === sId || e.user_id === sId || e.studentId === sId || e.student_id === sId || e.id === sId));
-        if (enr) {
+        const sId = String(student.id || student.userId || student.user_id || '').toLowerCase().trim();
+        const sCleanId = sId.replace(/^(u_|usr_)/, '');
+        const sAdm = String(student.admissionNumber || student.admission_number || student.admissionNo || student.admNo || student.metadata?.admissionNumber || '').toLowerCase().trim();
+
+        matchedEnr = enrollments.find((e: any) => {
+            if (!e) return false;
+            const eId = String(e.id || '').toLowerCase().trim();
+            const eUId = String(e.userId || e.user_id || '').toLowerCase().trim();
+            const eSId = String(e.studentId || e.student_id || '').toLowerCase().trim();
+            const eAdm = String(e.admissionNumber || e.admission_number || e.admissionNo || e.admNo || e.metadata?.admissionNumber || '').toLowerCase().trim();
+
+            return (sId && (eUId === sId || eSId === sId || eId === sId || (sCleanId && (eUId.replace(/^(u_|usr_)/, '') === sCleanId || eSId.replace(/^(u_|usr_)/, '') === sCleanId)))) ||
+                   (sAdm && eAdm === sAdm);
+        });
+
+        if (matchedEnr) {
             const enrCandidates = [
-                enr.className,
-                enr.class_name,
-                enr.gradeLevel,
-                enr.grade_level,
-                enr.grade,
-                enr.form,
-                enr.studentClass,
-                enr.courseName,
-                enr.course_name,
-                enr.course,
-                enr.metadata?.className,
-                enr.metadata?.class_name,
-                enr.metadata?.gradeLevel,
-                enr.metadata?.grade_level,
-                enr.metadata?.class,
-                enr.metadata?.grade,
-                enr.metadata?.form
+                matchedEnr.className,
+                matchedEnr.class_name,
+                matchedEnr.gradeLevel,
+                matchedEnr.grade_level,
+                matchedEnr.grade,
+                matchedEnr.form,
+                matchedEnr.studentClass,
+                matchedEnr.courseName,
+                matchedEnr.course_name,
+                matchedEnr.course,
+                matchedEnr.metadata?.className,
+                matchedEnr.metadata?.class_name,
+                matchedEnr.metadata?.gradeLevel,
+                matchedEnr.metadata?.grade_level,
+                matchedEnr.metadata?.class,
+                matchedEnr.metadata?.grade,
+                matchedEnr.metadata?.form,
+                matchedEnr.metadata?.courseName,
+                matchedEnr.metadata?.course_name,
+                matchedEnr.metadata?.course
             ];
             for (const val of enrCandidates) {
                 if (val !== undefined && val !== null) {
@@ -665,13 +682,22 @@ export const resolveRealStudentClass = (
         }
     }
 
-    // 3. Match from courses if courseId is present
+    // 3. Match from courses if courseId or levelId is present
     if (courses && Array.isArray(courses) && courses.length > 0) {
-        const cId = student.courseId || student.course_id || student.metadata?.courseId;
+        const cId = student.courseId || student.course_id || student.metadata?.courseId || student.metadata?.course_id || matchedEnr?.courseId || matchedEnr?.course_id || matchedEnr?.metadata?.courseId || matchedEnr?.metadata?.course_id;
         if (cId) {
             const course = courses.find((c: any) => c && (c.id === cId || c.code === cId));
             if (course) {
                 const cName = course.name || course.title || course.code;
+                const parsed = extractClassAndStream(cName);
+                if (parsed.className) return parsed.className;
+            }
+        }
+        const lvlId = student.levelId || student.level_id || student.courseLevelId || student.course_level_id || student.metadata?.levelId || matchedEnr?.levelId || matchedEnr?.level_id || matchedEnr?.courseLevelId || matchedEnr?.course_level_id || matchedEnr?.metadata?.levelId;
+        if (lvlId) {
+            const courseByLvl = courses.find((c: any) => (c.levels || []).some((l: any) => l.id === lvlId || l.name === lvlId));
+            if (courseByLvl) {
+                const cName = courseByLvl.name || courseByLvl.title || courseByLvl.code;
                 const parsed = extractClassAndStream(cName);
                 if (parsed.className) return parsed.className;
             }
@@ -686,7 +712,8 @@ export const resolveRealStudentClass = (
  */
 export const resolveRealStudentStream = (
     student: any,
-    enrollments?: any[]
+    enrollments?: any[],
+    courses?: any[]
 ): string => {
     if (!student) return '';
 
@@ -699,6 +726,7 @@ export const resolveRealStudentStream = (
         student.class_stream,
         student.level,
         student.levelName,
+        student.level_name,
         student.courseLevel,
         student.metadata?.stream,
         student.metadata?.streamName,
@@ -728,52 +756,69 @@ export const resolveRealStudentStream = (
     }
 
     // Check enrollments
+    let matchedEnr: any = null;
     if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) {
         const sId = String(student.id || student.userId || student.user_id || '').toLowerCase().trim();
-        const sAdm = String(student.admissionNumber || student.admissionNo || student.admNo || student.metadata?.admissionNumber || '').toLowerCase().trim();
+        const sCleanId = sId.replace(/^(u_|usr_)/, '');
+        const sAdm = String(student.admissionNumber || student.admission_number || student.admissionNo || student.admNo || student.metadata?.admissionNumber || '').toLowerCase().trim();
 
-        const enr = enrollments.find((e: any) => {
+        matchedEnr = enrollments.find((e: any) => {
             if (!e) return false;
             const eId = String(e.id || '').toLowerCase().trim();
             const eUId = String(e.userId || e.user_id || '').toLowerCase().trim();
             const eSId = String(e.studentId || e.student_id || '').toLowerCase().trim();
-            const eAdm = String(e.admissionNumber || e.admissionNo || e.admNo || e.metadata?.admissionNumber || '').toLowerCase().trim();
+            const eAdm = String(e.admissionNumber || e.admission_number || e.admissionNo || e.admNo || e.metadata?.admissionNumber || '').toLowerCase().trim();
 
-            return (sId && (eUId === sId || eSId === sId || eId === sId)) ||
+            return (sId && (eUId === sId || eSId === sId || eId === sId || (sCleanId && (eUId.replace(/^(u_|usr_)/, '') === sCleanId || eSId.replace(/^(u_|usr_)/, '') === sCleanId)))) ||
                    (sAdm && eAdm === sAdm);
         });
 
-        if (enr) {
+        if (matchedEnr) {
             const enrStreamCandidates = [
-                enr.stream,
-                enr.streamName,
-                enr.stream_name,
-                enr.classStream,
-                enr.class_stream,
-                enr.level,
-                enr.levelName,
-                enr.metadata?.stream,
-                enr.metadata?.streamName,
-                enr.metadata?.stream_name,
-                enr.metadata?.classStream
+                matchedEnr.stream,
+                matchedEnr.streamName,
+                matchedEnr.stream_name,
+                matchedEnr.classStream,
+                matchedEnr.class_stream,
+                matchedEnr.level,
+                matchedEnr.levelName,
+                matchedEnr.level_name,
+                matchedEnr.metadata?.stream,
+                matchedEnr.metadata?.streamName,
+                matchedEnr.metadata?.stream_name,
+                matchedEnr.metadata?.classStream
             ];
             for (const val of enrStreamCandidates) {
                 const st = normalizeStreamName(val);
                 if (st) return st;
             }
             const enrClassCandidates = [
-                enr.className,
-                enr.class_name,
-                enr.gradeLevel,
-                enr.grade_level,
-                enr.studentClass,
-                enr.metadata?.className,
-                enr.metadata?.gradeLevel,
-                enr.metadata?.studentClass
+                matchedEnr.className,
+                matchedEnr.class_name,
+                matchedEnr.gradeLevel,
+                matchedEnr.grade_level,
+                matchedEnr.studentClass,
+                matchedEnr.metadata?.className,
+                matchedEnr.metadata?.gradeLevel,
+                matchedEnr.metadata?.studentClass
             ];
             for (const val of enrClassCandidates) {
                 const parsed = extractClassAndStream(val);
                 if (parsed.stream) return parsed.stream;
+            }
+        }
+    }
+
+    // Check course levels matching levelId or streamId
+    if (courses && Array.isArray(courses) && courses.length > 0) {
+        const lvlId = student.levelId || student.level_id || student.courseLevelId || student.course_level_id || student.metadata?.levelId || student.metadata?.level_id || matchedEnr?.levelId || matchedEnr?.level_id || matchedEnr?.courseLevelId || matchedEnr?.course_level_id || matchedEnr?.metadata?.levelId;
+        if (lvlId) {
+            for (const c of courses) {
+                const foundLvl = (c.levels || []).find((l: any) => l.id === lvlId || l.name === lvlId);
+                if (foundLvl && foundLvl.name) {
+                    const st = normalizeStreamName(foundLvl.name);
+                    if (st) return st;
+                }
             }
         }
     }
