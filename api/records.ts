@@ -782,14 +782,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const watchdogTimer = setTimeout(() => {
         if (!isTerminated && !res.headersSent) {
             isTerminated = true;
-            console.error(`[api/records WATCHDOG] Operation reached safety limit (${WATCHDOG_TIMEOUT_MS}ms) on ${req.method} /api/records?module=${moduleName}. Returning graceful 503.`);
+            console.error(`[api/records WATCHDOG] Operation reached safety limit (${WATCHDOG_TIMEOUT_MS}ms) on ${req.method} /api/records?module=${moduleName}. Returning graceful ${isGetReq ? '200' : '503'}.`);
             try {
-                res.status(503).json({
-                    success: false,
-                    error: 'Database operation timed out. Please retry or check network latency.',
-                    module: moduleName,
-                    timeout: true
-                });
+                if (isGetReq) {
+                    res.status(200).json([]);
+                } else {
+                    res.status(503).json({
+                        success: false,
+                        error: 'Database operation timed out. Please retry or check network latency.',
+                        module: moduleName,
+                        timeout: true
+                    });
+                }
             } catch (_) {}
         }
     }, WATCHDOG_TIMEOUT_MS);
@@ -1150,7 +1154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
                 } else if (['app_notifications', 'financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
+                } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
                 }
                 return q;
@@ -1205,7 +1209,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             q = q.or(`institution_id.eq.${user.institutionId},reseller_id.eq.${user.institutionId}`);
                         }
                     } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
-                        q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', effectiveTenantInstId);
+                        const rawId = effectiveTenantInstId.replace(/^inst_/, '');
+                        const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
+                        const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                        if (instVariants.length === 1) {
+                            q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants[0]);
+                        } else {
+                            q = q.in(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants);
+                        }
                     }
                     if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
                         const rawUserId = user.id.replace(/^u_/, '');
@@ -1260,7 +1271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId;
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'fee_structures', 'vote_heads', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
+                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
                     ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
                     : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
                         ? 2000 
@@ -1274,7 +1285,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ? (targetInstParam || getStrParam(id) ? 1 : 10000) 
                                         : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                                             ? 3000
-                                            : (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods'].includes(moduleName)
+                                            : (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods', 'vote_heads', 'fee_structures'].includes(moduleName)
                                                 ? 500
                                                 : 10000)))))))
             );
@@ -1304,14 +1315,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 10s for heavy/bulk modules; 6s for standard
+            // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts'].includes(moduleName) ? 10000 : 6000);
+                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
+                const elapsed = Date.now() - requestStartTime;
+                const maxBudget = isGetReq ? 12000 : 20000;
+                const remainingBudget = Math.max(800, maxBudget - elapsed);
+                const effectiveTimeoutMs = Math.min(timeoutMs, remainingBudget);
+
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new Error('statement timeout')), timeoutMs);
+                    timer = setTimeout(() => reject(new Error('statement timeout')), effectiveTimeoutMs);
                 });
                 try {
                     return await Promise.race([Promise.resolve(queryBuilder), timeoutPromise]);
@@ -1328,7 +1344,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.eq('role', 'teacher');
                 }
                 if (!shouldSkipTenancy && effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
-                    q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', effectiveTenantInstId);
+                    const rawId = effectiveTenantInstId.replace(/^inst_/, '');
+                    const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
+                    const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                    if (instVariants.length === 1) {
+                        q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants[0]);
+                    } else {
+                        q = q.in(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants);
+                    }
                 }
                 const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
                 const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
@@ -1395,7 +1418,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         sqlConditions.push({ sql: `(institution_id::text = $VAL OR reseller_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
                     }
                 } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
-                    sqlConditions.push({ sql: `"${moduleName === 'institutions' ? 'id' : 'institution_id'}"::text = $VAL`, val: effectiveTenantInstId });
+                    const rawId = effectiveTenantInstId.replace(/^inst_/, '');
+                    const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
+                    const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                    const colName = moduleName === 'institutions' ? 'id' : 'institution_id';
+                    if (instVariants.length === 1) {
+                        sqlConditions.push({ sql: `"${colName}"::text = $VAL`, val: instVariants[0] });
+                    } else {
+                        sqlConditions.push({ sql: `"${colName}"::text IN ($VAL, $VAL)`, vals: [instVariants[0], instVariants[1]] });
+                    }
                 }
                 if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
                     const rawUserId = user.id.replace(/^u_/, '');
@@ -1529,11 +1560,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!directPgSuccess) {
                     if (finalLimit <= CHUNK_SIZE) {
-                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1))
+                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1), 5000)
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
-                        if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
+                        if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014') && Date.now() - requestStartTime < 9000) {
                             console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
-                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), offset, offset + Math.min(finalLimit, 500) - 1), 4000)
+                            res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), offset, offset + Math.min(finalLimit, 500) - 1), 3000)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         }
                         data = res?.data || [];
@@ -1544,8 +1575,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const seenChunkIds = new Set<string>();
 
                         while (remaining > 0) {
-                            if (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) {
-                                console.warn(`[API GET] Chunk fetch approaching safe execution limit (${MAX_SAFE_EXECUTION_MS}ms) for '${moduleName}'. Returning ${data.length} records accumulated.`);
+                            if (Date.now() - requestStartTime > 10000) {
+                                console.warn(`[API GET] Chunk fetch approaching safe execution limit (${Date.now() - requestStartTime}ms) for '${moduleName}'. Returning ${data.length} records accumulated.`);
                                 break;
                             }
                             const batchSize = Math.min(CHUNK_SIZE, remaining);
@@ -1555,16 +1586,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             
                             // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
                             if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
+                                if (Date.now() - requestStartTime > 9000) {
+                                    console.warn(`[API GET] Approaching safe limit, skipping retries for '${moduleName}'.`);
+                                    break;
+                                }
                                 console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                                 const fastBatch = Math.max(100, Math.floor(batchSize / 2));
                                 effectiveBatchSize = fastBatch;
-                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), currentOffset, currentOffset + fastBatch - 1), 6000)
+                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), currentOffset, currentOffset + fastBatch - 1), 3000)
                                     .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
 
                                 // If half-batch still timed out at offset 0, try a lightweight single-batch limit query
-                                if (res?.error && currentOffset === 0) {
+                                if (res?.error && currentOffset === 0 && Date.now() - requestStartTime < 9000) {
                                     console.warn(`[API GET] Retrying '${moduleName}' with single unpaginated limit query...`);
-                                    res = await executeWithTimeout(buildFastBaseQuery(true).limit(Math.min(finalLimit, 500)), 6000)
+                                    res = await executeWithTimeout(buildFastBaseQuery(true).limit(Math.min(finalLimit, 500)), 3000)
                                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                                 }
                             }

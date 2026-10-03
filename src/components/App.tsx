@@ -3,7 +3,7 @@ import { Header } from './Header';
 import { ModuleAccessGuard } from './ModuleAccessGuard';
 import { sendEmailNotification, getInstitutionEmailConfig } from '../services/emailService';
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
-import { apiService, initSupabaseClient, setSessionUser } from '../services/apiService';
+import { apiService, initSupabaseClient, setSessionUser, toCamelCase } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
 import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify, formatPhoneNumber } from '../utils/stringUtils';
@@ -19,7 +19,7 @@ import type {
     Priority, RequestStatus, CompanyDetails, Room, Subject, Course,
     Department, AcademicYear, Semester, UserTask, ActivityLog,
     MpesaTransaction, Receipt, Invoice, VoteHead, FeeStructure, FinancialPeriod,
-    ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus,
+    ProfileUpdateData, PasswordUpdateData, Appointment, GuestFeedback, Visitor, SecurityAlert, FeedbackSubmission, AcademicLevel, LetterheadConfig, Building, StudentAttendance, Assessment, AssessmentMark, TimeOffRequest, StudentAbsenceRequest, EnrollmentRequest, AbsenceRequest, LecturerContract, ExamTimetableEntry, TaAssignment, Assignment, Submission, LessonRating, Book, LibraryTransaction, Supplier, Internship, StudentAbsenceRequestStatus, StudentEnrollment,
     ExtensionRequest, Requisition, TransactionStatus, InventoryItem, StockTransaction,
     AllocationRequestPreferences, InvoiceItem, InstitutionRegistrationData, CountyRegistrationData, Conflict, County, Constituency, CountyInventoryItem, CountyInventoryCategory, CountyStore, BursaryApplication, CountyBursaryFund, LeaveOutRequest, ObservationNote,
     BulletinItem, DocumentCollection, WatchlistRecord, MaintenanceRequest, TeacherCheckIn,
@@ -373,6 +373,7 @@ export const App: React.FC = () => {
     const [feedbackSubmissions, setFeedbackSubmissions] = useState<FeedbackSubmission[]>([]);
     const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>([]);
     const [studentAbsenceRequests, setStudentAbsenceRequests] = useState<StudentAbsenceRequest[]>([]);
+    const [studentEnrollments, setStudentEnrollments] = useState<StudentEnrollment[]>([]);
     const [enrollmentRequests, setEnrollmentRequests] = useState<EnrollmentRequest[]>([]);
     const [absenceRequests, setAbsenceRequests] = useState<AbsenceRequest[]>([]);
     const [contracts, setContracts] = useState<LecturerContract[]>([]);
@@ -1447,8 +1448,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             }));
             const isTenantPhase1 = currentUser && currentUser.role !== 'super_admin' && !currentUser.role?.startsWith('county_');
             const tenantInstPhase1 = currentUser?.institutionId;
+            const cleanTenant1 = (tenantInstPhase1 || '').replace(/^inst_/, '');
             const scopedPhase1Users = (isTenantPhase1 && tenantInstPhase1)
-                ? normalizedUsers.filter((usr: any) => usr && (usr.institutionId === tenantInstPhase1 || usr.institution_id === tenantInstPhase1))
+                ? normalizedUsers.filter((usr: any) => {
+                    if (!usr) return false;
+                    const uInst = (usr.institutionId || usr.institution_id || '').replace(/^inst_/, '');
+                    return !cleanTenant1 || uInst === cleanTenant1;
+                })
                 : normalizedUsers;
             setUsers(scopedPhase1Users);
             setInstitutions(prev => {
@@ -1481,7 +1487,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // Sector Detection
             const instTypeLower = instType.toLowerCase();
-            const isAcademic = isSuper || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'].includes(instTypeLower);
+            const isAcademic = isSuper || isEduInstitution(activeInst) || isSchoolInstitution(activeInst) || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'].includes(instTypeLower);
             const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
             const isCoopRole = currentUser?.role ? ['cooperative_manager', 'coop_admin', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'agrovet_admin'].includes(currentUser.role) : false;
@@ -1499,9 +1505,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             const isCounty = isSuper || (currentUser?.role || '').startsWith('county_');
 
             // ── Module Onboarding: show wizard for edu admins with no active modules ──
-            const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
+            const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'];
             const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!localStorage.getItem('eduai_super_admin_session');
-            const isEduAdmin = EDU_TYPES.includes(instTypeLower) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
+            const isEduAdmin = (EDU_TYPES.includes(instTypeLower) || isEduInstitution(activeInst) || isSchoolInstitution(activeInst)) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
             if (isEduAdmin && activeInst && activeInst.status !== 'active') {
                 const activeModules = (imsPhase1 || []).filter((m: any) => (m.institutionId === activeInst.id || m.institution_id === activeInst.id) && (m.status === 'active' || m.status === 'trial'));
                 const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
@@ -1771,7 +1777,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 let lTrust: any[] = [], lTemplates: any[] = [], lAgreements: any[] = [];
                 let dsInst: any[] = [], dsVeh: any[] = [], dsStud: any[] = [], dsLess: any[] = [], dsMast: any[] = [], dsSet: any[] = [], dsInvs: any[] = [], dsPay: any[] = [];
                 let cInvs: any[] = [], cPay: any[] = [];
-                let ims: any[] = [], disc: any[] = [], fExps: any[] = [], fGoals: any[] = [], fPayroll: any[] = [], demoLeads: any[] = [];
+                let ims: any[] = [], disc: any[] = [], sEnr: any[] = [], fExps: any[] = [], fGoals: any[] = [], fPayroll: any[] = [], demoLeads: any[] = [];
                 let csList: any[] = [], csTest: any[] = [], csAppr: any[] = [], csBank: any[] = [];
                 const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser.countyId : undefined;
 
@@ -1808,6 +1814,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveInstIdFinal, undefined, { limit: 10000 }).catch(() => []),
                     ]) : Promise.resolve([]),
                     // County Batch
                     isCounty ? Promise.all([
@@ -1819,17 +1826,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         apiService.fetchModuleRecords<StudentAttendance>('student_attendances').catch(() => []),
                         apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins').catch(() => []),
                     ]) : Promise.resolve([]),
-                    // Business Batch
-                    isBusiness || isAcademic ? Promise.all([
+                    // Business Batch & Inventory
+                    (isBusiness || isAcademic || isDrivingSchool || isBeautyCollege || !!effectiveInstIdFinal) ? Promise.all([
                         apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstIdFinal).catch(() => []),
-                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []),
                         isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        (isBusiness || isAcademic) ? apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
+                        apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal).catch(() => []),
                     ]) : Promise.resolve([]),
                     // Coop Batch
                     isCoop ? Promise.all([
@@ -1898,7 +1905,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 // Destructure Results
                 let fRecs: any[] = [];
                 if (finResults) [inv, ext, vh, fs, fp, fb, fRecs] = finResults;
-                if (isAcademic && acadResults) [sar, enr, abs, con, att, timetableRecords, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, lo, obs, fCheckIn, disc] = acadResults;
+                if (isAcademic && acadResults) [sar, enr, abs, con, att, timetableRecords, et, asg, subm, rat, ta, asmt, asmtMarks, bks, ltx, lo, obs, fCheckIn, disc, sEnr] = acadResults;
                 if (isCounty && countyResults) {
                     const [cinvData, ccatsData, cstoresData, bAppsData, bFundsData, cAttData, cCheckInData] = countyResults;
                     cinv = cinvData;
@@ -1948,6 +1955,49 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 setStudentAbsenceRequests(sar || []);
                 setEnrollmentRequests(enr || []);
                 setAbsenceRequests(abs || []);
+
+                // Resilient Student Enrollments resolution & persistence
+                let resolvedStudentEnrollments: StudentEnrollment[] = (sEnr || []).map((e: any) => toCamelCase(e));
+                const instKeyEnr = effectiveInstIdFinal || (activeInst?.id || currentUser?.institutionId || '');
+                const cleanInstKey = instKeyEnr.replace(/^inst_/, '');
+
+                if (resolvedStudentEnrollments.length === 0 && cleanInstKey) {
+                    try {
+                        const localEnr = await localDb.getAll('student_enrollments');
+                        if (localEnr && localEnr.length > 0) {
+                            const matchedLocal = localEnr.filter((e: any) => {
+                                const eInst = (e.institution_id || e.institutionId || '').replace(/^inst_/, '');
+                                return !cleanInstKey || eInst === cleanInstKey;
+                            });
+                            if (matchedLocal.length > 0) {
+                                resolvedStudentEnrollments = matchedLocal.map((e: any) => toCamelCase(e));
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[App] Failed reading localDb student_enrollments:', err);
+                    }
+                    if (resolvedStudentEnrollments.length === 0) {
+                        try {
+                            const cached = localStorage.getItem(`eduai_student_enrollments_${instKeyEnr}`) || localStorage.getItem(`eduai_student_enrollments_${cleanInstKey}`);
+                            if (cached) {
+                                const parsed = JSON.parse(cached);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    resolvedStudentEnrollments = parsed;
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('[App] Failed reading cached student_enrollments:', err);
+                        }
+                    }
+                } else if (resolvedStudentEnrollments.length > 0 && cleanInstKey) {
+                    try {
+                        localStorage.setItem(`eduai_student_enrollments_${instKeyEnr}`, JSON.stringify(resolvedStudentEnrollments));
+                        localStorage.setItem(`eduai_student_enrollments_${cleanInstKey}`, JSON.stringify(resolvedStudentEnrollments));
+                    } catch (err) {
+                        console.warn('[App] Failed caching student_enrollments:', err);
+                    }
+                }
+                setStudentEnrollments(resolvedStudentEnrollments);
                 setContracts(con || []);
                 setStudentAttendances(att || []);
                 setInventory(item || []);
@@ -2357,6 +2407,60 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         });
                     }
                 });
+
+                // Resilient Retail Inventory persistence and fallback
+                const instKeyInv = effectiveInstIdFinal || (activeInst?.id || currentUser?.institutionId || '');
+                const cleanInstKeyInv = instKeyInv.replace(/^inst_/, '');
+
+                if (mergedRetailInventory.length === 0 && cleanInstKeyInv) {
+                    try {
+                        const localRetail = await localDb.getAll('retail_inventory_items');
+                        const localLegacy = await localDb.getAll('inventory');
+                        const combinedLocal = [...(localRetail || []), ...(localLegacy || [])];
+                        if (combinedLocal.length > 0) {
+                            const matchedLocal = combinedLocal.filter((it: any) => {
+                                const itInst = (it.institution_id || it.institutionId || '').replace(/^inst_/, '');
+                                return !cleanInstKeyInv || itInst === cleanInstKeyInv;
+                            });
+                            if (matchedLocal.length > 0) {
+                                matchedLocal.forEach((it: any) => {
+                                    const c = toCamelCase(it);
+                                    if (!existingRetailIds.has(c.id)) {
+                                        existingRetailIds.add(c.id);
+                                        mergedRetailInventory.push(c as any);
+                                    }
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('[App] Failed reading localDb inventory items:', err);
+                    }
+                    if (mergedRetailInventory.length === 0) {
+                        try {
+                            const cached = localStorage.getItem(`eduai_retail_inventory_${instKeyInv}`) || localStorage.getItem(`eduai_retail_inventory_${cleanInstKeyInv}`);
+                            if (cached) {
+                                const parsed = JSON.parse(cached);
+                                if (Array.isArray(parsed) && parsed.length > 0) {
+                                    parsed.forEach((c: any) => {
+                                        if (!existingRetailIds.has(c.id)) {
+                                            existingRetailIds.add(c.id);
+                                            mergedRetailInventory.push(c);
+                                        }
+                                    });
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('[App] Failed reading cached retail inventory:', err);
+                        }
+                    }
+                } else if (mergedRetailInventory.length > 0 && cleanInstKeyInv) {
+                    try {
+                        localStorage.setItem(`eduai_retail_inventory_${instKeyInv}`, JSON.stringify(mergedRetailInventory));
+                        localStorage.setItem(`eduai_retail_inventory_${cleanInstKeyInv}`, JSON.stringify(mergedRetailInventory));
+                    } catch (err) {
+                        console.warn('[App] Failed caching retail inventory:', err);
+                    }
+                }
 
                 setRetailInventory(mergedRetailInventory);
                 setTimeOffRequests(tor || []);
@@ -5861,6 +5965,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         counties,
         constituencies,
         users,
+        studentEnrollments,
         subjects,
         departments,
         courses,
@@ -8517,6 +8622,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                                 retailStores={retailStores}
                                                 inventory={retailInventory}
                                                 retailExpenses={retailExpenses}
+                                                studentEnrollments={studentEnrollments}
                                             />
                                         </DrivingSchoolProvider>
                                     )
@@ -8597,6 +8703,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                              retailStores={retailStores}
                                              inventory={retailInventory}
                                              retailExpenses={retailExpenses}
+                                             studentEnrollments={studentEnrollments}
                                          />
                                     </DrivingSchoolProvider>
                                 ) : isAdminCatchAll ? (
@@ -8612,6 +8719,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                          retailStores={retailStores}
                                          inventory={retailInventory}
                                          retailExpenses={retailExpenses}
+                                         studentEnrollments={studentEnrollments}
                                      />
                                 ) : null}
                         </Suspense>

@@ -18,7 +18,8 @@ import type {
     LawClient, LawMatter, LawDocument, LawTimeEntry, LawInvoice, LawTrustTransaction,
     LawAgreement, LawAgreementTemplate,
     DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment,
-    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction, InstitutionModuleState
+    CarListing, TestDriveBooking, CarAppraisal, CarInvoice, CarPayment, SchoolRegistry, BankTransaction, InstitutionModuleState,
+    StudentEnrollment
 } from '../types';
 const UserManager = lazy(() => import('./UserManager').then(m => ({ default: m.UserManager })));
 const TimetableGenerator = lazy(() => import('./TimetableGenerator').then(m => ({ default: m.TimetableGenerator })));
@@ -146,6 +147,7 @@ import { isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isMilling
 export interface AdminViewProps {
     currentUser?: User;
     users?: User[];
+    studentEnrollments?: StudentEnrollment[];
     requests?: AllocationRequest[];
     allocations?: AllocationRequest[];
     departments?: Department[];
@@ -448,6 +450,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         requests = [],
         subjects = [], users = [], rooms = [], courses = [], 
         currentInstitution, 
+        studentEnrollments = [],
         companyDetails = {} as any, 
         courseSizes = new Map(), 
         retailStores = [], 
@@ -517,6 +520,69 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState<CarInvoice | null>(null);
     const [selectedPaymentForEdit, setSelectedPaymentForEdit] = useState<CarPayment | null>(null);
     const [pdfPreviewData, setPdfPreviewData] = useState<{ uri: string; title: string } | null>(null);
+
+    // Resilient student resolution: unites student users, student_enrollments, and local cached enrollments
+    const effectiveStudents = useMemo(() => {
+        const userStudents = (props.users || []).filter(u => u && (u.role === 'student' || (u.role as string) === 'learner' || (u.role as string) === 'pupil'));
+        const enrList = (props.studentEnrollments && props.studentEnrollments.length > 0) ? props.studentEnrollments : [];
+        
+        let fallbackEnrs: any[] = [];
+        if (enrList.length === 0 && props.currentInstitution?.id) {
+            try {
+                const cleanId = props.currentInstitution.id.replace(/^inst_/, '');
+                const raw = localStorage.getItem(`eduai_student_enrollments_${props.currentInstitution.id}`) ||
+                            localStorage.getItem(`eduai_student_enrollments_${cleanId}`) ||
+                            localStorage.getItem('eduai_student_enrollments');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) fallbackEnrs = parsed;
+                }
+            } catch (_) {}
+        }
+        const allEnrs = enrList.length > 0 ? enrList : fallbackEnrs;
+        
+        const studentMap = new Map<string, User>();
+        // Index existing user students
+        userStudents.forEach(u => {
+            if (u.id) studentMap.set(String(u.id).toLowerCase(), u);
+            const adm = (u as any).admissionNumber || (u as any).admission_number;
+            if (adm) studentMap.set(String(adm).toLowerCase(), u);
+        });
+        
+        const combined: User[] = [...userStudents];
+        allEnrs.forEach((enr: any) => {
+            if (!enr) return;
+            const status = (enr.status || '').toLowerCase();
+            if (status === 'graduated' || status === 'dropped' || status === 'inactive') return;
+            const uId = enr.userId || enr.user_id;
+            const adm = enr.admissionNumber || enr.admission_number;
+            const hasExisting = (uId && studentMap.has(String(uId).toLowerCase())) || 
+                                (adm && studentMap.has(String(adm).toLowerCase())) ||
+                                (enr.id && studentMap.has(String(enr.id).toLowerCase()));
+            if (!hasExisting) {
+                const meta = (typeof enr.metadata === 'object' && enr.metadata !== null) ? enr.metadata : {};
+                const name = enr.fullName || meta.fullName || meta.name || meta.full_name || `Student ${adm || String(enr.id || '').slice(-4)}`;
+                const synthUser: User = {
+                    id: uId || enr.id,
+                    name,
+                    email: enr.email || meta.email || `${String(adm || enr.id).replace(/\s+/g, '').toLowerCase()}@school.local`,
+                    role: 'student',
+                    institutionId: enr.institutionId || enr.institution_id || props.currentInstitution?.id,
+                    admissionNumber: adm,
+                    admission_number: adm,
+                    assessmentNo: enr.assessmentNo || enr.assessmentNumber || enr.assessment_no,
+                    dateOfBirth: enr.dateOfBirth || enr.dob || meta.dateOfBirth || meta.dob,
+                    status: (enr.status === 'Active' || enr.status === 'Enrolled') ? 'active' : enr.status?.toLowerCase(),
+                    metadata: meta
+                } as any;
+                combined.push(synthUser);
+                if (uId) studentMap.set(String(uId).toLowerCase(), synthUser);
+                if (adm) studentMap.set(String(adm).toLowerCase(), synthUser);
+                if (enr.id) studentMap.set(String(enr.id).toLowerCase(), synthUser);
+            }
+        });
+        return combined;
+    }, [props.users, props.studentEnrollments, props.currentInstitution?.id]);
 
     // Today's attendance computations for Head Teacher / Principal dashboard
     const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -2622,7 +2688,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700">
                                     <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">{isDS || isEdu ? 'Total Students' : 'Total Congregation'}</h3>
                                     <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                        {(props.users || []).filter(u => u && (u.role === 'student' || u.role === 'member' || u.role === 'church_member' || u.role === 'visitor')).length}
+                                        {isChurch
+                                            ? (props.users || []).filter(u => u && (u.role === 'member' || u.role === 'church_member' || u.role === 'visitor')).length
+                                            : effectiveStudents.length}
                                     </p>
                                 </div>
                             )}
@@ -3077,14 +3145,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                             assessment={props.assessments?.[0] || { id: 'na', title: 'No Assessment', status: 'pending', type: 'Exam' } as any}
                                             marks={props.marks || []}
                                             subjects={props.subjects || []}
-                                            students={(props.users || []).filter(u => u.role === 'student')}
+                                            students={effectiveStudents}
                                             teachers={(props.users || []).filter(u => u.role === 'teacher' || u.role === 'lecturer')}
                                         />
                                     </Suspense>
                                 ) : timetableSubTab === 'intelligence' ? (
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
                                         <AcademicReportsHub
-                                            students={(props.users || []).filter(u => u.role === 'student')}
+                                            students={effectiveStudents}
                                             assessments={props.assessments || []}
                                             marks={props.marks || []}
                                             subjects={props.subjects || []}
@@ -3096,7 +3164,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     <Suspense fallback={<div className="h-96 flex items-center justify-center"><ArrowPathIcon className="w-8 h-8 animate-spin text-slate-300" /></div>}>
                                         <DisciplineManager
                                             incidents={props.incidents || []}
-                                            students={(props.users || []).filter(u => u && u.role === 'student')}
+                                            students={effectiveStudents}
                                             onAddIncident={props.onAddIncident || (async () => {})}
                                         />
                                     </Suspense>
@@ -3863,7 +3931,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             invoices={props.invoices || []}
                             receipts={props.receipts || []}
                             expenses={props.expenses || []}
-                            students={props.users?.filter((u: any) => u.role === 'student') || []}
+                            students={effectiveStudents}
                             institutionId={props.currentInstitution?.id || ''}
                             onRefreshData={props.onRefreshData}
                         />

@@ -14,7 +14,8 @@ import { ImageIcon } from '../icons/ImageIcon';
 import { UploadIcon as Upload } from '../icons/UploadIcon';
 import { CheckCircleIcon as CheckCircle } from '../icons/CheckCircleIcon';
 import { TruckIcon as Truck } from '../icons/TruckIcon';
-import { apiService } from '../../services/apiService';
+import { apiService, toCamelCase } from '../../services/apiService';
+import { localDb } from '../../services/localDb';
 import { SmartRetailInventoryImporterModal } from './SmartRetailInventoryImporterModal';
 import { AddPharmacyInventoryModal } from '../his/AddPharmacyInventoryModal';
 import { SmartPharmacyInventoryImporterModal } from '../his/SmartPharmacyInventoryImporterModal';
@@ -534,6 +535,65 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 }
             });
 
+            // Resilient fallback: if remote returned empty, check local IndexedDB and localStorage
+            if (merged.length === 0 && institutionId) {
+                try {
+                    const idbRetail = await localDb.getAll<any>('retail_inventory_items').catch(() => []);
+                    const idbLegacy = await localDb.getAll<any>('inventory').catch(() => []);
+                    const cleanInst = (id?: string) => id ? String(id).replace(/^inst_/, '') : '';
+                    const targetClean = cleanInst(institutionId);
+                    const matchInst = (item: any) => {
+                        if (!item) return false;
+                        const inst = item.institutionId || item.institution_id;
+                        if (!inst) return true;
+                        return inst === institutionId || cleanInst(inst) === targetClean;
+                    };
+                    const rawLocal = localStorage.getItem(`eduai_retail_inventory_${institutionId}`) ||
+                                     localStorage.getItem(`eduai_retail_inventory_${targetClean}`) ||
+                                     localStorage.getItem('eduai_retail_inventory');
+                    const lsParsed = rawLocal ? JSON.parse(rawLocal) : [];
+                    const fallbackRetail = (idbRetail && idbRetail.length > 0) ? idbRetail.filter(matchInst) : (Array.isArray(lsParsed) ? lsParsed.filter(matchInst) : []);
+                    const fallbackLegacy = (idbLegacy && idbLegacy.length > 0) ? idbLegacy.filter(matchInst) : [];
+
+                    fallbackRetail.forEach((fr: any) => {
+                        if (fr && fr.id && !existingIds.has(fr.id)) {
+                            merged.push(toCamelCase(fr));
+                            existingIds.add(fr.id);
+                            existingNames.add((fr.name || '').trim().toLowerCase());
+                        }
+                    });
+                    fallbackLegacy.forEach((leg: any) => {
+                        const normName = (leg.name || '').trim().toLowerCase();
+                        if (leg && leg.id && !existingIds.has(leg.id) && !existingNames.has(normName)) {
+                            merged.push({
+                                id: leg.id,
+                                institutionId: leg.institutionId || leg.institution_id || institutionId,
+                                name: leg.name,
+                                sku: leg.sku || `SKU-${String(leg.id).slice(-6)}`,
+                                category: leg.category || 'Stationery',
+                                quantity: Number(leg.quantity || 0),
+                                unit: leg.unit || 'pcs',
+                                reorderLevel: Number(leg.reorderLevel || leg.minThreshold || 5),
+                                costPrice: Number(leg.price || leg.costPrice || 0),
+                                basePrice: Number(leg.price || leg.basePrice || 0),
+                                srpPrice: Number(leg.price || leg.srpPrice || 0),
+                                storeId: leg.storeId || leg.store_id || '',
+                                storeName: leg.storeName || leg.store_name || leg.location || 'Main School Store',
+                                description: leg.description || '',
+                                marketplaceEnabled: false,
+                                bufferStock: 0,
+                                viewCount: 0,
+                                inquiryCount: 0,
+                                createdAt: leg.createdAt || new Date().toISOString(),
+                                lastUpdated: leg.lastUpdated || leg.last_updated || new Date().toISOString()
+                            });
+                            existingIds.add(leg.id);
+                            existingNames.add(normName);
+                        }
+                    });
+                } catch (_) {}
+            }
+
             // Normalize store fields and attach store stocks for every item
             const normalized = merged.map(item => {
                 const rawStoreId = item.storeId || (item as any).store_id || (item as any).location || '';
@@ -551,9 +611,25 @@ export function RetailInventoryManager({ institutionId, currentInstitution, stor
                 };
             });
 
+            if (normalized.length > 0 && institutionId) {
+                try {
+                    localStorage.setItem(`eduai_retail_inventory_${institutionId}`, JSON.stringify(normalized));
+                } catch (_) {}
+            }
+
             setItems(normalized);
         } catch (err) {
             console.error("Fetch error:", err);
+            // Try last-resort cache recovery on hard fetch error
+            try {
+                const rawLocal = localStorage.getItem(`eduai_retail_inventory_${institutionId}`) || localStorage.getItem('eduai_retail_inventory');
+                if (rawLocal) {
+                    const parsed = JSON.parse(rawLocal);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setItems(parsed);
+                    }
+                }
+            } catch (_) {}
         } finally {
             setIsLoading(false);
         }

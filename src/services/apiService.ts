@@ -19,7 +19,7 @@ import type {
     CoopExpense, CoopIncome, DemoRequest, InstitutionModuleState,
     ChurchSacrament, ChurchMassIntention, ChurchCellGroup, ChurchFollowUp, ChurchFastingPeriod, ChurchSaintDay,
     CarListing, TestDriveBooking, CarAppraisal, SchoolRegistry, CarInvoice, CarPayment,
-    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise, RemedialTeacherOpeningBalance,
+    RemedialSession, RemedialRateSetting, RemedialPayout, RemedialAllocation, RemedialSubject, FeePromise, RemedialTeacherOpeningBalance, RemedialWeekendDuty,
     InvoiceClient, CompanyInvoiceSettings,
     SchoolAuthorizedDevice, SchoolRouterProfile
 } from '../types';
@@ -181,7 +181,7 @@ function toSnakeCase(obj: any): any {
     return newObj;
 }
 
-function toCamelCase(obj: any): any {
+export function toCamelCase(obj: any): any {
     if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj;
     if (Array.isArray(obj)) return obj.map((item: any) => toCamelCase(item));
     const newObj: any = {};
@@ -1546,11 +1546,14 @@ export const apiService = {
 
                 if (institutionId && institutionId !== 'ALL') {
                     const filterKey = getFilterCol(effectiveModule, 'institution');
+                    const rawInst = institutionId.replace(/^inst_/, '');
+                    const prefixedInst = institutionId.startsWith('inst_') ? institutionId : `inst_${institutionId}`;
+                    const matchInst = (val?: string) => val === institutionId || val === rawInst || val === prefixedInst;
                     records = records.filter((r: any) => 
-                        r[filterKey] === institutionId ||
-                        r.institutionId === institutionId ||
-                        r.institution_id === institutionId ||
-                        r.id === institutionId ||
+                        matchInst(r[filterKey]) ||
+                        matchInst(r.institutionId) ||
+                        matchInst(r.institution_id) ||
+                        matchInst(r.id) ||
                         (!r[filterKey] && !r.institutionId && !r.institution_id)
                     );
                 }
