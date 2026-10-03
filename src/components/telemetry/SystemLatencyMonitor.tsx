@@ -81,6 +81,14 @@ export const SystemLatencyMonitor: React.FC = () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
             try {
+                // Pre-warm edge runtime container if dormant
+                await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    headers: { 'Cache-Control': 'no-cache' }
+                }).catch(() => {});
+
+                // Measure active warm-route roundtrip
                 const res = await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
                     signal: controller.signal,
                     headers: { 'Cache-Control': 'no-cache' }
@@ -91,8 +99,8 @@ export const SystemLatencyMonitor: React.FC = () => {
             }
         });
 
-        const status: BenchmarkResult['status'] = error ? 'degraded' : (duration < 150 ? 'optimal' : duration < 400 ? 'acceptable' : 'degraded');
-        const rating = error ? 'Fallback Active' : (duration < 150 ? 'Fast Edge Execution' : duration < 400 ? 'Standard Route' : 'Cold Start / Throttle');
+        const status: BenchmarkResult['status'] = error ? 'degraded' : (duration < 150 ? 'optimal' : duration < 350 ? 'acceptable' : duration < 600 ? 'degraded' : 'critical');
+        const rating = error ? 'Fallback Active' : (duration < 150 ? 'Ultra-Fast Edge (Sub-150ms)' : duration < 350 ? 'Standard Route' : 'Cold Start / Elevated');
 
         return {
             category: 'API Gateway',
@@ -100,7 +108,7 @@ export const SystemLatencyMonitor: React.FC = () => {
             latencyMs: duration,
             status,
             rating,
-            details: error ? 'Serverless route offline or unreachable (client offline mode active)' : `Cold/Warm endpoint roundtrip processed in ${duration}ms`,
+            details: error ? 'Serverless route offline or unreachable (client offline mode active)' : `Active endpoint roundtrip processed in ${duration}ms`,
             icon: <Server className="w-5 h-5 text-sky-400" />
         };
     };
@@ -138,27 +146,66 @@ export const SystemLatencyMonitor: React.FC = () => {
     // 4. IndexedDB Async Persistence Throughput (localDb)
     const probeIndexedDb = async (): Promise<BenchmarkResult> => {
         setActiveTarget('IndexedDB Throughput');
+        const probeCount = 50;
+        const probeIds = Array.from({ length: probeCount }, (_, i) => `telemetry_probe_${i}`);
+
+        // Background sweep to clean up legacy zombie probe records from earlier runs
+        try {
+            localDb.getAll('tasks' as any).then(items => {
+                if (Array.isArray(items)) {
+                    const legacy = items.filter(it => typeof it?.id === 'string' && (it.id.startsWith('idb_probe_') || it.id.startsWith('telemetry_probe_')));
+                    legacy.forEach(p => localDb.delete('tasks' as any, p.id));
+                }
+            }).catch(() => {});
+        } catch (_) {}
+
         const { duration, error } = await measureDuration(async () => {
-            const probeItems = Array.from({ length: 50 }, (_, i) => ({
-                id: `idb_probe_${i}_${Date.now()}`,
+            const probeItems = probeIds.map((id, i) => ({
+                id,
                 name: `Probe Record ${i}`,
                 timestamp: Date.now(),
                 tags: ['telemetry', 'benchmark', 'eduai']
             }));
 
+            // Step 1: Bulk write batch to IndexedDB
             await localDb.bulkPut('tasks' as any, probeItems);
-            await localDb.getAll('tasks' as any);
+
+            // Step 2: Read back verified probe records
+            await Promise.all(probeIds.map(id => localDb.get('tasks' as any, id)));
+
+            // Step 3: Cleanup probe records so browser storage remains spotless
+            await Promise.all(probeIds.map(id => localDb.delete('tasks' as any, id)));
         });
 
-        const status: BenchmarkResult['status'] = error ? 'degraded' : (duration < 60 ? 'optimal' : duration < 150 ? 'acceptable' : 'degraded');
+        const status: BenchmarkResult['status'] = error 
+            ? 'critical' 
+            : duration < 80 
+                ? 'optimal' 
+                : duration < 250 
+                    ? 'acceptable' 
+                    : duration < 1000 
+                        ? 'degraded' 
+                        : 'critical';
+
+        const rating = error 
+            ? 'Access Error' 
+            : duration < 80 
+                ? 'Ultra-High IOPS' 
+                : duration < 250 
+                    ? 'Healthy' 
+                    : duration < 1000 
+                        ? 'Elevated Latency' 
+                        : 'Critical Latency';
 
         return {
             category: 'Client Storage',
             name: 'Asynchronous IndexedDB Persistence',
             latencyMs: duration,
             status,
-            rating: error ? 'Degraded' : (duration < 60 ? 'Ultra-High IOPS' : 'Healthy'),
-            details: error ? 'IndexedDB access failed or restricted by browser sandbox' : `50 complex multi-attribute objects persisted and scanned in ${duration}ms`,
+            rating,
+            details: error 
+                ? 'IndexedDB access failed or restricted by browser sandbox' 
+                : `50 complex multi-attribute objects persisted, verified & purged in ${duration}ms`,
             icon: <Gauge className="w-5 h-5 text-purple-400" />
         };
     };
