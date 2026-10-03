@@ -16,7 +16,7 @@ import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 import { MagnifyingGlassIcon } from '../icons/MagnifyingGlassIcon';
 import { FunnelIcon } from '../icons/FunnelIcon';
 import { extractGradeOnly, extractStreamOnly } from './BroadsheetReportView';
-import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream } from '../../utils/academicUtils';
+import { extractClassAndStream, normalizeStreamName, resolveRealStudentStream, getDefaultGradesForInstitution, filterGradesForInstitution } from '../../utils/academicUtils';
 
 interface RawMarksheetViewProps {
     assessments?: Assessment[];
@@ -683,11 +683,11 @@ export const RawMarksheetView: React.FC<RawMarksheetViewProps> = ({
         });
 
         if (groups.size === 0) {
-            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+            return getDefaultGradesForInstitution(currentInstitution);
         }
 
-        return Array.from(groups);
-    }, [selectedExamObj, resolveEffectiveExamRows, selectedExamId, activeStudents, academicLevels]);
+        return filterGradesForInstitution(Array.from(groups), currentInstitution);
+    }, [selectedExamObj, resolveEffectiveExamRows, selectedExamId, activeStudents, academicLevels, currentInstitution]);
 
     useEffect(() => {
         if (!selectedYearGroup && yearGroupsList.length > 0) {

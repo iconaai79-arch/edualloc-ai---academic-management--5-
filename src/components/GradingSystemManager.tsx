@@ -7,7 +7,7 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronRightIcon } from './icons/ChevronRightIcon';
 import { apiService } from '../services/apiService';
 import { isSubjectAssignedToClassStream } from '../utils/academicSubjectUtils';
-import { extractClassAndStream } from '../utils/academicUtils';
+import { extractClassAndStream, getDefaultGradesForInstitution, filterGradesForInstitution } from '../utils/academicUtils';
 
 interface GradingSystemManagerProps {
     currentInstitution?: Institution | null;
@@ -256,11 +256,12 @@ export const GradingSystemManager: React.FC<GradingSystemManagerProps> = ({
             if (a.className) addClass(a.className);
         });
 
-        // 7. Ensure standard Kenya CBC / 8-4-4 grades are available
-        const defaultCBC = ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        // 7. Ensure standard grades tailored to institution are available
+        const defaultCBC = getDefaultGradesForInstitution(currentInstitution);
         defaultCBC.forEach(c => addClass(c));
 
-        const validList = Array.from(classMap.values());
+        const configuredCourseNames = (courses || []).map((c: any) => c.name || c.title || c.code).filter(Boolean);
+        const validList = filterGradesForInstitution(Array.from(classMap.values()), currentInstitution, configuredCourseNames);
 
         // Sort smartly by grade sequence
         return validList.sort((a, b) => {

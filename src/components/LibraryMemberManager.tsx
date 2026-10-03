@@ -16,6 +16,7 @@ import { CalendarDaysIcon as CalendarIcon } from './icons/CalendarDaysIcon';
 import { apiService } from '../services/apiService';
 import { generateMemberLibraryHistoryPdf } from '../services/pdfService';
 import { PdfPreviewModal } from './PdfPreviewModal';
+import { getDefaultGradesForInstitution, filterGradesForInstitution } from '../utils/academicUtils';
 
 interface LibraryMemberManagerProps {
     institutionId: string;
@@ -410,11 +411,13 @@ export const LibraryMemberManager: React.FC<LibraryMemberManagerProps> = ({
             if (!seen.has(key)) seen.set(key, g);
         });
 
-        if (seen.size === 0) {
-            return ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        const configuredCourseNames = (courses || []).map(c => c.name || (c as any).title || c.code).filter(Boolean);
+        const validList = filterGradesForInstitution(Array.from(seen.values()), institution, configuredCourseNames);
+        if (validList.length === 0) {
+            return getDefaultGradesForInstitution(institution);
         }
 
-        return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        return validList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     }, [courses, studentUserList, enrollments, institution]);
 
     const streamOptions = useMemo(() => {

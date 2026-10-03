@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { DocumentArrowDownIcon } from '../icons/DocumentArrowDownIcon';
 
-import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
+import { resolveRealStudentAdmNo, getDefaultGradesForInstitution, filterGradesForInstitution } from '../../utils/academicUtils';
 
 export interface CbeStrandRubricManagerProps {
     currentInstitution?: Institution | null;
@@ -210,12 +210,15 @@ export const CbeStrandRubricManager: React.FC<CbeStrandRubricManagerProps> = ({
             }
         });
 
-        // 4. Ensure standard Kenya CBC / 8-4-4 grades are available
-        const defaultCBC = ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        // 4. Ensure standard educational grades tailored to institution are available
+        const defaultCBC = getDefaultGradesForInstitution(currentInstitution);
         defaultCBC.forEach(c => set.add(c));
 
+        const configuredCourseNames = (courses || []).map((c: any) => c.name || c.title || c.code).filter(Boolean);
+        const validList = filterGradesForInstitution(Array.from(set), currentInstitution, configuredCourseNames);
+
         // Sort smartly
-        const sorted = Array.from(set).sort((a, b) => {
+        const sorted = validList.sort((a, b) => {
             const getRank = (str: string) => {
                 const lower = str.toLowerCase();
                 if (lower.startsWith('pp1') || lower.startsWith('playgroup')) return 1;

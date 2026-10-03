@@ -55,6 +55,7 @@ import { formatRoleDisplayName, getRolesForInstitution, isPrimaryInstitution, is
 import { VALID_STAFF_ROLES } from '../../constants';
 import { formatPhoneNumber, phonesMatch } from '../../utils/stringUtils';
 import { PdfViewer } from '../PdfViewer';
+import { getDefaultGradesForInstitution, filterGradesForInstitution } from '../../utils/academicUtils';
 
 const teacherRoles = [
     'teacher',
@@ -341,12 +342,22 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 return e.enrollmentType === 'driving_school';
             }
         });
+        const scopedCourses = (initialCourses || []).filter(c => {
+            if (!c) return false;
+            const cInst = c.institutionId || (c as any).institution_id;
+            return !cInst || !instId || String(cInst).toLowerCase() === String(instId).toLowerCase();
+        });
+        const scopedSubjects = (initialSubjects || []).filter(s => {
+            if (!s) return false;
+            const sInst = s.institutionId || (s as any).institution_id;
+            return !sInst || !instId || String(sInst).toLowerCase() === String(instId).toLowerCase();
+        });
         return {
             enrollments: contextEnrs,
             users: effectiveUsers,
             instructors: effectiveInstructors,
-            courses: initialCourses || [],
-            subjects: initialSubjects || [],
+            courses: scopedCourses,
+            subjects: scopedSubjects,
             academicLevels: [],
             broadcasterMessages: [],
             events: [],
@@ -1092,8 +1103,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             ] = await Promise.all([
                 apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveTargetInstId, undefined, { limit: 10000 }),
                 apiService.fetchModuleRecords<User>('users', effectiveTargetInstId, undefined, { limit: 10000 }),
-                (initialCourses && initialCourses.length > 0) ? Promise.resolve(initialCourses) : apiService.fetchModuleRecords<Course>('courses', effectiveTargetInstId).catch(() => []),
-                (initialSubjects && initialSubjects.length > 0) ? Promise.resolve(initialSubjects) : apiService.fetchModuleRecords<Subject>('subjects', effectiveTargetInstId).catch(() => []),
+                (initialCourses && initialCourses.length > 0 && initialCourses.some(c => String(c.institutionId || (c as any).institution_id).toLowerCase() === String(effectiveTargetInstId).toLowerCase())) 
+                    ? Promise.resolve(initialCourses.filter(c => String(c.institutionId || (c as any).institution_id).toLowerCase() === String(effectiveTargetInstId).toLowerCase())) 
+                    : apiService.fetchModuleRecords<Course>('courses', effectiveTargetInstId).catch(() => []),
+                (initialSubjects && initialSubjects.length > 0 && initialSubjects.some(s => String(s.institutionId || (s as any).institution_id).toLowerCase() === String(effectiveTargetInstId).toLowerCase())) 
+                    ? Promise.resolve(initialSubjects.filter(s => String(s.institutionId || (s as any).institution_id).toLowerCase() === String(effectiveTargetInstId).toLowerCase())) 
+                    : apiService.fetchModuleRecords<Subject>('subjects', effectiveTargetInstId).catch(() => []),
                 apiService.fetchAcademicLevels(effectiveTargetInstId).catch(() => []),
                 needsBroadcaster ? apiService.fetchModuleRecords<any>('broadcaster_messages', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
                 needsCalendar ? apiService.fetchModuleRecords<any>('institution_events', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
@@ -5240,18 +5255,28 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }
 
         const rawGradesSet = new Set<string>();
+        const targetInstId = currentInstitution?.id;
 
-        // 1. From academicLevels
+        // 1. From academicLevels (scoped to institution)
         if (academicLevels && academicLevels.length > 0) {
             academicLevels.forEach(al => {
-                const name = typeof al === 'string' ? al : (al.name || (al as any).title || al.code);
-                if (name && name.trim()) rawGradesSet.add(name.trim());
+                const alInst = (al as any).institutionId || (al as any).institution_id;
+                if (!alInst || !targetInstId || String(alInst).toLowerCase() === String(targetInstId).toLowerCase()) {
+                    const name = typeof al === 'string' ? al : (al.name || (al as any).title || al.code);
+                    if (name && name.trim()) rawGradesSet.add(name.trim());
+                }
             });
         }
 
-        // 2. From courses
-        if (courses && courses.length > 0) {
-            courses.forEach(c => {
+        // 2. From courses (scoped strictly to current institution)
+        const scopedCourses = (courses || []).filter(c => {
+            if (!c) return false;
+            const cInst = c.institutionId || (c as any).institution_id;
+            return !cInst || !targetInstId || String(cInst).toLowerCase() === String(targetInstId).toLowerCase();
+        });
+
+        if (scopedCourses.length > 0) {
+            scopedCourses.forEach(c => {
                 const name = c.name || (c as any).title || c.code;
                 if (name && name.trim()) rawGradesSet.add(name.trim());
             });
@@ -5268,37 +5293,52 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
         }
 
-        // 4. From registered student users (Set prevents array explosion)
+        // 4. From registered student users (scoped to institution)
         if (users && users.length > 0) {
             for (let i = 0; i < users.length; i++) {
                 const u = users[i];
-                const cl = u.studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class || (u as any).metadata?.gradeLevel;
-                if (cl && typeof cl === 'string' && cl.trim()) {
-                    rawGradesSet.add(cl.trim());
+                const uInst = u.institutionId || (u as any).institution_id;
+                if (!uInst || !targetInstId || String(uInst).toLowerCase() === String(targetInstId).toLowerCase()) {
+                    const cl = u.studentClass || (u as any).classLevel || (u as any).class_name || (u as any).class || (u as any).metadata?.gradeLevel;
+                    if (cl && typeof cl === 'string' && cl.trim()) {
+                        rawGradesSet.add(cl.trim());
+                    }
                 }
             }
         }
 
-        // 5. From enrollments
+        // 5. From enrollments (scoped to institution)
         if (enrollments && enrollments.length > 0) {
             for (let i = 0; i < enrollments.length; i++) {
                 const e = enrollments[i];
-                const cl = e.metadata?.gradeLevel || (e as any).classLevel || (e as any).studentClass;
-                if (cl && typeof cl === 'string' && cl.trim()) {
-                    rawGradesSet.add(cl.trim());
+                const eInst = e.institutionId || (e as any).institution_id;
+                if (!eInst || !targetInstId || String(eInst).toLowerCase() === String(targetInstId).toLowerCase()) {
+                    const cl = e.metadata?.gradeLevel || (e as any).classLevel || (e as any).studentClass;
+                    if (cl && typeof cl === 'string' && cl.trim()) {
+                        rawGradesSet.add(cl.trim());
+                    }
                 }
             }
         }
 
-        // If we have registered grades, normalize & deduplicate case-insensitively
-        if (rawGradesSet.size > 0) {
-            const rawGrades = Array.from(rawGradesSet);
-            const hasGradePrefix = rawGrades.some(g => /^grade\s*\d+/i.test(g));
-            const hasFormPrefix = rawGrades.some(g => /^form\s*\d+/i.test(g));
+        // Configured course names for explicit exemption
+        const configuredCourseNames = scopedCourses.map(c => c.name || (c as any).title || c.code).filter(Boolean);
+
+        // Filter registered grades according to institution type (e.g. Primary schools never display Form 1-4)
+        const validRegisteredGrades = filterGradesForInstitution(
+            Array.from(rawGradesSet),
+            currentInstitution,
+            configuredCourseNames
+        );
+
+        // If we have registered grades matching this institution, normalize & deduplicate case-insensitively
+        if (validRegisteredGrades.length > 0) {
+            const hasGradePrefix = validRegisteredGrades.some(g => /^grade\s*\d+/i.test(g));
+            const hasFormPrefix = validRegisteredGrades.some(g => /^form\s*\d+/i.test(g));
             const defaultPrefix = hasFormPrefix && !hasGradePrefix ? 'Form' : 'Grade';
 
             const seenMap = new Map<string, string>();
-            rawGrades.forEach(g => {
+            validRegisteredGrades.forEach(g => {
                 const key = getNormalizedGradeKey(g);
                 if (key && !seenMap.has(key)) {
                     const display = normalizeGradeLabel(g, defaultPrefix);
@@ -5309,6 +5349,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             // Educational grade sort
             const rankGrade = (g: string) => {
                 const lc = g.toLowerCase();
+                if (lc.includes('daycare')) return -1;
                 if (lc.includes('play') || lc === 'pg') return 0;
                 if (/pp1|pre-primary\s*1/.test(lc)) return 1;
                 if (/pp2|pre-primary\s*2/.test(lc)) return 2;
@@ -5331,12 +5372,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             });
         }
 
-        // Fallback list ONLY when NO grades exist anywhere
-        return [
-            'PP1', 'PP2', 'Playgroup',
-            'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
-            'Grade 7', 'Grade 8', 'Grade 9', 'Form 1', 'Form 2', 'Form 3', 'Form 4'
-        ];
+        // Fallback list strictly tailored to institution type & name (never hardcode Form 1-4 for primary/junior!)
+        return getDefaultGradesForInstitution(currentInstitution);
     }, [context, courses, academicLevels, enrollments, users, currentInstitution]);
 
     // Available Streams fallback

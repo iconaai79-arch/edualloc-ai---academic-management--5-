@@ -902,3 +902,180 @@ export const isDemoClassName = (name: string): boolean => {
     if (/^c_(?:844|cbe)_/i.test(trimmed)) return true;
     return false;
 };
+
+/**
+ * Returns standard default educational grades tailored to an institution's level, type, and name.
+ */
+export const getDefaultGradesForInstitution = (institution?: { institutionType?: string; name?: string; category?: string } | null): string[] => {
+    if (!institution) {
+        return [
+            'Playgroup', 'PP1', 'PP2',
+            'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+            'Grade 7', 'Grade 8', 'Grade 9'
+        ];
+    }
+
+    const instType = (institution.institutionType || '').toLowerCase();
+    const instName = (institution.name || '').toLowerCase();
+    const instCat = (institution.category || '').toLowerCase();
+    const info = `${instType} ${instName} ${instCat}`;
+
+    // 1. Driving School
+    if (instType === 'driving school' || info.includes('driving school')) {
+        return [
+            'Class B1 (Light Manual)',
+            'Class B2 (Light Automatic)',
+            'Class A (Motorcycle)',
+            'Class C (Heavy Commercial)'
+        ];
+    }
+
+    // 2. Early Childhood / Kindergarten only
+    if (
+        (info.includes('kindergarten') || info.includes('nursery') || info.includes('pre-primary') || info.includes('daycare') || info.includes('ecde')) &&
+        !info.includes('primary') && !info.includes('junior') && !info.includes('secondary')
+    ) {
+        return ['Daycare', 'Playgroup', 'PP1', 'PP2'];
+    }
+
+    // 3. Junior Secondary / Junior School ONLY (JSS)
+    if (
+        (info.includes('junior secondary') || info.includes('junior school') || info.includes('jss')) &&
+        !info.includes('primary') && !info.includes('comprehensive')
+    ) {
+        return ['Grade 7', 'Grade 8', 'Grade 9'];
+    }
+
+    // 4. Secondary / High School
+    if (
+        instType === 'secondary' ||
+        info.includes('secondary') ||
+        info.includes('high school') ||
+        info.includes('senior school') ||
+        info.includes('boys high') ||
+        info.includes('girls high') ||
+        info.includes('sec school')
+    ) {
+        if (!info.includes('primary') && !info.includes('kindergarten')) {
+            return ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
+        }
+    }
+
+    // 5. Tertiary / TVET / Technical College / Polytechnic
+    if (
+        info.includes('college') ||
+        info.includes('tvet') ||
+        info.includes('polytechnic') ||
+        info.includes('institute') ||
+        info.includes('vocational')
+    ) {
+        return [
+            'Certificate Year 1', 'Certificate Year 2',
+            'Diploma Year 1', 'Diploma Year 2', 'Diploma Year 3'
+        ];
+    }
+
+    // 6. University
+    if (info.includes('university') || info.includes('campus')) {
+        return ['Year 1', 'Year 2', 'Year 3', 'Year 4'];
+    }
+
+    // 7. Primary & Junior School (Comprehensive / CBC Pre-Primary -> JSS)
+    // E.g. "ACK ST LUKE PRIMARY & JUNIOR SCHOOL"
+    if (
+        (info.includes('primary') && (info.includes('junior') || info.includes('jss') || info.includes('comprehensive'))) ||
+        (info.includes('academy') && (info.includes('junior') || info.includes('jss'))) ||
+        info.includes('primary & junior') ||
+        info.includes('primary and junior')
+    ) {
+        return [
+            'Playgroup', 'PP1', 'PP2',
+            'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+            'Grade 7', 'Grade 8', 'Grade 9'
+        ];
+    }
+
+    // 8. Primary School Only
+    if (
+        instType === 'primary' ||
+        info.includes('primary') ||
+        info.includes('academy') ||
+        info.includes('prep school')
+    ) {
+        return [
+            'Playgroup', 'PP1', 'PP2',
+            'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+            'Grade 7', 'Grade 8', 'Grade 9'
+        ];
+    }
+
+    // Default: CBC Kindergarten to Junior School (PP1 - Grade 9)
+    return [
+        'Playgroup', 'PP1', 'PP2',
+        'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6',
+        'Grade 7', 'Grade 8', 'Grade 9'
+    ];
+};
+
+/**
+ * Filters a list of grade/cohort names so that only grades appropriate for the given institution remain.
+ * For example, a Primary/Junior school will never show Form 1 - Form 4 unless explicitly configured.
+ */
+export const filterGradesForInstitution = (
+    grades: string[],
+    institution?: { institutionType?: string; name?: string; category?: string } | null,
+    configuredCourseNames?: string[]
+): string[] => {
+    if (!grades || grades.length === 0) return [];
+    if (!institution) return grades;
+
+    const instType = (institution.institutionType || '').toLowerCase();
+    const instName = (institution.name || '').toLowerCase();
+    const instCat = (institution.category || '').toLowerCase();
+    const info = `${instType} ${instName} ${instCat}`;
+
+    const isSecondaryOnly = (
+        instType === 'secondary' ||
+        info.includes('secondary') ||
+        info.includes('high school') ||
+        info.includes('senior school') ||
+        info.includes('boys high') ||
+        info.includes('girls high')
+    ) && !info.includes('primary') && !info.includes('kindergarten');
+
+    const isPrimaryOrJunior = (
+        instType === 'primary' ||
+        info.includes('primary') ||
+        info.includes('junior') ||
+        info.includes('jss') ||
+        info.includes('academy') ||
+        info.includes('kindergarten') ||
+        info.includes('nursery') ||
+        info.includes('prep')
+    ) && !isSecondaryOnly;
+
+    const explicitlyConfigured = new Set((configuredCourseNames || []).map(c => c.trim().toLowerCase()));
+
+    return grades.filter(g => {
+        if (!g) return false;
+        const lower = g.trim().toLowerCase();
+        
+        // If this grade is explicitly in the school's configured courses, keep it
+        if (explicitlyConfigured.has(lower)) return true;
+
+        if (isPrimaryOrJunior) {
+            // Primary & Junior schools should NEVER have Form 1 - 4 or Degree/Diploma
+            if (/^form\s*\d+/i.test(lower)) return false;
+            if (/degree|diploma|certificate\s*year/i.test(lower)) return false;
+        }
+
+        if (isSecondaryOnly) {
+            // Secondary schools should NEVER have Playgroup, PP1, PP2, Daycare, or Grade 1 - 6
+            if (/^(playgroup|pg|pp1|pp2|daycare)/i.test(lower)) return false;
+            const m = lower.match(/^grade\s*(\d+)/i);
+            if (m && parseInt(m[1]) < 7) return false;
+        }
+
+        return true;
+    });
+};
