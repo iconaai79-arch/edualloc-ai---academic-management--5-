@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
               res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
               res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-              if (req.method === 'OPTIONS') {
+              if (req.method === 'OPTIONS' || req.method === 'HEAD') {
                 res.statusCode = 200;
                 res.end();
                 return;

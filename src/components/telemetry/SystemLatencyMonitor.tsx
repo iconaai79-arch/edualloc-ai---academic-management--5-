@@ -41,10 +41,15 @@ export const SystemLatencyMonitor: React.FC = () => {
     const pingSamplesRef = useRef<number[]>([]);
 
     // ── High Resolution Probe Helpers ─────────────────────────────────────
-    const measureDuration = async <T,>(fn: () => Promise<T>): Promise<{ duration: number; result: T | null; error: any }> => {
+    const measureDuration = async <T,>(fn: () => Promise<T>, timeoutMs = 5000): Promise<{ duration: number; result: T | null; error: any }> => {
         const start = performance.now();
         try {
-            const result = await fn();
+            let timeoutId: any;
+            const timeoutPromise = new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('Benchmark timeout')), timeoutMs);
+            });
+            const result = await Promise.race([fn(), timeoutPromise]);
+            clearTimeout(timeoutId);
             const duration = Math.round((performance.now() - start) * 10) / 10;
             return { duration, result, error: null };
         } catch (error) {
@@ -80,8 +85,8 @@ export const SystemLatencyMonitor: React.FC = () => {
         // Pre-warm edge runtime container before measuring so dormant spin-up does not skew live roundtrip
         try {
             const prewarmCtrl = new AbortController();
-            const prewarmTimeout = setTimeout(() => prewarmCtrl.abort(), 3000);
-            await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
+            const prewarmTimeout = setTimeout(() => prewarmCtrl.abort(), 2000);
+            await fetch(`${window.location.origin}/api/records?module=ping&limit=1`, {
                 method: 'HEAD',
                 signal: prewarmCtrl.signal,
                 headers: { 'Cache-Control': 'no-cache' }
@@ -91,10 +96,10 @@ export const SystemLatencyMonitor: React.FC = () => {
 
         const { duration, error } = await measureDuration(async () => {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
             try {
-                // Measure active warm-route roundtrip
-                const res = await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
+                // Measure active warm-route roundtrip via dedicated ping module
+                const res = await fetch(`${window.location.origin}/api/records?module=ping&limit=1`, {
                     signal: controller.signal,
                     headers: { 'Cache-Control': 'no-cache' }
                 });
@@ -154,18 +159,6 @@ export const SystemLatencyMonitor: React.FC = () => {
         const probeCount = 50;
         const probeIds = Array.from({ length: probeCount }, (_, i) => `telemetry_probe_${i}`);
 
-        // Background sweep to clean up legacy zombie probe records from earlier runs
-        try {
-            localDb.getAll('tasks' as any).then(items => {
-                if (Array.isArray(items)) {
-                    const legacy = items.filter(it => typeof it?.id === 'string' && (it.id.startsWith('idb_probe_') || it.id.startsWith('telemetry_probe_')));
-                    if (legacy.length > 0) {
-                        localDb.bulkDelete('tasks' as any, legacy.map(p => p.id));
-                    }
-                }
-            }).catch(() => {});
-        } catch (_) {}
-
         const { duration, error } = await measureDuration(async () => {
             const probeItems = probeIds.map((id, i) => ({
                 id,
@@ -175,14 +168,14 @@ export const SystemLatencyMonitor: React.FC = () => {
             }));
 
             // Step 1: Bulk write batch to IndexedDB (single readwrite transaction)
-            await localDb.bulkPut('tasks' as any, probeItems);
+            await localDb.bulkPut('notifications' as any, probeItems);
 
             // Step 2: Read back verified probe records (single readonly transaction)
-            await localDb.bulkGet('tasks' as any, probeIds);
+            await localDb.bulkGet('notifications' as any, probeIds);
 
             // Step 3: Cleanup probe records so browser storage remains spotless (single readwrite transaction)
-            await localDb.bulkDelete('tasks' as any, probeIds);
-        });
+            await localDb.bulkDelete('notifications' as any, probeIds);
+        }, 4000);
 
         const status: BenchmarkResult['status'] = error 
             ? 'critical' 
@@ -290,7 +283,7 @@ export const SystemLatencyMonitor: React.FC = () => {
         const start = performance.now();
         let isSuccess = true;
         try {
-            await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
+            await fetch(`${window.location.origin}/api/records?module=ping&limit=1`, {
                 method: 'HEAD',
                 cache: 'no-store'
             }).catch(() => {

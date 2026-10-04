@@ -770,6 +770,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     if (!moduleName) return res.status(400).json({ success: false, error: 'Module required' });
 
+    // Fast health / telemetry ping handler: avoids running a heavy 5-second DB query when just testing edge connectivity
+    if (moduleName === 'system_settings' || moduleName === 'ping' || moduleName === 'health') {
+        return res.status(200).json([{ id: 'ping', status: 'optimal', ts: Date.now() }]);
+    }
+
     const requestStartTime = Date.now();
     const isGetReq = req.method === 'GET';
     const MAX_SAFE_EXECUTION_MS = isGetReq ? 14000 : 25000;

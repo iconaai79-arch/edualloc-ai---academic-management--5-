@@ -178,6 +178,16 @@ class LocalDb {
             if (!db || !db.objectStoreNames.contains(storeName)) return;
 
             return new Promise((resolve) => {
+                let resolved = false;
+                const safeResolve = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        clearTimeout(safetyTimer);
+                        resolve();
+                    }
+                };
+                const safetyTimer = setTimeout(safeResolve, 3000);
+
                 try {
                     const tx = db.transaction(storeName, 'readwrite');
                     const store = tx.objectStore(storeName);
@@ -189,14 +199,15 @@ class LocalDb {
                         }
                         store.put(payload);
                     }
-                    tx.oncomplete = () => resolve();
+                    tx.oncomplete = () => safeResolve();
                     tx.onerror = () => {
                         console.warn(`[LocalDb] bulkPut failed on store ${storeName}:`, tx.error);
-                        resolve();
+                        safeResolve();
                     };
+                    tx.onabort = () => safeResolve();
                 } catch (e) {
                     console.warn(`[LocalDb] bulkPut transaction error on ${storeName}:`, e);
-                    resolve();
+                    safeResolve();
                 }
             });
         } catch (err) {
@@ -250,10 +261,20 @@ class LocalDb {
             const db = await this.getDB();
             if (!db || !db.objectStoreNames.contains(storeName)) return ids.map(() => null);
             return new Promise((resolve) => {
+                let resolved = false;
+                const results: (T | null)[] = new Array(ids.length);
+                const safeResolve = (res: (T | null)[]) => {
+                    if (!resolved) {
+                        resolved = true;
+                        clearTimeout(safetyTimer);
+                        resolve(res);
+                    }
+                };
+                const safetyTimer = setTimeout(() => safeResolve(ids.map(() => null)), 3000);
+
                 try {
                     const tx = db.transaction(storeName, 'readonly');
                     const store = tx.objectStore(storeName);
-                    const results: (T | null)[] = new Array(ids.length);
                     let completed = 0;
 
                     ids.forEach((id, index) => {
@@ -261,18 +282,20 @@ class LocalDb {
                         request.onsuccess = () => {
                             results[index] = request.result || null;
                             completed++;
-                            if (completed === ids.length) resolve(results);
+                            if (completed === ids.length) safeResolve(results);
                         };
                         request.onerror = () => {
                             results[index] = null;
                             completed++;
-                            if (completed === ids.length) resolve(results);
+                            if (completed === ids.length) safeResolve(results);
                         };
                     });
 
-                    tx.onerror = () => resolve(results);
+                    tx.oncomplete = () => safeResolve(results);
+                    tx.onerror = () => safeResolve(results);
+                    tx.onabort = () => safeResolve(results);
                 } catch {
-                    resolve(ids.map(() => null));
+                    safeResolve(ids.map(() => null));
                 }
             });
         } catch {
@@ -304,20 +327,31 @@ class LocalDb {
             const db = await this.getDB();
             if (!db || !db.objectStoreNames.contains(storeName)) return;
             return new Promise((resolve) => {
+                let resolved = false;
+                const safeResolve = () => {
+                    if (!resolved) {
+                        resolved = true;
+                        clearTimeout(safetyTimer);
+                        resolve();
+                    }
+                };
+                const safetyTimer = setTimeout(safeResolve, 3000);
+
                 try {
                     const tx = db.transaction(storeName, 'readwrite');
                     const store = tx.objectStore(storeName);
                     for (const id of ids) {
                         if (id) store.delete(id);
                     }
-                    tx.oncomplete = () => resolve();
+                    tx.oncomplete = () => safeResolve();
                     tx.onerror = () => {
                         console.warn(`[LocalDb] bulkDelete failed on store ${storeName}:`, tx.error);
-                        resolve();
+                        safeResolve();
                     };
+                    tx.onabort = () => safeResolve();
                 } catch (e) {
                     console.warn(`[LocalDb] bulkDelete transaction error on ${storeName}:`, e);
-                    resolve();
+                    safeResolve();
                 }
             });
         } catch (err) {
