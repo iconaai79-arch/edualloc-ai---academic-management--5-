@@ -1591,6 +1591,7 @@ export interface CompanyDetails {
         welcomeMessage?: string;
     };
     enforceGlobalOtp?: boolean;
+    enforceSuperAdminOtp?: boolean;
     enabledGateways?: string[];
     smsBalance?: number;
     alumnaeJoiningFee?: number;

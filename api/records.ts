@@ -758,10 +758,10 @@ const cleanRemedialSubject = (rec: any) => {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PATCH,DELETE');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PATCH,DELETE,HEAD');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method === 'OPTIONS' || req.method === 'HEAD') return res.status(200).end();
 
     const { module, id, select, order, limit, institutionId: queryInstitutionId, countyId: queryCountyId } = req.query;
     const getStrParam = (p: any): string => (Array.isArray(p) ? p[0] : (p as string) || '');
@@ -4053,6 +4053,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return c;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normFinancialPeriod) : normFinancialPeriod(currentPayload);
+            }
+
+            // Normalize bank_feed_transactions: map camelCase → snake_case DB columns
+            if (moduleName === 'bank_feed_transactions' || targetDbTable === 'bank_feed_transactions') {
+                const normBankFeed = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.transactionReference && !c.transaction_reference) { c.transaction_reference = c.transactionReference; delete c.transactionReference; }
+                    if (c.billReferenceNumber && !c.bill_reference_number) { c.bill_reference_number = c.billReferenceNumber; delete c.billReferenceNumber; }
+                    if (c.payerName && !c.payer_name) { c.payer_name = c.payerName; delete c.payerName; }
+                    if (c.payerPhone && !c.payer_phone) { c.payer_phone = c.payerPhone; delete c.payerPhone; }
+                    if (c.transactionDate && !c.transaction_date) { c.transaction_date = c.transactionDate; delete c.transactionDate; }
+                    if (c.matchedStudentId && !c.matched_student_id) { c.matched_student_id = c.matchedStudentId; delete c.matchedStudentId; }
+                    if (c.matchedStudentName && !c.matched_student_name) { c.matched_student_name = c.matchedStudentName; delete c.matchedStudentName; }
+                    if (c.matchedStudentAdm && !c.matched_student_adm) { c.matched_student_adm = c.matchedStudentAdm; delete c.matchedStudentAdm; }
+                    if (c.generatedReceiptId && !c.generated_receipt_id) { c.generated_receipt_id = c.generatedReceiptId; delete c.generatedReceiptId; }
+                    if (c.generatedReceiptNumber && !c.generated_receipt_number) { c.generated_receipt_number = c.generatedReceiptNumber; delete c.generatedReceiptNumber; }
+                    if (c.reconciliationConfidence && !c.reconciliation_confidence) { c.reconciliation_confidence = c.reconciliationConfidence; delete c.reconciliationConfidence; }
+                    if (c.rawPayload && !c.raw_payload) { c.raw_payload = c.rawPayload; delete c.rawPayload; }
+                    delete c.created_at;
+                    delete c.createdAt;
+                    delete c.updated_at;
+                    delete c.updatedAt;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normBankFeed) : normBankFeed(currentPayload);
             }
 
             // Normalize institutions: map camelCase → snake_case DB columns and delete camelCase keys

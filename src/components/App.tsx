@@ -9407,7 +9407,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         String(inst?.isOtpEnabled) === 'true' || 
                                         String((inst as any)?.is_otp_enabled) === 'true'
                                     );
-                                    const isOtpRequired = !isClientOffline && u.role !== 'super_admin' && (tenantOtpEnforced || companyDetails.enforceGlobalOtp);
+                                    const isSuperAdmin = u.role === 'super_admin';
+                                    const isSuperAdminOtpEnforced = isSuperAdmin && (
+                                        companyDetails?.enforceSuperAdminOtp === true || 
+                                        companyDetails?.enforceGlobalOtp === true || 
+                                        (companyDetails as any)?.enforce_super_admin_otp === true
+                                    );
+                                    const isTenantOtpEnforced = !isSuperAdmin && (
+                                        tenantOtpEnforced || 
+                                        companyDetails?.enforceGlobalOtp === true
+                                    );
+                                    const isOtpRequired = !isClientOffline && (isSuperAdminOtpEnforced || isTenantOtpEnforced);
 
                                     if (isOtpRequired) {
                                         // Generate and Send OTP

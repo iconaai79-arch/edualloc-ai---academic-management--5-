@@ -244,6 +244,42 @@ class LocalDb {
         }
     }
 
+    async bulkGet<T = any>(storeName: string, ids: string[]): Promise<(T | null)[]> {
+        if (!Array.isArray(ids) || ids.length === 0) return [];
+        try {
+            const db = await this.getDB();
+            if (!db || !db.objectStoreNames.contains(storeName)) return ids.map(() => null);
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(storeName, 'readonly');
+                    const store = tx.objectStore(storeName);
+                    const results: (T | null)[] = new Array(ids.length);
+                    let completed = 0;
+
+                    ids.forEach((id, index) => {
+                        const request = store.get(id);
+                        request.onsuccess = () => {
+                            results[index] = request.result || null;
+                            completed++;
+                            if (completed === ids.length) resolve(results);
+                        };
+                        request.onerror = () => {
+                            results[index] = null;
+                            completed++;
+                            if (completed === ids.length) resolve(results);
+                        };
+                    });
+
+                    tx.onerror = () => resolve(results);
+                } catch {
+                    resolve(ids.map(() => null));
+                }
+            });
+        } catch {
+            return ids.map(() => null);
+        }
+    }
+
     async delete(storeName: string, id: string): Promise<void> {
         try {
             const db = await this.getDB();
@@ -260,6 +296,33 @@ class LocalDb {
                 }
             });
         } catch {}
+    }
+
+    async bulkDelete(storeName: string, ids: string[]): Promise<void> {
+        if (!Array.isArray(ids) || ids.length === 0) return;
+        try {
+            const db = await this.getDB();
+            if (!db || !db.objectStoreNames.contains(storeName)) return;
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(storeName, 'readwrite');
+                    const store = tx.objectStore(storeName);
+                    for (const id of ids) {
+                        if (id) store.delete(id);
+                    }
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => {
+                        console.warn(`[LocalDb] bulkDelete failed on store ${storeName}:`, tx.error);
+                        resolve();
+                    };
+                } catch (e) {
+                    console.warn(`[LocalDb] bulkDelete transaction error on ${storeName}:`, e);
+                    resolve();
+                }
+            });
+        } catch (err) {
+            console.warn(`[LocalDb] bulkDelete exception on ${storeName}:`, err);
+        }
     }
 
     async clear(storeName: string): Promise<void> {
@@ -290,9 +353,11 @@ class LocalDb {
                     const store = tx.objectStore(storeName);
                     store.clear();
                     for (const item of items) {
-                        if (!item) continue;
-                        const key = item.id;
-                        const payload = key ? { ...item, id: key } : item;
+                        if (!item || typeof item !== 'object') continue;
+                        const payload = { ...item };
+                        if (!payload.id) {
+                            payload.id = payload._id || payload.code || payload.uuid || payload.key || payload.patient_id || payload.user_id || payload.institutionId || `${storeName}_${Math.random().toString(36).slice(2)}`;
+                        }
                         store.put(payload);
                     }
                     tx.oncomplete = () => resolve();

@@ -77,17 +77,22 @@ export const SystemLatencyMonitor: React.FC = () => {
     // 2. Serverless API Route Latency Probe
     const probeServerlessApi = async (): Promise<BenchmarkResult> => {
         setActiveTarget('Serverless API Probe');
+        // Pre-warm edge runtime container before measuring so dormant spin-up does not skew live roundtrip
+        try {
+            const prewarmCtrl = new AbortController();
+            const prewarmTimeout = setTimeout(() => prewarmCtrl.abort(), 3000);
+            await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
+                method: 'HEAD',
+                signal: prewarmCtrl.signal,
+                headers: { 'Cache-Control': 'no-cache' }
+            }).catch(() => {});
+            clearTimeout(prewarmTimeout);
+        } catch (_) {}
+
         const { duration, error } = await measureDuration(async () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
             try {
-                // Pre-warm edge runtime container if dormant
-                await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
-                    method: 'HEAD',
-                    signal: controller.signal,
-                    headers: { 'Cache-Control': 'no-cache' }
-                }).catch(() => {});
-
                 // Measure active warm-route roundtrip
                 const res = await fetch(`${window.location.origin}/api/records?module=system_settings&limit=1`, {
                     signal: controller.signal,
@@ -154,7 +159,9 @@ export const SystemLatencyMonitor: React.FC = () => {
             localDb.getAll('tasks' as any).then(items => {
                 if (Array.isArray(items)) {
                     const legacy = items.filter(it => typeof it?.id === 'string' && (it.id.startsWith('idb_probe_') || it.id.startsWith('telemetry_probe_')));
-                    legacy.forEach(p => localDb.delete('tasks' as any, p.id));
+                    if (legacy.length > 0) {
+                        localDb.bulkDelete('tasks' as any, legacy.map(p => p.id));
+                    }
                 }
             }).catch(() => {});
         } catch (_) {}
@@ -167,14 +174,14 @@ export const SystemLatencyMonitor: React.FC = () => {
                 tags: ['telemetry', 'benchmark', 'eduai']
             }));
 
-            // Step 1: Bulk write batch to IndexedDB
+            // Step 1: Bulk write batch to IndexedDB (single readwrite transaction)
             await localDb.bulkPut('tasks' as any, probeItems);
 
-            // Step 2: Read back verified probe records
-            await Promise.all(probeIds.map(id => localDb.get('tasks' as any, id)));
+            // Step 2: Read back verified probe records (single readonly transaction)
+            await localDb.bulkGet('tasks' as any, probeIds);
 
-            // Step 3: Cleanup probe records so browser storage remains spotless
-            await Promise.all(probeIds.map(id => localDb.delete('tasks' as any, id)));
+            // Step 3: Cleanup probe records so browser storage remains spotless (single readwrite transaction)
+            await localDb.bulkDelete('tasks' as any, probeIds);
         });
 
         const status: BenchmarkResult['status'] = error 

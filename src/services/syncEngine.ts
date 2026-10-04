@@ -101,13 +101,8 @@ class SyncEngine {
         const cacheTable = async (storeName: string, records: any[]) => {
             if (!Array.isArray(records)) return;
             try {
-                // Clear old store data before filling with fresh tenant snapshot
-                await localDb.clear(storeName);
-                for (const item of records) {
-                    if (item && typeof item === 'object') {
-                        await localDb.put(storeName, item);
-                    }
-                }
+                // Clear old store data and persist fresh tenant snapshot in a single batch transaction
+                await localDb.replaceAll(storeName, records);
             } catch (e) {
                 console.warn(`[SyncEngine] IndexedDB caching error on ${storeName}:`, e);
             }
