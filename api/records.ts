@@ -2218,31 +2218,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         if (pool && _directPgDisabledUntil < Date.now()) {
                             const pgRes = await pool.query(
-                                `SELECT id, institution_id, name, email, role, admission_number, student_class, class_level, stream, gender, metadata, created_at
+                                `SELECT id, institution_id, name, email, role, metadata, created_at, to_jsonb(public.users.*) AS _user_json
                                  FROM public.users
                                  WHERE (institution_id::text = $1 OR institution_id::text = $2)
                                    AND (
                                      LOWER(COALESCE(role, '')) IN ('student', 'learner', 'pupil', 'cadet', 'scholar')
                                      OR (
                                        COALESCE(role, '') NOT IN ('super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator')
-                                       AND (admission_number IS NOT NULL OR student_class IS NOT NULL)
+                                       AND (
+                                         (to_jsonb(public.users.*)->>'admission_number') IS NOT NULL
+                                         OR (to_jsonb(public.users.*)->'metadata'->>'admissionNumber') IS NOT NULL
+                                         OR (to_jsonb(public.users.*)->'metadata'->>'admission_number') IS NOT NULL
+                                         OR (to_jsonb(public.users.*)->'metadata'->>'admNo') IS NOT NULL
+                                         OR (to_jsonb(public.users.*)->>'student_class') IS NOT NULL
+                                         OR (to_jsonb(public.users.*)->'metadata'->>'studentClass') IS NOT NULL
+                                         OR (to_jsonb(public.users.*)->'metadata'->>'gradeLevel') IS NOT NULL
+                                       )
                                      )
                                    )
                                  LIMIT 10000`,
                                 [prefixedInst, rawInst]
                             );
-                            if (pgRes && pgRes.rows) studentRows = pgRes.rows;
+                            if (pgRes && pgRes.rows) {
+                                studentRows = pgRes.rows.map((r: any) => {
+                                    const uj = r._user_json || {};
+                                    const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
+                                    return {
+                                        ...r,
+                                        admission_number: uj.admission_number || meta.admissionNumber || meta.admission_number || meta.admNo || null,
+                                        student_class: uj.student_class || meta.studentClass || meta.gradeLevel || meta.classLevel || null,
+                                        class_level: uj.class_level || meta.classLevel || meta.gradeLevel || null,
+                                        stream: uj.stream || meta.stream || null,
+                                        gender: uj.gender || meta.gender || null
+                                    };
+                                });
+                            }
                         } else {
                             const { data: suData } = await supabase
                                 .from('users')
-                                .select('id, institution_id, name, email, role, admission_number, student_class, class_level, stream, gender, metadata, created_at')
+                                .select('id, institution_id, name, email, role, metadata, created_at')
                                 .or(`institution_id.eq.${prefixedInst},institution_id.eq.${rawInst}`)
                                 .limit(5000);
                             if (Array.isArray(suData)) {
                                 studentRows = suData.filter((u: any) => {
                                     const r = String(u.role || '').toLowerCase();
+                                    const meta = typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {};
+                                    const hasAdmOrClass = Boolean(
+                                        u.admission_number ||
+                                        meta.admissionNumber ||
+                                        meta.admission_number ||
+                                        meta.admNo ||
+                                        u.student_class ||
+                                        meta.studentClass ||
+                                        meta.gradeLevel ||
+                                        meta.classLevel
+                                    );
                                     return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
-                                           (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admission_number || u.student_class));
+                                           (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && hasAdmOrClass);
+                                }).map((u: any) => {
+                                    const meta = typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {};
+                                    return {
+                                        ...u,
+                                        admission_number: u.admission_number || meta.admissionNumber || meta.admission_number || meta.admNo || null,
+                                        student_class: u.student_class || meta.studentClass || meta.gradeLevel || meta.classLevel || null,
+                                        class_level: u.class_level || meta.classLevel || meta.gradeLevel || null,
+                                        stream: u.stream || meta.stream || null,
+                                        gender: u.gender || meta.gender || null
+                                    };
                                 });
                             }
                         }
