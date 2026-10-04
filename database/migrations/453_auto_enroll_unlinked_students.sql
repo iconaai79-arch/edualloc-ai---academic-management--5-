@@ -21,6 +21,59 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS stream TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gender TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 
+-- 0b. Helper resolvers: pull the REAL admission number / grade from any known column or metadata key.
+--     Operate on to_jsonb(row) so missing columns never raise 42703.
+CREATE OR REPLACE FUNCTION public.fn_is_synthetic_adm(p_adm TEXT)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+    SELECT p_adm IS NULL
+        OR btrim(p_adm) IN ('', '-', '—', 'N/A', 'null', 'undefined', 'pending')
+        OR p_adm ~* '^(usr_|user_|st_|enr_|u_)'
+        OR p_adm ~* '^ADM-[0-9]{5,}$'
+        OR p_adm ~* '^ADM-10[0-9]{2}$'
+        OR p_adm ~* '^(ADM|STF)-[0-9]{4}-[A-Za-z0-9]{4}$';
+$$;
+
+CREATE OR REPLACE FUNCTION public.fn_student_real_adm(j JSONB)
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    c TEXT;
+BEGIN
+    FOREACH c IN ARRAY ARRAY[
+        j->>'admission_number', j->>'admissionNumber', j->>'admission_no', j->>'adm_no', j->>'admNo',
+        j->>'staff_id', j->>'staffId', j->>'registration_number', j->>'reg_no', j->>'student_number',
+        j->'metadata'->>'admissionNumber', j->'metadata'->>'admission_number', j->'metadata'->>'admissionNo',
+        j->'metadata'->>'admission_no', j->'metadata'->>'admNo', j->'metadata'->>'adm_no',
+        j->'metadata'->>'admission', j->'metadata'->>'adm', j->'metadata'->>'staffId',
+        j->'metadata'->>'studentId', j->'metadata'->>'regNo', j->'metadata'->>'registrationNo',
+        j->'metadata'->>'upi'
+    ] LOOP
+        IF NOT public.fn_is_synthetic_adm(c) THEN
+            RETURN btrim(c);
+        END IF;
+    END LOOP;
+    RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.fn_student_real_grade(j JSONB)
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    c TEXT;
+BEGIN
+    FOREACH c IN ARRAY ARRAY[
+        j->>'student_class', j->>'grade_level', j->>'class_level', j->>'class_name', j->>'grade', j->>'form',
+        j->'metadata'->>'gradeLevel', j->'metadata'->>'grade_level', j->'metadata'->>'studentClass',
+        j->'metadata'->>'student_class', j->'metadata'->>'classLevel', j->'metadata'->>'className',
+        j->'metadata'->>'class', j->'metadata'->>'grade', j->'metadata'->>'form'
+    ] LOOP
+        IF c IS NOT NULL AND btrim(c) <> '' AND lower(btrim(c)) NOT IN ('no grade', 'unclassified', 'n/a', '—', '-') THEN
+            RETURN btrim(c);
+        END IF;
+    END LOOP;
+    RETURN NULL;
+END;
+$$;
+
 DO $$
 BEGIN
     -- 1. Ensure student_enrollments table exists
@@ -66,6 +119,10 @@ BEGIN
     ) THEN
         ALTER TABLE public.student_enrollments DROP CONSTRAINT student_enrollments_institution_id_fkey;
     END IF;
+
+    -- Indexes first so the backfill's NOT EXISTS lookups are index scans (prevents upstream timeouts)
+    CREATE INDEX IF NOT EXISTS idx_student_enrollments_user_id ON public.student_enrollments(user_id);
+    CREATE INDEX IF NOT EXISTS idx_student_enrollments_adm_no ON public.student_enrollments(admission_number);
 
     -- 3. Idempotent Backfill: Auto-enroll all existing student users
     -- We use to_jsonb(u) to safely access columns regardless of whether they exist as dedicated columns or in metadata JSONB
@@ -137,20 +194,16 @@ BEGIN
         )
     )
     AND u.institution_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM public.student_enrollments se WHERE se.user_id = u.id)
+    AND NOT EXISTS (SELECT 1 FROM public.student_enrollments se WHERE se.id = ('enr_' || replace(u.id, 'u_', '')))
     AND NOT EXISTS (
-        SELECT 1 FROM public.student_enrollments se 
-        WHERE se.user_id = u.id 
-           OR se.id = ('enr_' || replace(u.id, 'u_', ''))
-           OR (
-               se.admission_number IS NOT NULL 
-               AND LOWER(se.admission_number) = LOWER(COALESCE(
-                   to_jsonb(u)->>'admission_number',
-                   to_jsonb(u)->'metadata'->>'admissionNumber',
-                   to_jsonb(u)->'metadata'->>'admNo'
-               ))
-           )
+        SELECT 1 FROM public.student_enrollments se
+        WHERE se.admission_number = public.fn_student_real_adm(to_jsonb(u))
     )
     ON CONFLICT (id) DO NOTHING;
+
+    -- 3b. Repair of existing synthetic ADM-XXXXX / empty-grade rows lives in migration 454
+    --     (kept separate so this migration stays fast in the Supabase SQL editor).
 
     -- 4. Enable RLS
     ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
@@ -219,21 +272,11 @@ BEGIN
 
         v_enr_id := 'enr_' || replace(NEW.id, 'u_', '');
         v_adm := COALESCE(
-            v_u->>'admission_number',
-            v_u->'metadata'->>'admissionNumber',
-            v_u->'metadata'->>'admission_number',
-            v_u->'metadata'->>'admNo',
+            public.fn_student_real_adm(v_u),
             'ADM-' || right(replace(NEW.id, '-', ''), 5)
         );
         v_name := COALESCE(NEW.name, v_u->'metadata'->>'fullName', v_u->'metadata'->>'studentName', 'Student ' || v_adm);
-        v_grade := COALESCE(
-            v_u->>'student_class',
-            v_u->>'class_level',
-            v_u->'metadata'->>'studentClass',
-            v_u->'metadata'->>'gradeLevel',
-            v_u->'metadata'->>'classLevel',
-            ''
-        );
+        v_grade := COALESCE(public.fn_student_real_grade(v_u), '');
         v_stream := COALESCE(
             v_u->>'stream',
             v_u->'metadata'->>'stream',
@@ -278,8 +321,18 @@ BEGIN
         )
         ON CONFLICT (id) DO UPDATE SET
             institution_id = EXCLUDED.institution_id,
-            admission_number = COALESCE(EXCLUDED.admission_number, public.student_enrollments.admission_number),
-            metadata = public.student_enrollments.metadata || EXCLUDED.metadata,
+            -- Only replace a missing/synthetic number with a real one; never downgrade a real number
+            admission_number = CASE
+                WHEN public.fn_is_synthetic_adm(public.student_enrollments.admission_number)
+                     AND NOT public.fn_is_synthetic_adm(EXCLUDED.admission_number)
+                    THEN EXCLUDED.admission_number
+                ELSE COALESCE(public.student_enrollments.admission_number, EXCLUDED.admission_number)
+            END,
+            -- Merge only non-empty incoming values so existing grade/stream are never blanked
+            metadata = COALESCE(public.student_enrollments.metadata, '{}'::jsonb)
+                || COALESCE((SELECT jsonb_object_agg(k, v) FROM jsonb_each(EXCLUDED.metadata) AS t(k, v)
+                             WHERE v IS NOT NULL AND v <> '""'::jsonb
+                               AND k NOT IN ('autoGenerated', 'studentName', 'fullName', 'name')), '{}'::jsonb),
             updated_at = NOW();
 
     END IF;

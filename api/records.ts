@@ -2202,15 +2202,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         // Build index of already returned enrollments
                         const enrolledUserIds = new Set<string>();
                         const enrolledAdmNos = new Set<string>();
+                        const enrolledNames = new Set<string>();
                         data.forEach((e: any) => {
                             if (!e) return;
+                            if (typeof e.metadata === 'string') {
+                                try { e.metadata = JSON.parse(e.metadata); } catch (_) { e.metadata = {}; }
+                            }
+                            if (!e.metadata || typeof e.metadata !== 'object') e.metadata = {};
+
                             const uid = String(e.user_id || e.userId || '').trim().toLowerCase();
                             if (uid) {
                                 enrolledUserIds.add(uid);
                                 enrolledUserIds.add(uid.replace(/^u_/, ''));
                             }
-                            const adm = String(e.admission_number || e.admissionNumber || '').trim().toLowerCase();
+                            const adm = String(e.admission_number || e.admissionNumber || e.metadata?.admissionNumber || '').trim().toLowerCase();
                             if (adm) enrolledAdmNos.add(adm);
+
+                            const sName = String(e.name || e.student_name || e.studentName || e.metadata?.studentName || e.metadata?.name || e.metadata?.fullName || '').trim().toLowerCase();
+                            if (sName && sName !== 'unknown' && sName !== 'student') enrolledNames.add(sName);
+
+                            // Always ensure both admission_number and admissionNumber are set to the real admission number
+                            const realAdm = String(e.admission_number || e.admissionNumber || e.metadata?.admissionNumber || '').trim();
+                            if (realAdm) {
+                                e.admission_number = realAdm;
+                                e.admissionNumber = realAdm;
+                            }
+
+                            // Extract grade and stream from metadata into top-level properties
+                            const gLvl = e.metadata?.gradeLevel || e.metadata?.grade || e.metadata?.studentClass || e.metadata?.className || e.metadata?.class || e.metadata?.form || e.gradeLevel || '';
+                            const strm = e.metadata?.stream || e.metadata?.streamName || e.metadata?.streams || e.metadata?.classStream || e.stream || '';
+                            if (gLvl) {
+                                e.gradeLevel = gLvl;
+                                if (!e.metadata.gradeLevel) e.metadata.gradeLevel = gLvl;
+                            }
+                            if (strm) {
+                                e.stream = strm;
+                                if (!e.metadata.stream) e.metadata.stream = strm;
+                            }
+                            if (gLvl || strm) {
+                                e.studentClass = gLvl && strm && !String(gLvl).toLowerCase().includes(String(strm).toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
+                            }
                         });
 
                         const pool = await getPgPool();
@@ -2245,8 +2276,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     const meta = typeof r.metadata === 'object' && r.metadata !== null ? r.metadata : {};
                                     return {
                                         ...r,
-                                        admission_number: uj.admission_number || meta.admissionNumber || meta.admission_number || meta.admNo || null,
-                                        student_class: uj.student_class || meta.studentClass || meta.gradeLevel || meta.classLevel || null,
+                                        admission_number: uj.admission_number || uj.staff_id || meta.admissionNumber || meta.admission_number || meta.admission || meta.admNo || meta.adm || meta.staffId || meta.studentId || meta.regNo || meta.upi || null,
+                                        student_class: uj.student_class || uj.grade_level || uj.class_level || meta.studentClass || meta.gradeLevel || meta.classLevel || meta.class || meta.grade || meta.form || meta.className || null,
                                         class_level: uj.class_level || meta.classLevel || meta.gradeLevel || null,
                                         stream: uj.stream || meta.stream || null,
                                         gender: uj.gender || meta.gender || null
@@ -2265,13 +2296,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     const meta = typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {};
                                     const hasAdmOrClass = Boolean(
                                         u.admission_number ||
+                                        u.staff_id ||
                                         meta.admissionNumber ||
                                         meta.admission_number ||
+                                        meta.admission ||
                                         meta.admNo ||
+                                        meta.adm ||
+                                        meta.staffId ||
                                         u.student_class ||
                                         meta.studentClass ||
                                         meta.gradeLevel ||
-                                        meta.classLevel
+                                        meta.classLevel ||
+                                        meta.class ||
+                                        meta.grade ||
+                                        meta.form
                                     );
                                     return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
                                            (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && hasAdmOrClass);
@@ -2279,8 +2317,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     const meta = typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {};
                                     return {
                                         ...u,
-                                        admission_number: u.admission_number || meta.admissionNumber || meta.admission_number || meta.admNo || null,
-                                        student_class: u.student_class || meta.studentClass || meta.gradeLevel || meta.classLevel || null,
+                                        admission_number: u.admission_number || u.staff_id || meta.admissionNumber || meta.admission_number || meta.admission || meta.admNo || meta.adm || meta.staffId || meta.studentId || meta.regNo || meta.upi || null,
+                                        student_class: u.student_class || meta.studentClass || meta.gradeLevel || meta.classLevel || meta.class || meta.grade || meta.form || meta.className || null,
                                         class_level: u.class_level || meta.classLevel || meta.gradeLevel || null,
                                         stream: u.stream || meta.stream || null,
                                         gender: u.gender || meta.gender || null
@@ -2290,18 +2328,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
 
                         if (studentRows.length > 0) {
+                            const studentByUid = new Map<string, any>();
+                            const studentByName = new Map<string, any>();
+                            studentRows.forEach(sr => {
+                                if (sr.id) {
+                                    studentByUid.set(String(sr.id).toLowerCase(), sr);
+                                    studentByUid.set(String(sr.id).replace(/^u_/, '').toLowerCase(), sr);
+                                }
+                                if (sr.name) {
+                                    studentByName.set(String(sr.name).trim().toLowerCase(), sr);
+                                }
+                            });
+
+                            // Repair any existing synthetic admission numbers or missing grades in data
+                            data.forEach((e: any) => {
+                                if (!e || typeof e !== 'object') return;
+                                const uid = String(e.user_id || e.userId || '').trim().toLowerCase();
+                                const rawUid = uid.replace(/^u_/, '');
+                                const eName = String(e.name || e.student_name || e.studentName || e.metadata?.studentName || e.metadata?.name || '').trim().toLowerCase();
+                                const matchedUser = studentByUid.get(uid) || studentByUid.get(rawUid) || (eName ? studentByName.get(eName) : null);
+                                if (matchedUser) {
+                                    const currAdm = String(e.admission_number || e.admissionNumber || '').trim();
+                                    const isSynthetic = !currAdm || /^ADM-\d+$/i.test(currAdm) || /^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(currAdm);
+                                    if (isSynthetic && matchedUser.admission_number && !/^ADM-\d+$/i.test(matchedUser.admission_number)) {
+                                        e.admission_number = matchedUser.admission_number;
+                                        if (e.admissionNumber !== undefined) e.admissionNumber = matchedUser.admission_number;
+                                    }
+                                    if (!e.metadata || typeof e.metadata !== 'object') e.metadata = {};
+                                    if (!e.metadata.gradeLevel && matchedUser.student_class) {
+                                        e.metadata.gradeLevel = matchedUser.student_class;
+                                        e.gradeLevel = matchedUser.student_class;
+                                    }
+                                    if (!e.metadata.stream && matchedUser.stream) {
+                                        e.metadata.stream = matchedUser.stream;
+                                        e.stream = matchedUser.stream;
+                                    }
+                                }
+                            });
+
                             const missingRows = studentRows.filter((u: any) => {
                                 const uId = String(u.id || '').trim().toLowerCase();
                                 const rawUid = uId.replace(/^u_/, '');
                                 const adm = String(u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || '').trim().toLowerCase();
-                                return !enrolledUserIds.has(uId) && !enrolledUserIds.has(rawUid) && (!adm || !enrolledAdmNos.has(adm));
+                                const uName = String(u.name || '').trim().toLowerCase();
+                                return !enrolledUserIds.has(uId) && !enrolledUserIds.has(rawUid) && (!adm || !enrolledAdmNos.has(adm)) && (!uName || uName === 'unknown' || !enrolledNames.has(uName));
                             });
 
                             if (missingRows.length > 0) {
                                 console.info(`[API GET Auto-Enrollment] Detected ${missingRows.length} unlinked student users for institution '${targetInst}'. Synthesizing student_enrollments...`);
-                                const synthesized = missingRows.map((u: any, idx: number) => {
+                                const synthesized = missingRows.map((u: any) => {
                                     const rawUid = String(u.id).replace(/^u_/, '');
-                                    const adm = u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || `ADM-${String(u.id).replace(/\D/g, '').slice(-5) || (1000 + idx)}`;
+                                    const adm = (u.admission_number && !/^ADM-\d+$/i.test(u.admission_number))
+                                        ? u.admission_number
+                                        : (u.metadata?.admissionNumber || u.metadata?.admNo || u.admission_number || '');
                                     const gLvl = u.student_class || u.class_level || u.metadata?.gradeLevel || u.metadata?.studentClass || '';
                                     const strm = u.stream || u.metadata?.stream || '';
                                     const meta = {
@@ -2354,6 +2433,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
                             }
                         }
+
+                        // Deduplicate enrollments so real records with genuine admission numbers always take precedence over synthetic duplicates
+                        const seenStudentKeys = new Map<string, number>();
+                        const deduplicatedData: any[] = [];
+                        data.forEach((row: any) => {
+                            if (!row || typeof row !== 'object') return;
+                            const rAdm = String(row.admission_number || row.admissionNumber || '').trim();
+                            const isSynth = !rAdm || /^ADM-\d+$/i.test(rAdm) || /^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(rAdm);
+                            const rName = String(row.name || row.studentName || row.metadata?.studentName || '').trim().toLowerCase();
+                            const key = rName && rName !== 'unknown' ? `name:${rName}` : (row.user_id ? `uid:${row.user_id}` : `id:${row.id}`);
+
+                            if (seenStudentKeys.has(key)) {
+                                const prevIdx = seenStudentKeys.get(key)!;
+                                const prevRow = deduplicatedData[prevIdx];
+                                const prevAdm = String(prevRow.admission_number || prevRow.admissionNumber || '').trim();
+                                const prevSynth = !prevAdm || /^ADM-\d+$/i.test(prevAdm) || /^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(prevAdm);
+
+                                if (prevSynth && !isSynth) {
+                                    deduplicatedData[prevIdx] = row;
+                                }
+                                return;
+                            }
+
+                            seenStudentKeys.set(key, deduplicatedData.length);
+                            deduplicatedData.push(row);
+                        });
+                        data = deduplicatedData;
                     } catch (synthErr: any) {
                         console.warn(`[API GET Auto-Enrollment Note]:`, synthErr?.message || synthErr);
                     }
@@ -2720,6 +2826,111 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
                 delete copy.createdAt;
                 delete copy.updatedAt;
+            }
+            if (moduleName === 'student_enrollments') {
+                const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+
+                // Admission Number: ensure top-level admission_number and meta.admissionNumber are synced
+                const adm = (
+                    copy.admission_number ||
+                    copy.admissionNumber ||
+                    copy.admNo ||
+                    copy.adm_no ||
+                    meta.admissionNumber ||
+                    meta.admission_number ||
+                    meta.admNo
+                );
+                if (adm !== undefined && adm !== null && String(adm).trim() !== '') {
+                    const cleanAdm = String(adm).trim();
+                    copy.admission_number = cleanAdm;
+                    meta.admissionNumber = cleanAdm;
+                }
+
+                // Grade / Class Level
+                const gradeVal = (
+                    copy.gradeLevel ||
+                    copy.grade_level ||
+                    copy.studentClass ||
+                    copy.student_class ||
+                    copy.className ||
+                    copy.class_name ||
+                    meta.gradeLevel ||
+                    meta.grade_level ||
+                    meta.studentClass ||
+                    meta.student_class ||
+                    meta.className ||
+                    meta.class ||
+                    meta.grade ||
+                    meta.form
+                );
+                if (gradeVal) {
+                    meta.gradeLevel = String(gradeVal).trim();
+                }
+
+                // Stream
+                const streamVal = (
+                    copy.stream ||
+                    copy.streamName ||
+                    copy.stream_name ||
+                    copy.classStream ||
+                    meta.stream ||
+                    meta.streamName ||
+                    meta.stream_name ||
+                    meta.streams
+                );
+                if (streamVal) {
+                    meta.stream = String(streamVal).trim();
+                }
+
+                // Combined studentClass
+                if (meta.gradeLevel && meta.stream && !String(meta.gradeLevel).toLowerCase().includes(String(meta.stream).toLowerCase())) {
+                    meta.studentClass = `${meta.gradeLevel} ${meta.stream}`;
+                } else if (meta.gradeLevel) {
+                    meta.studentClass = meta.gradeLevel;
+                }
+
+                // Map camelCase columns to snake_case DB columns
+                if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                if (copy.enrollmentType && !copy.enrollment_type) copy.enrollment_type = copy.enrollmentType;
+                if (copy.enrollmentDate && !copy.enrollment_date) copy.enrollment_date = copy.enrollmentDate;
+                if (copy.assessmentNo && !copy.assessment_no) copy.assessment_no = copy.assessmentNo;
+                if (copy.dateOfBirth && !copy.date_of_birth) copy.date_of_birth = copy.dateOfBirth;
+                if (copy.dob && !copy.date_of_birth) copy.date_of_birth = copy.dob;
+                if (copy.leadershipPosition && !copy.leadership_position) copy.leadership_position = copy.leadershipPosition;
+                if (copy.courseId && !copy.course_id) copy.course_id = copy.courseId;
+                if (copy.classId && !copy.class_id) copy.class_id = copy.classId;
+
+                // Strip non-column transient fields from root so PostgreSQL doesn't reject them
+                delete copy.admissionNumber;
+                delete copy.admissionNo;
+                delete copy.admNo;
+                delete copy.adm_no;
+                delete copy.userId;
+                delete copy.institutionId;
+                delete copy.enrollmentType;
+                delete copy.enrollmentDate;
+                delete copy.assessmentNo;
+                delete copy.dateOfBirth;
+                delete copy.dob;
+                delete copy.leadershipPosition;
+                delete copy.courseId;
+                delete copy.classId;
+                delete copy.gradeLevel;
+                delete copy.grade_level;
+                delete copy.studentClass;
+                delete copy.student_class;
+                delete copy.className;
+                delete copy.class_name;
+                delete copy.stream;
+                delete copy.streamName;
+                delete copy.stream_name;
+                delete copy.studentName;
+                delete copy.student_name;
+                delete copy.fullName;
+                delete copy.name;
+
+                copy.metadata = meta;
             }
             universalKeys.forEach(k => {
                 if (k in copy) delete copy[k];

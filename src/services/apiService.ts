@@ -1806,22 +1806,52 @@ export const apiService = {
                         }
                         if (typeof meta !== 'object' || meta === null) meta = {};
 
-                        const clsVal = enr.className || enr.class_name || enr.gradeLevel || enr.grade_level || meta.className || meta.class_name || meta.gradeLevel || meta.grade_level;
+                        // 1. Admission Number: Always prioritize the genuine table column admission_number
+                        const admVal = enr.admission_number || enr.admissionNumber || enr.admNo || (enr as any).adm_no || meta.admissionNumber || meta.admission_number || meta.admNo || meta.adm;
+                        if (admVal) {
+                            const cleanAdm = String(admVal).trim();
+                            enr.admission_number = cleanAdm;
+                            enr.admissionNumber = cleanAdm;
+                            enr.admNo = cleanAdm;
+                            if (!meta.admissionNumber) meta.admissionNumber = cleanAdm;
+                        }
+
+                        // 2. Grade & Class: Read directly from metadata or top-level
+                        const clsVal = enr.gradeLevel || enr.grade_level || enr.studentClass || enr.student_class || enr.className || enr.class_name || enr.class || meta.gradeLevel || meta.grade_level || meta.studentClass || meta.student_class || meta.className || meta.class_name || meta.class || meta.grade || meta.form;
                         if (clsVal) {
                             enr.className = clsVal;
                             enr.class_name = clsVal;
                             enr.gradeLevel = clsVal;
                             enr.grade_level = clsVal;
+                            enr.studentClass = clsVal;
+                            if (!meta.gradeLevel) meta.gradeLevel = clsVal;
                         }
-                        const strmVal = enr.stream || enr.streamName || enr.stream_name || enr.classStream || meta.stream || meta.streamName || meta.stream_name || meta.classStream;
+
+                        // 3. Stream: Read directly from metadata or top-level
+                        const strmVal = enr.stream || enr.streamName || enr.stream_name || enr.classStream || meta.stream || meta.streamName || meta.stream_name || meta.streams || meta.classStream;
                         if (strmVal) {
                             enr.stream = strmVal;
                             enr.streamName = strmVal;
                             enr.stream_name = strmVal;
+                            if (!meta.stream) meta.stream = strmVal;
                         }
-                        if (!enr.fullName && (meta.fullName || meta.name || meta.full_name)) {
-                            enr.fullName = meta.fullName || meta.name || meta.full_name;
+
+                        // 4. Combined Class and Stream label
+                        if (enr.gradeLevel && enr.stream && !String(enr.gradeLevel).toLowerCase().includes(String(enr.stream).toLowerCase())) {
+                            enr.studentClass = `${enr.gradeLevel} ${enr.stream}`;
+                        } else if (enr.gradeLevel) {
+                            enr.studentClass = enr.gradeLevel;
                         }
+
+                        // 5. Student Name
+                        const sName = enr.studentName || enr.student_name || enr.name || enr.fullName || meta.studentName || meta.student_name || meta.fullName || meta.name;
+                        if (sName) {
+                            enr.studentName = sName;
+                            enr.name = sName;
+                            enr.fullName = sName;
+                            if (!meta.studentName) meta.studentName = sName;
+                        }
+
                         const leadPos = enr.leadershipPosition || enr.leadership_position || meta.leadershipPosition || meta.leadership_position || '';
                         if (leadPos) {
                             enr.leadershipPosition = leadPos;
@@ -2352,7 +2382,49 @@ export const apiService = {
                 }
                 if (module === 'student_enrollments' && Array.isArray(result)) {
                     result.forEach((enr: any) => {
-                        const meta = typeof enr.metadata === 'object' && enr.metadata !== null ? enr.metadata : {};
+                        let meta = enr.metadata;
+                        if (typeof meta === 'string') {
+                            try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                        }
+                        if (typeof meta !== 'object' || meta === null) meta = {};
+
+                        // 1. Admission Number: Always prioritize the table column admission_number
+                        const admVal = enr.admission_number || enr.admissionNumber || enr.admNo || (enr as any).adm_no || meta.admissionNumber || meta.admission_number || meta.admNo || meta.adm;
+                        if (admVal) {
+                            const cleanAdm = String(admVal).trim();
+                            enr.admission_number = cleanAdm;
+                            enr.admissionNumber = cleanAdm;
+                            enr.admNo = cleanAdm;
+                            if (!meta.admissionNumber) meta.admissionNumber = cleanAdm;
+                        }
+
+                        // 2. Grade & Class: Read directly from metadata or top-level
+                        const clsVal = enr.gradeLevel || enr.grade_level || enr.studentClass || enr.student_class || enr.className || enr.class_name || enr.class || meta.gradeLevel || meta.grade_level || meta.studentClass || meta.student_class || meta.className || meta.class_name || meta.class || meta.grade || meta.form;
+                        if (clsVal) {
+                            enr.className = clsVal;
+                            enr.class_name = clsVal;
+                            enr.gradeLevel = clsVal;
+                            enr.grade_level = clsVal;
+                            enr.studentClass = clsVal;
+                            if (!meta.gradeLevel) meta.gradeLevel = clsVal;
+                        }
+
+                        // 3. Stream: Read directly from metadata or top-level
+                        const strmVal = enr.stream || enr.streamName || enr.stream_name || enr.classStream || meta.stream || meta.streamName || meta.stream_name || meta.streams || meta.classStream;
+                        if (strmVal) {
+                            enr.stream = strmVal;
+                            enr.streamName = strmVal;
+                            enr.stream_name = strmVal;
+                            if (!meta.stream) meta.stream = strmVal;
+                        }
+
+                        // 4. Combined Class and Stream label
+                        if (enr.gradeLevel && enr.stream && !String(enr.gradeLevel).toLowerCase().includes(String(enr.stream).toLowerCase())) {
+                            enr.studentClass = `${enr.gradeLevel} ${enr.stream}`;
+                        } else if (enr.gradeLevel) {
+                            enr.studentClass = enr.gradeLevel;
+                        }
+
                         const dobVal = enr.dateOfBirth || enr.date_of_birth || enr.dob || meta.dateOfBirth || meta.date_of_birth || meta.dob || '';
                         if (dobVal) {
                             enr.dateOfBirth = dobVal;
@@ -2366,17 +2438,12 @@ export const apiService = {
                         if (!enr.fullName && (meta.fullName || meta.name || meta.full_name)) {
                             enr.fullName = meta.fullName || meta.name || meta.full_name;
                         }
-                        if (!enr.gradeLevel && (meta.gradeLevel || meta.grade_level)) {
-                            enr.gradeLevel = meta.gradeLevel || meta.grade_level;
-                        }
-                        if (!enr.stream && meta.stream) {
-                            enr.stream = meta.stream;
-                        }
                         const leadPos = enr.leadershipPosition || enr.leadership_position || meta.leadershipPosition || meta.leadership_position || '';
                         if (leadPos) {
                             enr.leadershipPosition = leadPos;
                             enr.leadership_position = leadPos;
                         }
+                        enr.metadata = meta;
                     });
                 }
                 if (module === 'vehicles' && Array.isArray(result)) {
@@ -2908,6 +2975,115 @@ export const apiService = {
                 delete item.guardian_name;
                 delete item.parent_phone;
                 delete item.parentPhone;
+            }
+
+            // student_enrollments module normalization:
+            // 1. Column `admission_number` is the single source of truth for admission numbers
+            // 2. `metadata` contains grade, streams, class level, etc.
+            if (module === 'student_enrollments') {
+                const meta = typeof item.metadata === 'object' && item.metadata !== null ? { ...item.metadata } : {};
+
+                // Admission Number: ensure top-level admission_number and meta.admissionNumber are synced
+                const adm = (
+                    item.admission_number ||
+                    item.admissionNumber ||
+                    item.admNo ||
+                    item.adm_no ||
+                    meta.admissionNumber ||
+                    meta.admission_number ||
+                    meta.admNo
+                );
+                if (adm !== undefined && adm !== null && String(adm).trim() !== '') {
+                    const cleanAdm = String(adm).trim();
+                    item.admission_number = cleanAdm;
+                    meta.admissionNumber = cleanAdm;
+                }
+
+                // Grade / Class Level
+                const gradeVal = (
+                    item.gradeLevel ||
+                    item.grade_level ||
+                    item.studentClass ||
+                    item.student_class ||
+                    item.className ||
+                    item.class_name ||
+                    meta.gradeLevel ||
+                    meta.grade_level ||
+                    meta.studentClass ||
+                    meta.student_class ||
+                    meta.className ||
+                    meta.class ||
+                    meta.grade ||
+                    meta.form
+                );
+                if (gradeVal) {
+                    meta.gradeLevel = String(gradeVal).trim();
+                }
+
+                // Stream
+                const streamVal = (
+                    item.stream ||
+                    item.streamName ||
+                    item.stream_name ||
+                    item.classStream ||
+                    meta.stream ||
+                    meta.streamName ||
+                    meta.stream_name ||
+                    meta.streams
+                );
+                if (streamVal) {
+                    meta.stream = String(streamVal).trim();
+                }
+
+                // Combined studentClass
+                if (meta.gradeLevel && meta.stream && !String(meta.gradeLevel).toLowerCase().includes(String(meta.stream).toLowerCase())) {
+                    meta.studentClass = `${meta.gradeLevel} ${meta.stream}`;
+                } else if (meta.gradeLevel) {
+                    meta.studentClass = meta.gradeLevel;
+                }
+
+                // Map camelCase columns to snake_case DB columns
+                if (item.userId && !item.user_id) item.user_id = item.userId;
+                if (item.institutionId && !item.institution_id) item.institution_id = item.institutionId;
+                if (item.enrollmentType && !item.enrollment_type) item.enrollment_type = item.enrollmentType;
+                if (item.enrollmentDate && !item.enrollment_date) item.enrollment_date = item.enrollmentDate;
+                if (item.assessmentNo && !item.assessment_no) item.assessment_no = item.assessmentNo;
+                if (item.dateOfBirth && !item.date_of_birth) item.date_of_birth = item.dateOfBirth;
+                if (item.dob && !item.date_of_birth) item.date_of_birth = item.dob;
+                if (item.leadershipPosition && !item.leadership_position) item.leadership_position = item.leadershipPosition;
+                if (item.courseId && !item.course_id) item.course_id = item.courseId;
+                if (item.classId && !item.class_id) item.class_id = item.classId;
+
+                // Strip non-column transient fields from root so PostgreSQL doesn't reject them
+                delete item.admissionNumber;
+                delete item.admissionNo;
+                delete item.admNo;
+                delete item.adm_no;
+                delete item.userId;
+                delete item.institutionId;
+                delete item.enrollmentType;
+                delete item.enrollmentDate;
+                delete item.assessmentNo;
+                delete item.dateOfBirth;
+                delete item.dob;
+                delete item.leadershipPosition;
+                delete item.courseId;
+                delete item.classId;
+                delete item.gradeLevel;
+                delete item.grade_level;
+                delete item.studentClass;
+                delete item.student_class;
+                delete item.className;
+                delete item.class_name;
+                delete item.stream;
+                delete item.streamName;
+                delete item.stream_name;
+                delete item.studentName;
+                delete item.student_name;
+                delete item.fullName;
+                delete item.name;
+
+                item.metadata = meta;
             }
 
             // HIS Patients module normalization

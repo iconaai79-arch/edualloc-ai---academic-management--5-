@@ -56,7 +56,14 @@ import { formatRoleDisplayName, getRolesForInstitution, isPrimaryInstitution, is
 import { VALID_STAFF_ROLES } from '../../constants';
 import { formatPhoneNumber, phonesMatch } from '../../utils/stringUtils';
 import { PdfViewer } from '../PdfViewer';
-import { getDefaultGradesForInstitution, filterGradesForInstitution } from '../../utils/academicUtils';
+import { 
+    getDefaultGradesForInstitution, 
+    filterGradesForInstitution,
+    extractClassAndStream,
+    resolveRealStudentAdmNo,
+    resolveRealStudentClass,
+    isSyntheticAdmNo
+} from '../../utils/academicUtils';
 
 const teacherRoles = [
     'teacher',
@@ -277,6 +284,103 @@ const normalizeGradeLabel = (raw: string, prefix = 'Grade'): string => {
     return trimmed;
 };
 
+// Helper: extract the real admission number for an enrollment record
+// Always prioritizes the genuine admission_number column from public.student_enrollments
+export const getEnrollmentAdmNo = (enr?: any, user?: any): string => {
+    // 1. Direct from student_enrollments table field admission_number / admissionNumber / admNo
+    const direct = enr?.admission_number || enr?.admissionNumber || enr?.admNo || (enr as any)?.adm_no;
+    if (direct && String(direct).trim() && !['—', '-', 'N/A', 'null', 'undefined', 'pending', 'not set'].includes(String(direct).trim().toLowerCase()) && !String(direct).trim().startsWith('usr_') && !String(direct).trim().startsWith('u_')) {
+        return String(direct).trim();
+    }
+    // 2. Direct from metadata on enrollment
+    const metaAdm = enr?.metadata?.admissionNumber || enr?.metadata?.admission_number || enr?.metadata?.admNo || enr?.metadata?.adm;
+    if (metaAdm && String(metaAdm).trim() && !['—', '-', 'N/A', 'null', 'undefined', 'pending', 'not set'].includes(String(metaAdm).trim().toLowerCase()) && !String(metaAdm).trim().startsWith('usr_') && !String(metaAdm).trim().startsWith('u_')) {
+        return String(metaAdm).trim();
+    }
+    // 3. From associated user
+    const userAdm = user?.admission_number || user?.admissionNumber || user?.admNo || (user as any)?.adm_no || user?.staffId || (user as any)?.staff_id || user?.metadata?.admissionNumber || user?.metadata?.admission_number || user?.metadata?.admNo;
+    if (userAdm && String(userAdm).trim() && !['—', '-', 'N/A', 'null', 'undefined', 'pending', 'not set'].includes(String(userAdm).trim().toLowerCase()) && !String(userAdm).trim().startsWith('usr_') && !String(userAdm).trim().startsWith('u_')) {
+        return String(userAdm).trim();
+    }
+    return '';
+};
+
+// Helper: extract the grade level from student_enrollments metadata or associated user
+export const getEnrollmentGrade = (enr?: any, user?: any): string => {
+    let meta = enr?.metadata;
+    if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+    }
+    meta = meta && typeof meta === 'object' ? meta : {};
+
+    let userMeta = user?.metadata;
+    if (typeof userMeta === 'string') {
+        try { userMeta = JSON.parse(userMeta); } catch (_) { userMeta = {}; }
+    }
+    userMeta = userMeta && typeof userMeta === 'object' ? userMeta : {};
+
+    const raw = (
+        meta.gradeLevel || 
+        meta.grade_level || 
+        meta.studentClass || 
+        meta.student_class || 
+        meta.className || 
+        meta.class_name || 
+        meta.class || 
+        meta.grade || 
+        meta.form || 
+        enr?.gradeLevel || 
+        enr?.studentClass || 
+        (enr as any)?.className ||
+        user?.studentClass || 
+        user?.gradeLevel || 
+        (user as any)?.classLevel || 
+        userMeta.gradeLevel || 
+        userMeta.studentClass || 
+        userMeta.className || 
+        userMeta.class || 
+        userMeta.grade || 
+        userMeta.form || 
+        ''
+    );
+    if (!raw || String(raw).trim().toLowerCase() === 'unclassified' || String(raw).trim().toLowerCase() === 'no grade') return '';
+    const parsed = extractClassAndStream(raw);
+    return parsed.className && parsed.className !== 'Unclassified' ? parsed.className : String(raw).trim();
+};
+
+// Helper: extract stream from student_enrollments metadata or associated user
+export const getEnrollmentStream = (enr?: any, user?: any): string => {
+    let meta = enr?.metadata;
+    if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+    }
+    meta = meta && typeof meta === 'object' ? meta : {};
+
+    let userMeta = user?.metadata;
+    if (typeof userMeta === 'string') {
+        try { userMeta = JSON.parse(userMeta); } catch (_) { userMeta = {}; }
+    }
+    userMeta = userMeta && typeof userMeta === 'object' ? userMeta : {};
+
+    const rawG = meta.gradeLevel || meta.studentClass || meta.className || enr?.studentClass || '';
+    const parsedG = extractClassAndStream(rawG);
+
+    return (
+        meta.stream || 
+        meta.streamName || 
+        meta.stream_name || 
+        meta.streams || 
+        meta.classStream || 
+        enr?.stream || 
+        enr?.streamName || 
+        user?.stream || 
+        (user as any)?.streamName || 
+        userMeta.stream || 
+        parsedG.stream || 
+        ''
+    );
+};
+
 interface StudentEnrollmentManagerProps {
     context: 'academic' | 'driving_school';
     currentInstitution: Institution;
@@ -358,14 +462,20 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (!u) return false;
                 const r = String(u.role || '').toLowerCase();
                 return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
-                       (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).studentClass));
+                       (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).staffId || (u as any).staff_id || (u as any).studentClass || (u as any).gradeLevel));
             });
             if (studentUsers.length > 0) {
                 contextEnrs = studentUsers.map((u: any, idx) => {
                     const cleanUid = String(u.id || '').replace(/^u_/, '');
-                    const adm = u.admissionNumber || u.admission_number || u.admNo || `ADM-${String(u.id).replace(/\D/g, '').slice(-5) || (1000 + idx)}`;
-                    const gLvl = u.studentClass || u.classLevel || u.gradeLevel || '';
-                    const strm = u.stream || '';
+                    const rawAdm = u.admissionNumber || u.admission_number || u.admissionNo || u.admission_no || u.admNo || u.adm_no || u.staffId || (u as any).staff_id || (u as any).registrationNumber || (u as any).regNo || (u as any).studentId || (u as any).upi || u.metadata?.admissionNumber || u.metadata?.admission_number || u.metadata?.admission || u.metadata?.admissionNo || u.metadata?.admNo || u.metadata?.adm || u.metadata?.staffId || u.metadata?.regNo || u.metadata?.studentId || u.metadata?.upi || '';
+                    const utilAdm = resolveRealStudentAdmNo(u, idx);
+                    const adm = (rawAdm && !isSyntheticAdmNo(rawAdm)) 
+                        ? String(rawAdm).trim() 
+                        : (utilAdm && !isSyntheticAdmNo(utilAdm) ? utilAdm : `ADM-${String(u.id).replace(/\D/g, '').slice(-5) || (1000 + idx)}`);
+                    const rawG = u.studentClass || (u as any).student_class || u.classLevel || u.gradeLevel || (u as any).className || u.metadata?.gradeLevel || u.metadata?.studentClass || u.metadata?.className || u.metadata?.class || u.metadata?.grade || u.metadata?.form || '';
+                    const parsedG = extractClassAndStream(rawG);
+                    const gLvl = parsedG.className && parsedG.className !== 'Unclassified' ? parsedG.className : (rawG || '');
+                    const strm = u.stream || (u as any).streamName || u.metadata?.stream || parsedG.stream || '';
                     const studentName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() : (u.fullName || `Student ${adm}`);
                     const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
                     return {
@@ -487,11 +597,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         return clean === '' || clean === 'unknown student' || clean === 'unknown' || clean === 'student' || clean === 'null' || clean === 'undefined';
     };
 
-    // Fast O(1) indexed lookup maps for users by ID, normalized raw ID, and admission number
+    // Fast O(1) indexed lookup maps for users by ID, normalized raw ID, admission number, and name
     const userMaps = useMemo(() => {
         const byId = new Map<string, User>();
         const byAdm = new Map<string, User>();
         const byEnrId = new Map<string, User>();
+        const byName = new Map<string, User>();
 
         for (let i = 0; i < users.length; i++) {
             const u = users[i];
@@ -511,8 +622,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             if (enrId) {
                 byEnrId.set(String(enrId).trim(), u);
             }
+            if (u.name && !isNameUnknown(u.name)) {
+                byName.set(String(u.name).trim().toLowerCase(), u);
+            }
         }
-        return { byId, byAdm, byEnrId };
+        return { byId, byAdm, byEnrId, byName };
     }, [users]);
 
     const findStudentUser = useCallback((enr: Partial<StudentEnrollment> | undefined | null, userList?: User[]): User | undefined => {
@@ -523,6 +637,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const eAdm = (enr.admissionNumber || (enr as any)?.admission_number || enr.metadata?.admissionNumber || '').trim().toLowerCase();
             const eId = (enr.id || '').trim();
             const rawEId = eId.replace(/^u_/, '');
+            const eName = String((enr as any)?.studentName || (enr as any)?.name || enr?.metadata?.studentName || enr?.metadata?.name || enr?.metadata?.fullName || '').trim().toLowerCase();
 
             return userList.find(u => {
                 if (!u) return false;
@@ -532,6 +647,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const uAdm = (u.admissionNumber || (u as any)?.admission_number || '').trim().toLowerCase();
                 if (uAdm && eAdm && uAdm === eAdm) return true;
                 if (eId && (uId === eId || rawUId === rawEId || (u as any).enrollmentId === eId)) return true;
+                if (eName && !isNameUnknown(eName) && u.name && String(u.name).trim().toLowerCase() === eName) return true;
                 return false;
             });
         }
@@ -560,6 +676,12 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             if (matchRawId) return matchRawId;
             const matchEnr = userMaps.byEnrId.get(eId);
             if (matchEnr) return matchEnr;
+        }
+
+        const eName = String((enr as any)?.studentName || (enr as any)?.name || enr?.metadata?.studentName || enr?.metadata?.name || enr?.metadata?.fullName || '').trim().toLowerCase();
+        if (eName && !isNameUnknown(eName)) {
+            const matchName = userMaps.byName.get(eName);
+            if (matchName) return matchName;
         }
 
         return undefined;
@@ -1152,7 +1274,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 broadcastsData,
                 eventsData,
                 pinsData,
-                visitorsData
+                visitorsData,
+                invoicesData
             ] = await Promise.all([
                 apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveTargetInstId, undefined, { limit: 10000 }),
                 apiService.fetchModuleRecords<User>('users', effectiveTargetInstId, undefined, { limit: 10000 }),
@@ -1166,9 +1289,26 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 needsBroadcaster ? apiService.fetchModuleRecords<any>('broadcaster_messages', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
                 needsCalendar ? apiService.fetchModuleRecords<any>('institution_events', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
                 needsCalendar ? apiService.fetchModuleRecords<any>('event_pins', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
-                needsGuests ? apiService.fetchModuleRecords<Visitor>('visitors', effectiveTargetInstId).catch(() => []) : Promise.resolve([])
+                needsGuests ? apiService.fetchModuleRecords<Visitor>('visitors', effectiveTargetInstId).catch(() => []) : Promise.resolve([]),
+                apiService.fetchModuleRecords<any>('invoices', effectiveTargetInstId, undefined, { limit: 10000 }).catch(() => [])
             ]);
             
+            // Build index of invoices for cross-referencing genuine student admission numbers and grades
+            const invoiceByUserId = new Map<string, any>();
+            const invoiceByName = new Map<string, any>();
+            (invoicesData || []).forEach((inv: any) => {
+                if (!inv) return;
+                const sId = String(inv.studentId || inv.student_id || inv.userId || inv.user_id || '').trim().toLowerCase();
+                if (sId) {
+                    invoiceByUserId.set(sId, inv);
+                    invoiceByUserId.set(sId.replace(/^u_/, ''), inv);
+                }
+                const sName = String(inv.studentName || inv.student_name || '').trim().toLowerCase();
+                if (sName) {
+                    invoiceByName.set(sName, inv);
+                }
+            });
+
             // Build comprehensive user map from users module and initialUsers
             const combinedUserMap = new Map<string, User>();
             (initialUsers || []).forEach(u => { if (u && u.id) combinedUserMap.set(String(u.id).trim(), u); });
@@ -1177,6 +1317,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             const userById = new Map<string, User>();
             const userByAdm = new Map<string, User>();
+            const userByName = new Map<string, User>();
             allUsers.forEach(u => {
                 if (!u) return;
                 if (u.id) {
@@ -1186,41 +1327,88 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     userById.set(rawId, u);
                     userById.set(`u_${rawId}`, u);
                 }
-                const adm = (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || '').trim().toLowerCase();
-                if (adm) {
-                    userByAdm.set(adm, u);
+                if (u.name && !isNameUnknown(u.name)) {
+                    userByName.set(String(u.name).trim().toLowerCase(), u);
                 }
+                const admCandidates = [
+                    u.admissionNumber,
+                    (u as any).admission_number,
+                    (u as any).admissionNo,
+                    (u as any).admission_no,
+                    (u as any).admNo,
+                    (u as any).adm_no,
+                    (u as any).staffId,
+                    (u as any).staff_id,
+                    (u as any).registrationNumber,
+                    (u as any).regNo,
+                    (u as any).studentId,
+                    (u as any).upi,
+                    u.metadata?.admissionNumber,
+                    u.metadata?.admission_number,
+                    u.metadata?.admission,
+                    u.metadata?.admissionNo,
+                    u.metadata?.admNo,
+                    u.metadata?.adm,
+                    u.metadata?.staffId,
+                    u.metadata?.regNo,
+                    u.metadata?.studentId,
+                    u.metadata?.upi
+                ];
+                admCandidates.forEach(cand => {
+                    if (!cand) return;
+                    const clean = String(cand).trim().toLowerCase();
+                    if (clean && clean !== '—' && clean !== 'n/a' && !clean.startsWith('usr_') && !clean.startsWith('user_')) {
+                        userByAdm.set(clean, u);
+                        const noSpaces = clean.replace(/\s+/g, '');
+                        if (noSpaces) userByAdm.set(noSpaces, u);
+                    }
+                });
             });
 
             setUsers(allUsers);
 
             const rawEnrollments = (enrollmentsData && enrollmentsData.length > 0) ? enrollmentsData : (initialEnrollments || []);
-            const hydrated = (rawEnrollments || []).map(e => {
+            const hydrated = (rawEnrollments || []).map((e, idx) => {
                 const eAdm = (e.admissionNumber || (e as any).admission_number || (e as any).admNo || e.metadata?.admissionNumber || '').trim().toLowerCase();
                 const eUid = (e.userId || (e as any).user_id || '').trim();
                 const rawUid = eUid.replace(/^u_/, '');
 
-                const u: any = (eUid ? (userById.get(eUid) || userById.get(rawUid) || userById.get(`u_${rawUid}`)) : null)
-                    || (eAdm ? userByAdm.get(eAdm) : null)
-                    || (e.id ? userById.get(e.id) : null)
-                    || {};
-
-                const resolvedName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() :
-                    ((e as any).name && !isNameUnknown((e as any).name)) ? (e as any).name.trim() :
+                let resolvedName = ((e as any).name && !isNameUnknown((e as any).name)) ? (e as any).name.trim() :
                     ((e as any).studentName && !isNameUnknown((e as any).studentName)) ? String((e as any).studentName).trim() :
                     (e.metadata?.studentName && !isNameUnknown(e.metadata.studentName)) ? e.metadata.studentName.trim() :
                     (e.metadata?.name && !isNameUnknown(e.metadata.name)) ? e.metadata.name.trim() :
                     (e.metadata?.fullName && !isNameUnknown(e.metadata.fullName)) ? e.metadata.fullName.trim() :
                     '';
 
-                const adm = e.admissionNumber || (e as any).admission_number || u.admissionNumber || e.metadata?.admissionNumber || '';
-                const gLvl = e.metadata?.gradeLevel || e.metadata?.grade_level || u.studentClass || (e as any).studentClass || (e as any).gradeLevel || '';
-                const strm = e.metadata?.stream || u.stream || (e as any).stream || '';
+                const u: any = (eUid ? (userById.get(eUid) || userById.get(rawUid) || userById.get(`u_${rawUid}`)) : null)
+                    || (eAdm ? userByAdm.get(eAdm) : null)
+                    || (resolvedName ? userByName.get(resolvedName.toLowerCase()) : null)
+                    || (e.id ? userById.get(e.id) : null)
+                    || {};
+
+                if (u.name && !isNameUnknown(u.name)) {
+                    resolvedName = u.name.trim();
+                }
+
+                // Admission Number: ALWAYS prioritize the real admission_number from student_enrollments
+                const adm = getEnrollmentAdmNo(e, u);
+
+                // Grade & Stream Resolution directly from metadata
+                const gLvl = getEnrollmentGrade(e, u);
+                const strm = getEnrollmentStream(e, u);
                 const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
+
+                let meta = e.metadata;
+                if (typeof meta === 'string') {
+                    try { meta = JSON.parse(meta); } catch(_) { meta = {}; }
+                }
+                meta = meta && typeof meta === 'object' ? { ...meta } : {};
+
                 return {
                     ...e,
                     name: resolvedName || (e as any).name || '',
                     studentName: resolvedName,
+                    admission_number: adm,
                     admissionNumber: adm,
                     admNo: adm,
                     studentClass: fullCls,
@@ -1228,10 +1416,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     stream: strm,
                     streamName: strm,
                     metadata: {
-                        ...(e.metadata || {}),
-                        studentName: resolvedName || e.metadata?.studentName || '',
+                        ...meta,
+                        studentName: resolvedName || meta.studentName || '',
                         gradeLevel: gLvl,
-                        stream: strm
+                        stream: strm,
+                        admissionNumber: adm || meta.admissionNumber || ''
                     }
                 };
             });
@@ -1239,6 +1428,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             // Index existing enrollments to find unlinked student users
             const enrolledUserIds = new Set<string>();
             const enrolledAdmNos = new Set<string>();
+            const enrolledNames = new Set<string>();
             const enrolledIds = new Set<string>();
 
             hydrated.forEach(e => {
@@ -1253,6 +1443,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 }
                 const adm = String(e.admissionNumber || (e as any).admission_number || (e as any).admNo || e.metadata?.admissionNumber || '').trim().toLowerCase();
                 if (adm) enrolledAdmNos.add(adm);
+
+                const sName = String(e.name || (e as any).studentName || e.metadata?.studentName || e.metadata?.name || e.metadata?.fullName || '').trim().toLowerCase();
+                if (sName && !isNameUnknown(sName)) enrolledNames.add(sName);
             });
 
             // Auto-enrollment discovery: every registered student user missing an enrollment record gets enrolled automatically
@@ -1261,18 +1454,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 if (!u) return;
                 const role = String(u.role || '').toLowerCase().trim();
                 const isStudent = ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(role) ||
-                    (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(role) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel));
+                    (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(role) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).staffId || (u as any).staff_id || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel));
 
                 if (!isStudent) return;
 
                 const uId = String(u.id || '').trim();
                 const rawUid = uId.replace(/^u_/, '').toLowerCase();
-                const adm = String(u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || u.metadata?.admissionNumber || '').trim();
+                const rawAdmCandidate = u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || (u as any).staffId || (u as any).staff_id || (u as any).registrationNumber || (u as any).regNo || (u as any).studentId || (u as any).upi || u.metadata?.admissionNumber || u.metadata?.admission_number || u.metadata?.admission || u.metadata?.admissionNo || u.metadata?.admNo || u.metadata?.adm || u.metadata?.staffId || u.metadata?.regNo || u.metadata?.studentId || u.metadata?.upi || '';
+                const adm = String(rawAdmCandidate).trim();
                 const admLower = adm.toLowerCase();
+                const uName = String(u.name || '').trim().toLowerCase();
 
                 const alreadyEnrolled = 
                     (uId && (enrolledUserIds.has(uId.toLowerCase()) || enrolledUserIds.has(rawUid))) ||
-                    (admLower && enrolledAdmNos.has(admLower)) ||
+                    (admLower && !isSyntheticAdmNo(admLower) && enrolledAdmNos.has(admLower)) ||
+                    (uName && !isNameUnknown(uName) && enrolledNames.has(uName)) ||
                     (uId && enrolledIds.has(uId.toLowerCase())) ||
                     (uId && enrolledIds.has(`enr_${rawUid}`)) ||
                     (uId && enrolledIds.has(`enr_${uId.toLowerCase()}`));
@@ -1284,11 +1480,29 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     enrolledUserIds.add(rawUid);
                 }
                 if (admLower) enrolledAdmNos.add(admLower);
+                if (uName && !isNameUnknown(uName)) enrolledNames.add(uName);
 
-                const fallbackAdm = adm || `ADM-${String(uId).replace(/\D/g, '').slice(-5) || (1000 + idx)}`;
-                const gLvl = u.studentClass || (u as any).classLevel || (u as any).gradeLevel || (u as any).class_level || (u as any).grade_level || u.metadata?.gradeLevel || '';
-                const strm = u.stream || (u as any).streamName || (u as any).stream_name || u.metadata?.stream || '';
-                const studentName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() : (u.fullName || u.metadata?.studentName || `Student ${fallbackAdm}`);
+                const invMatch = (invoiceByUserId?.get(uId.toLowerCase()) || invoiceByUserId?.get(rawUid) || (u.name ? invoiceByName?.get(String(u.name).trim().toLowerCase()) : null));
+                const invAdm = invMatch?.admissionNumber || (invMatch as any)?.admission_number || '';
+                const utilAdm = resolveRealStudentAdmNo(u, idx, rawEnrollments);
+
+                let finalAdm = '';
+                if (adm && !isSyntheticAdmNo(adm)) {
+                    finalAdm = adm;
+                } else if (invAdm && !isSyntheticAdmNo(invAdm)) {
+                    finalAdm = invAdm;
+                } else if (utilAdm && !isSyntheticAdmNo(utilAdm)) {
+                    finalAdm = utilAdm;
+                } else {
+                    finalAdm = adm || '';
+                }
+
+                const invGrade = invMatch?.grade || (invMatch as any)?.className || (invMatch as any)?.class_name || (invMatch as any)?.studentClass || '';
+                const rawG = u.studentClass || (u as any).classLevel || (u as any).gradeLevel || (u as any).class_level || (u as any).grade_level || u.metadata?.gradeLevel || u.metadata?.studentClass || u.metadata?.className || u.metadata?.class || u.metadata?.grade || u.metadata?.form || invGrade || '';
+                const parsedG = extractClassAndStream(rawG);
+                const gLvl = parsedG.className && parsedG.className !== 'Unclassified' ? parsedG.className : (rawG || '');
+                const strm = u.stream || (u as any).streamName || (u as any).stream_name || u.metadata?.stream || invMatch?.stream || parsedG.stream || '';
+                const studentName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() : (u.fullName || u.metadata?.studentName || (finalAdm ? `Student ${finalAdm}` : 'Student'));
                 const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
 
                 const autoEnr: StudentEnrollment = {
@@ -1296,8 +1510,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     institutionId: u.institutionId || (u as any).institution_id || effectiveTargetInstId,
                     userId: uId,
                     enrollmentType: context === 'driving_school' ? 'driving_school' : 'academic',
-                    admissionNumber: fallbackAdm,
-                    admNo: fallbackAdm,
+                    admissionNumber: finalAdm,
+                    admission_number: finalAdm,
+                    admNo: finalAdm,
                     status: 'Active',
                     enrollmentDate: u.createdAt ? String(u.createdAt).split('T')[0] : new Date().toISOString().split('T')[0],
                     name: studentName,
@@ -1324,7 +1539,35 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 missingEnrollments.push(autoEnr);
             });
 
-            const combinedEnrollments = [...hydrated, ...missingEnrollments];
+            // Combine and deduplicate enrollments: genuine admission numbers always win over synthetic duplicates
+            const allCombined = [...hydrated, ...missingEnrollments];
+            const dedupedEnrollments: StudentEnrollment[] = [];
+            const seenKeys = new Map<string, number>();
+
+            allCombined.forEach((enr) => {
+                const sName = String(enr.name || (enr as any).studentName || enr.metadata?.studentName || '').trim().toLowerCase();
+                const adm = String(enr.admissionNumber || (enr as any).admission_number || '').trim();
+                const isSynthetic = !adm || isSyntheticAdmNo(adm);
+                const key = sName && !isNameUnknown(sName) ? `name:${sName}` : (enr.userId ? `uid:${enr.userId}` : `id:${enr.id}`);
+
+                if (seenKeys.has(key)) {
+                    const existingIdx = seenKeys.get(key)!;
+                    const existing = dedupedEnrollments[existingIdx];
+                    const existingAdm = String(existing.admissionNumber || (existing as any).admission_number || '').trim();
+                    const existingSynthetic = !existingAdm || isSyntheticAdmNo(existingAdm);
+
+                    // If existing record was synthetic and new one has a genuine admission number, swap it!
+                    if (existingSynthetic && !isSynthetic) {
+                        dedupedEnrollments[existingIdx] = enr;
+                    }
+                    return;
+                }
+
+                seenKeys.set(key, dedupedEnrollments.length);
+                dedupedEnrollments.push(enr);
+            });
+
+            const combinedEnrollments = dedupedEnrollments;
 
             const isAcademic = context === 'academic';
             const filteredEnrs = combinedEnrollments.filter(e => {
@@ -1556,6 +1799,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const resolvedLeadership = formData.leadershipPosition || formData.metadata.leadershipPosition || '';
             const metadataToSave = {
                 ...formData.metadata,
+                admissionNumber: formData.admissionNumber,
+                gradeLevel: formData.metadata.gradeLevel || '',
+                stream: formData.metadata.stream || '',
                 dateOfBirth: resolvedDob,
                 dob: resolvedDob,
                 leadershipPosition: resolvedLeadership,
@@ -1581,6 +1827,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     metadata: metadataToSave,
                     updatedAt: new Date().toISOString()
                 };
+                (updated as any).admission_number = formData.admissionNumber;
                 await apiService.updateModuleRecord('student_enrollments', editingEnrollment.id, updated);
                 setStatusMsg({ type: 'success', message: 'Enrollment record updated successfully.' });
             } else {
@@ -1596,6 +1843,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     }
                 }
                 previewAdmissionNumberRef.current = '';
+                metadataToSave.admissionNumber = finalAdmNo;
                 const newEnrollment: StudentEnrollment = {
                     id: enrollmentId,
                     institutionId: currentInstitution.id,
@@ -1611,6 +1859,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     metadata: metadataToSave,
                     createdAt: new Date().toISOString()
                 };
+                (newEnrollment as any).admission_number = finalAdmNo;
                 await apiService.saveModuleRecord('student_enrollments', newEnrollment);
                 
                 // Dispatch notification to DOS (to finalize academic onboarding & update assessment number) and Headteacher/HOI (to approve enrollment)
@@ -1800,19 +2049,21 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         const dobVal = enr.dateOfBirth || enr.dob || enr.metadata?.dateOfBirth || enr.metadata?.dob || (enr as any)?.dateOfBirth || associatedUser?.dateOfBirth || (associatedUser as any)?.dob || associatedUser?.metadata?.dateOfBirth || associatedUser?.metadata?.dob || '';
 
         // 2. Clean & normalize gradeLevel to match cohortsList accurately (prevents defaulting to first option like Playgroup)
-        const rawGrade = enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any)?.classLevel || (enr as any)?.studentClass || '';
+        const rawGrade = getEnrollmentGrade(enr, associatedUser);
         const normKey = getNormalizedGradeKey(rawGrade);
         const matchedCohort = cohortsList.find(c => getNormalizedGradeKey(c) === normKey);
         const resolvedGrade = matchedCohort || normalizeGradeLabel(rawGrade) || rawGrade;
 
-        const currentStream = enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || '';
+        const currentStream = getEnrollmentStream(enr, associatedUser);
         const leadershipVal = enr.leadershipPosition || enr.metadata?.leadershipPosition || (enr as any)?.leadership_position || associatedUser?.metadata?.leadershipPosition || '';
+
+        const resolvedAdm = getEnrollmentAdmNo(enr, associatedUser);
 
         setFormData({
             fullName: associatedUser?.name || enr.metadata?.studentName || enr.metadata?.name || 'Unknown',
             email: associatedUser?.email || '',
             phoneNumber: associatedUser?.phoneNumber || '',
-            admissionNumber: enr.admissionNumber || (associatedUser as any)?.admissionNumber || '',
+            admissionNumber: resolvedAdm,
             assessmentNo: assessmentNoVal,
             dateOfBirth: dobVal,
             leadershipPosition: leadershipVal,
@@ -5014,12 +5265,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
 
             const associatedUser = findStudentUser(enr);
+            const admNo = getEnrollmentAdmNo(enr, associatedUser);
             
             if (search) {
                 const assessmentNo = enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || associatedUser?.metadata?.assessmentNo || associatedUser?.metadata?.assessmentNumber || (enr as any).assessmentNo || (associatedUser as any)?.assessmentNo || '';
                 const sName = associatedUser?.name || (enr as any).name || (enr as any).studentName || enr.metadata?.studentName || enr.metadata?.fullName || '';
                 const matchesSearch = 
                     sName.toLowerCase().includes(search) ||
+                    admNo.toLowerCase().includes(search) ||
                     (enr.admissionNumber || '').toLowerCase().includes(search) ||
                     (assessmentNo || '').toLowerCase().includes(search) ||
                     (associatedUser?.phoneNumber || '').includes(search);
@@ -5027,7 +5280,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
             
             if (gradeFilter) {
-                const rawStGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any).gradeLevel || (enr as any).studentClass || '').trim();
+                const rawStGrade = getEnrollmentGrade(enr, associatedUser);
                 const normStGrade = getNormalizedGradeKey(rawStGrade);
                 const matchesGrade = 
                     (normFilterGrade && normStGrade === normFilterGrade) || 
@@ -5037,8 +5290,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             }
             
             if (streamFilter) {
-                const rawStStream = (enr.metadata?.stream || (associatedUser as any)?.stream || (associatedUser as any)?.streamName || (associatedUser as any)?.stream_name || (enr as any).stream || '').trim();
-                const rawStGrade = (enr.metadata?.gradeLevel || associatedUser?.studentClass || (associatedUser as any)?.classLevel || (associatedUser as any)?.class_name || (associatedUser as any)?.class || (enr as any).gradeLevel || (enr as any).studentClass || '').trim();
+                const rawStStream = getEnrollmentStream(enr, associatedUser);
+                const rawStGrade = getEnrollmentGrade(enr, associatedUser);
                 const matchesStream = 
                     rawStStream.toLowerCase() === lowerStreamFilter ||
                     rawStGrade.toLowerCase().endsWith(lowerStreamFilter);
@@ -5466,9 +5719,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const e = enrollments[i];
                 const eInst = e.institutionId || (e as any).institution_id;
                 if (!eInst || !targetInstId || String(eInst).toLowerCase() === String(targetInstId).toLowerCase()) {
-                    const cl = e.metadata?.gradeLevel || (e as any).classLevel || (e as any).studentClass;
+                    const cl = e.metadata?.gradeLevel || e.gradeLevel || e.studentClass || (e as any).classLevel || (e as any).studentClass || (e as any).className;
                     if (cl && typeof cl === 'string' && cl.trim()) {
-                        rawGradesSet.add(cl.trim());
+                        const parsed = extractClassAndStream(cl);
+                        if (parsed.className && parsed.className !== 'Unclassified') {
+                            rawGradesSet.add(parsed.className.trim());
+                        } else {
+                            rawGradesSet.add(cl.trim());
+                        }
                     }
                 }
             }
@@ -6610,7 +6868,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     <div className="flex flex-col items-center">
                                                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Admission No.</span>
                                                         <span className="font-mono font-black text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 px-3 py-0.5 rounded-lg tracking-wider whitespace-nowrap">
-                                                            {enr.admissionNumber || '—'}
+                                                            {getEnrollmentAdmNo(enr, user) || '—'}
                                                         </span>
                                                     </div>
                                                     {(enr.metadata?.assessmentNo || enr.metadata?.assessmentNumber || user?.metadata?.assessmentNo || (user as any)?.assessmentNo) && (
@@ -6634,27 +6892,33 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                 {enr.metadata?.priorAttendedDays || 0} sessions
                                                             </span>
                                                         </div>
-                                                    ) : (
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full whitespace-nowrap">
-                                                                {normalizeGradeLabel(enr.metadata?.gradeLevel || '') || 'No Grade'}
-                                                            </span>
-                                                            {enr.metadata?.stream && (
-                                                                <span className="text-[9px] font-black uppercase tracking-widest bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-400 px-2.5 py-0.5 rounded-full text-center whitespace-nowrap">
-                                                                    {enr.metadata.stream}
+                                                    ) : (() => {
+                                                        const gLvl = getEnrollmentGrade(enr, user);
+                                                        const strm = getEnrollmentStream(enr, user);
+                                                        const normLabel = normalizeGradeLabel(gLvl);
+
+                                                        return (
+                                                            <div className="flex flex-col gap-1">
+                                                                <span className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-full whitespace-nowrap">
+                                                                    {normLabel || gLvl || 'No Grade'}
                                                                 </span>
-                                                            )}
-                                                            {enr.metadata?.boardingStatus && (
-                                                                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded text-center whitespace-nowrap border mt-0.5 ${
-                                                                    enr.metadata.boardingStatus === 'boarder'
-                                                                    ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800/40 dark:text-rose-400'
-                                                                    : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-400'
-                                                                }`}>
-                                                                    {enr.metadata.boardingStatus === 'boarder' ? 'Boarder' : 'Day Scholar'}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                                {strm && (
+                                                                    <span className="text-[9px] font-black uppercase tracking-widest bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 text-violet-700 dark:text-violet-400 px-2.5 py-0.5 rounded-full text-center whitespace-nowrap">
+                                                                        {strm}
+                                                                    </span>
+                                                                )}
+                                                                {enr.metadata?.boardingStatus && (
+                                                                    <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded text-center whitespace-nowrap border mt-0.5 ${
+                                                                        enr.metadata.boardingStatus === 'boarder'
+                                                                        ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-800/40 dark:text-rose-400'
+                                                                        : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800/40 dark:text-emerald-400'
+                                                                    }`}>
+                                                                        {enr.metadata.boardingStatus === 'boarder' ? 'Boarder' : 'Day Scholar'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
 
                                                 {/* ── Biometrics ── */}
