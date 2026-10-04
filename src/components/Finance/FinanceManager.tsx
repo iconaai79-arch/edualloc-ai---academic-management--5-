@@ -3081,6 +3081,432 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         }
     };
 
+    // ── VOTE HEAD EXCEL IMPORTER STATES & HANDLERS ─────────────────────────
+    const [showVoteHeadImporter, setShowVoteHeadImporter] = useState(false);
+    const [voteHeadImportFile, setVoteHeadImportFile] = useState<File | null>(null);
+    const [voteHeadImportRawData, setVoteHeadImportRawData] = useState<any[]>([]);
+    const [voteHeadImportHeaders, setVoteHeadImportHeaders] = useState<string[]>([]);
+    const [voteHeadImportMappings, setVoteHeadImportMappings] = useState({
+        name: '',
+        priority: '',
+        type: '',
+        amount: '',
+        percentage: ''
+    });
+    const [isSavingImportedVoteHeads, setIsSavingImportedVoteHeads] = useState(false);
+
+    const handleDownloadVoteHeadTemplate = () => {
+        const sampleData = [
+            {
+                'Vote Head Name': 'Tuition Fee',
+                'Priority': 10,
+                'Allocation Type': 'Fixed',
+                'Allocated Amount (KES)': 15000,
+                'Percentage (%)': ''
+            },
+            {
+                'Vote Head Name': 'Boarding & Catering',
+                'Priority': 20,
+                'Allocation Type': 'Fixed',
+                'Allocated Amount (KES)': 12000,
+                'Percentage (%)': ''
+            },
+            {
+                'Vote Head Name': 'Activity & Sports',
+                'Priority': 30,
+                'Allocation Type': 'Fixed',
+                'Allocated Amount (KES)': 2500,
+                'Percentage (%)': ''
+            },
+            {
+                'Vote Head Name': 'RMI / Maintenance',
+                'Priority': 40,
+                'Allocation Type': 'Percentage',
+                'Allocated Amount (KES)': '',
+                'Percentage (%)': 15
+            },
+            {
+                'Vote Head Name': 'Examination',
+                'Priority': 50,
+                'Allocation Type': 'Fixed',
+                'Allocated Amount (KES)': 2000,
+                'Percentage (%)': ''
+            },
+            {
+                'Vote Head Name': 'Medical & Insurance',
+                'Priority': 60,
+                'Allocation Type': 'Fixed',
+                'Allocated Amount (KES)': 1000,
+                'Percentage (%)': ''
+            }
+        ];
+        const ws = XLSX.utils.json_to_sheet(sampleData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'VoteHeadsTemplate');
+        XLSX.writeFile(wb, `Vote_Heads_Template_${props.institution?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'School'}.xlsx`);
+    };
+
+    const handleVoteHeadFileSelect = (selectedFile: File) => {
+        setVoteHeadImportFile(selectedFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheet];
+                const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (sheetData.length === 0) {
+                    alert("Spreadsheet is empty.");
+                    return;
+                }
+                const headers = sheetData[0].filter((h: any) => h !== null && h !== '').map(String);
+                setVoteHeadImportHeaders(headers);
+
+                const detectedName = headers.find((h: string) => /name|votehead|vote[\s_]*head|item|account|title/i.test(h)) || headers[0] || '';
+                const detectedPriority = headers.find((h: string) => /priority|order|rank|sort/i.test(h)) || '';
+                const detectedType = headers.find((h: string) => /type|allocation[\s_]*type|ispercentage|share[\s_]*type/i.test(h)) || '';
+                const detectedAmount = headers.find((h: string) => /amount|allocated|value|kes|cost|budget/i.test(h) && !/percent/i.test(h)) || '';
+                const detectedPercentage = headers.find((h: string) => /percent|share|%/i.test(h)) || '';
+
+                setVoteHeadImportMappings({
+                    name: detectedName,
+                    priority: detectedPriority,
+                    type: detectedType,
+                    amount: detectedAmount,
+                    percentage: detectedPercentage
+                });
+
+                const rowsJson = XLSX.utils.sheet_to_json(worksheet);
+                setVoteHeadImportRawData(rowsJson);
+            } catch (err: any) {
+                alert("Failed to parse sheet: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    };
+
+    const handleConfirmVoteHeadImport = async (autoSaveNow: boolean = false) => {
+        if (!voteHeadImportMappings.name) {
+            alert("Please select the Vote Head Name column.");
+            return;
+        }
+
+        const parseNum = (val: any): number => {
+            if (val === null || val === undefined || val === '') return 0;
+            const cleaned = String(val).replace(/[^0-9.-]/g, '');
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        let importedCount = 0;
+        const newRows: any[] = [];
+
+        voteHeadImportRawData.forEach((row, idx) => {
+            const rawName = String(row[voteHeadImportMappings.name] || '').trim();
+            if (!rawName) return;
+
+            const rawPriority = voteHeadImportMappings.priority ? parseNum(row[voteHeadImportMappings.priority]) : ((gridVoteHeads.length + idx + 1) * 10);
+            const rawTypeStr = voteHeadImportMappings.type ? String(row[voteHeadImportMappings.type] || '').toLowerCase() : '';
+            const isPercentage = rawTypeStr.includes('percent') || rawTypeStr.includes('%') || (voteHeadImportMappings.percentage && parseNum(row[voteHeadImportMappings.percentage]) > 0);
+            const rawAmount = voteHeadImportMappings.amount ? parseNum(row[voteHeadImportMappings.amount]) : 0;
+            const rawPercentage = voteHeadImportMappings.percentage ? parseNum(row[voteHeadImportMappings.percentage]) : 0;
+
+            const existing = gridVoteHeads.find(v => (v.name || '').trim().toLowerCase() === rawName.toLowerCase());
+            const id = existing?.id || `vh_${Date.now()}_${idx}_${Math.floor(Math.random() * 1000)}`;
+
+            newRows.push({
+                id,
+                name: rawName,
+                priority: rawPriority || (idx + 1) * 10,
+                allocatedAmount: isPercentage ? 0 : rawAmount,
+                isPercentage,
+                percentage: isPercentage ? (rawPercentage || rawAmount) : 0,
+                isNew: !existing
+            });
+            importedCount++;
+        });
+
+        if (newRows.length === 0) {
+            alert("No valid vote head rows found in the sheet.");
+            return;
+        }
+
+        if (autoSaveNow) {
+            setIsSavingImportedVoteHeads(true);
+            try {
+                await Promise.all(newRows.map(row => {
+                    const payload = {
+                        id: row.id,
+                        name: row.name,
+                        priority: Number(row.priority) || 10,
+                        allocatedAmount: row.isPercentage ? 0 : (Number(row.allocatedAmount) || 0),
+                        isPercentage: !!row.isPercentage,
+                        percentage: row.isPercentage ? (Number(row.percentage) || 0) : 0,
+                        institutionId: props.institution.id,
+                        createdAt: new Date().toISOString()
+                    };
+                    return apiService.saveModuleRecord('vote_heads', payload);
+                }));
+
+                if (props.onRefreshData) {
+                    await props.onRefreshData();
+                }
+                alert(`Successfully imported and saved ${importedCount} Vote Head(s) to the database!`);
+                setShowVoteHeadImporter(false);
+                setVoteHeadImportFile(null);
+                setVoteHeadImportRawData([]);
+            } catch (e: any) {
+                alert("Failed to save imported vote heads: " + (e.message || e));
+            } finally {
+                setIsSavingImportedVoteHeads(false);
+            }
+        } else {
+            const merged = [...gridVoteHeads];
+            newRows.forEach(nr => {
+                const idx = merged.findIndex(m => m.name.trim().toLowerCase() === nr.name.trim().toLowerCase() || m.id === nr.id);
+                if (idx >= 0) {
+                    merged[idx] = { ...merged[idx], ...nr };
+                } else {
+                    merged.push(nr);
+                }
+            });
+            setGridVoteHeads(merged);
+            alert(`Import complete! Loaded ${importedCount} Vote Head(s) into the grid. Review them and click "Save All Changes" to persist.`);
+            setShowVoteHeadImporter(false);
+            setVoteHeadImportFile(null);
+            setVoteHeadImportRawData([]);
+        }
+    };
+
+    // ── FEE STRUCTURE EXCEL IMPORTER STATES & HANDLERS ──────────────────────
+    const [showFeeStructureImporter, setShowFeeStructureImporter] = useState(false);
+    const [feeImportFile, setFeeImportFile] = useState<File | null>(null);
+    const [feeImportRawData, setFeeImportRawData] = useState<any[]>([]);
+    const [feeImportHeaders, setFeeImportHeaders] = useState<string[]>([]);
+    const [feeImportTargetCourseId, setFeeImportTargetCourseId] = useState('');
+    const [feeImportTargetAYId, setFeeImportTargetAYId] = useState('');
+    const [isSavingImportedFeeStructures, setIsSavingImportedFeeStructures] = useState(false);
+
+    const handleDownloadFeeStructureTemplate = () => {
+        const termNames = (props.semesters && props.semesters.length > 0)
+            ? props.semesters.map(s => s.name)
+            : ['Term 1', 'Term 2', 'Term 3'];
+
+        const existingVhNames = (props.voteHeads && props.voteHeads.length > 0)
+            ? props.voteHeads.map(v => v.name)
+            : ['Tuition Fee', 'Boarding & Catering', 'Activity & Sports', 'RMI / Maintenance', 'Examination Fee', 'Medical'];
+
+        const matrixData = existingVhNames.map((vhName, idx) => {
+            const row: Record<string, any> = {
+                'Vote Head Name': vhName,
+            };
+            termNames.forEach((t, tIdx) => {
+                const base = (idx === 0 ? 15000 : idx === 1 ? 12000 : 2000);
+                row[t] = tIdx === 0 ? base : Math.round(base * 0.7);
+            });
+            row['Applicable To'] = idx === 1 ? 'Boarders Only' : 'All Students';
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(matrixData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'FeeStructureTemplate');
+
+        const guideData = [
+            { 'Field': 'Vote Head Name', 'Description': 'Name of the votehead item. Matches existing voteheads or creates new if not found.' },
+            ...termNames.map(t => ({ 'Field': t, 'Description': `Amount in KES allocated for ${t}. Enter number only (e.g. 15000).` })),
+            { 'Field': 'Applicable To', 'Description': 'Target student category: "All Students", "Boarders Only", or "Day Scholars Only".' }
+        ];
+        const wsGuide = XLSX.utils.json_to_sheet(guideData);
+        XLSX.utils.book_append_sheet(wb, wsGuide, 'Guide');
+
+        XLSX.writeFile(wb, `Fee_Structure_Template_${props.institution?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'School'}.xlsx`);
+    };
+
+    const handleFeeStructureFileSelect = (selectedFile: File) => {
+        setFeeImportFile(selectedFile);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheet];
+                const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                if (sheetData.length === 0) {
+                    alert("Spreadsheet is empty.");
+                    return;
+                }
+                const headers = sheetData[0].filter((h: any) => h !== null && h !== '').map(String);
+                setFeeImportHeaders(headers);
+
+                const rowsJson = XLSX.utils.sheet_to_json(worksheet);
+                setFeeImportRawData(rowsJson);
+            } catch (err: any) {
+                alert("Failed to parse sheet: " + err.message);
+            }
+        };
+        reader.readAsArrayBuffer(selectedFile);
+    };
+
+    const handleConfirmFeeStructureImport = async (autoSaveNow: boolean = false) => {
+        const targetCourse = feeImportTargetCourseId || builderCourseId;
+        const targetAY = feeImportTargetAYId || builderAYId;
+
+        if (!targetCourse || !targetAY) {
+            alert("Please select both a Course and an Academic Year for the fee structure.");
+            return;
+        }
+
+        const parseNum = (val: any): number => {
+            if (val === null || val === undefined || val === '') return 0;
+            const cleaned = String(val).replace(/[^0-9.-]/g, '');
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? 0 : parsed;
+        };
+
+        const normalize = (s: string) => String(s || '').trim().toLowerCase();
+
+        const currentSemesters = (props.semesters && props.semesters.length > 0) ? props.semesters : [
+            { id: 'term_1', name: 'Term 1' },
+            { id: 'term_2', name: 'Term 2' },
+            { id: 'term_3', name: 'Term 3' }
+        ];
+
+        const vhHeader = feeImportHeaders.find((h: string) => /name|votehead|vote[\s_]*head|item|fee[\s_]*item/i.test(h)) || feeImportHeaders[0] || '';
+        const targetHeader = feeImportHeaders.find((h: string) => /applicable|target|student[\s_]*type|boarder/i.test(h)) || '';
+
+        const newAmounts: Record<string, Record<string, number>> = { ...spreadsheetAmounts };
+        const newTargets: Record<string, 'all' | 'boarder' | 'day_scholar'> = { ...spreadsheetTargets };
+
+        let itemsCount = 0;
+        const newVoteHeadsToCreate: any[] = [];
+        const existingVoteHeads = [...(props.voteHeads || []), ...gridVoteHeads];
+
+        feeImportRawData.forEach(row => {
+            const rawVhName = String(row[vhHeader] || '').trim();
+            if (!rawVhName) return;
+
+            let matchedVh = existingVoteHeads.find(v => normalize(v.name) === normalize(rawVhName));
+            let vhId = matchedVh?.id;
+
+            if (!vhId) {
+                vhId = `vh_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                const newVh = {
+                    id: vhId,
+                    name: rawVhName,
+                    priority: (existingVoteHeads.length + newVoteHeadsToCreate.length + 1) * 10,
+                    allocatedAmount: 0,
+                    isPercentage: false,
+                    percentage: 0
+                };
+                newVoteHeadsToCreate.push(newVh);
+                existingVoteHeads.push(newVh);
+            }
+
+            if (!newAmounts[vhId]) newAmounts[vhId] = {};
+
+            let applicableTo: 'all' | 'boarder' | 'day_scholar' = 'all';
+            if (targetHeader && row[targetHeader]) {
+                const rawT = normalize(row[targetHeader]);
+                if (rawT.includes('board')) applicableTo = 'boarder';
+                else if (rawT.includes('day')) applicableTo = 'day_scholar';
+            }
+            newTargets[vhId] = applicableTo;
+
+            currentSemesters.forEach(sem => {
+                const semNameNorm = normalize(sem.name);
+                const matchedCol = feeImportHeaders.find((h: string) => {
+                    const normH = normalize(h);
+                    return normH === semNameNorm || 
+                           normH.includes(semNameNorm) || 
+                           (semNameNorm.includes('term 1') && /term[\s_]*1|sem[\s_]*1/i.test(normH)) ||
+                           (semNameNorm.includes('term 2') && /term[\s_]*2|sem[\s_]*2/i.test(normH)) ||
+                           (semNameNorm.includes('term 3') && /term[\s_]*3|sem[\s_]*3/i.test(normH));
+                });
+
+                if (matchedCol && row[matchedCol] !== undefined) {
+                    const amt = parseNum(row[matchedCol]);
+                    newAmounts[vhId][sem.id] = amt;
+                    itemsCount++;
+                }
+            });
+        });
+
+        setBuilderCourseId(targetCourse);
+        setBuilderAYId(targetAY);
+        setSpreadsheetAmounts(newAmounts);
+        setSpreadsheetTargets(newTargets);
+
+        if (newVoteHeadsToCreate.length > 0) {
+            setGridVoteHeads(prev => [...prev, ...newVoteHeadsToCreate]);
+        }
+
+        if (autoSaveNow) {
+            setIsSavingImportedFeeStructures(true);
+            try {
+                if (newVoteHeadsToCreate.length > 0) {
+                    await Promise.all(newVoteHeadsToCreate.map(vh => 
+                        apiService.saveModuleRecord('vote_heads', {
+                            ...vh,
+                            institutionId: props.institution.id,
+                            createdAt: new Date().toISOString()
+                        })
+                    ));
+                }
+
+                const savePromises: Promise<any>[] = [];
+                for (const vhId of Object.keys(newAmounts)) {
+                    const matchedVh = existingVoteHeads.find(v => v.id === vhId);
+                    const matchedName = matchedVh ? matchedVh.name : 'Fee Item';
+                    const matchedPriority = matchedVh ? matchedVh.priority : 10;
+                    const applicableTo = newTargets[vhId] || 'all';
+
+                    for (const semId of Object.keys(newAmounts[vhId])) {
+                        const amount = newAmounts[vhId][semId];
+                        if (amount > 0) {
+                            const matchedSem = currentSemesters.find(s => s.id === semId);
+                            const semName = matchedSem ? matchedSem.name : semId;
+                            const payload = {
+                                id: `fs_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                name: matchedName,
+                                amount,
+                                allocatedAmount: amount,
+                                academicYearId: targetAY,
+                                term: semName,
+                                courseId: targetCourse,
+                                voteHeadId: vhId,
+                                priority: matchedPriority,
+                                institutionId: props.institution.id,
+                                applicableTo,
+                                applicable_to: applicableTo
+                            };
+                            savePromises.push(apiService.saveModuleRecord('fee_structures', payload));
+                        }
+                    }
+                }
+                await Promise.all(savePromises);
+                if (props.onRefreshData) {
+                    await props.onRefreshData();
+                }
+                alert(`Fee Structure successfully imported and saved! Created/updated ${savePromises.length} itemized fee line(s).`);
+                setShowFeeStructureImporter(false);
+                setFeeImportFile(null);
+                setFeeImportRawData([]);
+            } catch (err: any) {
+                alert("Failed to save fee structures: " + (err.message || err));
+            } finally {
+                setIsSavingImportedFeeStructures(false);
+            }
+        } else {
+            alert(`Fee Structure imported into the spreadsheet builder! Applied ${itemsCount} amounts across voteheads and terms. You can review or adjust values and click "Save Structure Cohort" to persist.`);
+            setShowFeeStructureImporter(false);
+            setFeeImportFile(null);
+            setFeeImportRawData([]);
+        }
+    };
+
     const handleImporterFileSelect = (selectedFile: File) => {
         setImporterFile(selectedFile);
         const reader = new FileReader();
@@ -17888,7 +18314,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Vote Heads Spreadsheet</h3>
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Manage priorities, allocation types (Fixed vs Percentage) and budgets in a spreadsheet grid</p>
                                         </div>
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2.5 flex-wrap">
+                                            <button
+                                                type="button"
+                                                onClick={handleDownloadVoteHeadTemplate}
+                                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                                title="Download Excel Template for Vote Heads"
+                                            >
+                                                <DownloadIcon className="w-3.5 h-3.5" />
+                                                Template
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowVoteHeadImporter(true)}
+                                                className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center gap-1.5"
+                                                title="Import Vote Heads from Excel / CSV"
+                                            >
+                                                <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                                Import Excel
+                                            </button>
                                             <button
                                                 onClick={handleAddGridRow}
                                                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
@@ -18603,9 +19047,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 </div>
                             ) : (
                                 <div className="bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-8 text-left w-full">
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Cohort Fee Structure Builder</h3>
-                                        <p className="text-xs font-medium text-slate-400">Map specific courses and academic years to itemized votehead amounts across Term 1, Term 2, and Term 3 in a spreadsheet-like grid.</p>
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Cohort Fee Structure Builder</h3>
+                                            <p className="text-xs font-medium text-slate-400">Map specific courses and academic years to itemized votehead amounts across Term 1, Term 2, and Term 3 in a spreadsheet-like grid.</p>
+                                        </div>
+                                        <div className="flex items-center gap-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={handleDownloadFeeStructureTemplate}
+                                                className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                                title="Download Fee Structure Excel Template"
+                                            >
+                                                <DownloadIcon className="w-3.5 h-3.5" />
+                                                Template
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setFeeImportTargetCourseId(builderCourseId);
+                                                    setFeeImportTargetAYId(builderAYId);
+                                                    setShowFeeStructureImporter(true);
+                                                }}
+                                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center gap-1.5"
+                                                title="Import Fee Structure from Excel"
+                                            >
+                                                <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                                Import Excel
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -18895,7 +19365,375 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                     </div>
                 )}
 
-                {/* Post Manual Receipt Modal */}
+                {/* Vote Head Excel Importer Modal */}
+                {showVoteHeadImporter && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Import Vote Heads from Excel</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        Upload spreadsheet to configure vote heads, allocation types, and priorities
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadVoteHeadTemplate}
+                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                        title="Download Excel Template"
+                                    >
+                                        <DownloadIcon className="w-3.5 h-3.5" />
+                                        Template
+                                    </button>
+                                    <button 
+                                        onClick={() => { setShowVoteHeadImporter(false); setVoteHeadImportFile(null); setVoteHeadImportRawData([]); }} 
+                                        className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                    >
+                                        <XIcon className="w-5 h-5 text-slate-500" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
+                                {!voteHeadImportFile ? (
+                                    <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center relative">
+                                        <input 
+                                            type="file" 
+                                            accept=".xlsx,.xls,.csv" 
+                                            className="hidden" 
+                                            id="votehead-excel-upload"
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) handleVoteHeadFileSelect(e.target.files[0]);
+                                            }}
+                                        />
+                                        <label htmlFor="votehead-excel-upload" className="cursor-pointer block">
+                                            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                                <ArrowUpTrayIcon className="w-10 h-10 text-indigo-600" />
+                                            </div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white mb-2">Drop your Vote Heads Excel/CSV file here</h4>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Supports .xlsx, .xls, or .csv formats</p>
+                                        </label>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-indigo-600 text-white rounded-xl">
+                                                    <DocumentTextIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white">{voteHeadImportFile.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{voteHeadImportRawData.length} records parsed</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => { setVoteHeadImportFile(null); setVoteHeadImportRawData([]); }}
+                                                className="text-[10px] font-black uppercase text-rose-600 hover:text-rose-700 tracking-wider"
+                                            >
+                                                Change File
+                                            </button>
+                                        </div>
+
+                                        {/* Column Mappings */}
+                                        <div className="space-y-4">
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Map Columns</h5>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-slate-500">Vote Head Name *</label>
+                                                    <select
+                                                        value={voteHeadImportMappings.name}
+                                                        onChange={e => setVoteHeadImportMappings(prev => ({ ...prev, name: e.target.value }))}
+                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                                    >
+                                                        <option value="">-- Select Column --</option>
+                                                        {voteHeadImportHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-slate-500">Priority Order (Optional)</label>
+                                                    <select
+                                                        value={voteHeadImportMappings.priority}
+                                                        onChange={e => setVoteHeadImportMappings(prev => ({ ...prev, priority: e.target.value }))}
+                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                                    >
+                                                        <option value="">Auto-generate (10, 20, 30...)</option>
+                                                        {voteHeadImportHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-slate-500">Allocation Type (Fixed/Percentage)</label>
+                                                    <select
+                                                        value={voteHeadImportMappings.type}
+                                                        onChange={e => setVoteHeadImportMappings(prev => ({ ...prev, type: e.target.value }))}
+                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                                    >
+                                                        <option value="">Default (Fixed Amount)</option>
+                                                        {voteHeadImportHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <label className="text-[10px] font-bold text-slate-500">Fixed Amount (KES)</label>
+                                                    <select
+                                                        value={voteHeadImportMappings.amount}
+                                                        onChange={e => setVoteHeadImportMappings(prev => ({ ...prev, amount: e.target.value }))}
+                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                                    >
+                                                        <option value="">None / Zero</option>
+                                                        {voteHeadImportHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Preview of first 4 rows */}
+                                        {voteHeadImportRawData.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Preview (First {Math.min(4, voteHeadImportRawData.length)} rows)</p>
+                                                <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                                                    <table className="w-full text-left text-xs">
+                                                        <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] uppercase font-black text-slate-400">
+                                                            <tr>
+                                                                <th className="p-2.5">Name</th>
+                                                                <th className="p-2.5">Priority</th>
+                                                                <th className="p-2.5">Type</th>
+                                                                <th className="p-2.5 text-right">Amount</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                            {voteHeadImportRawData.slice(0, 4).map((r, i) => (
+                                                                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                                                    <td className="p-2.5 font-bold text-slate-800 dark:text-white">{r[voteHeadImportMappings.name] || '—'}</td>
+                                                                    <td className="p-2.5 text-slate-500">{r[voteHeadImportMappings.priority] || (i + 1) * 10}</td>
+                                                                    <td className="p-2.5 text-slate-500">{r[voteHeadImportMappings.type] || 'Fixed'}</td>
+                                                                    <td className="p-2.5 text-right font-bold text-slate-700 dark:text-slate-300">
+                                                                        {r[voteHeadImportMappings.amount] ? `KES ${Number(r[voteHeadImportMappings.amount]).toLocaleString()}` : '0'}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Action Buttons */}
+                                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-end gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowVoteHeadImporter(false); setVoteHeadImportFile(null); setVoteHeadImportRawData([]); }}
+                                                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConfirmVoteHeadImport(false)}
+                                                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-900 hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600 font-black text-xs uppercase tracking-wider text-white transition-all shadow-md flex items-center justify-center gap-2"
+                                            >
+                                                Apply to Grid
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConfirmVoteHeadImport(true)}
+                                                disabled={isSavingImportedVoteHeads}
+                                                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black text-xs uppercase tracking-wider text-white transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {isSavingImportedVoteHeads ? (
+                                                    <span>Saving...</span>
+                                                ) : (
+                                                    <>
+                                                        <CheckIcon className="w-4 h-4" />
+                                                        <span>Apply &amp; Save Now</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Fee Structure Excel Importer Modal */}
+                {showFeeStructureImporter && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 text-left">
+                            <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">Import Fee Structure from Excel</h3>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        Upload spreadsheet with itemized votehead fees across terms
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadFeeStructureTemplate}
+                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                        title="Download Excel Template"
+                                    >
+                                        <DownloadIcon className="w-3.5 h-3.5" />
+                                        Template
+                                    </button>
+                                    <button 
+                                        onClick={() => { setShowFeeStructureImporter(false); setFeeImportFile(null); setFeeImportRawData([]); }} 
+                                        className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                    >
+                                        <XIcon className="w-5 h-5 text-slate-500" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
+                                {/* Course & Academic Year Selectors */}
+                                <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Target Cohort &amp; Period</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500">Target Course / Grade *</label>
+                                            <select
+                                                value={feeImportTargetCourseId || builderCourseId}
+                                                onChange={e => setFeeImportTargetCourseId(e.target.value)}
+                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                            >
+                                                <option value="">-- Choose Course --</option>
+                                                {(props.courses || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-500">Academic Year *</label>
+                                            <select
+                                                value={feeImportTargetAYId || builderAYId}
+                                                onChange={e => setFeeImportTargetAYId(e.target.value)}
+                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none"
+                                            >
+                                                <option value="">-- Choose Academic Year --</option>
+                                                {(props.academicYears || []).map(ay => <option key={ay.id} value={ay.id}>{ay.name}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {!feeImportFile ? (
+                                    <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center relative">
+                                        <input 
+                                            type="file" 
+                                            accept=".xlsx,.xls,.csv" 
+                                            className="hidden" 
+                                            id="fee-excel-upload"
+                                            onChange={(e) => {
+                                                if (e.target.files?.[0]) handleFeeStructureFileSelect(e.target.files[0]);
+                                            }}
+                                        />
+                                        <label htmlFor="fee-excel-upload" className="cursor-pointer block">
+                                            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                                                <ArrowUpTrayIcon className="w-10 h-10 text-indigo-600" />
+                                            </div>
+                                            <h4 className="text-base font-black text-slate-900 dark:text-white mb-2">Drop your Fee Structure Excel/CSV here</h4>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Columns matching Term 1, Term 2, Term 3 are auto-detected</p>
+                                        </label>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-indigo-600 text-white rounded-xl">
+                                                    <DocumentTextIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-black text-slate-900 dark:text-white">{feeImportFile.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{feeImportRawData.length} fee rows found</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => { setFeeImportFile(null); setFeeImportRawData([]); }}
+                                                className="text-[10px] font-black uppercase text-rose-600 hover:text-rose-700 tracking-wider"
+                                            >
+                                                Change File
+                                            </button>
+                                        </div>
+
+                                        {/* Detected Columns */}
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Detected Spreadsheet Columns</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {feeImportHeaders.map(h => (
+                                                    <span key={h} className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                                                        {h}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Preview of first 4 rows */}
+                                        {feeImportRawData.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Preview (First {Math.min(4, feeImportRawData.length)} rows)</p>
+                                                <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                                                    <table className="w-full text-left text-xs">
+                                                        <thead className="bg-slate-50 dark:bg-slate-800 text-[10px] uppercase font-black text-slate-400">
+                                                            <tr>
+                                                                {feeImportHeaders.slice(0, 5).map(h => (
+                                                                    <th key={h} className="p-2.5">{h}</th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                            {feeImportRawData.slice(0, 4).map((r, i) => (
+                                                                <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                                                    {feeImportHeaders.slice(0, 5).map(h => (
+                                                                        <td key={h} className="p-2.5 text-slate-800 dark:text-slate-200 font-medium">
+                                                                            {String(r[h] ?? '—')}
+                                                                        </td>
+                                                                    ))}
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Action Buttons */}
+                                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-end gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setShowFeeStructureImporter(false); setFeeImportFile(null); setFeeImportRawData([]); }}
+                                                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-black text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConfirmFeeStructureImport(false)}
+                                                className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-900 hover:bg-black dark:bg-slate-700 dark:hover:bg-slate-600 font-black text-xs uppercase tracking-wider text-white transition-all shadow-md flex items-center justify-center gap-2"
+                                            >
+                                                Apply to Builder
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleConfirmFeeStructureImport(true)}
+                                                disabled={isSavingImportedFeeStructures}
+                                                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 font-black text-xs uppercase tracking-wider text-white transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                                            >
+                                                {isSavingImportedFeeStructures ? (
+                                                    <span>Saving...</span>
+                                                ) : (
+                                                    <>
+                                                        <CheckIcon className="w-4 h-4" />
+                                                        <span>Apply &amp; Save Now</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <PostManualReceiptModal
                     isOpen={showPostModal}
                     onClose={() => setShowPostModal(false)}
