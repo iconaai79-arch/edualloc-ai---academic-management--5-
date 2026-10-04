@@ -2192,6 +2192,132 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 });
             }
 
+            if (moduleName === 'student_enrollments' && Array.isArray(data)) {
+                const targetInst = effectiveTenantInstId || targetInstParam || getStrParam(req.query.institutionId) || getStrParam(req.query.institution_id);
+                if (targetInst) {
+                    try {
+                        const rawInst = targetInst.replace(/^inst_/, '');
+                        const prefixedInst = targetInst.startsWith('inst_') ? targetInst : `inst_${targetInst}`;
+
+                        // Build index of already returned enrollments
+                        const enrolledUserIds = new Set<string>();
+                        const enrolledAdmNos = new Set<string>();
+                        data.forEach((e: any) => {
+                            if (!e) return;
+                            const uid = String(e.user_id || e.userId || '').trim().toLowerCase();
+                            if (uid) {
+                                enrolledUserIds.add(uid);
+                                enrolledUserIds.add(uid.replace(/^u_/, ''));
+                            }
+                            const adm = String(e.admission_number || e.admissionNumber || '').trim().toLowerCase();
+                            if (adm) enrolledAdmNos.add(adm);
+                        });
+
+                        const pool = await getPgPool();
+                        let studentRows: any[] = [];
+
+                        if (pool && _directPgDisabledUntil < Date.now()) {
+                            const pgRes = await pool.query(
+                                `SELECT id, institution_id, name, email, role, admission_number, student_class, class_level, stream, gender, metadata, created_at
+                                 FROM public.users
+                                 WHERE (institution_id::text = $1 OR institution_id::text = $2)
+                                   AND (
+                                     LOWER(COALESCE(role, '')) IN ('student', 'learner', 'pupil', 'cadet', 'scholar')
+                                     OR (
+                                       COALESCE(role, '') NOT IN ('super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator')
+                                       AND (admission_number IS NOT NULL OR student_class IS NOT NULL)
+                                     )
+                                   )
+                                 LIMIT 10000`,
+                                [prefixedInst, rawInst]
+                            );
+                            if (pgRes && pgRes.rows) studentRows = pgRes.rows;
+                        } else {
+                            const { data: suData } = await supabase
+                                .from('users')
+                                .select('id, institution_id, name, email, role, admission_number, student_class, class_level, stream, gender, metadata, created_at')
+                                .or(`institution_id.eq.${prefixedInst},institution_id.eq.${rawInst}`)
+                                .limit(5000);
+                            if (Array.isArray(suData)) {
+                                studentRows = suData.filter((u: any) => {
+                                    const r = String(u.role || '').toLowerCase();
+                                    return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
+                                           (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admission_number || u.student_class));
+                                });
+                            }
+                        }
+
+                        if (studentRows.length > 0) {
+                            const missingRows = studentRows.filter((u: any) => {
+                                const uId = String(u.id || '').trim().toLowerCase();
+                                const rawUid = uId.replace(/^u_/, '');
+                                const adm = String(u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || '').trim().toLowerCase();
+                                return !enrolledUserIds.has(uId) && !enrolledUserIds.has(rawUid) && (!adm || !enrolledAdmNos.has(adm));
+                            });
+
+                            if (missingRows.length > 0) {
+                                console.info(`[API GET Auto-Enrollment] Detected ${missingRows.length} unlinked student users for institution '${targetInst}'. Synthesizing student_enrollments...`);
+                                const synthesized = missingRows.map((u: any, idx: number) => {
+                                    const rawUid = String(u.id).replace(/^u_/, '');
+                                    const adm = u.admission_number || u.metadata?.admissionNumber || u.metadata?.admNo || `ADM-${String(u.id).replace(/\D/g, '').slice(-5) || (1000 + idx)}`;
+                                    const gLvl = u.student_class || u.class_level || u.metadata?.gradeLevel || u.metadata?.studentClass || '';
+                                    const strm = u.stream || u.metadata?.stream || '';
+                                    const meta = {
+                                        studentName: u.name,
+                                        fullName: u.name,
+                                        name: u.name,
+                                        gradeLevel: gLvl,
+                                        stream: strm,
+                                        gender: u.gender || '',
+                                        autoGenerated: true,
+                                        ...(typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {})
+                                    };
+                                    return {
+                                        id: `enr_${rawUid || u.id}`,
+                                        institution_id: u.institution_id || targetInst,
+                                        institutionId: u.institution_id || targetInst,
+                                        user_id: u.id,
+                                        userId: u.id,
+                                        enrollment_type: 'academic',
+                                        enrollmentType: 'academic',
+                                        admission_number: adm,
+                                        admissionNumber: adm,
+                                        status: 'Active',
+                                        enrollment_date: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                                        enrollmentDate: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                                        name: u.name,
+                                        studentName: u.name,
+                                        studentClass: gLvl && strm ? `${gLvl} ${strm}` : (gLvl || strm),
+                                        gradeLevel: gLvl,
+                                        stream: strm,
+                                        metadata: meta,
+                                        created_at: u.created_at || new Date().toISOString(),
+                                        updated_at: new Date().toISOString()
+                                    };
+                                });
+
+                                data = [...data, ...synthesized];
+
+                                // Asynchronously backfill to DB so subsequent calls hit physical table
+                                if (pool && _directPgDisabledUntil < Date.now()) {
+                                    const insertPromises = synthesized.map((s: any) =>
+                                        pool.query(
+                                            `INSERT INTO public.student_enrollments (id, institution_id, user_id, enrollment_type, admission_number, status, enrollment_date, metadata, created_at, updated_at)
+                                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+                                             ON CONFLICT (id) DO NOTHING`,
+                                            [s.id, s.institution_id, s.user_id, s.enrollment_type, s.admission_number, s.status, s.enrollment_date, JSON.stringify(s.metadata)]
+                                        ).catch(() => {})
+                                    );
+                                    Promise.allSettled(insertPromises).catch(() => {});
+                                }
+                            }
+                        }
+                    } catch (synthErr: any) {
+                        console.warn(`[API GET Auto-Enrollment Note]:`, synthErr?.message || synthErr);
+                    }
+                }
+            }
+
             return res.status(200).json(data || []);
         }
 

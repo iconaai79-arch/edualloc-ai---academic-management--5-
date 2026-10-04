@@ -11381,6 +11381,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             companyDetails={props.companyDetails}
                                             currentUser={props.currentUser}
                                             onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
+                                            initialUsers={props.students && props.students.length > 0 ? props.students : props.users}
+                                            initialCourses={props.courses}
                                         />
                                     </React.Suspense>
                                 </div>
@@ -15296,6 +15298,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         companyDetails={props.companyDetails}
                                         currentUser={props.currentUser}
                                         onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
+                                        initialUsers={props.students && props.students.length > 0 ? props.students : props.users}
+                                        initialCourses={props.courses}
                                     />
                                 </React.Suspense>
                             </div>

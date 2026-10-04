@@ -287,6 +287,7 @@ interface StudentEnrollmentManagerProps {
     initialUsers?: User[];
     initialSubjects?: Subject[];
     initialCourses?: Course[];
+    initialEnrollments?: StudentEnrollment[];
 }
 
 interface EnrollmentManagerCache {
@@ -314,7 +315,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     onLogAction,
     initialUsers,
     initialSubjects,
-    initialCourses
+    initialCourses,
+    initialEnrollments
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
     const cacheKey = `${instId}_${context}`;
@@ -324,25 +326,75 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         if (globalEnrollmentCache[cacheKey]) {
             return globalEnrollmentCache[cacheKey];
         }
-        let localEnrs: StudentEnrollment[] = [];
+        let localEnrs: StudentEnrollment[] = (initialEnrollments && initialEnrollments.length > 0) ? [...initialEnrollments] : [];
         let localUsers: User[] = [];
         try {
-            const savedEnrs = localStorage.getItem(`eduai_student_enrollments_${instId}`) || localStorage.getItem('eduai_student_enrollments');
-            if (savedEnrs) localEnrs = JSON.parse(savedEnrs) || [];
-            const savedUsers = localStorage.getItem(`eduai_users_${instId}`);
+            if (localEnrs.length === 0) {
+                const savedEnrs = localStorage.getItem(`eduai_student_enrollments_${instId}`) || 
+                                  localStorage.getItem(`eduai_student_enrollments_${instId.replace(/^inst_/, '')}`) ||
+                                  localStorage.getItem('eduai_student_enrollments');
+                if (savedEnrs) localEnrs = JSON.parse(savedEnrs) || [];
+            }
+            const savedUsers = localStorage.getItem(`eduai_users_${instId}`) ||
+                               localStorage.getItem(`eduai_users_${instId.replace(/^inst_/, '')}`) ||
+                               localStorage.getItem('eduai_users');
             if (savedUsers) localUsers = JSON.parse(savedUsers) || [];
         } catch (e) {}
         
         const effectiveUsers = (initialUsers && initialUsers.length > 0) ? initialUsers : localUsers;
         const effectiveInstructors = effectiveUsers.filter(u => u && (u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer'));
         const isAcademic = context === 'academic';
-        const contextEnrs = localEnrs.filter(e => {
+        let contextEnrs = localEnrs.filter(e => {
             if (isAcademic) {
                 return !e.enrollmentType || e.enrollmentType === 'academic' || e.enrollmentType !== 'driving_school';
             } else {
                 return e.enrollmentType === 'driving_school';
             }
         });
+
+        // Fast-path automatic enrollment synthesis on initial cache render so registries never show 0
+        if (contextEnrs.length === 0 && effectiveUsers.length > 0) {
+            const studentUsers = effectiveUsers.filter(u => {
+                if (!u) return false;
+                const r = String(u.role || '').toLowerCase();
+                return ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(r) ||
+                       (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(r) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).studentClass));
+            });
+            if (studentUsers.length > 0) {
+                contextEnrs = studentUsers.map((u: any, idx) => {
+                    const cleanUid = String(u.id || '').replace(/^u_/, '');
+                    const adm = u.admissionNumber || u.admission_number || u.admNo || `ADM-${String(u.id).replace(/\D/g, '').slice(-5) || (1000 + idx)}`;
+                    const gLvl = u.studentClass || u.classLevel || u.gradeLevel || '';
+                    const strm = u.stream || '';
+                    const studentName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() : (u.fullName || `Student ${adm}`);
+                    const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
+                    return {
+                        id: `enr_${cleanUid || u.id}`,
+                        institutionId: instId,
+                        userId: u.id,
+                        enrollmentType: isAcademic ? 'academic' : 'driving_school',
+                        admissionNumber: adm,
+                        admNo: adm,
+                        status: 'Active',
+                        enrollmentDate: u.createdAt ? String(u.createdAt).split('T')[0] : new Date().toISOString().split('T')[0],
+                        name: studentName,
+                        studentName,
+                        studentClass: fullCls,
+                        gradeLevel: gLvl,
+                        stream: strm,
+                        metadata: {
+                            studentName,
+                            name: studentName,
+                            gradeLevel: gLvl,
+                            stream: strm,
+                            gender: u.gender || '',
+                            autoGenerated: true
+                        }
+                    } as StudentEnrollment;
+                });
+            }
+        }
+
         const scopedCourses = (initialCourses || []).filter(c => {
             if (!c) return false;
             const cInst = c.institutionId || (c as any).institution_id;
@@ -366,7 +418,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             visitors: [],
             timestamp: 0
         };
-    }, [cacheKey, instId, context, initialUsers, initialCourses, initialSubjects]);
+    }, [cacheKey, instId, context, initialUsers, initialCourses, initialSubjects, initialEnrollments]);
 
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>(() => initialCached.enrollments);
     const [isStaffFormOpen, setIsStaffFormOpen] = useState(false);
@@ -1117,9 +1169,10 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 needsGuests ? apiService.fetchModuleRecords<Visitor>('visitors', effectiveTargetInstId).catch(() => []) : Promise.resolve([])
             ]);
             
-            // Build comprehensive user map from users module
+            // Build comprehensive user map from users module and initialUsers
             const combinedUserMap = new Map<string, User>();
-            (usersData || []).forEach(u => { if (u && u.id) combinedUserMap.set(u.id, u); });
+            (initialUsers || []).forEach(u => { if (u && u.id) combinedUserMap.set(String(u.id).trim(), u); });
+            (usersData || []).forEach(u => { if (u && u.id) combinedUserMap.set(String(u.id).trim(), u); });
             const allUsers = Array.from(combinedUserMap.values());
 
             const userById = new Map<string, User>();
@@ -1141,7 +1194,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
             setUsers(allUsers);
 
-            const hydrated = (enrollmentsData || []).map(e => {
+            const rawEnrollments = (enrollmentsData && enrollmentsData.length > 0) ? enrollmentsData : (initialEnrollments || []);
+            const hydrated = (rawEnrollments || []).map(e => {
                 const eAdm = (e.admissionNumber || (e as any).admission_number || (e as any).admNo || e.metadata?.admissionNumber || '').trim().toLowerCase();
                 const eUid = (e.userId || (e as any).user_id || '').trim();
                 const rawUid = eUid.replace(/^u_/, '');
@@ -1182,8 +1236,98 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 };
             });
 
+            // Index existing enrollments to find unlinked student users
+            const enrolledUserIds = new Set<string>();
+            const enrolledAdmNos = new Set<string>();
+            const enrolledIds = new Set<string>();
+
+            hydrated.forEach(e => {
+                if (!e) return;
+                if (e.id) enrolledIds.add(String(e.id).trim().toLowerCase());
+                const uid = String(e.userId || (e as any).user_id || '').trim().toLowerCase();
+                if (uid) {
+                    enrolledUserIds.add(uid);
+                    const rawUid = uid.replace(/^u_/, '');
+                    enrolledUserIds.add(rawUid);
+                    enrolledUserIds.add(`u_${rawUid}`);
+                }
+                const adm = String(e.admissionNumber || (e as any).admission_number || (e as any).admNo || e.metadata?.admissionNumber || '').trim().toLowerCase();
+                if (adm) enrolledAdmNos.add(adm);
+            });
+
+            // Auto-enrollment discovery: every registered student user missing an enrollment record gets enrolled automatically
+            const missingEnrollments: StudentEnrollment[] = [];
+            allUsers.forEach((u: any, idx: number) => {
+                if (!u) return;
+                const role = String(u.role || '').toLowerCase().trim();
+                const isStudent = ['student', 'learner', 'pupil', 'cadet', 'scholar'].includes(role) ||
+                    (!['super_admin', 'admin', 'teacher', 'lecturer', 'instructor', 'driving_instructor', 'parent', 'driver', 'librarian', 'accountant', 'staff', 'support_staff', 'nurse', 'doctor', 'receptionist', 'cook', 'security', 'prefect_coordinator'].includes(role) && (u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).studentClass || (u as any).classLevel || (u as any).gradeLevel));
+
+                if (!isStudent) return;
+
+                const uId = String(u.id || '').trim();
+                const rawUid = uId.replace(/^u_/, '').toLowerCase();
+                const adm = String(u.admissionNumber || (u as any).admission_number || (u as any).admNo || (u as any).adm_no || u.metadata?.admissionNumber || '').trim();
+                const admLower = adm.toLowerCase();
+
+                const alreadyEnrolled = 
+                    (uId && (enrolledUserIds.has(uId.toLowerCase()) || enrolledUserIds.has(rawUid))) ||
+                    (admLower && enrolledAdmNos.has(admLower)) ||
+                    (uId && enrolledIds.has(uId.toLowerCase())) ||
+                    (uId && enrolledIds.has(`enr_${rawUid}`)) ||
+                    (uId && enrolledIds.has(`enr_${uId.toLowerCase()}`));
+
+                if (alreadyEnrolled) return;
+
+                if (uId) {
+                    enrolledUserIds.add(uId.toLowerCase());
+                    enrolledUserIds.add(rawUid);
+                }
+                if (admLower) enrolledAdmNos.add(admLower);
+
+                const fallbackAdm = adm || `ADM-${String(uId).replace(/\D/g, '').slice(-5) || (1000 + idx)}`;
+                const gLvl = u.studentClass || (u as any).classLevel || (u as any).gradeLevel || (u as any).class_level || (u as any).grade_level || u.metadata?.gradeLevel || '';
+                const strm = u.stream || (u as any).streamName || (u as any).stream_name || u.metadata?.stream || '';
+                const studentName = (u.name && !isNameUnknown(u.name)) ? u.name.trim() : (u.fullName || u.metadata?.studentName || `Student ${fallbackAdm}`);
+                const fullCls = gLvl && strm && !gLvl.toLowerCase().includes(strm.toLowerCase()) ? `${gLvl} ${strm}` : (gLvl || strm);
+
+                const autoEnr: StudentEnrollment = {
+                    id: `enr_${rawUid || uId || Date.now() + '_' + idx}`,
+                    institutionId: u.institutionId || (u as any).institution_id || effectiveTargetInstId,
+                    userId: uId,
+                    enrollmentType: context === 'driving_school' ? 'driving_school' : 'academic',
+                    admissionNumber: fallbackAdm,
+                    admNo: fallbackAdm,
+                    status: 'Active',
+                    enrollmentDate: u.createdAt ? String(u.createdAt).split('T')[0] : new Date().toISOString().split('T')[0],
+                    name: studentName,
+                    studentName,
+                    studentClass: fullCls,
+                    gradeLevel: gLvl,
+                    stream: strm,
+                    streamName: strm,
+                    metadata: {
+                        studentName,
+                        name: studentName,
+                        fullName: studentName,
+                        gradeLevel: gLvl,
+                        stream: strm,
+                        gender: u.gender || u.metadata?.gender || '',
+                        dateOfBirth: u.dateOfBirth || (u as any).dob || u.metadata?.dateOfBirth || '',
+                        parentName: (u as any).parentName || (u as any).guardianName || u.metadata?.parentName || '',
+                        parentPhone: (u as any).parentPhone || (u as any).guardianPhone || (u as any).parentPhoneNumber || u.metadata?.parentPhone || '',
+                        parentEmail: (u as any).parentEmail || (u as any).guardianEmail || u.metadata?.parentEmail || '',
+                        autoGenerated: true,
+                        ...(typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {})
+                    }
+                };
+                missingEnrollments.push(autoEnr);
+            });
+
+            const combinedEnrollments = [...hydrated, ...missingEnrollments];
+
             const isAcademic = context === 'academic';
-            const filteredEnrs = hydrated.filter(e => {
+            const filteredEnrs = combinedEnrollments.filter(e => {
                 if (isAcademic) {
                     return !e.enrollmentType || e.enrollmentType === 'academic' || e.enrollmentType !== 'driving_school';
                 } else {
@@ -1195,12 +1339,19 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             setTimeout(() => {
                 try {
                     if (instKey) {
-                        localDb.bulkPut('student_enrollments', hydrated).catch(() => {});
-                        const json = JSON.stringify(hydrated.slice(0, 50));
+                        localDb.bulkPut('student_enrollments', combinedEnrollments).catch(() => {});
+                        const json = JSON.stringify(combinedEnrollments.slice(0, 50));
                         safeLocalStorage.setItem(`eduai_student_enrollments_${instKey}`, json);
                     }
                 } catch (e) {}
             }, 100);
+
+            if (missingEnrollments.length > 0) {
+                console.info(`[StudentEnrollmentManager] Auto-enrolled ${missingEnrollments.length} unlinked student users for tenant '${effectiveTargetInstId}'. Backfilling to server...`);
+                apiService.saveModuleRecord('student_enrollments', missingEnrollments).catch(err => {
+                    console.warn('[StudentEnrollmentManager] Auto-enrollment persist sync note:', err);
+                });
+            }
             const instructorsList = usersData.filter(u => u.role === 'driving_instructor' || u.role === 'teacher' || u.role === 'lecturer');
             setInstructors(instructorsList);
             setCourses(coursesData);
