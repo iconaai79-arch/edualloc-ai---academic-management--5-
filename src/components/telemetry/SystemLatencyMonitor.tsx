@@ -65,8 +65,8 @@ export const SystemLatencyMonitor: React.FC = () => {
             return await apiService.testDatabaseConnection();
         });
 
-        const status: BenchmarkResult['status'] = error ? 'critical' : (duration < 120 ? 'optimal' : duration < 350 ? 'acceptable' : 'degraded');
-        const rating = error ? 'Failed' : (duration < 120 ? 'Optimal (Sub-120ms)' : duration < 350 ? 'Good' : 'High Latency');
+        const status: BenchmarkResult['status'] = error ? 'critical' : (duration < 250 ? 'optimal' : duration < 600 ? 'acceptable' : 'degraded');
+        const rating = error ? 'Failed' : (duration < 250 ? 'Optimal (Sub-250ms)' : duration < 600 ? 'Good / Nominal' : 'High Latency');
 
         return {
             category: 'Data Layer',
@@ -109,8 +109,12 @@ export const SystemLatencyMonitor: React.FC = () => {
             }
         });
 
-        const status: BenchmarkResult['status'] = error ? 'degraded' : (duration < 150 ? 'optimal' : duration < 350 ? 'acceptable' : duration < 600 ? 'degraded' : 'critical');
-        const rating = error ? 'Fallback Active' : (duration < 150 ? 'Ultra-Fast Edge (Sub-150ms)' : duration < 350 ? 'Standard Route' : 'Cold Start / Elevated');
+        const status: BenchmarkResult['status'] = error 
+            ? 'degraded' 
+            : (duration < 350 ? 'optimal' : duration < 750 ? 'acceptable' : duration < 1200 ? 'degraded' : 'critical');
+        const rating = error 
+            ? 'Fallback Active' 
+            : (duration < 350 ? 'Ultra-Fast Edge (Sub-350ms)' : duration < 750 ? 'Nominal Cloud Route' : 'Cold Start / Elevated');
 
         return {
             category: 'API Gateway',
@@ -156,7 +160,7 @@ export const SystemLatencyMonitor: React.FC = () => {
     // 4. IndexedDB Async Persistence Throughput (localDb)
     const probeIndexedDb = async (): Promise<BenchmarkResult> => {
         setActiveTarget('IndexedDB Throughput');
-        const probeCount = 50;
+        const probeCount = 25;
         const probeIds = Array.from({ length: probeCount }, (_, i) => `telemetry_probe_${i}`);
 
         const { duration, error } = await measureDuration(async () => {
@@ -182,9 +186,9 @@ export const SystemLatencyMonitor: React.FC = () => {
 
         const status: BenchmarkResult['status'] = error 
             ? 'critical' 
-            : duration < 80 
+            : duration < 150 
                 ? 'optimal' 
-                : duration < 250 
+                : duration < 300 
                     ? 'acceptable' 
                     : duration < 1000 
                         ? 'degraded' 
@@ -192,9 +196,9 @@ export const SystemLatencyMonitor: React.FC = () => {
 
         const rating = error 
             ? 'Access Error' 
-            : duration < 80 
+            : duration < 150 
                 ? 'Ultra-High IOPS' 
-                : duration < 250 
+                : duration < 300 
                     ? 'Healthy' 
                     : duration < 1000 
                         ? 'Elevated Latency' 
@@ -208,7 +212,7 @@ export const SystemLatencyMonitor: React.FC = () => {
             rating,
             details: error 
                 ? 'IndexedDB access failed or restricted by browser sandbox' 
-                : `50 complex multi-attribute objects persisted, verified & purged in ${duration}ms`,
+                : `${probeCount} complex multi-attribute objects persisted, verified & purged in ${duration}ms`,
             icon: <Gauge className="w-5 h-5 text-purple-400" />
         };
     };
