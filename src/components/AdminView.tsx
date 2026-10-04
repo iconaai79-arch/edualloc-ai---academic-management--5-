@@ -579,6 +579,29 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 if (uId) studentMap.set(String(uId).toLowerCase(), synthUser);
                 if (adm) studentMap.set(String(adm).toLowerCase(), synthUser);
                 if (enr.id) studentMap.set(String(enr.id).toLowerCase(), synthUser);
+            } else {
+                // Enrich existing student user with genuine enrollment data if missing on user
+                const matchedUser = (uId && studentMap.get(String(uId).toLowerCase())) ||
+                                    (adm && studentMap.get(String(adm).toLowerCase())) ||
+                                    (enr.id && studentMap.get(String(enr.id).toLowerCase()));
+                if (matchedUser) {
+                    if ((!matchedUser.admissionNumber || matchedUser.admissionNumber === '—' || matchedUser.admissionNumber === '-') && adm) {
+                        matchedUser.admissionNumber = adm;
+                        (matchedUser as any).admission_number = adm;
+                        if (!matchedUser.metadata) matchedUser.metadata = {};
+                        (matchedUser.metadata as any).admissionNumber = adm;
+                    }
+                    const meta = (typeof enr.metadata === 'object' && enr.metadata !== null) ? enr.metadata : {};
+                    const gLvl = enr.gradeLevel || enr.grade_level || enr.studentClass || enr.student_class || meta.gradeLevel || meta.studentClass;
+                    const strm = enr.stream || enr.streamName || meta.stream;
+                    if (gLvl && !matchedUser.studentClass && !matchedUser.gradeLevel) {
+                        matchedUser.studentClass = gLvl;
+                        matchedUser.gradeLevel = gLvl;
+                    }
+                    if (strm && !matchedUser.stream) {
+                        matchedUser.stream = strm;
+                    }
+                }
             }
         });
         return combined;

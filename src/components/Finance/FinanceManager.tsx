@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise } from '../../types';
+import type { Invoice, Receipt, Expense, FinancialGoal, User, Institution, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, NGCdfBursary, FeePromise, StudentEnrollment } from '../../types';
 import { RevenueWarRoom } from './RevenueWarRoom';
 import { AutomatedBilling } from './AutomatedBilling';
 import { ExcelStudentInvoiceModal } from './ExcelStudentInvoiceModal';
@@ -189,6 +189,7 @@ interface FinanceManagerProps {
     onDeleteUser?: (id: string) => Promise<void>;
     activityLog?: any[];
     userName?: string;
+    studentEnrollments?: StudentEnrollment[];
 }
 
 interface OpeningBalanceRowProps {
@@ -11383,6 +11384,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
                                             initialUsers={props.students && props.students.length > 0 ? props.students : props.users}
                                             initialCourses={props.courses}
+                                            initialEnrollments={props.studentEnrollments}
                                         />
                                     </React.Suspense>
                                 </div>
@@ -15300,6 +15302,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         onLogAction={props.onLogAction ? async (msg) => { await props.onLogAction!(msg); } : undefined}
                                         initialUsers={props.students && props.students.length > 0 ? props.students : props.users}
                                         initialCourses={props.courses}
+                                        initialEnrollments={props.studentEnrollments}
                                     />
                                 </React.Suspense>
                             </div>

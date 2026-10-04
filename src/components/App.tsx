@@ -2088,6 +2088,60 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                 }
                 setStudentEnrollments(resolvedStudentEnrollments);
+                if (resolvedStudentEnrollments && resolvedStudentEnrollments.length > 0) {
+                    setUsers(prev => {
+                        if (!prev || prev.length === 0) return prev;
+                        const enrMap = new Map<string, any>();
+                        for (const enr of resolvedStudentEnrollments) {
+                            const uId = enr.studentUserId || (enr as any).student_user_id || enr.userId || (enr as any).user_id;
+                            const adm = enr.admissionNumber || (enr as any).admission_number || (enr as any).admNo;
+                            const nm = enr.studentName || (enr as any).student_name || (enr as any).name || (enr.metadata as any)?.studentName || (enr.metadata as any)?.fullName;
+                            if (uId) enrMap.set(String(uId).toLowerCase(), enr);
+                            if (adm) enrMap.set(String(adm).toLowerCase(), enr);
+                            if (nm) enrMap.set(String(nm).trim().toLowerCase(), enr);
+                        }
+                        let hasChanges = false;
+                        const next = prev.map(u => {
+                            if (u.role !== 'student') return u;
+                            const uAdm = u.admissionNumber || (u as any).admission_number || (u as any).admNo;
+                            const matched = (u.id && enrMap.get(String(u.id).toLowerCase())) ||
+                                            (u.id && enrMap.get(`u_${String(u.id).replace(/^u_/, '').toLowerCase()}`)) ||
+                                            (uAdm && enrMap.get(String(uAdm).toLowerCase())) ||
+                                            (u.name && enrMap.get(String(u.name).trim().toLowerCase()));
+                            if (!matched) return u;
+                            const mAdm = matched.admissionNumber || (matched as any).admission_number || (matched as any).admNo;
+                            const meta = (typeof matched.metadata === 'object' && matched.metadata !== null) ? matched.metadata : {};
+                            const gLvl = matched.gradeLevel || (matched as any).grade_level || (matched as any).studentClass || (matched as any).student_class || meta.gradeLevel || meta.studentClass;
+                            const strm = matched.stream || (matched as any).streamName || meta.stream;
+
+                            const curAdm = u.admissionNumber || (u as any).admission_number;
+                            const needsAdm = (!curAdm || curAdm === '—' || curAdm === '-') && mAdm;
+                            const needsClass = (!u.studentClass && !u.gradeLevel) && gLvl;
+                            const needsStream = !u.stream && strm;
+
+                            if (needsAdm || needsClass || needsStream) {
+                                hasChanges = true;
+                                const updated = { ...u };
+                                if (needsAdm) {
+                                    updated.admissionNumber = mAdm;
+                                    (updated as any).admission_number = mAdm;
+                                    if (!updated.metadata) updated.metadata = {};
+                                    (updated.metadata as any).admissionNumber = mAdm;
+                                }
+                                if (needsClass) {
+                                    updated.studentClass = gLvl;
+                                    updated.gradeLevel = gLvl;
+                                }
+                                if (needsStream) {
+                                    updated.stream = strm;
+                                }
+                                return updated;
+                            }
+                            return u;
+                        });
+                        return hasChanges ? next : prev;
+                    });
+                }
                 setContracts(con || []);
                 setStudentAttendances(att || []);
                 setInventory(item || []);
@@ -8501,6 +8555,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             goals={financialGoals}
                                             feeStructures={feeStructures}
                                             students={(users || []).filter(u => u.role === 'student')}
+                                            studentEnrollments={studentEnrollments}
                                             academicYears={academicYears}
                                             semesters={semesters}
                                             transactions={transactions}

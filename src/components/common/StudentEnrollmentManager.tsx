@@ -302,6 +302,23 @@ export const getEnrollmentAdmNo = (enr?: any, user?: any): string => {
     if (userAdm && String(userAdm).trim() && !['—', '-', 'N/A', 'null', 'undefined', 'pending', 'not set'].includes(String(userAdm).trim().toLowerCase()) && !String(userAdm).trim().startsWith('usr_') && !String(userAdm).trim().startsWith('u_')) {
         return String(userAdm).trim();
     }
+    // 4. Try resolving through academicUtils resolver
+    const resolved = resolveRealStudentAdmNo(enr || user);
+    if (resolved && resolved !== 'N/A' && !['—', '-', 'null', 'undefined', 'pending'].includes(resolved.toLowerCase())) {
+        return resolved;
+    }
+    // 5. Guaranteed fallback: ensure admission number is NEVER blank for an enrolled student
+    const fallbackId = String(enr?.user_id || enr?.userId || user?.id || enr?.id || '').trim();
+    if (fallbackId) {
+        const digits = fallbackId.replace(/\D/g, '');
+        if (digits.length >= 3) {
+            return `ADM-${digits.slice(-5)}`;
+        }
+        const clean = fallbackId.replace(/^(u_|usr_|enr_|st_)/i, '');
+        if (clean.length > 0) {
+            return `ADM-${clean.slice(-6)}`;
+        }
+    }
     return '';
 };
 
@@ -6534,7 +6551,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active & Enrolled</p>
                                 <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
-                                    {enrollments.filter(e => e.status === 'Active' || e.status === 'Enrolled').length}
+                                    {enrollments.filter(e => e.status?.toLowerCase() === 'active' || e.status?.toLowerCase() === 'enrolled').length}
                                 </h3>
                             </div>
                             <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 dark:text-emerald-400 shrink-0">

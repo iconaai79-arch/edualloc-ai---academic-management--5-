@@ -1,6 +1,6 @@
 
 import React from 'react';
-import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails } from '../../types';
+import type { User, Institution, Invoice, Receipt, Expense, FinancialGoal, FeeStructure, AcademicYear, Semester, Requisition, VoteHead, Course, CompanyDetails, StudentEnrollment } from '../../types';
 import { FinanceManager } from './FinanceManager';
 import { Header } from '../Header';
 import { apiService } from '../../services/apiService';
@@ -41,6 +41,7 @@ interface FinanceOfficerViewProps {
     onEditUser?: (id: string, data: any) => Promise<void>;
     onDeleteUser?: (id: string) => Promise<void>;
     activityLog?: any[];
+    studentEnrollments?: StudentEnrollment[];
 }
 
 export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
@@ -77,7 +78,8 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
     onUpdateLeaveStatus,
     onEditUser,
     onDeleteUser,
-    activityLog
+    activityLog,
+    studentEnrollments
 }) => {
     const totalBilled = (invoices || []).reduce((sum, inv) => sum + (inv.totalAmount || (inv as any).total_amount || 0), 0);
     const totalCollected = (receipts || []).reduce((sum, rec) => sum + (rec.amountPaid || (rec as any).amount_paid || 0), 0);
@@ -137,6 +139,7 @@ export const FinanceOfficerView: React.FC<FinanceOfficerViewProps> = ({
                 onEditUser={onEditUser}
                 onDeleteUser={onDeleteUser}
                 activityLog={activityLog}
+                studentEnrollments={studentEnrollments}
             />
         </div>
     );
