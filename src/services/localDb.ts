@@ -43,7 +43,19 @@ class LocalDb {
 
     private openInternal(): Promise<IDBDatabase> {
         return new Promise((resolve, reject) => {
+            let settled = false;
+            const timeout = setTimeout(() => {
+                if (!settled) {
+                    settled = true;
+                    reject(new Error('IndexedDB open timed out'));
+                }
+            }, 2000);
+
             try {
+                if (typeof indexedDB === 'undefined') {
+                    clearTimeout(timeout);
+                    return reject(new Error('IndexedDB not supported'));
+                }
                 const request = indexedDB.open(this.dbName, this.dbVersion);
                 request.onupgradeneeded = () => {
                     const db = request.result;
@@ -54,6 +66,9 @@ class LocalDb {
                     });
                 };
                 request.onsuccess = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeout);
                     this.db = request.result;
                     // Listen for unexpected version-change closes (another tab deleted/upgraded the DB)
                     this.db.onversionchange = () => {
@@ -63,12 +78,34 @@ class LocalDb {
                     };
                     resolve(this.db);
                 };
-                request.onerror = () => reject(request.error);
-                request.onblocked = () => reject(new Error('IndexedDB open blocked'));
+                request.onerror = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeout);
+                    reject(request.error);
+                };
+                request.onblocked = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timeout);
+                    reject(new Error('IndexedDB open blocked'));
+                };
             } catch (err) {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
                 reject(err);
             }
         });
+    }
+
+    async isReady(): Promise<boolean> {
+        try {
+            const db = await this.getDB();
+            return !!db;
+        } catch {
+            return false;
+        }
     }
 
     /** Attempt to delete the corrupted database and recreate it from scratch */

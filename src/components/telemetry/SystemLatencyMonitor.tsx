@@ -160,6 +160,9 @@ export const SystemLatencyMonitor: React.FC = () => {
         const probeIds = Array.from({ length: probeCount }, (_, i) => `telemetry_probe_${i}`);
 
         const { duration, error } = await measureDuration(async () => {
+            const ready = await localDb.isReady();
+            if (!ready) throw new Error('IndexedDB access unavailable');
+
             const probeItems = probeIds.map((id, i) => ({
                 id,
                 name: `Probe Record ${i}`,
@@ -175,7 +178,7 @@ export const SystemLatencyMonitor: React.FC = () => {
 
             // Step 3: Cleanup probe records so browser storage remains spotless (single readwrite transaction)
             await localDb.bulkDelete('notifications' as any, probeIds);
-        }, 4000);
+        }, 3000);
 
         const status: BenchmarkResult['status'] = error 
             ? 'critical' 

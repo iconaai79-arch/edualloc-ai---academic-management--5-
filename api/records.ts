@@ -1123,9 +1123,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 1500))
                     ]);
                     if (allocRows && Array.isArray(allocRows) && allocRows.length > 0) {
-                        const allowedClasses = [...new Set(
+                        const allowedClasses = Array.from(new Set(
                             allocRows.map((r: any) => (r.class_name || r.class || '').trim()).filter(Boolean)
-                        )];
+                        ));
                         if (allowedClasses.length > 0) {
                             teacherAllowedClasses = allowedClasses;
                         }
@@ -1318,7 +1318,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             ? 100
                             : (['security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
                                 ? 250
-                                : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000)))))));
+                                : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000))))));
             let data: any[] = [];
             let error: any = null;
 
@@ -4730,14 +4730,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (instId) {
                     const imsPromises: Promise<any>[] = [];
 
-                    imsPromises.push(supabase.from('institution_module_states').upsert({
+                    imsPromises.push(Promise.resolve(supabase.from('institution_module_states').upsert({
                         id: `${instId}_school_remedial_rate_settings`,
                         institution_id: instId,
                         module_id: 'school_remedial_rate_settings',
                         status: 'active',
                         data: { ...(savedItem || {}), ...(rawItem || {}) },
                         updated_at: new Date().toISOString()
-                    }, { onConflict: 'id' }));
+                    }, { onConflict: 'id' })));
 
                     const meta = typeof savedItem?.metadata === 'object' && savedItem?.metadata !== null
                         ? savedItem.metadata
@@ -4748,14 +4748,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const timetableApproval = meta?.timetableApproval || rawItem?.timetableApproval || (savedItem as any)?.timetableApproval;
 
                     if (timetableApproval && typeof timetableApproval === 'object') {
-                        imsPromises.push(supabase.from('institution_module_states').upsert({
+                        imsPromises.push(Promise.resolve(supabase.from('institution_module_states').upsert({
                             id: `${instId}_remedial_timetable_approval`,
                             institution_id: instId,
                             module_id: 'remedial_timetable_approval',
                             status: timetableApproval.status || 'active',
                             data: timetableApproval,
                             updated_at: new Date().toISOString()
-                        }, { onConflict: 'id' }));
+                        }, { onConflict: 'id' })));
                     }
 
                     try {
