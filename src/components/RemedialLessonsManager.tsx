@@ -695,6 +695,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [manualPrefectId, setManualPrefectId] = useState('');
     const [manualHours, setManualHours] = useState<number>(2);
     const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+    const [manualStartTime, setManualStartTime] = useState<string>('16:00');
+    const [manualEndTime, setManualEndTime] = useState<string>('18:00');
+    const [isManualDutyLesson, setIsManualDutyLesson] = useState<boolean>(false);
+    const [manualDutyType, setManualDutyType] = useState<'weekend' | 'weekday'>('weekend');
+    const [manualDutyNotes, setManualDutyNotes] = useState<string>('');
+    const [selectedDutyRosterId, setSelectedDutyRosterId] = useState<string>('');
 
     // Reports Hub State
     const [selectedReportType, setSelectedReportType] = useState<'master_timetable' | 'payout_ledger' | 'prefect_audit' | 'billing_statement' | 'workload_summary'>('master_timetable');
@@ -3724,92 +3730,305 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // Helper to calculate hours difference between start and end time ("HH:mm")
+    const calculateHoursFromTimes = (startStr: string, endStr: string): number => {
+        if (!startStr || !endStr) return 1;
+        const [sH, sM] = startStr.split(':').map(Number);
+        const [eH, eM] = endStr.split(':').map(Number);
+        let diffMinutes = ((eH || 0) * 60 + (eM || 0)) - ((sH || 0) * 60 + (sM || 0));
+        if (diffMinutes <= 0) diffMinutes += 24 * 60;
+        const hrs = Math.round((diffMinutes / 60) * 100) / 100;
+        return Math.max(0.25, hrs);
+    };
+
+    // Helper to calculate end time given start time and duration in hours
+    const calculateEndTimeFromHours = (startStr: string, hours: number): string => {
+        if (!startStr) return '18:00';
+        const [sH, sM] = startStr.split(':').map(Number);
+        const totalMinutes = ((sH || 0) * 60 + (sM || 0)) + Math.round((hours || 1) * 60);
+        const eH = Math.floor(totalMinutes / 60) % 24;
+        const eM = totalMinutes % 60;
+        return `${String(eH).padStart(2, '0')}:${String(eM).padStart(2, '0')}`;
+    };
+
+    // Synchronized change handlers for Start/End times and Total Hours
+    const handleManualStartTimeChange = (newStartTime: string) => {
+        setManualStartTime(newStartTime);
+        if (manualEndTime) {
+            const [sH, sM] = newStartTime.split(':').map(Number);
+            const [eH, eM] = manualEndTime.split(':').map(Number);
+            const diffMinutes = ((eH || 0) * 60 + (eM || 0)) - ((sH || 0) * 60 + (sM || 0));
+            if (diffMinutes > 0) {
+                const calculatedHours = Math.round((diffMinutes / 60) * 100) / 100;
+                setManualHours(Math.max(0.25, calculatedHours));
+            } else {
+                const newEnd = calculateEndTimeFromHours(newStartTime, manualHours || 2);
+                setManualEndTime(newEnd);
+            }
+        }
+    };
+
+    const handleManualEndTimeChange = (newEndTime: string) => {
+        setManualEndTime(newEndTime);
+        if (manualStartTime) {
+            const [sH, sM] = manualStartTime.split(':').map(Number);
+            const [eH, eM] = newEndTime.split(':').map(Number);
+            const diffMinutes = ((eH || 0) * 60 + (eM || 0)) - ((sH || 0) * 60 + (sM || 0));
+            if (diffMinutes > 0) {
+                const calculatedHours = Math.round((diffMinutes / 60) * 100) / 100;
+                setManualHours(Math.max(0.25, calculatedHours));
+            }
+        }
+    };
+
+    const handleManualHoursChange = (newHours: number) => {
+        const validHours = Math.max(0.25, Number(newHours) || 0.25);
+        setManualHours(validHours);
+        if (manualStartTime) {
+            const newEnd = calculateEndTimeFromHours(manualStartTime, validHours);
+            setManualEndTime(newEnd);
+        }
+    };
+
+    const handleManualDateChange = (newDate: string) => {
+        setManualDate(newDate);
+        if (!isManualDutyLesson) {
+            const d = new Date(newDate);
+            const isSat = d.getDay() === 6;
+            const isSun = d.getDay() === 0;
+            const defaultStart = isSun ? (sundayStartTime || '09:00') : isSat ? (saturdayStartTime || '08:00') : (weekdayStartTime || '16:00');
+            const defaultEnd = isSun ? (sundayEndTime || '11:00') : isSat ? (saturdayEndTime || '10:00') : (weekdayEndTime || '18:00');
+            setManualStartTime(defaultStart);
+            setManualEndTime(defaultEnd);
+            const calculatedHours = calculateHoursFromTimes(defaultStart, defaultEnd);
+            setManualHours(calculatedHours);
+        }
+    };
+
+    // Helper to open manual log pre-configured for Teacher on Duty (TOD)
+    const openManualLogForDuty = (dutyRecord?: RemedialWeekendDuty) => {
+        setIsManualDutyLesson(true);
+        if (dutyRecord) {
+            setSelectedDutyRosterId(dutyRecord.id);
+            setManualTeacherId(dutyRecord.teacherId);
+            const isWkday = dutyRecord.dutyType === 'weekday';
+            setManualDutyType(isWkday ? 'weekday' : 'weekend');
+            if (isWkday) {
+                const start = dutyRecord.weekdayStartTime || weekdayStartTime || '16:00';
+                const end = dutyRecord.weekdayEndTime || weekdayEndTime || '18:00';
+                setManualStartTime(start);
+                setManualEndTime(end);
+                setManualHours(calculateHoursFromTimes(start, end));
+            } else {
+                const start = saturdayStartTime || '08:00';
+                const end = saturdayEndTime || '12:00';
+                setManualStartTime(start);
+                setManualEndTime(end);
+                setManualHours(calculateHoursFromTimes(start, end));
+            }
+            setManualCourseId(dutyRecord.courseId || 'GENERAL');
+            setManualSubjectId(dutyRecord.subjectId || 'DUTY');
+            setManualStream(dutyRecord.stream || 'All Streams');
+            setManualDutyNotes(`Teacher on Duty (${dutyRecord.weekLabel || 'Active Week'}) — ${dutyRecord.teacherName}`);
+        } else {
+            setSelectedDutyRosterId('');
+            setManualTeacherId('');
+            setManualDutyType('weekend');
+            const start = saturdayStartTime || '08:00';
+            const end = saturdayEndTime || '12:00';
+            setManualStartTime(start);
+            setManualEndTime(end);
+            setManualHours(calculateHoursFromTimes(start, end));
+            setManualCourseId('GENERAL');
+            setManualSubjectId('DUTY');
+            setManualStream('All Streams');
+            setManualDutyNotes('Teacher on Duty (TOD) supervision session');
+        }
+        setShowLogModal(true);
+    };
+
+    // Helper to open regular manual log session
+    const openManualLogRegular = () => {
+        setIsManualDutyLesson(false);
+        setSelectedDutyRosterId('');
+        const d = new Date(manualDate);
+        const isSat = d.getDay() === 6;
+        const isSun = d.getDay() === 0;
+        const defaultStart = isSun ? (sundayStartTime || '09:00') : isSat ? (saturdayStartTime || '08:00') : (weekdayStartTime || '16:00');
+        const defaultEnd = isSun ? (sundayEndTime || '11:00') : isSat ? (saturdayEndTime || '10:00') : (weekdayEndTime || '18:00');
+        setManualStartTime(defaultStart);
+        setManualEndTime(defaultEnd);
+        setManualHours(calculateHoursFromTimes(defaultStart, defaultEnd));
+        setShowLogModal(true);
+    };
+
     // Manual Log Submit
     const handleManualLog = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!manualTeacherId || !manualSubjectId || !manualCourseId || !manualPrefectId) {
-            return alert('Please fill in all fields');
+
+        // 1. Common Validation
+        if (!manualTeacherId) {
+            return alert('Please select a teacher');
         }
 
-        // Daily Lesson Limit Check (weekday vs Saturday vs Sunday) for both Teacher and Class/Stream
+        if (!manualStartTime || !manualEndTime) {
+            return alert('Please specify both Start Time and End Time');
+        }
+
+        const [sH, sM] = manualStartTime.split(':').map(Number);
+        const [eH, eM] = manualEndTime.split(':').map(Number);
+        const startMinutes = (sH || 0) * 60 + (sM || 0);
+        const endMinutes = (eH || 0) * 60 + (eM || 0);
+        if (endMinutes <= startMinutes) {
+            return alert('End Time must be after Start Time');
+        }
+
+        const effectiveHours = Math.max(0.25, manualHours || calculateHoursFromTimes(manualStartTime, manualEndTime));
+
         const manualDateObj = new Date(manualDate);
+        const dayIdx = manualDateObj.getDay();
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayName = dayNames[dayIdx];
         const dayStr = manualDateObj.toDateString();
-        const isSaturday = manualDateObj.getDay() === 6;
-        const isSunday = manualDateObj.getDay() === 0;
+        const isSaturday = dayIdx === 6;
+        const isSunday = dayIdx === 0;
         const isWeekendDate = isSaturday || isSunday;
         const limitLabel = isSaturday ? 'Saturday' : (isSunday ? 'Sunday' : 'weekday');
 
-        // 1. Check Class / Stream Daily Limit
-        const existingClassSessionsOnDate = sessions.filter(s => {
-            const isSameDate = new Date(s.startTime).toDateString() === dayStr;
-            if (!isSameDate) return false;
-            const sameCourse = s.courseId === manualCourseId;
-            if (!sameCourse) return false;
-            return manualStream === 'All Streams' || s.stream === manualStream || s.stream === 'All Streams';
-        });
-        const effectiveClassDailyLimit = isSaturday
-            ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
-            : isSunday
-                ? (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2)
-                : (maxLessonsPerClassPerDay || 1);
-        if (existingClassSessionsOnDate.length >= effectiveClassDailyLimit) {
-            const courseName = combinedCourses.find(c => c.id === manualCourseId)?.name || 'Class';
-            return alert(`Daily Class Quota Exceeded: ${courseName} (${manualStream}) has already reached the maximum ${limitLabel} limit of ${effectiveClassDailyLimit} remedial lesson(s) on ${manualDate}.`);
-        }
+        // IF REGULAR REMEDIAL LESSON: require Subject, Course/Class, Prefect, and enforce quotas
+        if (!isManualDutyLesson) {
+            if (!manualSubjectId || !manualCourseId || !manualPrefectId) {
+                return alert('Please fill in all fields (Subject, Class, and Prefect)');
+            }
 
-        // 2. Check Teacher Daily Limit
-        const existingTeacherSessionsOnDate = sessions.filter(s => {
-            return s.teacherId === manualTeacherId && new Date(s.startTime).toDateString() === dayStr;
-        });
-        const effectiveTeacherDailyLimit = isSaturday
-            ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
-            : isSunday
-                ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
-                : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
-        if (existingTeacherSessionsOnDate.length >= effectiveTeacherDailyLimit) {
-            const teacherName = tenantUsers.find(u => u.id === manualTeacherId)?.name || 'Teacher';
-            return alert(`Daily Teacher Quota Exceeded: ${teacherName} has already reached the maximum ${limitLabel} limit of ${effectiveTeacherDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
+            // 1. Check Class / Stream Daily Limit
+            const existingClassSessionsOnDate = sessions.filter(s => {
+                const isSameDate = new Date(s.startTime).toDateString() === dayStr;
+                if (!isSameDate) return false;
+                const sameCourse = s.courseId === manualCourseId;
+                if (!sameCourse) return false;
+                return manualStream === 'All Streams' || s.stream === manualStream || s.stream === 'All Streams';
+            });
+            const effectiveClassDailyLimit = isSaturday
+                ? (maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3)
+                : isSunday
+                    ? (maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2)
+                    : (maxLessonsPerClassPerDay || 1);
+            if (existingClassSessionsOnDate.length >= effectiveClassDailyLimit) {
+                const courseName = combinedCourses.find(c => c.id === manualCourseId)?.name || 'Class';
+                return alert(`Daily Class Quota Exceeded: ${courseName} (${manualStream}) has already reached the maximum ${limitLabel} limit of ${effectiveClassDailyLimit} remedial lesson(s) on ${manualDate}.`);
+            }
+
+            // 2. Check Teacher Daily Limit
+            const existingTeacherSessionsOnDate = sessions.filter(s => {
+                return s.teacherId === manualTeacherId && new Date(s.startTime).toDateString() === dayStr;
+            });
+            const effectiveTeacherDailyLimit = isSaturday
+                ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                : isSunday
+                    ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                    : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+            if (existingTeacherSessionsOnDate.length >= effectiveTeacherDailyLimit) {
+                const teacherName = tenantUsers.find(u => u.id === manualTeacherId)?.name || 'Teacher';
+                return alert(`Daily Teacher Quota Exceeded: ${teacherName} has already reached the maximum ${limitLabel} limit of ${effectiveTeacherDailyLimit} remedial lesson(s) allowed per day on ${manualDate}.`);
+            }
         }
 
         try {
             const teacher = tenantUsers.find(u => u.id === manualTeacherId);
-            const remSubMatch = remedialSubjects.find(r => r.subjectId === manualSubjectId || r.id === manualSubjectId);
-            const schoolSubMatch = effectiveSchoolSubjects.find(s => s.id === manualSubjectId);
-            const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || manualSubjectId || 'Unknown';
-            const course = combinedCourses.find(c => c.id === manualCourseId);
-            const prefect = tenantUsers.find(u => u.id === manualPrefectId);
+            const startTimeIso = new Date(`${manualDate}T${manualStartTime}:00`).toISOString();
+            const endTimeIso = new Date(`${manualDate}T${manualEndTime}:00`).toISOString();
 
-            const isSunday = manualDateObj.getDay() === 0;
-            const isSaturday = manualDateObj.getDay() === 6;
-            const defaultStart = isSunday ? (sundayStartTime || '09:00') : isSaturday ? (saturdayStartTime || '08:00') : (weekdayStartTime || '16:00');
-            const startTime = new Date(`${manualDate}T${defaultStart}:00`).toISOString();
-            const endTime = new Date(new Date(startTime).getTime() + manualHours * 60 * 60 * 1000).toISOString();
+            let newSession: RemedialSession;
 
-            const newSession: RemedialSession = {
-                id: `rem_${Date.now()}`,
-                teacherId: manualTeacherId,
-                teacherName: teacher?.name || 'Unknown',
-                subjectId: manualSubjectId,
-                subjectName: resolvedSubjectName,
-                courseId: manualCourseId,
-                className: course?.name || 'Unknown',
-                stream: manualStream || 'All Streams',
-                prefectId: manualPrefectId,
-                prefectName: prefect?.name || 'Unknown',
-                prefectToken: `prefect_remedial_token_class_${manualCourseId}`,
-                startTime,
-                endTime,
-                hours: manualHours,
-                status: 'Approved', // Manually logged by Admin defaults to Approved
-                createdAt: new Date().toISOString(),
-                institutionId
-            };
+            if (isManualDutyLesson) {
+                // TEACHER ON DUTY (TOD) LOGGED BY DOS
+                const resolvedCourse = combinedCourses.find(c => c.id === manualCourseId);
+                const dutyTitle = isWeekendDate 
+                    ? 'Weekend Teacher on Duty (TOD Supervision)' 
+                    : 'Weekday Teacher on Duty (TOD Supervision)';
+                const scopeTitle = resolvedCourse?.name || (isWeekendDate ? 'Weekend Remedials' : 'Weekday Remedials');
 
-            await apiService.saveRemedialSession(newSession);
-            onLogAction?.(`Manually logged approved remedial session for ${teacher?.name} in ${course?.name} (${manualStream || 'All Streams'}) (${manualHours} hrs)`);
-            alert('Remedial session logged and approved successfully!');
+                newSession = {
+                    id: `rem_duty_${Date.now()}`,
+                    teacherId: manualTeacherId,
+                    teacherName: teacher?.name || 'Teacher on Duty',
+                    subjectId: manualSubjectId || 'DUTY',
+                    subjectName: dutyTitle,
+                    courseId: manualCourseId || 'GENERAL',
+                    className: scopeTitle,
+                    stream: manualStream || 'All Streams',
+                    prefectId: currentUser?.id || 'dos_verifier',
+                    prefectName: currentUser?.name ? `${currentUser.name} (DOS Verified)` : 'Director of Studies / DOS Verified',
+                    prefectToken: 'duty_verified_by_dos',
+                    startTime: startTimeIso,
+                    endTime: endTimeIso,
+                    hours: effectiveHours,
+                    durationHours: effectiveHours,
+                    durationMinutes: Math.round(effectiveHours * 60),
+                    status: 'Approved', // Logged directly by DOS
+                    isDutyLesson: true,
+                    is_duty_lesson: true,
+                    dutyApproved: true,
+                    dutyApprovedBy: currentUser?.name || 'Director of Studies',
+                    dutyApprovedById: currentUser?.id || 'dos_user',
+                    dutyApprovedAt: new Date().toISOString(),
+                    dutyNotes: manualDutyNotes || 'Teacher on Duty logged & authorized by Director of Studies',
+                    headteacherApproved: true,
+                    headteacherApprovedBy: currentUser?.role?.toLowerCase().includes('head') ? currentUser.name : undefined,
+                    createdAt: new Date().toISOString(),
+                    institutionId,
+                    date: manualDate,
+                    dayOfWeek: dayName,
+                    day_of_week: dayName
+                };
+
+                await apiService.saveRemedialSession(newSession);
+                onLogAction?.(`DOS manually logged approved Teacher on Duty session for ${teacher?.name} on ${manualDate} (${manualStartTime} - ${manualEndTime}, ${effectiveHours} hrs)`);
+                alert(`Teacher on Duty (TOD) session for ${teacher?.name} logged and approved successfully!`);
+            } else {
+                // REGULAR REMEDIAL LESSON
+                const remSubMatch = remedialSubjects.find(r => r.subjectId === manualSubjectId || r.id === manualSubjectId);
+                const schoolSubMatch = effectiveSchoolSubjects.find(s => s.id === manualSubjectId);
+                const resolvedSubjectName = schoolSubMatch?.name || remSubMatch?.subjectName || manualSubjectId || 'Unknown';
+                const course = combinedCourses.find(c => c.id === manualCourseId);
+                const prefect = tenantUsers.find(u => u.id === manualPrefectId);
+
+                newSession = {
+                    id: `rem_${Date.now()}`,
+                    teacherId: manualTeacherId,
+                    teacherName: teacher?.name || 'Unknown',
+                    subjectId: manualSubjectId,
+                    subjectName: resolvedSubjectName,
+                    courseId: manualCourseId,
+                    className: course?.name || 'Unknown',
+                    stream: manualStream || 'All Streams',
+                    prefectId: manualPrefectId,
+                    prefectName: prefect?.name || 'Unknown',
+                    prefectToken: `prefect_remedial_token_class_${manualCourseId}`,
+                    startTime: startTimeIso,
+                    endTime: endTimeIso,
+                    hours: effectiveHours,
+                    durationHours: effectiveHours,
+                    durationMinutes: Math.round(effectiveHours * 60),
+                    status: 'Approved', // Manually logged by Admin/DOS defaults to Approved
+                    createdAt: new Date().toISOString(),
+                    institutionId,
+                    date: manualDate,
+                    dayOfWeek: dayName,
+                    day_of_week: dayName
+                };
+
+                await apiService.saveRemedialSession(newSession);
+                onLogAction?.(`Manually logged approved remedial session for ${teacher?.name} in ${course?.name} (${manualStream || 'All Streams'}) (${manualStartTime} - ${manualEndTime}, ${effectiveHours} hrs)`);
+                alert('Remedial session logged and approved successfully!');
+            }
+
             setShowLogModal(false);
             setManualStream('All Streams');
+            setIsManualDutyLesson(false);
+            setSelectedDutyRosterId('');
+            setManualDutyNotes('');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to log session');
@@ -9026,7 +9245,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 {/* Quick Launcher Action */}
                 <div className="relative z-10 flex items-center gap-3 shrink-0">
                     <button 
-                        onClick={() => setShowLogModal(true)}
+                        onClick={() => openManualLogRegular()}
                         className="px-6 py-3.5 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/25 transition-all transform active:scale-95 flex items-center gap-2 border border-indigo-400/30"
                     >
                         <Plus className="w-4 h-4" /> Log Extra Hours
@@ -9937,6 +10156,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={() => openManualLogForDuty()}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider shadow-md shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    title="Log supervisory remedial hours for Teacher on Duty"
+                                >
+                                    <Clock className="w-3.5 h-3.5" /> Log Duty Hours
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => {
                                         setDutyModalType('weekend');
                                         setIsDutyModalOpen(true);
@@ -10286,6 +10513,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             <div className="flex items-center justify-end gap-1">
                                                                 <button
                                                                     type="button"
+                                                                    onClick={() => openManualLogForDuty(duty)}
+                                                                    className="px-2.5 py-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer flex items-center gap-1 font-black text-[11px]"
+                                                                    title="Log Duty Hours for this Teacher on Duty"
+                                                                >
+                                                                    <Clock className="w-3.5 h-3.5" />
+                                                                    <span className="hidden xl:inline">Log Hours</span>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
                                                                     onClick={() => handleQuickSmsToDuty(duty)}
                                                                     className="p-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
                                                                     title="Send SMS Duty Notice to this TOD"
@@ -10382,6 +10618,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openManualLogForDuty(duty)}
+                                                        className="px-2.5 py-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer flex items-center gap-1 font-black text-[11px]"
+                                                        title="Log Duty Hours for this Teacher on Duty"
+                                                    >
+                                                        <Clock className="w-3.5 h-3.5" />
+                                                        <span>Log Hours</span>
+                                                    </button>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleQuickSmsToDuty(duty)}
@@ -17493,124 +17738,450 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 </div>
             )}
 
-            {/* MANUAL LOG SESSION MODAL */}
-            {showLogModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/20">
-                            <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white italic">Manually Log approved Remedial</h3>
-                            <button onClick={() => setShowLogModal(false)} className="text-slate-400 hover:text-slate-600">&times;</button>
-                        </div>
-                        <form onSubmit={handleManualLog} className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Teacher</label>
-                                <select 
-                                    value={manualTeacherId}
-                                    onChange={e => setManualTeacherId(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+            {/* MANUAL LOG SESSION MODAL (DIRECTOR OF STUDIES DIRECT ENTRY) */}
+            {showLogModal && (() => {
+                const [sH, sM] = (manualStartTime || '00:00').split(':').map(Number);
+                const [eH, eM] = (manualEndTime || '00:00').split(':').map(Number);
+                const startMins = (sH || 0) * 60 + (sM || 0);
+                const endMins = (eH || 0) * 60 + (eM || 0);
+                const isTimeValid = Boolean(manualStartTime && manualEndTime && endMins > startMins);
+                const durationMinutes = isTimeValid ? endMins - startMins : 0;
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-xl w-full overflow-hidden animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
+                            {/* Modal Header */}
+                            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/70 dark:bg-slate-900/40 shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+                                        <Clock className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                            Log Remedial &amp; Duty Hours
+                                        </h3>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                            Director of Studies (DOS) Direct Authorization
+                                        </p>
+                                    </div>
+                                </div>
+                                <button 
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLogModal(false);
+                                        setIsManualDutyLesson(false);
+                                        setSelectedDutyRosterId('');
+                                    }} 
+                                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl transition-all cursor-pointer"
                                 >
-                                    <option value="">-- Select Teacher --</option>
-                                    {teachersList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                </select>
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Subject</label>
-                                <select 
-                                    value={manualSubjectId}
-                                    onChange={e => setManualSubjectId(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
-                                >
-                                    <option value="">-- Select Remedial Subject --</option>
-                                    {activeRemedialSubjectsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Class</label>
-                                    <select 
-                                        value={manualCourseId}
-                                        onChange={e => {
-                                            setManualCourseId(e.target.value);
-                                            setManualStream('All Streams');
+                            {/* Mode Switcher Tabs */}
+                            <div className="p-4 bg-slate-100/70 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700/80 shrink-0">
+                                <div className="grid grid-cols-2 gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsManualDutyLesson(false);
+                                            setSelectedDutyRosterId('');
+                                            if (manualCourseId === 'GENERAL') setManualCourseId('');
+                                            if (manualSubjectId === 'DUTY') setManualSubjectId('');
                                         }}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                        className={`py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                                            !isManualDutyLesson
+                                                ? 'bg-indigo-600 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
                                     >
-                                        <option value="">-- Select Class --</option>
-                                        {combinedCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Stream</label>
-                                    <select 
-                                        value={manualStream}
-                                        onChange={e => setManualStream(e.target.value)}
-                                        disabled={!manualCourseId}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white disabled:opacity-50"
+                                        <BookOpen className="w-4 h-4" /> Regular Lesson
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsManualDutyLesson(true);
+                                            if (!manualCourseId) setManualCourseId('GENERAL');
+                                            if (!manualSubjectId) setManualSubjectId('DUTY');
+                                            if (!manualStream) setManualStream('All Streams');
+                                        }}
+                                        className={`py-2 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                                            isManualDutyLesson
+                                                ? 'bg-amber-500 text-white shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
                                     >
-                                        <option value="All Streams">All Streams</option>
-                                        {availableStreamsForManualLog.map(s => (
-                                            <option key={s} value={s}>{s}</option>
-                                        ))}
-                                    </select>
+                                        <UserCheck className="w-4 h-4" /> Teacher on Duty (TOD)
+                                    </button>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
-                                    <span>Class Prefect</span>
-                                    {manualPrefectId && (
-                                        <span className="text-amber-600 dark:text-amber-400 font-bold lowercase text-[9px] flex items-center gap-1">
-                                            <Shield className="w-2.5 h-2.5" /> auto-linked
-                                        </span>
+                            {/* Modal Form Content */}
+                            <form onSubmit={handleManualLog} className="p-6 space-y-4 overflow-y-auto flex-1">
+                                {isManualDutyLesson ? (
+                                    /* TEACHER ON DUTY (TOD) MODE FIELDS */
+                                    <div className="space-y-4">
+                                        <div className="p-3.5 bg-amber-500/10 border border-amber-300 dark:border-amber-800/80 rounded-2xl flex items-start gap-3">
+                                            <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                                    Teacher on Duty Supervisory Session
+                                                </h4>
+                                                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5 leading-relaxed">
+                                                    Authorized directly by DOS for general school supervision across all streams. Bypasses single-class quotas and credits teacher duty remuneration.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Duty Roster Quick-Select (If available) */}
+                                        {weekendDutyRoster.length > 0 && (
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                                    <span>Link to Active Duty Roster Appointment (Optional)</span>
+                                                    {selectedDutyRosterId && (
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold lowercase text-[9px] flex items-center gap-1">
+                                                            <Check className="w-2.5 h-2.5" /> auto-filled
+                                                        </span>
+                                                    )}
+                                                </label>
+                                                <select
+                                                    value={selectedDutyRosterId}
+                                                    onChange={e => {
+                                                        const rosterId = e.target.value;
+                                                        setSelectedDutyRosterId(rosterId);
+                                                        if (rosterId) {
+                                                            const duty = weekendDutyRoster.find(d => d.id === rosterId);
+                                                            if (duty) {
+                                                                setManualTeacherId(duty.teacherId);
+                                                                const isWk = duty.dutyType === 'weekday';
+                                                                setManualDutyType(isWk ? 'weekday' : 'weekend');
+                                                                if (isWk) {
+                                                                    const start = duty.weekdayStartTime || weekdayStartTime || '16:00';
+                                                                    const end = duty.weekdayEndTime || weekdayEndTime || '18:00';
+                                                                    setManualStartTime(start);
+                                                                    setManualEndTime(end);
+                                                                    setManualHours(calculateHoursFromTimes(start, end));
+                                                                } else {
+                                                                    const start = saturdayStartTime || '08:00';
+                                                                    const end = saturdayEndTime || '12:00';
+                                                                    setManualStartTime(start);
+                                                                    setManualEndTime(end);
+                                                                    setManualHours(calculateHoursFromTimes(start, end));
+                                                                }
+                                                                setManualCourseId(duty.courseId || 'GENERAL');
+                                                                setManualSubjectId(duty.subjectId || 'DUTY');
+                                                                setManualStream(duty.stream || 'All Streams');
+                                                                setManualDutyNotes(`Teacher on Duty (${duty.weekLabel || 'Active Week'}) — ${duty.teacherName}`);
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                >
+                                                    <option value="">-- Choose Roster Appointment (or manually select below) --</option>
+                                                    {weekendDutyRoster.map(r => (
+                                                        <option key={r.id} value={r.id}>
+                                                            {r.weekLabel || 'Week'} • {r.teacherName} ({r.dutyType === 'weekday' ? `Weekday: ${r.weekdayDay || 'WD'}` : 'Weekend'})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+
+                                        {/* Teacher on Duty Selection */}
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Teacher on Duty (TOD) *
+                                            </label>
+                                            <select 
+                                                value={manualTeacherId}
+                                                onChange={e => setManualTeacherId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                required
+                                            >
+                                                <option value="">-- Select Teacher on Duty --</option>
+                                                {teachersList.map(t => {
+                                                    const code = teacherCodes[t.id] || getTeacherCode(t.id, t.name, teachersList);
+                                                    return (
+                                                        <option key={t.id} value={t.id}>
+                                                            {t.name} {code ? `[Code: ${code}]` : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+
+                                        {/* Duty Category & Scope */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Duty Classification
+                                                </label>
+                                                <select
+                                                    value={manualDutyType}
+                                                    onChange={e => {
+                                                        const dt = e.target.value as 'weekend' | 'weekday';
+                                                        setManualDutyType(dt);
+                                                        if (dt === 'weekday') {
+                                                            const start = weekdayStartTime || '16:00';
+                                                            const end = weekdayEndTime || '18:00';
+                                                            setManualStartTime(start);
+                                                            setManualEndTime(end);
+                                                            setManualHours(calculateHoursFromTimes(start, end));
+                                                        } else {
+                                                            const start = saturdayStartTime || '08:00';
+                                                            const end = saturdayEndTime || '12:00';
+                                                            setManualStartTime(start);
+                                                            setManualEndTime(end);
+                                                            setManualHours(calculateHoursFromTimes(start, end));
+                                                        }
+                                                    }}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                >
+                                                    <option value="weekend">🌅 Weekend Duty (Sat/Sun)</option>
+                                                    <option value="weekday">📅 Weekday Duty (Mon-Fri)</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Supervisory Scope
+                                                </label>
+                                                <select 
+                                                    value={manualCourseId}
+                                                    onChange={e => setManualCourseId(e.target.value)}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                >
+                                                    <option value="GENERAL">All Classes / General Remedials</option>
+                                                    {combinedCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        {/* Duty Notes */}
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Duty Remarks / Notes (Optional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={manualDutyNotes}
+                                                onChange={e => setManualDutyNotes(e.target.value)}
+                                                placeholder="e.g., Supervised morning and afternoon study halls"
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-medium outline-none dark:text-white"
+                                            />
+                                        </div>
+
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-700 flex items-center justify-between text-[11px]">
+                                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                                <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
+                                                <span>Verification Token: <strong className="font-mono text-emerald-600 dark:text-emerald-400">DOS Direct Sign-off</strong></span>
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                                Prefect Bypassed
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* REGULAR REMEDIAL LESSON MODE FIELDS */
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Teacher *
+                                            </label>
+                                            <select 
+                                                value={manualTeacherId}
+                                                onChange={e => setManualTeacherId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                required
+                                            >
+                                                <option value="">-- Select Teacher --</option>
+                                                {teachersList.map(t => {
+                                                    const code = teacherCodes[t.id] || getTeacherCode(t.id, t.name, teachersList);
+                                                    return (
+                                                        <option key={t.id} value={t.id}>
+                                                            {t.name} {code ? `[Code: ${code}]` : ''}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Remedial Subject *
+                                            </label>
+                                            <select 
+                                                value={manualSubjectId}
+                                                onChange={e => setManualSubjectId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                required
+                                            >
+                                                <option value="">-- Select Remedial Subject --</option>
+                                                {activeRemedialSubjectsList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Class *
+                                                </label>
+                                                <select 
+                                                    value={manualCourseId}
+                                                    onChange={e => {
+                                                        setManualCourseId(e.target.value);
+                                                        setManualStream('All Streams');
+                                                    }}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                    required
+                                                >
+                                                    <option value="">-- Select Class --</option>
+                                                    {combinedCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Stream
+                                                </label>
+                                                <select 
+                                                    value={manualStream}
+                                                    onChange={e => setManualStream(e.target.value)}
+                                                    disabled={!manualCourseId}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white disabled:opacity-50"
+                                                >
+                                                    <option value="All Streams">All Streams</option>
+                                                    {availableStreamsForManualLog.map(s => (
+                                                        <option key={s} value={s}>{s}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                                                <span>Class Prefect *</span>
+                                                {manualPrefectId && (
+                                                    <span className="text-amber-600 dark:text-amber-400 font-bold lowercase text-[9px] flex items-center gap-1">
+                                                        <Shield className="w-2.5 h-2.5" /> auto-linked
+                                                    </span>
+                                                )}
+                                            </label>
+                                            <select 
+                                                value={manualPrefectId}
+                                                onChange={e => setManualPrefectId(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
+                                                required
+                                            >
+                                                <option value="">-- Select Prefect --</option>
+                                                {prefectsList.map(p => (
+                                                    <option key={p.id} value={p.id}>
+                                                        {p.name}{p.stream ? ` • Stream ${p.stream}` : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* TIMING & DATE CONTROLS (BIDIRECTIONAL CALCULATION) */}
+                                <div className="pt-3 border-t border-slate-100 dark:border-slate-700/80 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[11px] font-black uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-1.5">
+                                            <Calendar className="w-3.5 h-3.5 text-indigo-500" /> Date &amp; Lesson Timings
+                                        </label>
+                                        {isTimeValid ? (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black font-mono bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                                ⏱️ {manualHours} hr ({durationMinutes} mins)
+                                            </span>
+                                        ) : (
+                                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                                                ⚠️ End &le; Start
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Date *
+                                            </label>
+                                            <input 
+                                                type="date"
+                                                value={manualDate}
+                                                onChange={e => handleManualDateChange(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Start Time *
+                                            </label>
+                                            <input 
+                                                type="time"
+                                                value={manualStartTime}
+                                                onChange={e => handleManualStartTimeChange(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                End Time *
+                                            </label>
+                                            <input 
+                                                type="time"
+                                                value={manualEndTime}
+                                                onChange={e => handleManualEndTimeChange(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                Total Hours *
+                                            </label>
+                                            <input 
+                                                type="number"
+                                                step="0.25"
+                                                min="0.25"
+                                                value={manualHours}
+                                                onChange={e => handleManualHoursChange(Number(e.target.value))}
+                                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {!isTimeValid && (
+                                        <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1">
+                                            <AlertCircle className="w-3.5 h-3.5" /> End Time must be later than Start Time ({manualStartTime}).
+                                        </p>
                                     )}
-                                </label>
-                                <select 
-                                    value={manualPrefectId}
-                                    onChange={e => setManualPrefectId(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
-                                >
-                                    <option value="">-- Select Prefect --</option>
-                                    {prefectsList.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name}{p.stream ? ` • Stream ${p.stream}` : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Hours</label>
-                                    <input 
-                                        type="number"
-                                        value={manualHours}
-                                        onChange={e => setManualHours(Number(e.target.value))}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
-                                    />
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Date</label>
-                                    <input 
-                                        type="date"
-                                        value={manualDate}
-                                        onChange={e => setManualDate(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white font-mono"
-                                    />
-                                </div>
-                            </div>
 
-                            <button 
-                                type="submit"
-                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all mt-4"
-                            >
-                                Log & Approve Hours
-                            </button>
-                        </form>
+                                <div className="pt-2">
+                                    <button 
+                                        type="submit"
+                                        disabled={!isTimeValid}
+                                        className={`w-full py-4 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                                            isManualDutyLesson
+                                                ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-amber-500/20'
+                                                : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20'
+                                        }`}
+                                    >
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        {isManualDutyLesson ? 'Log & Approve Teacher on Duty Hours' : 'Log & Approve Remedial Lesson'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
         {/* ===== MANUAL ALLOCATION MODAL ===== */}
         {showAllocModal && (
