@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher, extractGradeLevel, isSubjectEquivalent } from '../utils/remedialSubstitutionUtils';
+import { isGradeMatching } from './Academics/LessonsAllocationManager';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import {
     generateTeacherPayoutLedgerPdf,
@@ -76,6 +77,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [fetchedTenantUsers, setFetchedTenantUsers] = useState<User[]>([]);
     const [fetchedTenantCourses, setFetchedTenantCourses] = useState<Course[]>([]);
     const [fetchedTenantSubjects, setFetchedTenantSubjects] = useState<Subject[]>([]);
+    const [schoolSubjectAllocations, setSchoolSubjectAllocations] = useState<any[]>(() => {
+        try {
+            const instId = targetInstitutionId || currentInstitution?.id || currentUser?.institutionId || 'default_inst';
+            const saved = safeLocalStorage.getItem(`eduai_subject_allocations_${instId}`) || 
+                          safeLocalStorage.getItem('eduai_subject_allocations');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
 
     // Scoped lists strictly isolated to the target institution (defends against cross-tenant data leakage when viewed by Super Admin)
     const tenantUsers = useMemo(() => {
@@ -920,6 +933,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     const parsed = JSON.parse(cachedDuty);
                     if (Array.isArray(parsed) && parsed.length > 0) setWeekendDutyRoster(parsed);
                 }
+                const cachedSubAlloc = safeLocalStorage.getItem(`eduai_subject_allocations_${institutionId}`) || safeLocalStorage.getItem('eduai_subject_allocations');
+                if (cachedSubAlloc) {
+                    const parsed = JSON.parse(cachedSubAlloc);
+                    if (Array.isArray(parsed) && parsed.length > 0) setSchoolSubjectAllocations(parsed);
+                }
             } catch (err) {
                 // Ignore cache parse warnings
             }
@@ -932,7 +950,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
         try {
             // 2. Fetch primary remedial operations in parallel (ultra-fast, ~100ms)
-            const [sessResult, ratesResult, payResult, allocResult, remSubResult, dutyResult, openBalResult] = await Promise.allSettled([
+            const [sessResult, ratesResult, payResult, allocResult, remSubResult, dutyResult, openBalResult, subAllocResult] = await Promise.allSettled([
                 apiService.fetchRemedialSessions(institutionId),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
@@ -943,7 +961,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     ? (apiService as any).fetchRemedialSubjects(institutionId)
                     : apiService.fetchModuleRecords<RemedialSubject>('school_remedial_subjects', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<RemedialWeekendDuty>('school_remedial_duty_roster', institutionId).catch(() => []),
-                apiService.fetchRemedialOpeningBalances(institutionId).catch(() => [])
+                apiService.fetchRemedialOpeningBalances(institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('subject_allocations', institutionId).catch(() => [])
             ]);
 
             const sessList = sessResult.status === 'fulfilled' && Array.isArray(sessResult.value) ? sessResult.value : [];
@@ -953,6 +972,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const remSubList = remSubResult.status === 'fulfilled' && Array.isArray(remSubResult.value) ? remSubResult.value : [];
             const dutyList = dutyResult.status === 'fulfilled' && Array.isArray(dutyResult.value) ? dutyResult.value : [];
             const openBalList = openBalResult.status === 'fulfilled' && Array.isArray(openBalResult.value) ? openBalResult.value : [];
+            const subAllocList = subAllocResult.status === 'fulfilled' && Array.isArray(subAllocResult.value) ? subAllocResult.value : [];
 
             const normalizeAlloc = (a: any): RemedialAllocation => {
                 if (!a) return a;
@@ -1042,6 +1062,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
             if (dutyList.length > 0) {
                 safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(dutyList));
+            }
+            if (subAllocList.length > 0) {
+                setSchoolSubjectAllocations(subAllocList);
+                if (institutionId) {
+                    safeLocalStorage.setItem(`eduai_subject_allocations_${institutionId}`, JSON.stringify(subAllocList));
+                }
             }
 
             // Unblock the user interface immediately!
@@ -5570,13 +5596,245 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Smart Auto-Generate Timetable Engine (Strictly for Allocated Classes & Teachers with Manual Allocation)
+    // Helper to compute all active teacher subject allocations across the institution
+    const getTeacherSubjectAllocationsMap = useCallback(() => {
+        const instId = institutionId || 'default_inst';
+
+        // 1. Load class_subject_allocations from currentInstitution or cache
+        let classSubjAllocStore: Record<string, any> = {};
+        if (currentInstitution?.classSubjectAllocations && typeof currentInstitution.classSubjectAllocations === 'object') {
+            classSubjAllocStore = { ...currentInstitution.classSubjectAllocations };
+        }
+        try {
+            const rawClassSubj = safeLocalStorage.getItem(`eduai_class_subject_allocations_${instId}`) || safeLocalStorage.getItem('eduai_class_subject_allocations');
+            if (rawClassSubj) {
+                const parsed = JSON.parse(rawClassSubj);
+                if (Array.isArray(parsed) && parsed[0]?.allocations) {
+                    classSubjAllocStore = { ...classSubjAllocStore, ...parsed[0].allocations };
+                } else if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    classSubjAllocStore = { ...classSubjAllocStore, ...parsed };
+                }
+            }
+        } catch (_) {}
+
+        // Map teacherId -> Set of allocated subjects (names and IDs)
+        const teacherAllocatedSubjectsMap = new Map<string, Set<string>>();
+        // Map teacherId -> Map of className -> Set of subject names
+        const teacherClassSubjectsMap = new Map<string, Map<string, Set<string>>>();
+
+        const ensureTeacher = (tId: string) => {
+            if (!teacherAllocatedSubjectsMap.has(tId)) {
+                teacherAllocatedSubjectsMap.set(tId, new Set<string>());
+            }
+            if (!teacherClassSubjectsMap.has(tId)) {
+                teacherClassSubjectsMap.set(tId, new Map<string, Set<string>>());
+            }
+        };
+
+        const addAllocation = (tId: string, subjectNameOrId: string, className?: string) => {
+            if (!tId || !subjectNameOrId) return;
+            ensureTeacher(tId);
+            const subClean = String(subjectNameOrId).trim();
+            if (!subClean) return;
+
+            teacherAllocatedSubjectsMap.get(tId)!.add(subClean);
+
+            // Also resolve from effectiveSchoolSubjects: if subjectNameOrId is an ID, add name; if it's a name, add ID
+            const matchedSub = effectiveSchoolSubjects.find(s => 
+                s.id === subClean || 
+                (s.name && s.name.trim().toLowerCase() === subClean.toLowerCase()) ||
+                (s.code && s.code.trim().toLowerCase() === subClean.toLowerCase())
+            );
+            if (matchedSub) {
+                if (matchedSub.name) teacherAllocatedSubjectsMap.get(tId)!.add(matchedSub.name.trim());
+                if (matchedSub.id) teacherAllocatedSubjectsMap.get(tId)!.add(matchedSub.id.trim());
+                if (matchedSub.code) teacherAllocatedSubjectsMap.get(tId)!.add(matchedSub.code.trim());
+            }
+
+            if (className) {
+                const clsClean = className.trim().toLowerCase();
+                const clsMap = teacherClassSubjectsMap.get(tId)!;
+                if (!clsMap.has(clsClean)) {
+                    clsMap.set(clsClean, new Set<string>());
+                }
+                clsMap.get(clsClean)!.add(subClean);
+                if (matchedSub?.name) clsMap.get(clsClean)!.add(matchedSub.name.trim());
+            }
+        };
+
+        // Source 1: Official schoolSubjectAllocations (from DB 'subject_allocations' & cache)
+        if (Array.isArray(schoolSubjectAllocations)) {
+            schoolSubjectAllocations.forEach(rec => {
+                if (!rec) return;
+                const tId = rec.teacherId || rec.teacher_id;
+                const sub = rec.subjectName || rec.subject_name || rec.subjectCode || rec.subject_code || rec.subjectId || rec.subject_id;
+                const cls = rec.className || rec.class_name;
+                const status = (rec.status || '').toLowerCase();
+                if (tId && sub && status !== 'unassigned') {
+                    addAllocation(tId, sub, cls);
+                } else if (!tId && rec.teacherName && sub && status !== 'unassigned') {
+                    const t = tenantUsers.find(u => u.name && u.name.trim().toLowerCase() === String(rec.teacherName).trim().toLowerCase());
+                    if (t) addAllocation(t.id, sub, cls);
+                }
+            });
+        }
+
+        // Source 2: class_subject_allocations
+        Object.entries(classSubjAllocStore).forEach(([courseOrClass, subjMap]) => {
+            if (subjMap && typeof subjMap === 'object') {
+                Object.entries(subjMap).forEach(([subjNameOrId, assignedTeacherId]) => {
+                    if (typeof assignedTeacherId === 'string' && assignedTeacherId.trim()) {
+                        addAllocation(assignedTeacherId.trim(), subjNameOrId, courseOrClass);
+                    }
+                });
+            }
+        });
+
+        // Source 3: Teacher Preferences authorizedSubjects
+        Object.entries(teacherPreferences || {}).forEach(([tId, pref]) => {
+            if (pref && Array.isArray(pref.authorizedSubjects)) {
+                pref.authorizedSubjects.forEach(s => {
+                    if (s) addAllocation(tId, s);
+                });
+            }
+        });
+
+        // Source 4: User Profile metadata / teachingSubjects
+        (tenantUsers || []).forEach(u => {
+            if (!u || !u.id) return;
+            const userSubjs = (u as any).subjects || (u as any).teachingSubjects || (u.metadata as any)?.subjects || (u.metadata as any)?.subjectIds || (u.metadata as any)?.teachingSubjects || [];
+            if (Array.isArray(userSubjs)) {
+                userSubjs.forEach(s => {
+                    if (s) addAllocation(u.id, String(s).trim());
+                });
+            }
+        });
+
+        // Source 5: Remedial manual allocations
+        (allocations || []).forEach(a => {
+            if (a && a.teacherId && (a.subjectName || a.subjectId)) {
+                const sub = a.subjectName || a.subjectId;
+                const cls = a.courseId || a.className;
+                addAllocation(a.teacherId, sub, cls);
+            }
+        });
+
+        // Set of all teacher IDs that have at least 1 subject allocation
+        const allocatedTeacherIds = new Set<string>();
+        teacherAllocatedSubjectsMap.forEach((subSet, tId) => {
+            if (subSet.size > 0) {
+                allocatedTeacherIds.add(tId);
+            }
+        });
+
+        const isTeacherAllocated = (tId: string): boolean => {
+            if (!tId) return false;
+            return allocatedTeacherIds.has(tId);
+        };
+
+        const isTeacherAllocatedToSubject = (tId: string, subjectNameOrId: string, classOrCourseName?: string): boolean => {
+            if (!tId || !subjectNameOrId || !allocatedTeacherIds.has(tId)) return false;
+            // Exclude teacher if explicitly marked ineligible in preferences
+            if (teacherPreferences[tId]?.isEligible === false) return false;
+
+            const subSet = teacherAllocatedSubjectsMap.get(tId);
+            if (!subSet || subSet.size === 0) return false;
+
+            const targetSub = String(subjectNameOrId).trim().toLowerCase();
+
+            // Direct check in teacher's allocated subjects
+            for (const allocatedSub of Array.from(subSet)) {
+                const allocLower = allocatedSub.toLowerCase().trim();
+                if (allocLower === targetSub) return true;
+                if (isSubjectEquivalent(allocatedSub, subjectNameOrId)) return true;
+            }
+
+            // Check via effectiveSchoolSubjects resolution
+            const schSub = effectiveSchoolSubjects.find(s =>
+                s.id === subjectNameOrId ||
+                (s.name && s.name.trim().toLowerCase() === targetSub) ||
+                (s.code && s.code.trim().toLowerCase() === targetSub)
+            );
+            if (schSub) {
+                if (schSub.name) {
+                    for (const allocatedSub of Array.from(subSet)) {
+                        if (isSubjectEquivalent(allocatedSub, schSub.name)) return true;
+                    }
+                }
+                if (schSub.id && subSet.has(schSub.id)) return true;
+            }
+
+            return false;
+        };
+
+        const getTeachersForSubject = (subjectNameOrId: string, classOrCourseName?: string): User[] => {
+            if (!subjectNameOrId) return [];
+            return teachersList.filter(t => {
+                if (!isTeacherAllocated(t.id)) return false;
+                if (teacherPreferences[t.id]?.isEligible === false) return false;
+                return isTeacherAllocatedToSubject(t.id, subjectNameOrId, classOrCourseName);
+            }).sort((t1, t2) => {
+                if (classOrCourseName) {
+                    const cLower = classOrCourseName.trim().toLowerCase();
+                    const t1ClassMap = teacherClassSubjectsMap.get(t1.id);
+                    const t2ClassMap = teacherClassSubjectsMap.get(t2.id);
+
+                    const t1HasClass = t1ClassMap ? Array.from(t1ClassMap.keys()).some(cls => isGradeMatching(cls, cLower) || cls.includes(cLower) || cLower.includes(cls)) : false;
+                    const t2HasClass = t2ClassMap ? Array.from(t2ClassMap.keys()).some(cls => isGradeMatching(cls, cLower) || cls.includes(cLower) || cLower.includes(cls)) : false;
+
+                    if (t1HasClass && !t2HasClass) return -1;
+                    if (!t1HasClass && t2HasClass) return 1;
+                }
+                return (t1.name || '').localeCompare(t2.name || '');
+            });
+        };
+
+        return {
+            allocatedTeacherIds,
+            isTeacherAllocated,
+            isTeacherAllocatedToSubject,
+            getTeachersForSubject,
+            teacherAllocatedSubjectsMap,
+            teacherClassSubjectsMap
+        };
+    }, [
+        institutionId,
+        currentInstitution,
+        schoolSubjectAllocations,
+        teacherPreferences,
+        tenantUsers,
+        allocations,
+        effectiveSchoolSubjects,
+        teachersList
+    ]);
+
+    // Smart Auto-Generate Timetable Engine (Strictly for Allocated Classes & Teachers with Subject Allocations)
     const handleAutoGenerateTimetable = async () => {
         if (combinedCourses.length === 0 || teachersList.length === 0) {
             return alert('Insufficient data to auto-generate remedial timetable. Please ensure classes and teachers are registered.');
         }
 
-        // 1. Identify classes and teachers that have explicit manual allocations by the user (do NOT generate for unallocated classes)
+        // 1. Identify all teachers with active subject allocations across the institution
+        const {
+            allocatedTeacherIds,
+            isTeacherAllocated,
+            isTeacherAllocatedToSubject,
+            getTeachersForSubject
+        } = getTeacherSubjectAllocationsMap();
+
+        // Strictly filter teachersList down to ONLY teachers who have active subject allocations
+        const teachersWithSubjectAllocations = teachersList.filter(t => isTeacherAllocated(t.id));
+
+        if (teachersWithSubjectAllocations.length === 0) {
+            return alert(
+                'No teachers with subject allocations found.\n\n' +
+                'Timetable auto-generation strictly requires teachers to have active subject allocations.\n\n' +
+                'Classes and lessons can only be scheduled to teachers who are officially allocated to teach subjects in the school.\n\n' +
+                'Please allocate subjects to teachers via Lessons Allocation, Master Timetable, or Teacher Preferences first.'
+            );
+        }
+
+        // 2. Identify classes and teachers that have explicit manual allocations or active subject allocations
         const isAutoGeneratedRecord = (a: RemedialAllocation) => {
             if (a.isAutoGenerated === true || a.is_auto_generated === true) return true;
             if (typeof a.id === 'string' && (a.id.startsWith('rem_auto_alloc_') || a.id.includes('_split_'))) return true;
@@ -5611,25 +5869,67 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
         });
 
-        // Filter courses strictly to those that have manual allocations by the user
+        // Also identify classes from schoolSubjectAllocations where an allocated teacher exists
+        if (Array.isArray(schoolSubjectAllocations)) {
+            schoolSubjectAllocations.forEach(sa => {
+                if (!sa) return;
+                const tId = sa.teacherId || sa.teacher_id;
+                if (tId && isTeacherAllocated(tId) && sa.className && (sa.status || '').toLowerCase() !== 'unassigned') {
+                    allocatedCourseNames.add(String(sa.className).trim().toLowerCase());
+                }
+            });
+        }
+
+        // Also identify classes from class_subject_allocations
+        let classSubjAllocStore: Record<string, any> = {};
+        if (currentInstitution?.classSubjectAllocations && typeof currentInstitution.classSubjectAllocations === 'object') {
+            classSubjAllocStore = { ...currentInstitution.classSubjectAllocations };
+        }
+        try {
+            const rawClassSubj = safeLocalStorage.getItem(`eduai_class_subject_allocations_${institutionId || 'default_inst'}`) || safeLocalStorage.getItem('eduai_class_subject_allocations');
+            if (rawClassSubj) {
+                const parsed = JSON.parse(rawClassSubj);
+                if (Array.isArray(parsed) && parsed[0]?.allocations) {
+                    classSubjAllocStore = { ...classSubjAllocStore, ...parsed[0].allocations };
+                } else if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    classSubjAllocStore = { ...classSubjAllocStore, ...parsed };
+                }
+            }
+        } catch (_) {}
+
+        Object.entries(classSubjAllocStore).forEach(([cls, map]) => {
+            if (map && typeof map === 'object') {
+                const hasAllocatedTeacher = Object.values(map).some(tid => typeof tid === 'string' && isTeacherAllocated(tid));
+                if (hasAllocatedTeacher) {
+                    allocatedCourseNames.add(cls.trim().toLowerCase());
+                }
+            }
+        });
+
+        // Filter courses strictly to those that have subject allocations with qualified teachers
         const allocatedCourses = combinedCourses.filter(c =>
             allocatedCourseIds.has(c.id) ||
-            allocatedCourseNames.has(c.name.trim().toLowerCase())
+            allocatedCourseNames.has(c.name.trim().toLowerCase()) ||
+            Array.from(allocatedCourseNames).some(acName => isGradeMatching(c.name, acName))
         );
 
         if (allocatedCourses.length === 0) {
             return alert(
-                'No classes with manual allocations found.\n\n' +
-                'Timetable auto-generation only generates sessions for classes and teachers that have already been allocated.\n\n' +
-                'Classes that have not been allocated will not be generated. Please create manual allocation(s) for your classes and teachers first.'
+                'No classes with active subject allocations found.\n\n' +
+                'Timetable auto-generation only generates sessions for classes and teachers that have subject allocations.\n\n' +
+                'Classes without subject allocations will not be generated. Please allocate subjects to teachers for your classes first.'
             );
         }
+
+        const unallocatedTeachersCount = Math.max(0, teachersList.length - teachersWithSubjectAllocations.length);
 
         const confirmMsg = 
             `Auto-Generate Remedial Timetable for ${allocatedCourses.length} allocated class(es)?\n\n` +
             `• Allocated Classes: ${allocatedCourses.map(c => c.name).join(', ')}\n` +
             `• Unallocated Classes: Strictly skipped (will not be generated).\n` +
-            `• Designated Teachers: Lessons generated strictly to teachers with manual allocations for each class & subject.\n` +
+            `• Qualified Teachers with Subject Allocations: ${teachersWithSubjectAllocations.length} teacher(s) eligible.\n` +
+            `• Unallocated Teachers: Strictly excluded (${unallocatedTeachersCount} teacher(s) with no subject allocations skipped).\n` +
+            `• Subject Qualification: Lessons are generated strictly to teachers authorized/allocated for each subject in each class.\n` +
             `• Class Daily Limits: Up to ${maxLessonsPerClassPerDay || 1} lesson(s)/day on weekdays, ${maxSaturdayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 3} on Saturdays, and ${maxSundayLessonsPerClassPerDay || maxWeekendLessonsPerClassPerDay || 2} on Sundays.\n` +
             `• Teacher Daily Limits: Up to ${maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1} lesson(s)/day on weekdays, ${maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3} on Saturdays, and ${maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2} on Sundays.\n` +
             `• Preservation: Existing manual allocations are kept intact.`;
@@ -5661,10 +5961,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
             ];
 
-            // Teacher tracking
+            // Teacher tracking - ONLY initialize and track teachers who have active subject allocations!
             const teacherDailyCount: Record<string, Record<string, number>> = {};
             const teacherSlotBooked: Record<string, Set<string>> = {}; // key: `${teacherId}_${day}_${startTime}`
-            teachersList.forEach(t => {
+            teachersWithSubjectAllocations.forEach(t => {
                 teacherDailyCount[t.id] = {};
                 teacherSlotBooked[t.id] = new Set();
                 daysOfWeek.forEach(day => {
@@ -5672,7 +5972,6 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 });
             });
 
-            // Class tracking
             // Class & Stream tracking
             const classDayBooked: Record<string, Set<string>> = {};
             const classSlotBooked: Record<string, Set<string>> = {};
@@ -5753,7 +6052,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     (Array.isArray(a.jointCourses) && a.jointCourses.includes(course.id))
                 );
 
-                // Group by subject to determine which subjects and which teachers were manually allocated
+                // Group by subject to determine which subjects and which teachers were allocated
                 const allocatedSubjectsMap = new Map<string, {
                     subjectId: string;
                     subjectName: string;
@@ -5771,6 +6070,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 courseManuals.forEach(ma => {
                     const sId = ma.subjectId || ma.subjectName;
                     if (!sId) return;
+
+                    // Verify if teacher specified in ma has subject allocations for this subject
+                    let effectiveTeacherId = ma.teacherId;
+                    let effectiveTeacherName = ma.teacherName;
+
+                    if (!effectiveTeacherId || !isTeacherAllocated(effectiveTeacherId) || !isTeacherAllocatedToSubject(effectiveTeacherId, ma.subjectName || sId, course.name)) {
+                        // Find qualified teacher allocated to this subject in this class
+                        const qualified = getTeachersForSubject(ma.subjectName || sId, course.name);
+                        if (qualified.length > 0) {
+                            effectiveTeacherId = qualified[0].id;
+                            effectiveTeacherName = qualified[0].name;
+                        } else {
+                            // If NO teacher with subject allocation exists for this subject, skip!
+                            console.warn(`[Timetable Engine] Skipped manual allocation subject ${sId} for ${course.name}: Teacher ${ma.teacherName || ma.teacherId} has no subject allocation for ${ma.subjectName || sId}, and no alternative qualified teacher was found.`);
+                            return;
+                        }
+                    }
 
                     if (!allocatedSubjectsMap.has(sId)) {
                         const schSub = effectiveSchoolSubjects.find(s => s.id === sId || (s.name && (s.name.trim().toLowerCase() === String(sId).trim().toLowerCase() || (ma.subjectName && s.name.trim().toLowerCase() === ma.subjectName.trim().toLowerCase()))));
@@ -5790,8 +6106,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         allocatedSubjectsMap.set(sId, {
                             subjectId: sId,
                             subjectName: name,
-                            teacherId: ma.teacherId,
-                            teacherName: ma.teacherName || 'Teacher',
+                            teacherId: effectiveTeacherId,
+                            teacherName: effectiveTeacherName || 'Teacher',
                             priority: cfg?.priority || (isCore ? 'High' : 'Medium'),
                             weeklyOccurrences: cfg?.weeklyOccurrences ? Math.min(Math.max(cfg.weeklyOccurrences, 1), 4) : (isCore ? 2 : 1),
                             preferredDayType: cfg?.preferredDayType || 'any',
@@ -5805,9 +6121,89 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     const entry = allocatedSubjectsMap.get(sId)!;
                     entry.manualCount++;
                     entry.manualAllocations.push(ma);
-                    if (ma.teacherId) {
-                        entry.teacherId = ma.teacherId;
-                        entry.teacherName = ma.teacherName || entry.teacherName;
+                    entry.teacherId = effectiveTeacherId;
+                    entry.teacherName = effectiveTeacherName || entry.teacherName;
+                });
+
+                // Also discover subjects from schoolSubjectAllocations for this course
+                if (Array.isArray(schoolSubjectAllocations)) {
+                    schoolSubjectAllocations.forEach(sa => {
+                        if (!sa) return;
+                        const saClass = sa.className || sa.class_name;
+                        if (!saClass || !isGradeMatching(saClass, course.name)) return;
+                        const tId = sa.teacherId || sa.teacher_id;
+                        const subName = sa.subjectName || sa.subject_name;
+                        if (!tId || !subName || (sa.status || '').toLowerCase() === 'unassigned') return;
+                        if (!isTeacherAllocated(tId) || !isTeacherAllocatedToSubject(tId, subName, course.name)) return;
+
+                        const sId = sa.subjectId || sa.subjectCode || subName;
+                        if (!allocatedSubjectsMap.has(sId)) {
+                            const schSub = effectiveSchoolSubjects.find(s => s.id === sId || (s.name && s.name.trim().toLowerCase() === subName.trim().toLowerCase()));
+                            const name = subName || schSub?.name || 'Subject';
+                            const cfg = remedialSubjects.find(rs => 
+                                rs.subjectId === sId || 
+                                rs.id === sId ||
+                                (rs.subjectName && rs.subjectName.trim().toLowerCase() === name.trim().toLowerCase())
+                            );
+                            const nameLower = name.toLowerCase();
+                            const isCore = nameLower.includes('math') || nameLower.includes('calc') || nameLower.includes('physic') || nameLower.includes('chem') || nameLower.includes('bio') || nameLower.includes('eng') || nameLower.includes('kisw');
+
+                            allocatedSubjectsMap.set(sId, {
+                                subjectId: sId,
+                                subjectName: name,
+                                teacherId: tId,
+                                teacherName: sa.teacherName || sa.teacher_name || 'Teacher',
+                                priority: cfg?.priority || (isCore ? 'High' : 'Medium'),
+                                weeklyOccurrences: cfg?.weeklyOccurrences ? Math.min(Math.max(cfg.weeklyOccurrences, 1), 4) : (isCore ? 2 : 1),
+                                preferredDayType: cfg?.preferredDayType || 'any',
+                                allowedDays: cfg?.allowedDays && cfg.allowedDays.length > 0 ? cfg.allowedDays : undefined,
+                                allowedPeriods: cfg?.allowedPeriods && cfg.allowedPeriods.length > 0 ? cfg.allowedPeriods : undefined,
+                                manualCount: 0,
+                                manualAllocations: []
+                            });
+                        }
+                    });
+                }
+
+                // Also discover subjects from class_subject_allocations for this course
+                const matchingClassKeys = Object.keys(classSubjAllocStore).filter(k => isGradeMatching(k, course.name));
+                matchingClassKeys.forEach(clsKey => {
+                    const subjMap = classSubjAllocStore[clsKey];
+                    if (subjMap && typeof subjMap === 'object') {
+                        Object.entries(subjMap).forEach(([subjNameOrId, assignedTeacherId]) => {
+                            if (typeof assignedTeacherId !== 'string' || !assignedTeacherId.trim()) return;
+                            const tId = assignedTeacherId.trim();
+                            if (!isTeacherAllocated(tId) || !isTeacherAllocatedToSubject(tId, subjNameOrId, course.name)) return;
+
+                            const schSub = effectiveSchoolSubjects.find(s => s.id === subjNameOrId || (s.name && s.name.trim().toLowerCase() === subjNameOrId.trim().toLowerCase()));
+                            const name = schSub?.name || subjNameOrId;
+                            const sId = schSub?.id || subjNameOrId;
+
+                            if (!allocatedSubjectsMap.has(sId)) {
+                                const teacherObj = tenantUsers.find(u => u.id === tId) || teachersWithSubjectAllocations.find(t => t.id === tId);
+                                const cfg = remedialSubjects.find(rs => 
+                                    rs.subjectId === sId || 
+                                    rs.id === sId ||
+                                    (rs.subjectName && rs.subjectName.trim().toLowerCase() === name.trim().toLowerCase())
+                                );
+                                const nameLower = name.toLowerCase();
+                                const isCore = nameLower.includes('math') || nameLower.includes('calc') || nameLower.includes('physic') || nameLower.includes('chem') || nameLower.includes('bio') || nameLower.includes('eng') || nameLower.includes('kisw');
+
+                                allocatedSubjectsMap.set(sId, {
+                                    subjectId: sId,
+                                    subjectName: name,
+                                    teacherId: tId,
+                                    teacherName: teacherObj?.name || 'Teacher',
+                                    priority: cfg?.priority || (isCore ? 'High' : 'Medium'),
+                                    weeklyOccurrences: cfg?.weeklyOccurrences ? Math.min(Math.max(cfg.weeklyOccurrences, 1), 4) : (isCore ? 2 : 1),
+                                    preferredDayType: cfg?.preferredDayType || 'any',
+                                    allowedDays: cfg?.allowedDays && cfg.allowedDays.length > 0 ? cfg.allowedDays : undefined,
+                                    allowedPeriods: cfg?.allowedPeriods && cfg.allowedPeriods.length > 0 ? cfg.allowedPeriods : undefined,
+                                    manualCount: 0,
+                                    manualAllocations: []
+                                });
+                            }
+                        });
                     }
                 });
 
@@ -5830,23 +6226,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         }
                     });
 
-                    // Target ONLY streams that have manual allocations!
-                    // Do NOT auto-generate lessons for streams that have not been manually allocated.
                     let streamTargets: string[];
                     if (isJoint) {
                         streamTargets = [sampleManual?.stream || 'All Streams'];
                     } else if (explicitStreams.size > 0) {
-                        // User explicitly allocated specific stream(s) -> generate ONLY for those streams!
                         streamTargets = Array.from(explicitStreams);
                     } else if (hasAllStreams) {
-                        // User allocated 'All Streams'
                         streamTargets = ['All Streams'];
                     } else {
-                        streamTargets = [sampleManual?.stream || 'All Streams'];
+                        // If no explicit manual streams, target registered streams of this course
+                        const cStreams = getClassStreams(course);
+                        streamTargets = cStreams.length > 0 ? cStreams : [sampleManual?.stream || 'All Streams'];
                     }
 
                     for (const targetStream of streamTargets) {
-                        // Find the manual allocation corresponding to this specific stream to get its designated teacher
+                        // Find designated teacher and STRICTLY verify they have subject allocation for this subject
                         const matchingManual = subEntry.manualAllocations.find(m =>
                             m.stream === targetStream ||
                             (targetStream === 'All Streams' && (!m.stream || m.stream === 'All Streams')) ||
@@ -5855,7 +6249,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         ) || subEntry.manualAllocations[0];
 
                         const designatedTeacherId = matchingManual?.teacherId || subEntry.teacherId;
-                        const designatedTeacher = tenantUsers.find(u => u.id === designatedTeacherId) || teachersList.find(t => t.id === designatedTeacherId);
+                        const candidateTeacher = tenantUsers.find(u => u.id === designatedTeacherId) || teachersWithSubjectAllocations.find(t => t.id === designatedTeacherId);
+
+                        let validDesignatedTeacher: User | null = null;
+                        if (candidateTeacher && isTeacherAllocated(candidateTeacher.id) && isTeacherAllocatedToSubject(candidateTeacher.id, subEntry.subjectName, course.name)) {
+                            validDesignatedTeacher = candidateTeacher;
+                        } else {
+                            const qualified = getTeachersForSubject(subEntry.subjectName, course.name);
+                            if (qualified.length > 0) {
+                                validDesignatedTeacher = qualified[0];
+                            }
+                        }
+
+                        // Strictly skip if no teacher has subject allocation for this subject!
+                        if (!validDesignatedTeacher) {
+                            console.warn(`[Timetable Engine] Skipped ${subEntry.subjectName} for ${course.name} (${targetStream}): No teacher with active subject allocation found for this subject.`);
+                            continue;
+                        }
 
                         // Check existing manual allocations for this specific stream
                         const alreadyAllocatedForStream = subEntry.manualAllocations.filter(m =>
@@ -5870,7 +6280,6 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             // Candidate days strictly filtered by allowedDays (hard restriction) then preferredDayType
                             let candidateDays = [...daysOfWeek];
                             if (subEntry.allowedDays && subEntry.allowedDays.length > 0) {
-                                // Hard restriction: only these specific days allowed
                                 candidateDays = candidateDays.filter(d => (subEntry.allowedDays as string[]).includes(d));
                             } else if (subEntry.preferredDayType === 'weekends') {
                                 candidateDays = candidateDays.filter(d => ['Saturday', 'Sunday'].includes(d));
@@ -5902,11 +6311,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             let selectedDay: ('Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday') | null = null;
                             let selectedTeacher: User | null = null;
 
+                            // Helper to test if a qualified teacher can take the slot on this day
+                            const tryAssignTeacher = (t: User, day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday', startTime: string): boolean => {
+                                const isSat = day === 'Saturday';
+                                const isSun = day === 'Sunday';
+                                const dailyCount = teacherDailyCount[t.id]?.[day] || 0;
+                                const tLimit = isSat
+                                    ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
+                                    : isSun
+                                        ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
+                                        : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
+                                const isTimeSlotFree = !teacherSlotBooked[t.id]?.has(`${day}_${startTime}`);
+                                return dailyCount < tLimit && isTimeSlotFree;
+                            };
+
                             // Try candidate days first
                             for (const day of candidateDays) {
                                 const isSaturday = day === 'Saturday';
                                 const isSunday = day === 'Sunday';
-                                const sKey = `${course.id}_${targetStream}`;
 
                                 const existingStreamCountOnDay = [...manualAllocs, ...newAllocations].filter(a =>
                                     (a.courseId === course.id || a.className?.trim().toLowerCase() === course.name.trim().toLowerCase()) &&
@@ -5928,27 +6350,27 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     candidateStartTime = existingStreamCountOnDay === 0 ? (sundayStartTime || '09:00') : (includeSundayBreak ? (sundayBreakEndTime || '11:30') : '11:00');
                                 }
 
-                                // Enforce allowedPeriods: period number = existingStreamCountOnDay + 1
                                 const thisPeriodNum = existingStreamCountOnDay + 1;
                                 const allowedPeriods = subEntry.allowedPeriods;
                                 if (allowedPeriods && allowedPeriods.length > 0 && !allowedPeriods.includes(thisPeriodNum)) continue;
 
-                                // Strictly check designated teacher availability first (teacher cannot teach 2 streams at once)
-                                if (designatedTeacher) {
-                                    const dailyCount = teacherDailyCount[designatedTeacher.id]?.[day] || 0;
-                                    const tLimit = isSaturday
-                                        ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
-                                        : isSunday
-                                            ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
-                                            : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
-                                    const isTimeSlotFree = !teacherSlotBooked[designatedTeacher.id]?.has(`${day}_${candidateStartTime}`);
+                                // 1. Check primary valid designated teacher
+                                if (validDesignatedTeacher && tryAssignTeacher(validDesignatedTeacher, day, candidateStartTime)) {
+                                    selectedDay = day;
+                                    selectedTeacher = validDesignatedTeacher;
+                                    break;
+                                }
 
-                                    if (dailyCount < tLimit && isTimeSlotFree) {
+                                // 2. If designated teacher is busy/full, check alternative teachers who strictly have subject allocations for this subject
+                                const altCandidates = getTeachersForSubject(subEntry.subjectName, course.name).filter(t => t.id !== validDesignatedTeacher?.id);
+                                for (const altT of altCandidates) {
+                                    if (tryAssignTeacher(altT, day, candidateStartTime)) {
                                         selectedDay = day;
-                                        selectedTeacher = designatedTeacher;
+                                        selectedTeacher = altT;
                                         break;
                                     }
                                 }
+                                if (selectedDay && selectedTeacher) break;
                             }
 
                             // Fallback ONLY across strictly permitted days (NEVER violate weekend/weekday restrictions)
@@ -5965,7 +6387,6 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 for (const fbDay of fallbackDays) {
                                     const fbIsSaturday = fbDay === 'Saturday';
                                     const fbIsSunday = fbDay === 'Sunday';
-                                    const sKey = `${course.id}_${targetStream}`;
 
                                     const fbExistingStreamCount = [...manualAllocs, ...newAllocations].filter(a =>
                                         (a.courseId === course.id || a.className?.trim().toLowerCase() === course.name.trim().toLowerCase()) &&
@@ -5986,31 +6407,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         fbStartTime = fbExistingStreamCount === 0 ? (sundayStartTime || '09:00') : (includeSundayBreak ? (sundayBreakEndTime || '11:30') : '11:00');
                                     }
 
-                                    // Enforce allowedPeriods in fallback as well
                                     const fbPeriodNum = fbExistingStreamCount + 1;
                                     if (subEntry.allowedPeriods && subEntry.allowedPeriods.length > 0 && !subEntry.allowedPeriods.includes(fbPeriodNum)) continue;
 
-                                    if (designatedTeacher) {
-                                        const dailyCount = teacherDailyCount[designatedTeacher.id]?.[fbDay] || 0;
-                                        const tLimit = fbIsSaturday
-                                            ? (maxSaturdayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 3)
-                                            : fbIsSunday
-                                                ? (maxSundayLessonsPerTeacherPerDay || maxWeekendLessonsPerTeacherPerDay || maxWeekendLessonsPerDay || 2)
-                                                : (maxLessonsPerTeacherPerDay || maxLessonsPerDay || 1);
-                                        const isTimeSlotFree = !teacherSlotBooked[designatedTeacher.id]?.has(`${fbDay}_${fbStartTime}`);
+                                    // 1. Try primary valid designated teacher
+                                    if (validDesignatedTeacher && tryAssignTeacher(validDesignatedTeacher, fbDay, fbStartTime)) {
+                                        selectedDay = fbDay;
+                                        selectedTeacher = validDesignatedTeacher;
+                                        break;
+                                    }
 
-                                        if (dailyCount < tLimit && isTimeSlotFree) {
+                                    // 2. Try alternative teachers with subject allocation
+                                    const altCandidates = getTeachersForSubject(subEntry.subjectName, course.name).filter(t => t.id !== validDesignatedTeacher?.id);
+                                    for (const altT of altCandidates) {
+                                        if (tryAssignTeacher(altT, fbDay, fbStartTime)) {
                                             selectedDay = fbDay;
-                                            selectedTeacher = designatedTeacher;
+                                            selectedTeacher = altT;
                                             break;
                                         }
                                     }
+                                    if (selectedDay && selectedTeacher) break;
                                 }
                             }
 
-                            // If stream or designated teacher reached maximum capacity, respect limit
+                            // If stream or all allocated teachers reached maximum capacity, skip this session
                             if (!selectedDay || !selectedTeacher) {
-                                console.warn(`[Timetable Engine] Stream ${targetStream} of ${course.name} or designated teacher ${subEntry.teacherName} at full weekly capacity. Weekday 1-period rule strictly preserved.`);
+                                console.warn(`[Timetable Engine] Stream ${targetStream} of ${course.name} or allocated teachers for ${subEntry.subjectName} at full weekly capacity. Lesson strictly skipped.`);
                                 continue;
                             }
 
@@ -6135,19 +6557,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 notificationSentCount: 0
             });
 
-            onLogAction?.(`Auto-generated ${newAllocations.length} remedial sessions for ${allocatedCourses.length} allocated classes strictly to teachers with manual allocations. Unallocated classes skipped.`);
+            onLogAction?.(`Auto-generated ${newAllocations.length} remedial sessions for ${allocatedCourses.length} allocated classes strictly using ${teachersWithSubjectAllocations.length} teachers with subject allocations. Unallocated teachers skipped.`);
             alert(
                 `Remedial Timetable Auto-Generated Successfully!\n\n` +
                 `• Allocated Classes Processed: ${allocatedCourses.length} (${allocatedCourses.map(c => c.name).join(', ')})\n` +
                 `• Unallocated Classes: Skipped (0 sessions generated)\n` +
-                `• Designated Teachers: Sessions strictly generated to teachers with manual allocations\n` +
+                `• Teachers with Subject Allocations Used: ${teachersWithSubjectAllocations.length} eligible (${unallocatedTeachersCount} unallocated teachers excluded)\n` +
+                `• Subject Qualifications: Lessons strictly assigned to teachers with subject allocations\n` +
                 `• New Sessions Added: ${newAllocations.length}\n` +
                 `• Weekday 1-Period Rule & Limits: Fully Enforced\n\n` +
                 `STATUS: DRAFT (Pending Review)\nNext Step: Review the timetable below, then click "Forward to Headteacher for Approval".`
             );
-            // State is already synchronised above (setAllocations + safeLocalStorage);
-            // calling loadData() here would race against that and could overwrite the
-            // freshly generated list with a stale / empty API response.
         } catch (err: any) {
             console.error('Failed to auto-generate timetable', err);
             alert('Failed to auto-generate timetable: ' + err.message);
