@@ -505,3 +505,141 @@ export function getRemainingMinutes(deadlineIso?: string): number {
     const diffMs = new Date(deadlineIso).getTime() - Date.now();
     return Math.max(0, Math.ceil(diffMs / 60000));
 }
+
+export interface TeacherQualificationParams {
+    teacher: User;
+    targetSubject: string;
+    targetClassOrGrade?: string;
+    teacherPreferences?: Record<string, TeacherDayPreference | any> | TeacherDayPreference[];
+    classSubjectAllocations?: any;
+    strictSubjectMatchOnly?: boolean;
+    strictGradeMatchOnly?: boolean;
+    allowAdjacentGradeSubstitution?: boolean;
+    targetDayOfWeek?: string;
+}
+
+export interface TeacherQualificationResult {
+    qualified: boolean;
+    reasons: string[];
+    isSubjectMatch: boolean;
+    isGradeMatch: boolean;
+    isPreferredDay?: boolean;
+}
+
+/**
+ * Checks whether a teacher is qualified to teach a specific remedial lesson,
+ * verifying academic staff status, remedial eligibility, subject matching,
+ * grade/class matching, and day preferences.
+ */
+export function isTeacherQualifiedForLesson(params: TeacherQualificationParams): TeacherQualificationResult {
+    const {
+        teacher,
+        targetSubject,
+        targetClassOrGrade = '',
+        teacherPreferences = {},
+        classSubjectAllocations = {},
+        strictSubjectMatchOnly = true,
+        strictGradeMatchOnly = true,
+        allowAdjacentGradeSubstitution = false,
+        targetDayOfWeek
+    } = params;
+
+    const reasons: string[] = [];
+
+    if (!teacher || !teacher.id) {
+        return {
+            qualified: false,
+            reasons: ['Invalid teacher object'],
+            isSubjectMatch: false,
+            isGradeMatch: false
+        };
+    }
+
+    // 1. Academic teacher verification
+    if (!isAcademicTeacher(teacher)) {
+        reasons.push('Staff member is not an active academic teaching staff');
+    }
+
+    // 2. Preferences map normalization
+    const prefsMap: Record<string, TeacherDayPreference> = Array.isArray(teacherPreferences)
+        ? teacherPreferences.reduce((acc, p) => ({ ...acc, [p.teacherId || '']: p }), {})
+        : (teacherPreferences || {});
+
+    const teacherPref = prefsMap[teacher.id];
+    const teacherMeta = teacher.metadata || {};
+
+    // 3. Remedial Program Eligibility
+    if (teacherPref?.isEligible === false || teacherMeta.remedialEligible === false || teacherMeta.isRemedialEligible === false) {
+        reasons.push('Teacher is flagged as ineligible for the remedial program');
+    }
+
+    // 4. Subject Matching
+    const cleanSubj = (targetSubject || '').trim();
+    let isSubjectMatch = true;
+    if (cleanSubj) {
+        const authorizedSubjects = teacherPref?.authorizedSubjects || [];
+        const teacherSubjectsInMeta = (teacherMeta.subjects || teacherMeta.subjectIds || []) as string[];
+
+        const isAuthSubjectMatch = authorizedSubjects.some((s: string) => isSubjectEquivalent(s, cleanSubj));
+        const isMetaSubjectMatch = teacherSubjectsInMeta.some((s: string) => isSubjectEquivalent(s, cleanSubj));
+
+        let teachesInAllocations = false;
+        if (classSubjectAllocations && typeof classSubjectAllocations === 'object') {
+            const courseAllocations = classSubjectAllocations[targetClassOrGrade] || {};
+            if (courseAllocations[cleanSubj] === teacher.id) {
+                teachesInAllocations = true;
+            } else {
+                Object.values(classSubjectAllocations).forEach((subjMap: any) => {
+                    if (subjMap && typeof subjMap === 'object' && subjMap[cleanSubj] === teacher.id) {
+                        teachesInAllocations = true;
+                    }
+                });
+            }
+        }
+
+        isSubjectMatch = isAuthSubjectMatch || isMetaSubjectMatch || teachesInAllocations;
+
+        if (strictSubjectMatchOnly && !isSubjectMatch) {
+            reasons.push(`Does not have subject qualification for "${cleanSubj}"`);
+        }
+    }
+
+    // 5. Grade / Class Matching
+    const targetGrade = extractGradeLevel(targetClassOrGrade);
+    let isGradeMatch = true;
+    let isAdjacentMatch = false;
+    if (targetGrade) {
+        const authorizedGrades = teacherPref?.authorizedGrades || [];
+        const teacherGradesInMeta = (teacherMeta.classes || teacherMeta.grades || []) as string[];
+
+        const hasDefinedGrades = authorizedGrades.length > 0 || teacherGradesInMeta.length > 0;
+        if (hasDefinedGrades) {
+            isGradeMatch = authorizedGrades.some((g: string) => extractGradeLevel(g) === targetGrade) ||
+                           teacherGradesInMeta.some((g: string) => extractGradeLevel(g) === targetGrade);
+
+            if (!isGradeMatch && allowAdjacentGradeSubstitution) {
+                isAdjacentMatch = authorizedGrades.some((g: string) => isAdjacentGrade(g, targetGrade)) ||
+                                  teacherGradesInMeta.some((g: string) => isAdjacentGrade(g, targetGrade));
+            }
+
+            if (strictGradeMatchOnly && !isGradeMatch && !isAdjacentMatch) {
+                reasons.push(`Not authorized for class level "${targetGrade}"`);
+            }
+        }
+    }
+
+    // 6. Day Preference check (if targetDayOfWeek provided)
+    let isPreferredDay: boolean | undefined = undefined;
+    if (targetDayOfWeek && teacherPref?.preferredDays && teacherPref.preferredDays.length > 0) {
+        isPreferredDay = teacherPref.preferredDays.includes(targetDayOfWeek);
+    }
+
+    return {
+        qualified: reasons.length === 0,
+        reasons,
+        isSubjectMatch,
+        isGradeMatch: isGradeMatch || isAdjacentMatch,
+        isPreferredDay
+    };
+}
+
