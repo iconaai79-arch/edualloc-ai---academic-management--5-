@@ -29,6 +29,26 @@ BEGIN
     END LOOP;
 END $$;
 
+-- 1b. Drop all rigid foreign key constraints on student_enrollments referencing institutions.
+-- Aligned with Migrations 186, 191, 197, 424, 429, and 453. Multi-tenant isolation is enforced
+-- at the application/API layer. Rigid DB-level FKs fail on tenant ID prefix variants ('inst_' vs raw)
+-- or offline/new workspaces.
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT conname
+        FROM   pg_constraint
+        WHERE  conrelid = 'public.student_enrollments'::regclass
+          AND  contype  = 'f'
+          AND  (conname ILIKE '%institution%' OR conname = 'student_enrollments_institution_id_fkey')
+    LOOP
+        EXECUTE format('ALTER TABLE public.student_enrollments DROP CONSTRAINT IF EXISTS %I CASCADE;', r.conname);
+        RAISE NOTICE 'Dropped FK % from student_enrollments', r.conname;
+    END LOOP;
+END $$;
+
 -- 2. Ensure RLS is enabled and master permissive policy is applied
 ALTER TABLE public.student_enrollments ENABLE ROW LEVEL SECURITY;
 

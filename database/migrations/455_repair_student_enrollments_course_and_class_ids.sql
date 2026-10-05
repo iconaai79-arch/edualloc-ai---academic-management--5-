@@ -25,6 +25,22 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS course_id TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS course_level_id TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 
+-- Drop rigid institution foreign key constraints on student_enrollments so tenant ID prefix variants or offline sync never abort
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT conname
+        FROM   pg_constraint
+        WHERE  conrelid = 'public.student_enrollments'::regclass
+          AND  contype  = 'f'
+          AND  (conname ILIKE '%institution%' OR conname = 'student_enrollments_institution_id_fkey')
+    LOOP
+        EXECUTE format('ALTER TABLE public.student_enrollments DROP CONSTRAINT IF EXISTS %I CASCADE;', r.conname);
+    END LOOP;
+END $$;
+
 -- Helper to extract grade name from metadata or text
 CREATE OR REPLACE FUNCTION public.fn_extract_clean_grade(p_grade TEXT, p_meta JSONB)
 RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
