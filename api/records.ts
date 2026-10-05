@@ -4,17 +4,17 @@ import { createClient } from '@supabase/supabase-js';
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = (req?: VercelRequest) => {
   const url = 
-    (req?.headers?.['x-supabase-url'] as string) ||
     process.env.SUPABASE_URL || 
-    process.env.VITE_SUPABASE_URL;
+    process.env.VITE_SUPABASE_URL ||
+    (req?.headers?.['x-supabase-url'] as string);
   const key = 
-    (req?.headers?.['x-supabase-service-key'] as string) ||
-    (req?.headers?.['x-supabase-key'] as string) ||
-    (req?.headers?.['x-supabase-anon-key'] as string) ||
     process.env.SUPABASE_SERVICE_ROLE_KEY || 
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+    (req?.headers?.['x-supabase-service-key'] as string) ||
     process.env.SUPABASE_ANON_KEY || 
-    process.env.VITE_SUPABASE_ANON_KEY;
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    (req?.headers?.['x-supabase-key'] as string) ||
+    (req?.headers?.['x-supabase-anon-key'] as string);
   if (!url || !key) return null;
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false }
@@ -42,11 +42,8 @@ const CACHEABLE_MODULES = ['institutions', 'counties', 'constituencies', 'wards'
 
 
 const getPgPool = async () => {
-  // Direct PG is an optional raw SQL accelerator. In serverless/cloud environments,
-  // raw TCP TLS handshakes often time out or exhaust connection limits.
-  // Unless explicitly opted-in via ENABLE_DIRECT_PG=true, bypass Direct PG and use
-  // the official, connectionless Supabase REST/PostgREST Data API.
-  if (process.env.ENABLE_DIRECT_PG !== 'true' || process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+  // Direct PG is an optional raw SQL accelerator and critical fallback when PostgREST times out.
+  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
     return null;
   }
   if (Date.now() < _directPgDisabledUntil) {
@@ -123,7 +120,7 @@ const fetchViaDirectPg = async (
   limit: number = 1000,
   offset: number = 0
 ): Promise<any[] | null> => {
-  if (process.env.ENABLE_DIRECT_PG !== 'true' || process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
     return null;
   }
   if (Date.now() < _directPgDisabledUntil) {
@@ -1757,6 +1754,79 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (['integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)) {
                             console.warn(`[API GET] Diagnostic/telemetry module '${moduleName}' query failed (${error.message || error.code}). Returning empty list fallback.`);
                             return res.status(200).json([]);
+                        }
+                        if (isTimeoutError && (moduleName === 'student_enrollments' || isStudentsAlias)) {
+                            console.warn(`[API GET] Statement timeout on '${moduleName}'. Attempting instant recovery by synthesizing enrollments from users table...`);
+                            try {
+                                let uQ = supabase.from('users').select('*').eq('role', 'student');
+                                if (effectiveTenantInstId) {
+                                    const rawId = effectiveTenantInstId.replace(/^inst_/, '');
+                                    const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
+                                    const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                                    if (instVariants.length === 1) {
+                                        uQ = uQ.eq('institution_id', instVariants[0]);
+                                    } else {
+                                        uQ = uQ.in('institution_id', instVariants);
+                                    }
+                                }
+                                const uRes: any = await executeWithTimeout(uQ.limit(5000), 4000).catch(() => ({ data: null }));
+                                const studentUsers = uRes?.data;
+                                if (studentUsers && Array.isArray(studentUsers) && studentUsers.length > 0) {
+                                    console.info(`[API GET Recovery] Successfully synthesized ${studentUsers.length} student enrollments from users table to recover from timeout!`);
+                                    const synthesized = studentUsers.map((u: any) => {
+                                        const rawUid = String(u.id).replace(/^u_/, '');
+                                        const adm = (u.admission_number && !/^ADM-\d+$/i.test(u.admission_number))
+                                            ? u.admission_number
+                                            : (u.metadata?.admissionNumber || u.metadata?.admNo || u.admission_number || '');
+                                        const gLvl = u.student_class || u.class_level || u.metadata?.gradeLevel || u.metadata?.studentClass || '';
+                                        const strm = u.stream || u.metadata?.stream || '';
+                                        const cId = u.course_id || u.courseId || u.metadata?.courseId || u.metadata?.course_id || null;
+                                        const clsId = u.course_level_id || u.courseLevelId || u.class_id || u.classId || u.metadata?.classId || u.metadata?.courseLevelId || null;
+                                        const meta = {
+                                            studentName: u.name,
+                                            fullName: u.name,
+                                            name: u.name,
+                                            gradeLevel: gLvl,
+                                            stream: strm,
+                                            gender: u.gender || '',
+                                            autoGenerated: true,
+                                            ...(cId ? { courseId: cId } : {}),
+                                            ...(clsId ? { classId: clsId } : {}),
+                                            ...(typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {})
+                                        };
+                                        return {
+                                            id: `enr_${rawUid || u.id}`,
+                                            institution_id: u.institution_id || effectiveTenantInstId,
+                                            institutionId: u.institution_id || effectiveTenantInstId,
+                                            user_id: u.id,
+                                            userId: u.id,
+                                            enrollment_type: 'academic',
+                                            enrollmentType: 'academic',
+                                            admission_number: adm,
+                                            admissionNumber: adm,
+                                            status: 'Active',
+                                            enrollment_date: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                                            enrollmentDate: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                                            name: u.name,
+                                            studentName: u.name,
+                                            studentClass: gLvl && strm ? `${gLvl} ${strm}` : (gLvl || strm),
+                                            gradeLevel: gLvl,
+                                            stream: strm,
+                                            course_id: cId,
+                                            courseId: cId,
+                                            class_id: clsId,
+                                            classId: clsId,
+                                            metadata: meta,
+                                            created_at: u.created_at || new Date().toISOString(),
+                                            updated_at: new Date().toISOString()
+                                        };
+                                    });
+                                    data = synthesized;
+                                    error = null;
+                                }
+                            } catch (uErr) {
+                                console.warn('[API GET] Student recovery from users failed:', uErr);
+                            }
                         }
                         console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
                         // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
