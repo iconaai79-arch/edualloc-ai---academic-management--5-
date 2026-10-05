@@ -41,7 +41,7 @@ const PUBLIC_MODULES = [
   'departments', 'rooms', 'buildings', 'inventory', 'receipts', 'invoices',
   'tasks', 'assignments', 'allocation_requests', 'vote_heads', 'fee_structures',
   'financial_periods', 'school_remedial_sessions', 'school_remedial_rate_settings',
-  'school_remedial_payouts', 'school_remedial_allocations', 'school_remedial_subjects',
+  'school_remedial_payouts', 'school_remedial_allocations', 'school_remedial_subjects', 'school_remedial_duty_roster',
   'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory',
   'coop_agrovet_sales', 'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts',
   'coop_expenses', 'coop_income', 'car_appraisals', 'car_test_drives', 'car_invoices',

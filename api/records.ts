@@ -420,6 +420,7 @@ const TABLES_WITH_METADATA = new Set([
   'school_remedial_rate_settings',
   'school_remedial_allocations',
   'school_remedial_sessions',
+  'school_remedial_duty_roster',
   'school_authorized_devices',
   'school_router_profiles',
   'invoice_clients',
@@ -983,7 +984,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'ds_students', 'ds_lessons', 'event_pins', 'ds_leads', 'biometric_devices', 'biometric_enrollments', 
           'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 
           'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 
-          'school_remedial_allocations', 'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
+          'school_remedial_allocations', 'school_remedial_duty_roster', 'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
           'invoice_clients', 'company_invoice_settings',
           'his_billing_settings', 'his_invoices', 'his_payments', 'his_billing_items', 'his_insurance_remittances',
           'his_insurance_providers', 'his_tariffs', 'his_hospital_rooms', 'his_partner_labs', 'his_branding',
@@ -1673,6 +1674,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        errDetailStr.includes('does not exist') ||
                                        errDetailStr.includes('relation');
                 if (isTableMissing) {
+                    if (moduleName === 'school_remedial_duty_roster') {
+                        const targetInst = targetInstParam || user?.institutionId;
+                        if (targetInst) {
+                            try {
+                                const { data: imsData } = await supabase
+                                    .from('institution_module_states')
+                                    .select('data')
+                                    .or(`id.eq.ims_school_remedial_duty_roster_${targetInst},id.eq.school_remedial_duty_roster_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.school_remedial_duty_roster)`)
+                                    .order('updated_at', { ascending: false })
+                                    .limit(1);
+                                if (imsData && imsData.length > 0 && imsData[0].data) {
+                                    const rosterData = Array.isArray(imsData[0].data) ? imsData[0].data : (imsData[0].data.roster || [imsData[0].data]);
+                                    return res.status(200).json(rosterData);
+                                }
+                            } catch (_) {}
+                        }
+                    }
                     console.info(`[API GET] Table '${moduleName}' not in DB schema cache, returning empty list.`);
                     return res.status(200).json([]);
                 }
@@ -2026,6 +2044,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                         // Ensure metadata is always assigned as a normalized object
                         r.metadata = meta;
+                    }
+                });
+                data = records;
+            }
+
+            if (moduleName === 'school_remedial_duty_roster') {
+                let records = Array.isArray(data) ? data : [];
+                const targetInst = targetInstParam || user?.institutionId;
+                if (records.length === 0 && targetInst) {
+                    try {
+                        const { data: imsData } = await supabase
+                            .from('institution_module_states')
+                            .select('data')
+                            .or(`id.eq.ims_school_remedial_duty_roster_${targetInst},id.eq.school_remedial_duty_roster_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.school_remedial_duty_roster)`)
+                            .order('updated_at', { ascending: false })
+                            .limit(1);
+                        if (imsData && imsData.length > 0 && imsData[0].data) {
+                            const rosterData = Array.isArray(imsData[0].data) ? imsData[0].data : (imsData[0].data.roster || [imsData[0].data]);
+                            records = rosterData;
+                        }
+                    } catch (_) {}
+                }
+                records.forEach((r: any) => {
+                    if (r && typeof r === 'object') {
+                        if (r.institution_id && !r.institutionId) r.institutionId = r.institution_id;
+                        if (r.teacher_id && !r.teacherId) r.teacherId = r.teacher_id;
+                        if (r.teacher_name && !r.teacherName) r.teacherName = r.teacher_name;
+                        if (r.teacher_code && !r.teacherCode) r.teacherCode = r.teacher_code;
+                        if (r.week_label && !r.weekLabel) r.weekLabel = r.week_label;
+                        if (r.week_number && !r.weekNumber) r.weekNumber = r.week_number;
+                        if (r.course_id && !r.courseId) r.courseId = r.course_id;
+                        if (r.class_name && !r.className) r.className = r.class_name;
+                        if (r.subject_id && !r.subjectId) r.subjectId = r.subject_id;
+                        if (r.subject_name && !r.subjectName) r.subjectName = r.subject_name;
+                        if (r.saturday_start_time && !r.saturdayStartTime) r.saturdayStartTime = r.saturday_start_time;
+                        if (r.saturday_end_time && !r.saturdayEndTime) r.saturdayEndTime = r.saturday_end_time;
+                        if (r.sunday_start_time && !r.sundayStartTime) r.sundayStartTime = r.sunday_start_time;
+                        if (r.sunday_end_time && !r.sundayEndTime) r.sundayEndTime = r.sunday_end_time;
+                        if (r.auto_allocated_saturday !== undefined && r.autoAllocatedSaturday === undefined) r.autoAllocatedSaturday = r.auto_allocated_saturday;
+                        if (r.auto_allocated_sunday !== undefined && r.autoAllocatedSunday === undefined) r.autoAllocatedSunday = r.auto_allocated_sunday;
+                        if (r.saturday_session_id && !r.saturdaySessionId) r.saturdaySessionId = r.saturday_session_id;
+                        if (r.sunday_session_id && !r.sundaySessionId) r.sundaySessionId = r.sunday_session_id;
+                        if (r.duty_type && !r.dutyType) r.dutyType = r.duty_type;
+                        if (r.weekday_day && !r.weekdayDay) r.weekdayDay = r.weekday_day;
+                        if (r.weekday_start_time && !r.weekdayStartTime) r.weekdayStartTime = r.weekday_start_time;
+                        if (r.weekday_end_time && !r.weekdayEndTime) r.weekdayEndTime = r.weekday_end_time;
+                        if (r.weekday_allocated !== undefined && r.weekdayAllocated === undefined) r.weekdayAllocated = r.weekday_allocated;
+                        if (r.weekday_session_id && !r.weekdaySessionId) r.weekdaySessionId = r.weekday_session_id;
+                        if (r.duty_pay_rate !== undefined && r.dutyPayRate === undefined) r.dutyPayRate = Number(r.duty_pay_rate);
+                        if (r.duty_pay_type && !r.dutyPayType) r.dutyPayType = r.duty_pay_type;
                     }
                 });
                 data = records;
@@ -4895,6 +4963,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normSession) : normSession(currentPayload);
             }
 
+            // Normalize school_remedial_duty_roster: map camelCase → snake_case
+            if (moduleName === 'school_remedial_duty_roster' || targetDbTable === 'school_remedial_duty_roster') {
+                const normDuty = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (!c.id || c.id === 'null' || c.id === 'undefined') {
+                        c.id = (item as any)?.id || `duty_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    }
+                    const camelMap: Record<string, string> = {
+                        institutionId: 'institution_id',
+                        term: 'term',
+                        weekNumber: 'week_number',
+                        weekLabel: 'week_label',
+                        year: 'year',
+                        teacherId: 'teacher_id',
+                        teacherName: 'teacher_name',
+                        teacherCode: 'teacher_code',
+                        courseId: 'course_id',
+                        className: 'class_name',
+                        subjectId: 'subject_id',
+                        subjectName: 'subject_name',
+                        stream: 'stream',
+                        saturdayStartTime: 'saturday_start_time',
+                        saturdayEndTime: 'saturday_end_time',
+                        sundayStartTime: 'sunday_start_time',
+                        sundayEndTime: 'sunday_end_time',
+                        saturdayAllocated: 'saturday_allocated',
+                        sundayAllocated: 'sunday_allocated',
+                        autoAllocatedSaturday: 'auto_allocated_saturday',
+                        autoAllocatedSunday: 'auto_allocated_sunday',
+                        saturdaySessionId: 'saturday_session_id',
+                        sundaySessionId: 'sunday_session_id',
+                        dutyType: 'duty_type',
+                        weekdayDay: 'weekday_day',
+                        weekdayStartTime: 'weekday_start_time',
+                        weekdayEndTime: 'weekday_end_time',
+                        weekdayAllocated: 'weekday_allocated',
+                        weekdaySessionId: 'weekday_session_id',
+                        dutyPayRate: 'duty_pay_rate',
+                        dutyPayType: 'duty_pay_type',
+                        notes: 'notes',
+                        createdAt: 'created_at',
+                        updatedAt: 'updated_at'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (c[camelKey] !== undefined) {
+                            if (c[snakeKey] === undefined) c[snakeKey] = c[camelKey];
+                            if (camelKey !== snakeKey) delete c[camelKey];
+                        }
+                    });
+                    if (c.duty_type === undefined) c.duty_type = 'weekend';
+                    if (c.duty_pay_rate !== undefined && typeof c.duty_pay_rate !== 'number') {
+                        c.duty_pay_rate = parseFloat(c.duty_pay_rate) || 0;
+                    }
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normDuty) : normDuty(currentPayload);
+            }
+
             let data: any = null;
 
             let error: any = null;
@@ -5532,6 +5659,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
+                    if (moduleName === 'school_remedial_duty_roster') {
+                        const rawItems = Array.isArray(recordData) ? recordData : [recordData];
+                        const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
+                        if (instId) {
+                            try {
+                                const { data: existingIms } = await supabase
+                                    .from('institution_module_states')
+                                    .select('data')
+                                    .eq('id', `ims_school_remedial_duty_roster_${instId}`)
+                                    .maybeSingle();
+                                let currentList: any[] = [];
+                                if (existingIms?.data && Array.isArray(existingIms.data)) {
+                                    currentList = existingIms.data;
+                                }
+                                const incomingItems = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                                incomingItems.forEach((item: any) => {
+                                    const idx = currentList.findIndex((x: any) => x.id === item.id);
+                                    if (idx >= 0) {
+                                        currentList[idx] = { ...currentList[idx], ...item };
+                                    } else {
+                                        currentList.unshift(item);
+                                    }
+                                });
+                                await supabase.from('institution_module_states').upsert({
+                                    id: `ims_school_remedial_duty_roster_${instId}`,
+                                    institution_id: instId,
+                                    module_id: 'school_remedial_duty_roster',
+                                    status: 'active',
+                                    data: currentList,
+                                    updated_at: new Date().toISOString()
+                                }, { onConflict: 'id' });
+                            } catch (_) {}
+                        }
+                    }
                     console.warn(`[api/records POST] Table/column '${moduleName}' schema mismatch, fallback handled locally:`, error.message);
                     return res.status(200).json({
                         success: true,
@@ -5573,6 +5734,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
                 return res.status(200).json(returned);
+            }
+
+            if (moduleName === 'school_remedial_duty_roster') {
+                const savedItem = (data && data[0]) ? data[0] : (Array.isArray(currentPayload) ? currentPayload[0] : currentPayload);
+                const instId = savedItem?.institution_id || savedItem?.institutionId || user?.institutionId;
+                if (instId) {
+                    try {
+                        const { data: existingIms } = await supabase
+                            .from('institution_module_states')
+                            .select('data')
+                            .eq('id', `ims_school_remedial_duty_roster_${instId}`)
+                            .maybeSingle();
+                        let currentList: any[] = [];
+                        if (existingIms?.data && Array.isArray(existingIms.data)) {
+                            currentList = existingIms.data;
+                        }
+                        const incomingItems = Array.isArray(data) ? data : (Array.isArray(currentPayload) ? currentPayload : [savedItem]);
+                        incomingItems.forEach((item: any) => {
+                            const idx = currentList.findIndex((x: any) => x.id === item.id);
+                            if (idx >= 0) {
+                                currentList[idx] = { ...currentList[idx], ...item };
+                            } else {
+                                currentList.unshift(item);
+                            }
+                        });
+                        supabase.from('institution_module_states').upsert({
+                            id: `ims_school_remedial_duty_roster_${instId}`,
+                            institution_id: instId,
+                            module_id: 'school_remedial_duty_roster',
+                            status: 'active',
+                            data: currentList,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'id' }).catch(() => {});
+                    } catch (_) {}
+                }
             }
 
             if (moduleName === 'institutions') {

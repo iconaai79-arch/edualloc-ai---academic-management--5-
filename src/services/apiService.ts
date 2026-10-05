@@ -2126,6 +2126,83 @@ export const apiService = {
                 return finalAllocs as T[];
             }
 
+            if (module === 'school_remedial_duty_roster') {
+                const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
+                let remoteDuty: any[] = [];
+
+                // 1. Try to fetch from shared institution_module_states
+                try {
+                    const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
+                    if (Array.isArray(imsRows) && imsRows.length > 0) {
+                        const match = imsRows.find((r: any) => 
+                            r.id === `ims_school_remedial_duty_roster_${targetInstId}` ||
+                            r.id === `school_remedial_duty_roster_${targetInstId}` ||
+                            (r.id && r.id.includes('school_remedial_duty_roster')) ||
+                            r.moduleId === 'school_remedial_duty_roster' ||
+                            r.module_id === 'school_remedial_duty_roster'
+                        );
+                        const storeData = match?.data || match?.settings || match?.stateData;
+                        if (Array.isArray(storeData)) {
+                            remoteDuty.push(...storeData);
+                        } else if (storeData && Array.isArray(storeData.roster)) {
+                            remoteDuty.push(...storeData.roster);
+                        } else if (storeData && typeof storeData === 'object' && storeData.id) {
+                            remoteDuty.push(storeData);
+                        }
+                    }
+                } catch (_) {}
+
+                // 2. Also try fetching from physical DB table via proxy API if online
+                if (typeof navigator === 'undefined' || navigator.onLine) {
+                    try {
+                        const token = await apiService.getAuthToken();
+                        const queryUrl = `/api/records?module=school_remedial_duty_roster${targetInstId ? `&institution_id=${encodeURIComponent(targetInstId)}` : ''}`;
+                        const apiRes = await fetch(queryUrl, {
+                            headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+                        });
+                        if (apiRes.ok) {
+                            const resData = await apiRes.json();
+                            if (Array.isArray(resData) && resData.length > 0) {
+                                remoteDuty.push(...resData);
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                // 3. Local storage fallback / merge
+                let localDuty: any[] = [];
+                try {
+                    const saved = localStorage.getItem(`remedial_duty_roster_${targetInstId}`);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed)) localDuty = parsed;
+                    }
+                } catch (_) {}
+                if (localDuty.length === 0) {
+                    const lsRecs = ls.get('school_remedial_duty_roster');
+                    if (Array.isArray(lsRecs)) localDuty = lsRecs;
+                }
+
+                const map = new Map<string, any>();
+                localDuty.forEach(d => {
+                    if (d && d.id) map.set(d.id, toCamelCase(d));
+                });
+                remoteDuty.forEach(d => {
+                    if (d && d.id) {
+                        const camelD = toCamelCase(d);
+                        map.set(d.id, { ...map.get(d.id), ...camelD });
+                    }
+                });
+
+                const finalDuty = Array.from(map.values());
+                try {
+                    localStorage.setItem(`remedial_duty_roster_${targetInstId}`, JSON.stringify(finalDuty));
+                    ls.set('school_remedial_duty_roster', finalDuty);
+                } catch (_) {}
+
+                return finalDuty as T[];
+            }
+
             if (_unsupportedServerModules.has(module) || !_supabase) {
                 return queryLocal();
             }
@@ -3948,6 +4025,42 @@ export const apiService = {
             return;
         }
 
+        if (module === 'school_remedial_duty_roster') {
+            const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
+            let localDuty: any[] = [];
+            try {
+                const saved = localStorage.getItem(`remedial_duty_roster_${instId}`);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) localDuty = parsed;
+                }
+            } catch (e) {}
+            if (localDuty.length === 0) localDuty = ls.get('school_remedial_duty_roster') || [];
+
+            const remaining = localDuty.filter((d: any) => d && !idsSet.has(d.id));
+            try {
+                localStorage.setItem(`remedial_duty_roster_${instId}`, JSON.stringify(remaining));
+                ls.set('school_remedial_duty_roster', remaining);
+            } catch (e) {}
+
+            if (instId) {
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_school_remedial_duty_roster_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'school_remedial_duty_roster',
+                    moduleId: 'school_remedial_duty_roster',
+                    moduleName: 'Remedial Duty Roster',
+                    status: 'active',
+                    data: remaining,
+                    settings: remaining,
+                    stateData: remaining,
+                    updated_at: new Date().toISOString()
+                }).catch(() => {});
+            }
+            return;
+        }
+
         if (module === 'exam_broadsheets') {
             const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
             let localStore: Record<string, any> = {};
@@ -4312,6 +4425,55 @@ export const apiService = {
                 });
             }
             return toCamelCase(payload);
+        }
+
+        if (module === 'school_remedial_duty_roster') {
+            const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
+            let allDuty: any[] = [];
+            try {
+                const saved = localStorage.getItem(`remedial_duty_roster_${instId}`);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) allDuty = parsed;
+                }
+            } catch (e) {}
+
+            if (Array.isArray(payload)) {
+                allDuty = payload;
+            } else if (Array.isArray(data)) {
+                allDuty = data;
+            } else if (payload && payload.id) {
+                const idx = allDuty.findIndex(d => d.id === payload.id);
+                if (idx >= 0) {
+                    allDuty[idx] = { ...allDuty[idx], ...payload };
+                } else {
+                    allDuty.unshift(payload);
+                }
+            }
+
+            try {
+                localStorage.setItem(`remedial_duty_roster_${instId}`, JSON.stringify(allDuty));
+                ls.set('school_remedial_duty_roster', allDuty);
+            } catch (e) {}
+
+            if (instId) {
+                const stateData = {
+                    id: `ims_school_remedial_duty_roster_${instId}`,
+                    institution_id: instId,
+                    institutionId: instId,
+                    module_id: 'school_remedial_duty_roster',
+                    moduleId: 'school_remedial_duty_roster',
+                    moduleName: 'Remedial Duty Roster',
+                    status: 'active',
+                    data: allDuty,
+                    settings: allDuty,
+                    stateData: allDuty,
+                    updated_at: new Date().toISOString()
+                };
+                apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
+                    console.warn('[apiService] saveModuleRecord school_remedial_duty_roster error:', err);
+                });
+            }
         }
 
         if (module === 'class_subject_allocations' || _unsupportedServerModules.has(module)) {

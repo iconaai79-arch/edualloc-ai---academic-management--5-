@@ -476,7 +476,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [unallocatedAllocations, selectedTimetableClass, selectedTimetableStream, selectedTimetableTeacher, ascClassSearchQuery, combinedCourses]);
 
     // Weekend & Weekday Duty Roster State
-    const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>([]);
+    const [weekendDutyRoster, setWeekendDutyRoster] = useState<RemedialWeekendDuty[]>(() => {
+        try {
+            const instId = targetInstitutionId || currentInstitution?.id || currentUser?.institutionId || 'default_inst';
+            const saved = safeLocalStorage.getItem(`remedial_duty_roster_${instId}`) || safeLocalStorage.getItem('remedial_duty_roster');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
     const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
     const [dutyModalWeek, setDutyModalWeek] = useState('WEEK 1');
     const [dutyModalTeacherId, setDutyModalTeacherId] = useState('');
@@ -1045,7 +1055,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 } catch (_) { /* ignore */ }
             }
             setRemedialSubjects(remSubList);
-            setWeekendDutyRoster(dutyList);
+            if (dutyList.length > 0) {
+                setWeekendDutyRoster(dutyList);
+                safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(dutyList));
+            } else if (institutionId) {
+                try {
+                    const cachedDuty = safeLocalStorage.getItem(`remedial_duty_roster_${institutionId}`) || safeLocalStorage.getItem('remedial_duty_roster');
+                    if (cachedDuty) {
+                        const parsed = JSON.parse(cachedDuty);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setWeekendDutyRoster(parsed);
+                        }
+                    }
+                } catch (_) {}
+            }
 
             if (rates && rates.length > 0) {
                 applyRateSettings(rates[0]);
@@ -4394,6 +4417,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             };
 
             await apiService.saveModuleRecord('school_remedial_duty_roster', dutyRecord);
+            setWeekendDutyRoster(prev => {
+                const next = [dutyRecord, ...prev.filter(d => d.id !== dutyRecord.id)];
+                safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(next));
+                return next;
+            });
 
             // Auto-allocate 1 Saturday lesson and 1 Sunday lesson
             if (dutyModalAutoAllocate) {
@@ -4518,6 +4546,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
 
                 await apiService.saveModuleRecord('school_remedial_duty_roster', dutyRecord);
+                setWeekendDutyRoster(prev => {
+                    const next = [dutyRecord, ...prev.filter(d => d.id !== dutyRecord.id)];
+                    safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(next));
+                    return next;
+                });
 
                 // Auto-allocate one duty lesson on the selected weekday
                 const wdAlloc: RemedialAllocation = {
