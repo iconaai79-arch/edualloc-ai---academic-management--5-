@@ -324,7 +324,7 @@ export const getEnrollmentAdmNo = (enr?: any, user?: any): string => {
 };
 
 // Helper: extract the grade level from student_enrollments metadata or associated user
-export const getEnrollmentGrade = (enr?: any, user?: any): string => {
+export const getEnrollmentGrade = (enr?: any, user?: any, courses?: any[]): string => {
     let meta = enr?.metadata;
     if (typeof meta === 'string') {
         try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
@@ -337,7 +337,7 @@ export const getEnrollmentGrade = (enr?: any, user?: any): string => {
     }
     userMeta = userMeta && typeof userMeta === 'object' ? userMeta : {};
 
-    const raw = (
+    let raw = (
         meta.gradeLevel || 
         meta.grade_level || 
         meta.studentClass || 
@@ -348,10 +348,13 @@ export const getEnrollmentGrade = (enr?: any, user?: any): string => {
         meta.grade || 
         meta.form || 
         enr?.gradeLevel || 
+        (enr as any)?.grade_level ||
         enr?.studentClass || 
+        (enr as any)?.student_class ||
         (enr as any)?.className ||
         user?.studentClass || 
         user?.gradeLevel || 
+        (user as any)?.grade_level ||
         (user as any)?.classLevel || 
         userMeta.gradeLevel || 
         userMeta.studentClass || 
@@ -361,13 +364,25 @@ export const getEnrollmentGrade = (enr?: any, user?: any): string => {
         userMeta.form || 
         ''
     );
+
+    // Fallback: resolve from courseId if grade is not explicitly populated
+    if ((!raw || String(raw).trim().toLowerCase() === 'unclassified') && Array.isArray(courses) && courses.length > 0) {
+        const cId = enr?.courseId || (enr as any)?.course_id || meta?.courseId || user?.courseId || (user as any)?.course_id;
+        if (cId) {
+            const matchedCourse = courses.find(c => c && (c.id === cId || c.courseId === cId || (c as any).course_id === cId));
+            if (matchedCourse && matchedCourse.name) {
+                raw = matchedCourse.name;
+            }
+        }
+    }
+
     if (!raw || String(raw).trim().toLowerCase() === 'unclassified' || String(raw).trim().toLowerCase() === 'no grade') return '';
     const parsed = extractClassAndStream(raw);
     return parsed.className && parsed.className !== 'Unclassified' ? parsed.className : String(raw).trim();
 };
 
 // Helper: extract stream from student_enrollments metadata or associated user
-export const getEnrollmentStream = (enr?: any, user?: any): string => {
+export const getEnrollmentStream = (enr?: any, user?: any, courses?: any[]): string => {
     let meta = enr?.metadata;
     if (typeof meta === 'string') {
         try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
@@ -383,20 +398,211 @@ export const getEnrollmentStream = (enr?: any, user?: any): string => {
     const rawG = meta.gradeLevel || meta.studentClass || meta.className || enr?.studentClass || '';
     const parsedG = extractClassAndStream(rawG);
 
-    return (
+    let strm = (
         meta.stream || 
         meta.streamName || 
         meta.stream_name || 
         meta.streams || 
         meta.classStream || 
         enr?.stream || 
+        (enr as any)?.stream_name ||
         enr?.streamName || 
         user?.stream || 
         (user as any)?.streamName || 
+        (user as any)?.stream_name ||
         userMeta.stream || 
         parsedG.stream || 
         ''
     );
+
+    // Fallback 1: check leadershipPosition if formatted like stream / class (e.g. JSS8)
+    if (!strm) {
+        const lead = String(meta.leadershipPosition || (enr as any)?.leadership_position || userMeta.leadershipPosition || '').trim();
+        if (lead && lead.length <= 15 && !['president', 'prefect', 'captain', 'leader'].includes(lead.toLowerCase())) {
+            strm = lead;
+        }
+    }
+
+    // Fallback 2: resolve from classId / courseLevelId inside courses.levels
+    if (!strm && Array.isArray(courses) && courses.length > 0) {
+        const clsId = enr?.classId || (enr as any)?.class_id || (enr as any)?.courseLevelId || meta?.classId || meta?.courseLevelId;
+        if (clsId) {
+            for (const c of courses) {
+                if (c && Array.isArray(c.levels)) {
+                    const matchedLvl = c.levels.find((l: any) => l && (l.id === clsId || l.classId === clsId));
+                    if (matchedLvl && matchedLvl.name) {
+                        strm = matchedLvl.name;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return strm;
+};
+
+export interface ParentContactInfo {
+    parent1Phone: string;
+    parent1Name: string;
+    parent1Email: string;
+    parent1Relation: string;
+    parent2Phone: string;
+    parent2Name: string;
+    parent2Email: string;
+    parent2Relation: string;
+}
+
+// Helper: extract primary and secondary parent/guardian phone numbers and names
+export const getEnrollmentParentContact = (enr?: any, user?: any, allUsers?: any[], invoices?: any[]): ParentContactInfo => {
+    let meta = enr?.metadata;
+    if (typeof meta === 'string') {
+        try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+    }
+    meta = meta && typeof meta === 'object' ? meta : {};
+
+    let userMeta = user?.metadata;
+    if (typeof userMeta === 'string') {
+        try { userMeta = JSON.parse(userMeta); } catch (_) { userMeta = {}; }
+    }
+    userMeta = userMeta && typeof userMeta === 'object' ? userMeta : {};
+
+    const metaParents = Array.isArray(meta.parents) ? meta.parents : [];
+    const p1FromArr = metaParents[0] || {};
+    const p2FromArr = metaParents[1] || {};
+
+    let p1Phone = String(
+        p1FromArr.phone || 
+        meta.parentPhone || 
+        meta.parent_phone || 
+        meta.parentPhoneNumber || 
+        meta.parent_phone_number || 
+        meta.guardianPhone || 
+        meta.guardian_phone || 
+        meta.fatherPhone || 
+        enr?.parentPhone || 
+        (enr as any)?.parent_phone || 
+        userMeta.parentPhone || 
+        userMeta.parent_phone || 
+        userMeta.parentPhoneNumber || 
+        userMeta.guardianPhone || 
+        user?.parentPhone || 
+        (user as any)?.parent_phone || 
+        (user as any)?.fatherPhone || 
+        ''
+    ).trim();
+
+    let p1Name = String(
+        p1FromArr.name || 
+        meta.parentName || 
+        meta.parent_name || 
+        meta.guardianName || 
+        meta.guardian_name || 
+        meta.fatherName || 
+        enr?.parentName || 
+        (enr as any)?.parent_name || 
+        userMeta.parentName || 
+        userMeta.parent_name || 
+        userMeta.guardianName || 
+        user?.parentName || 
+        (user as any)?.parent_name || 
+        ''
+    ).trim();
+
+    let p1Email = String(p1FromArr.email || meta.parentEmail || meta.parent_email || userMeta.parentEmail || user?.parentEmail || '').trim();
+    let p1Relation = String(p1FromArr.relation || meta.parentRelation || 'Parent').trim();
+
+    // Cross-match parent users in allUsers (role === 'parent')
+    if ((!p1Phone || !p1Name) && Array.isArray(allUsers) && allUsers.length > 0) {
+        const studentUid = String(enr?.userId || enr?.user_id || user?.id || '').trim().toLowerCase();
+        const rawUid = studentUid.replace(/^u_/, '');
+        const adm = String(enr?.admission_number || enr?.admissionNumber || meta.admissionNumber || user?.admissionNumber || '').trim().toLowerCase();
+        const sName = String(enr?.name || (enr as any)?.studentName || meta.studentName || user?.name || '').trim().toLowerCase();
+
+        const parentUser = allUsers.find(u => {
+            if (!u || String(u.role || '').toLowerCase() !== 'parent') return false;
+            const uStudentIds = Array.isArray(u.studentIds) ? u.studentIds : (u.metadata?.studentIds || []);
+            const uMatchesId = uStudentIds.some((sid: any) => {
+                const s = String(sid).trim().toLowerCase();
+                return s && (s === studentUid || s === rawUid || s === `u_${rawUid}`);
+            });
+            if (uMatchesId) return true;
+
+            const uAdm = String(u.metadata?.studentAdmissionNumber || u.metadata?.admissionNumber || u.metadata?.admNo || (u as any).studentAdmissionNumber || '').trim().toLowerCase();
+            if (adm && uAdm && adm === uAdm) return true;
+
+            const uChildName = String(u.metadata?.studentName || u.metadata?.childName || (u as any).studentName || '').trim().toLowerCase();
+            if (sName && uChildName && sName === uChildName) return true;
+
+            return false;
+        });
+
+        if (parentUser) {
+            if (!p1Phone && parentUser.phoneNumber && !parentUser.phoneNumber.endsWith('@eduai.local')) {
+                p1Phone = parentUser.phoneNumber.trim();
+            }
+            if (!p1Name && parentUser.name) {
+                p1Name = parentUser.name.trim();
+            }
+            if (!p1Email && parentUser.email && !parentUser.email.endsWith('@eduai.local')) {
+                p1Email = parentUser.email.trim();
+            }
+        }
+    }
+
+    // Secondary phone
+    let p2Phone = String(
+        p2FromArr.phone || 
+        meta.secondaryPhone || 
+        meta.secondary_phone || 
+        meta.parentPhone2 || 
+        meta.guardianPhone2 || 
+        meta.motherPhone || 
+        enr?.secondaryPhone || 
+        (enr as any)?.secondary_phone || 
+        userMeta.secondaryPhone || 
+        userMeta.secondary_phone || 
+        userMeta.parentPhone2 || 
+        user?.secondaryPhone || 
+        (user as any)?.secondary_phone || 
+        (user as any)?.motherPhone || 
+        ''
+    ).trim();
+
+    let p2Name = String(
+        p2FromArr.name || 
+        meta.guardian2Name || 
+        meta.parentName2 || 
+        meta.motherName || 
+        userMeta.motherName || 
+        userMeta.guardian2Name || 
+        (user as any)?.secondaryName || 
+        (user as any)?.motherName || 
+        ''
+    ).trim();
+
+    let p2Email = String(p2FromArr.email || meta.parentEmail2 || userMeta.parentEmail2 || '').trim();
+    let p2Relation = String(p2FromArr.relation || meta.parentRelation2 || 'Parent 2').trim();
+
+    // Minor students fallback: If parent phone is missing, but student user has a phone, that is the primary guardian's phone!
+    if (!p1Phone && user?.phoneNumber && !user.phoneNumber.endsWith('@eduai.local')) {
+        const uPhone = user.phoneNumber.trim();
+        if (!['—', '-', 'null', 'undefined', 'not set'].includes(uPhone.toLowerCase())) {
+            p1Phone = uPhone;
+            if (!p1Name) p1Name = 'Parent / Guardian';
+        }
+    }
+
+    return {
+        parent1Phone: p1Phone,
+        parent1Name: p1Name,
+        parent1Email: p1Email,
+        parent1Relation: p1Relation,
+        parent2Phone: p2Phone,
+        parent2Name: p2Name,
+        parent2Email: p2Email,
+        parent2Relation: p2Relation
+    };
 };
 
 interface StudentEnrollmentManagerProps {
@@ -1563,16 +1769,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                     userId: uId,
                     enrollmentType: context === 'driving_school' ? 'driving_school' : 'academic',
                     admissionNumber: finalAdm,
-                    admission_number: finalAdm,
-                    admNo: finalAdm,
                     status: 'Active',
                     enrollmentDate: u.createdAt ? String(u.createdAt).split('T')[0] : new Date().toISOString().split('T')[0],
-                    name: studentName,
-                    studentName,
-                    studentClass: fullCls,
-                    gradeLevel: gLvl,
-                    stream: strm,
-                    streamName: strm,
                     courseId: autoCourseId || undefined,
                     classId: autoClassId || undefined,
                     metadata: {
@@ -1592,6 +1790,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         ...(typeof u.metadata === 'object' && u.metadata !== null ? u.metadata : {})
                     }
                 };
+                (autoEnr as any).studentClass = fullCls;
+                (autoEnr as any).gradeLevel = gLvl;
+                (autoEnr as any).stream = strm;
+                (autoEnr as any).streamName = strm;
+                (autoEnr as any).admission_number = finalAdm;
+                (autoEnr as any).admNo = finalAdm;
+                (autoEnr as any).studentName = studentName;
+                (autoEnr as any).name = studentName;
                 (autoEnr as any).course_id = autoCourseId || undefined;
                 (autoEnr as any).class_id = autoClassId || undefined;
                 missingEnrollments.push(autoEnr);
@@ -1603,7 +1809,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             const seenKeys = new Map<string, number>();
 
             allCombined.forEach((enr) => {
-                const sName = String(enr.name || (enr as any).studentName || enr.metadata?.studentName || '').trim().toLowerCase();
+                const sName = String((enr as any).name || (enr as any).studentName || enr.metadata?.studentName || '').trim().toLowerCase();
                 const adm = String(enr.admissionNumber || (enr as any).admission_number || '').trim();
                 const isSynthetic = !adm || isSyntheticAdmNo(adm);
                 const key = sName && !isNameUnknown(sName) ? `name:${sName}` : (enr.userId ? `uid:${enr.userId}` : `id:${enr.id}`);
@@ -2514,6 +2720,9 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                             parents: importedParents
                         };
 
+                        const finalGrade = item.gradeLevel || importGradeLevel || existingEnrollment?.metadata?.gradeLevel || '';
+                        const finalStream = item.stream || importStream || existingEnrollment?.metadata?.stream || '';
+
                         const { courseId: impCourseId, classId: impClassId } = resolveStudentCourseAndClassId(
                             {
                                 gradeLevel: finalGrade,
@@ -2524,8 +2733,11 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                         );
                         if (impCourseId) metadataObj.courseId = impCourseId;
                         if (impClassId) metadataObj.classId = impClassId;
-                        if (impCourseId && !userToSave.courseId) userToSave.courseId = impCourseId;
-                        if (impClassId && !userToSave.courseLevelId) userToSave.courseLevelId = impClassId;
+                        const userRecordToUpdate = currentUsersList.find(u => u.id === userId);
+                        if (userRecordToUpdate) {
+                            if (impCourseId && !(userRecordToUpdate as any).courseId) (userRecordToUpdate as any).courseId = impCourseId;
+                            if (impClassId && !(userRecordToUpdate as any).courseLevelId) (userRecordToUpdate as any).courseLevelId = impClassId;
+                        }
 
                         if (existingEnrollment) {
                             const updated: StudentEnrollment = {
@@ -5819,7 +6031,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 const e = enrollments[i];
                 const eInst = e.institutionId || (e as any).institution_id;
                 if (!eInst || !targetInstId || String(eInst).toLowerCase() === String(targetInstId).toLowerCase()) {
-                    const cl = e.metadata?.gradeLevel || e.gradeLevel || e.studentClass || (e as any).classLevel || (e as any).studentClass || (e as any).className;
+                    const cl = e.metadata?.gradeLevel || (e as any).gradeLevel || (e as any).studentClass || (e as any).classLevel || (e as any).className;
                     if (cl && typeof cl === 'string' && cl.trim()) {
                         const parsed = extractClassAndStream(cl);
                         if (parsed.className && parsed.className !== 'Unclassified') {
@@ -6926,31 +7138,31 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                                  <Mail className="w-3 h-3 text-indigo-400" /> {user.email}
                                                              </span>
                                                          )}
-                                                         {user?.phoneNumber && !user.phoneNumber.endsWith('@eduai.local') && (
-                                                              <span className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 font-semibold" title="Student Personal Phone">
-                                                                  <Phone className="w-3 h-3 text-indigo-500" /> Student: {user.phoneNumber}
-                                                              </span>
-                                                          )}
-                                                          {(() => {
-                                                              const p1Phone = enr.metadata?.parentPhone || enr.metadata?.parents?.[0]?.phone || user?.metadata?.parentPhone || user?.parentPhone || (user as any)?.fatherPhone || (enr.metadata as any)?.fatherPhone;
-                                                              const p1Name = enr.metadata?.parentName || enr.metadata?.parents?.[0]?.name || user?.metadata?.parentName || (user as any)?.parentName;
-                                                              if (!p1Phone) return null;
-                                                              return (
-                                                                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-800/40" title="Primary Parent / Guardian Phone">
-                                                                      <Phone className="w-3 h-3 text-emerald-500 shrink-0" /> {p1Name ? `${p1Name}: ` : 'Parent 1: '}{p1Phone}
-                                                                  </span>
-                                                              );
-                                                          })()}
-                                                          {(() => {
-                                                              const p2Phone = enr.metadata?.secondaryPhone || enr.metadata?.parentPhone2 || enr.metadata?.guardianPhone2 || enr.metadata?.parents?.[1]?.phone || (enr.metadata as any)?.parent2Phone || user?.secondaryPhone || user?.parentPhone2 || user?.metadata?.secondaryPhone || user?.metadata?.parentPhone2 || (user as any)?.motherPhone;
-                                                              const p2Name = enr.metadata?.guardian2Name || enr.metadata?.parentName2 || enr.metadata?.parents?.[1]?.name || (enr.metadata as any)?.parent2Name || (user as any)?.secondaryName || (user as any)?.motherName;
-                                                              if (!p2Phone) return null;
-                                                              return (
-                                                                  <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-bold bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/80 dark:border-purple-800/40 shadow-sm" title="Secondary / Alternative Parent Phone">
-                                                                      <Phone className="w-3 h-3 text-purple-500 shrink-0" /> {p2Name ? `${p2Name}: ` : 'Parent 2 (Sec): '}{p2Phone}
-                                                                  </span>
-                                                              );
-                                                          })()}
+                                                         {(() => {
+                                                             const parentContact = getEnrollmentParentContact(enr, user, users);
+                                                             const userPhone = user?.phoneNumber && !user.phoneNumber.endsWith('@eduai.local') && !['—', '-', 'null', 'undefined', 'not set'].includes(user.phoneNumber.trim().toLowerCase()) ? user.phoneNumber.trim() : '';
+                                                             const showUserPhone = userPhone && userPhone !== parentContact.parent1Phone && userPhone !== parentContact.parent2Phone;
+
+                                                             return (
+                                                                 <>
+                                                                     {showUserPhone && (
+                                                                         <span className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 font-semibold" title="Student Personal Phone">
+                                                                             <Phone className="w-3 h-3 text-indigo-500" /> Student: {userPhone}
+                                                                         </span>
+                                                                     )}
+                                                                     {parentContact.parent1Phone && (
+                                                                         <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200/80 dark:border-emerald-800/40" title="Primary Parent / Guardian Phone">
+                                                                             <Phone className="w-3 h-3 text-emerald-500 shrink-0" /> {parentContact.parent1Name ? `${parentContact.parent1Name}: ` : 'Parent: '}{parentContact.parent1Phone}
+                                                                         </span>
+                                                                     )}
+                                                                     {parentContact.parent2Phone && (
+                                                                         <span className="inline-flex items-center gap-1 text-[10px] text-purple-700 dark:text-purple-300 font-bold bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-200/80 dark:border-purple-800/40 shadow-sm" title="Secondary / Alternative Parent Phone">
+                                                                             <Phone className="w-3 h-3 text-purple-500 shrink-0" /> {parentContact.parent2Name ? `${parentContact.parent2Name}: ` : 'Parent 2: '}{parentContact.parent2Phone}
+                                                                         </span>
+                                                                     )}
+                                                                 </>
+                                                             );
+                                                         })()}
                                                            {(() => {
                                                                const dob = enr.dateOfBirth || enr.dob || enr.metadata?.dateOfBirth || enr.metadata?.dob || user?.dateOfBirth || user?.dob || user?.metadata?.dateOfBirth || user?.metadata?.dob;
                                                                if (!dob) return null;

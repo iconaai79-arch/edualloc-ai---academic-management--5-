@@ -1994,7 +1994,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 setAbsenceRequests(abs || []);
 
                 // Resilient Student Enrollments resolution & persistence
-                let resolvedStudentEnrollments: StudentEnrollment[] = (sEnr || []).map((e: any) => toCamelCase(e));
+                let resolvedStudentEnrollments: StudentEnrollment[] = (sEnr || []).map((e: any) => {
+                    const raw = toCamelCase(e);
+                    const adm = String(e.admission_number || e.admissionNumber || e.admNo || (e as any).adm_no || e.metadata?.admissionNumber || raw.admissionNumber || raw.admission_number || '').trim();
+                    if (adm) {
+                        raw.admission_number = adm;
+                        raw.admissionNumber = adm;
+                        raw.admNo = adm;
+                    }
+                    const gLvl = String(e.gradeLevel || e.grade_level || e.studentClass || e.student_class || e.className || e.metadata?.gradeLevel || raw.gradeLevel || raw.studentClass || '').trim();
+                    if (gLvl) {
+                        raw.gradeLevel = gLvl;
+                        raw.grade_level = gLvl;
+                    }
+                    const strm = String(e.stream || e.streamName || e.stream_name || e.metadata?.stream || raw.stream || '').trim();
+                    if (strm) {
+                        raw.stream = strm;
+                        raw.streamName = strm;
+                    }
+                    return raw;
+                });
                 const instKeyEnr = effectiveInstIdFinal || (activeInst?.id || currentUser?.institutionId || '');
                 const cleanInstKey = instKeyEnr.replace(/^inst_/, '');
 
@@ -2093,9 +2112,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         if (!prev || prev.length === 0) return prev;
                         const enrMap = new Map<string, any>();
                         for (const enr of resolvedStudentEnrollments) {
-                            const uId = enr.studentUserId || (enr as any).student_user_id || enr.userId || (enr as any).user_id;
+                            const uId = (enr as any).studentUserId || (enr as any).student_user_id || enr.userId || (enr as any).user_id;
                             const adm = enr.admissionNumber || (enr as any).admission_number || (enr as any).admNo;
-                            const nm = enr.studentName || (enr as any).student_name || (enr as any).name || (enr.metadata as any)?.studentName || (enr.metadata as any)?.fullName;
+                            const nm = (enr as any).studentName || (enr as any).student_name || (enr as any).name || (enr.metadata as any)?.studentName || (enr.metadata as any)?.fullName;
                             if (uId) enrMap.set(String(uId).toLowerCase(), enr);
                             if (adm) enrMap.set(String(adm).toLowerCase(), enr);
                             if (nm) enrMap.set(String(nm).trim().toLowerCase(), enr);
@@ -2118,7 +2137,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                             const curAdm = u.admissionNumber || (u as any).admission_number;
                             const needsAdm = (!curAdm || curAdm === '—' || curAdm === '-') && mAdm;
-                            const needsClass = (!u.studentClass && !u.gradeLevel) && gLvl;
+                            const needsClass = (!u.studentClass && !(u as any).gradeLevel) && gLvl;
                             const needsStream = !u.stream && strm;
                             const needsCourse = !u.courseId && mCourseId;
                             const needsLevel = !u.courseLevelId && mClassId;
@@ -2134,7 +2153,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 }
                                 if (needsClass) {
                                     updated.studentClass = gLvl;
-                                    updated.gradeLevel = gLvl;
+                                    (updated as any).gradeLevel = gLvl;
                                 }
                                 if (needsStream) {
                                     updated.stream = strm;

@@ -1857,6 +1857,33 @@ export const apiService = {
                             enr.leadershipPosition = leadPos;
                             enr.leadership_position = leadPos;
                         }
+
+                        // 6. Parent Details
+                        const pPhone = enr.parentPhone || enr.parent_phone || (enr as any).parentPhoneNumber || (enr as any).parent_phone_number || meta.parentPhone || meta.parent_phone || meta.parentPhoneNumber || meta.parent_phone_number || meta.parents?.[0]?.phone || meta.guardianPhone || meta.guardian_phone || meta.guardianPhoneNumber;
+                        if (pPhone) {
+                            enr.parentPhone = pPhone;
+                            enr.parent_phone = pPhone;
+                            if (!meta.parentPhone) meta.parentPhone = pPhone;
+                        }
+                        const pName = enr.parentName || enr.parent_name || (enr as any).guardianName || meta.parentName || meta.parent_name || meta.parents?.[0]?.name || meta.guardianName || meta.guardian_name;
+                        if (pName) {
+                            enr.parentName = pName;
+                            enr.parent_name = pName;
+                            if (!meta.parentName) meta.parentName = pName;
+                        }
+                        const pEmail = enr.parentEmail || enr.parent_email || meta.parentEmail || meta.parent_email || meta.parents?.[0]?.email;
+                        if (pEmail) {
+                            enr.parentEmail = pEmail;
+                            enr.parent_email = pEmail;
+                            if (!meta.parentEmail) meta.parentEmail = pEmail;
+                        }
+                        const p2Phone = enr.secondaryPhone || enr.secondary_phone || meta.secondaryPhone || meta.secondary_phone || meta.parentPhone2 || meta.parents?.[1]?.phone;
+                        if (p2Phone) {
+                            enr.secondaryPhone = p2Phone;
+                            enr.secondary_phone = p2Phone;
+                            if (!meta.secondaryPhone) meta.secondaryPhone = p2Phone;
+                        }
+                        enr.metadata = meta;
                     });
                 }
                 if (['users', 'students'].includes(module) && Array.isArray(finalResult)) {
@@ -2458,6 +2485,32 @@ export const apiService = {
                         if (leadPos) {
                             enr.leadershipPosition = leadPos;
                             enr.leadership_position = leadPos;
+                        }
+
+                        // Parent Details
+                        const pPhone = enr.parentPhone || enr.parent_phone || (enr as any).parentPhoneNumber || (enr as any).parent_phone_number || meta.parentPhone || meta.parent_phone || meta.parentPhoneNumber || meta.parent_phone_number || meta.parents?.[0]?.phone || meta.guardianPhone || meta.guardian_phone || meta.guardianPhoneNumber;
+                        if (pPhone) {
+                            enr.parentPhone = pPhone;
+                            enr.parent_phone = pPhone;
+                            if (!meta.parentPhone) meta.parentPhone = pPhone;
+                        }
+                        const pName = enr.parentName || enr.parent_name || (enr as any).guardianName || meta.parentName || meta.parent_name || meta.parents?.[0]?.name || meta.guardianName || meta.guardian_name;
+                        if (pName) {
+                            enr.parentName = pName;
+                            enr.parent_name = pName;
+                            if (!meta.parentName) meta.parentName = pName;
+                        }
+                        const pEmail = enr.parentEmail || enr.parent_email || meta.parentEmail || meta.parent_email || meta.parents?.[0]?.email;
+                        if (pEmail) {
+                            enr.parentEmail = pEmail;
+                            enr.parent_email = pEmail;
+                            if (!meta.parentEmail) meta.parentEmail = pEmail;
+                        }
+                        const p2Phone = enr.secondaryPhone || enr.secondary_phone || meta.secondaryPhone || meta.secondary_phone || meta.parentPhone2 || meta.parents?.[1]?.phone;
+                        if (p2Phone) {
+                            enr.secondaryPhone = p2Phone;
+                            enr.secondary_phone = p2Phone;
+                            if (!meta.secondaryPhone) meta.secondaryPhone = p2Phone;
                         }
                         enr.metadata = meta;
                     });
@@ -5366,7 +5419,7 @@ export const apiService = {
                         preferences: {
                             courseLevelSelections: sa.className ? { [sa.className]: [sa.subjectName || sa.subjectId] } : {}
                         }
-                    } as AllocationRequest);
+                    } as unknown as AllocationRequest);
                 }
             });
 

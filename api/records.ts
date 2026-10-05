@@ -2222,10 +2222,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (sName && sName !== 'unknown' && sName !== 'student') enrolledNames.add(sName);
 
                             // Always ensure both admission_number and admissionNumber are set to the real admission number
-                            const realAdm = String(e.admission_number || e.admissionNumber || e.metadata?.admissionNumber || '').trim();
+                            const realAdm = String(e.admission_number || e.admissionNumber || e.admNo || (e as any).adm_no || e.metadata?.admissionNumber || e.metadata?.admission_number || e.metadata?.admNo || '').trim();
                             if (realAdm) {
                                 e.admission_number = realAdm;
                                 e.admissionNumber = realAdm;
+                                e.admNo = realAdm;
+                                if (!e.metadata) e.metadata = {};
+                                if (!e.metadata.admissionNumber) e.metadata.admissionNumber = realAdm;
                             }
 
                             // Extract grade and stream from metadata into top-level properties
@@ -2442,26 +2445,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         }
 
-                        // Deduplicate enrollments so real records with genuine admission numbers always take precedence over synthetic duplicates
+                        // Deduplicate enrollments so real records with genuine admission numbers always take precedence and merge fields
                         const seenStudentKeys = new Map<string, number>();
                         const deduplicatedData: any[] = [];
                         data.forEach((row: any) => {
                             if (!row || typeof row !== 'object') return;
-                            const rAdm = String(row.admission_number || row.admissionNumber || '').trim();
+                            const rAdm = String(
+                                row.admission_number || 
+                                row.admissionNumber || 
+                                row.admNo || 
+                                row.adm_no || 
+                                row.metadata?.admissionNumber || 
+                                row.metadata?.admission_number || 
+                                row.metadata?.admNo || 
+                                ''
+                            ).trim();
                             const isSynth = !rAdm || /^ADM-\d+$/i.test(rAdm) || /^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(rAdm);
-                            const rName = String(row.name || row.studentName || row.metadata?.studentName || '').trim().toLowerCase();
-                            const key = rName && rName !== 'unknown' ? `name:${rName}` : (row.user_id ? `uid:${row.user_id}` : `id:${row.id}`);
+                            const rName = String(
+                                row.name || 
+                                row.student_name || 
+                                row.studentName || 
+                                row.fullName || 
+                                row.metadata?.studentName || 
+                                row.metadata?.student_name || 
+                                row.metadata?.name || 
+                                row.metadata?.fullName || 
+                                ''
+                            ).trim().toLowerCase();
+                            const key = (rName && rName !== 'unknown' && rName !== 'student') 
+                                ? `name:${rName}` 
+                                : (row.user_id ? `uid:${row.user_id}` : (row.userId ? `uid:${row.userId}` : `id:${row.id}`));
 
                             if (seenStudentKeys.has(key)) {
                                 const prevIdx = seenStudentKeys.get(key)!;
                                 const prevRow = deduplicatedData[prevIdx];
-                                const prevAdm = String(prevRow.admission_number || prevRow.admissionNumber || '').trim();
+                                const prevAdm = String(
+                                    prevRow.admission_number || 
+                                    prevRow.admissionNumber || 
+                                    prevRow.admNo || 
+                                    prevRow.adm_no || 
+                                    prevRow.metadata?.admissionNumber || 
+                                    prevRow.metadata?.admission_number || 
+                                    prevRow.metadata?.admNo || 
+                                    ''
+                                ).trim();
                                 const prevSynth = !prevAdm || /^ADM-\d+$/i.test(prevAdm) || /^ADM-\d{4}-[A-Za-z0-9]{4}$/i.test(prevAdm);
 
-                                if (prevSynth && !isSynth) {
-                                    deduplicatedData[prevIdx] = row;
-                                }
+                                // Merge the two rows instead of dropping data
+                                const bestAdm = (!prevSynth && isSynth) ? prevAdm : (rAdm || prevAdm);
+                                const bestGrade = row.gradeLevel || prevRow.gradeLevel || row.metadata?.gradeLevel || prevRow.metadata?.gradeLevel || '';
+                                const bestStream = row.stream || prevRow.stream || row.metadata?.stream || prevRow.metadata?.stream || '';
+                                const bestCourseId = row.course_id || prevRow.course_id || row.courseId || prevRow.courseId || '';
+                                const bestClassId = row.class_id || prevRow.class_id || row.classId || prevRow.classId || '';
+                                const prevMeta = typeof prevRow.metadata === 'object' && prevRow.metadata !== null ? prevRow.metadata : {};
+                                const currMeta = typeof row.metadata === 'object' && row.metadata !== null ? row.metadata : {};
+
+                                deduplicatedData[prevIdx] = {
+                                    ...prevRow,
+                                    ...row,
+                                    admission_number: bestAdm,
+                                    admissionNumber: bestAdm,
+                                    admNo: bestAdm,
+                                    gradeLevel: bestGrade,
+                                    stream: bestStream,
+                                    course_id: bestCourseId,
+                                    courseId: bestCourseId,
+                                    class_id: bestClassId,
+                                    classId: bestClassId,
+                                    studentClass: bestGrade && bestStream && !bestGrade.toLowerCase().includes(bestStream.toLowerCase()) ? `${bestGrade} ${bestStream}` : (bestGrade || bestStream),
+                                    metadata: {
+                                        ...prevMeta,
+                                        ...currMeta,
+                                        admissionNumber: bestAdm,
+                                        gradeLevel: bestGrade,
+                                        stream: bestStream,
+                                        ...(bestCourseId ? { courseId: bestCourseId } : {}),
+                                        ...(bestClassId ? { classId: bestClassId } : {})
+                                    }
+                                };
                                 return;
+                            }
+
+                            // Ensure admission_number and admissionNumber are both populated on single rows
+                            if (rAdm) {
+                                row.admission_number = rAdm;
+                                row.admissionNumber = rAdm;
+                                row.admNo = rAdm;
+                                if (!row.metadata) row.metadata = {};
+                                if (!row.metadata.admissionNumber) row.metadata.admissionNumber = rAdm;
                             }
 
                             seenStudentKeys.set(key, deduplicatedData.length);
