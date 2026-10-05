@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty, RemedialTeacherOpeningBalance } from '../types';
+import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty, RemedialTeacherOpeningBalance, TeacherDayPreference } from '../types';
 import { isSuperAdminUser } from '../types';
 import { RemedialOpeningBalancesModal } from './RemedialOpeningBalancesModal';
 import { SchoolFloatWalletCard } from './Finance/SchoolFloatWalletCard';
@@ -15,10 +15,11 @@ import {
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
     Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox,
-    ChevronLeft, ChevronRight, XCircle, Wallet, MessageSquare, Phone, MessageCircle
+    ChevronLeft, ChevronRight, XCircle, Wallet, MessageSquare, Phone, MessageCircle,
+    Shuffle
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher, extractGradeLevel, isSubjectEquivalent } from '../utils/remedialSubstitutionUtils';
+import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher, extractGradeLevel, isSubjectEquivalent, isTeacherQualifiedForLesson } from '../utils/remedialSubstitutionUtils';
 import { isGradeMatching } from './Academics/LessonsAllocationManager';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import {
@@ -3622,6 +3623,45 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
         }, 600);
     };
+
+    const handleDebouncedTimingsSave = (overrides: Partial<any> = {}) => {
+        if (timingSaveTimerRef.current) {
+            clearTimeout(timingSaveTimerRef.current);
+        }
+        setIsSavingTimings(true);
+        timingSaveTimerRef.current = setTimeout(async () => {
+            try {
+                await handleSaveRatesInternal(true, overrides);
+            } catch (err) {
+                console.warn('[RemedialTimings] Auto-save error:', err);
+            } finally {
+                setIsSavingTimings(false);
+            }
+        }, 600);
+    };
+
+    const isTeacherBusyAtSlot = useCallback((
+        teacherId: string,
+        day?: string,
+        startTime?: string,
+        endTime?: string,
+        excludeAllocId?: string
+    ): boolean => {
+        if (!teacherId || !day || !startTime) return false;
+        const targetStart = parseTimeToMinutes(startTime);
+        const targetEnd = endTime ? parseTimeToMinutes(endTime) : targetStart + 60;
+
+        return allocations.some(a => {
+            if (a.id === excludeAllocId) return false;
+            const aDay = a.dayOfWeek || (a as any).day_of_week;
+            if (aDay !== day) return false;
+            const aTeacherId = a.teacherId || (a as any).teacher_id;
+            if (aTeacherId !== teacherId) return false;
+            const aStart = parseTimeToMinutes(a.startTime || (a as any).start_time || '00:00');
+            const aEnd = (a.endTime || (a as any).end_time) ? parseTimeToMinutes(a.endTime || (a as any).end_time) : aStart + 60;
+            return targetStart < aEnd && targetEnd > aStart;
+        });
+    }, [allocations]);
 
     // DOS Administrative Actions for Substitution
     const handleDosAutoSubstitute = async (alloc: RemedialAllocation) => {
@@ -19016,6 +19056,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         {(() => {
                             const selectedCourse = combinedCourses.find(c => c.id === allocCourseId);
                             const targetClassName = selectedCourse?.name || '';
+                            const allocSubjectName = activeRemedialSubjectsList.find(s => s.id === allocSubjectId)?.name || '';
                             
                             // Check qualifications for all teachers
                             const evaluatedTeachers = teachersList.map(u => {

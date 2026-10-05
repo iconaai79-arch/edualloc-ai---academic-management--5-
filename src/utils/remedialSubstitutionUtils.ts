@@ -264,8 +264,11 @@ export function rankSubstituteCandidates(params: {
     maxLessonsPerDay?: number;
     maxWeekendLessonsPerDay?: number;
     strictSubjectMatch?: boolean;
+    strictSubjectMatchOnly?: boolean;
     strictGradeMatch?: boolean;
+    strictGradeMatchOnly?: boolean;
     allowAdjacentGrade?: boolean;
+    allowAdjacentGradeSubstitution?: boolean;
     strictDayMatch?: boolean;
 }): { bestCandidate: User | null; rankedCandidates: CandidateScore[] } {
     const {
@@ -277,11 +280,18 @@ export function rankSubstituteCandidates(params: {
         classSubjectAllocations = {},
         maxLessonsPerDay = 1,
         maxWeekendLessonsPerDay = 2,
-        strictSubjectMatch = true,
-        strictGradeMatch = true,
-        allowAdjacentGrade = false,
+        strictSubjectMatch,
+        strictSubjectMatchOnly,
+        strictGradeMatch,
+        strictGradeMatchOnly,
+        allowAdjacentGrade,
+        allowAdjacentGradeSubstitution,
         strictDayMatch = false
     } = params;
+
+    const effectiveStrictSubjectMatch = strictSubjectMatch ?? strictSubjectMatchOnly ?? true;
+    const effectiveStrictGradeMatch = strictGradeMatch ?? strictGradeMatchOnly ?? true;
+    const effectiveAllowAdjacentGrade = allowAdjacentGrade ?? allowAdjacentGradeSubstitution ?? false;
 
     const isWeekend = ['Saturday', 'Sunday'].includes(allocation.dayOfWeek);
     const dailyQuota = isWeekend ? maxWeekendLessonsPerDay : maxLessonsPerDay;
@@ -390,7 +400,7 @@ export function rankSubstituteCandidates(params: {
             isMetaSubjectMatch;
 
         // Disqualify if strictSubjectMatch is enabled and teacher doesn't teach this subject
-        if (strictSubjectMatch && !isSubjectMatch && !matchesDepartment) {
+        if (effectiveStrictSubjectMatch && !isSubjectMatch && !matchesDepartment) {
             continue; // Not qualified for this subject
         }
 
@@ -410,14 +420,14 @@ export function rankSubstituteCandidates(params: {
         const isExactGradeTimetable = teachesExactClass;
 
         const isGradeMatch = isExactGradeAuth || isExactGradeRemedial || isExactGradeMeta || isExactGradeTimetable;
-        const isAdjacentGradeMatch = allowAdjacentGrade && (
+        const isAdjacentGradeMatch = effectiveAllowAdjacentGrade && (
             authorizedGrades.some(g => isAdjacentGrade(g, targetGrade)) ||
             teacherRemedialGrades.some(g => isAdjacentGrade(g, targetGrade))
         );
 
         // If teacher has explicit authorized grades or remedial teaching history, enforce grade match
         const hasDefinedGradeQualifications = authorizedGrades.length > 0 || teacherRemedialGrades.length > 0 || teacherGradesInMeta.length > 0;
-        if (strictGradeMatch && hasDefinedGradeQualifications && !isGradeMatch && !isAdjacentGradeMatch) {
+        if (effectiveStrictGradeMatch && hasDefinedGradeQualifications && !isGradeMatch && !isAdjacentGradeMatch) {
             continue; // Not qualified to teach this grade level (e.g. Form 1 teacher attempting Form 4)
         }
 
@@ -524,6 +534,7 @@ export interface TeacherQualificationResult {
     isSubjectMatch: boolean;
     isGradeMatch: boolean;
     isPreferredDay?: boolean;
+    primarySubject?: string;
 }
 
 /**
@@ -634,12 +645,17 @@ export function isTeacherQualifiedForLesson(params: TeacherQualificationParams):
         isPreferredDay = teacherPref.preferredDays.includes(targetDayOfWeek);
     }
 
+    const primarySubject = (teacherPref?.authorizedSubjects && teacherPref.authorizedSubjects[0]) ||
+        ((teacherMeta.subjects || teacherMeta.subjectIds || []) as string[])[0] ||
+        (cleanSubj && isSubjectMatch ? cleanSubj : undefined);
+
     return {
         qualified: reasons.length === 0,
         reasons,
         isSubjectMatch,
         isGradeMatch: isGradeMatch || isAdjacentMatch,
-        isPreferredDay
+        isPreferredDay,
+        primarySubject
     };
 }
 
