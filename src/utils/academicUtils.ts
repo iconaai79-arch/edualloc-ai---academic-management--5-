@@ -1079,3 +1079,89 @@ export const filterGradesForInstitution = (
         return true;
     });
 };
+
+/**
+ * Resolves courseId and classId for a student or enrollment against the available courses.
+ * Matches by explicit IDs, metadata, or by matching the student's class/grade name and stream
+ * against the courses and their levels.
+ */
+export const resolveStudentCourseAndClassId = (
+    studentOrEnr: any,
+    courses: any[],
+    user?: any
+): { courseId: string; classId: string } => {
+    let resolvedCourseId = '';
+    let resolvedClassId = '';
+
+    if (!studentOrEnr && !user) return { courseId: '', classId: '' };
+
+    const src = studentOrEnr || {};
+    const u = user || {};
+    const meta = (typeof src.metadata === 'object' && src.metadata !== null) ? src.metadata : {};
+    const uMeta = (typeof u.metadata === 'object' && u.metadata !== null) ? u.metadata : {};
+
+    // 1. Direct explicit ID checks on record
+    resolvedCourseId = String(src.courseId || src.course_id || meta.courseId || meta.course_id || u.courseId || u.course_id || uMeta.courseId || uMeta.course_id || '').trim();
+    resolvedClassId = String(src.classId || src.class_id || src.courseLevelId || src.course_level_id || meta.classId || meta.class_id || meta.courseLevelId || meta.levelId || u.courseLevelId || u.course_level_id || u.classId || u.class_id || uMeta.courseLevelId || uMeta.classId || '').trim();
+
+    if (['null', 'undefined', '—', '-'].includes(resolvedCourseId.toLowerCase())) resolvedCourseId = '';
+    if (['null', 'undefined', '—', '-'].includes(resolvedClassId.toLowerCase())) resolvedClassId = '';
+
+    // If both are already valid non-empty IDs, return immediately
+    if (resolvedCourseId && resolvedClassId) {
+        return { courseId: resolvedCourseId, classId: resolvedClassId };
+    }
+
+    if (!Array.isArray(courses) || courses.length === 0) {
+        return { courseId: resolvedCourseId, classId: resolvedClassId };
+    }
+
+    // 2. Identify candidate Grade / Class and Stream strings
+    const gradeCand = resolveRealStudentClass(src, undefined, courses, '') || resolveRealStudentClass(u, undefined, courses, '');
+    const streamCand = resolveRealStudentStream(src, undefined, courses) || resolveRealStudentStream(u, undefined, courses);
+
+    const normGrade = gradeCand ? normalizeClassName(gradeCand).toLowerCase().trim() : '';
+    const normStream = streamCand ? normalizeStreamName(streamCand).toLowerCase().trim() : '';
+
+    // 3. Find matching Course if courseId is missing
+    let matchedCourse = courses.find((c: any) => c && c.id && c.id === resolvedCourseId);
+
+    if (!matchedCourse && normGrade) {
+        matchedCourse = courses.find((c: any) => {
+            if (!c) return false;
+            const cName = normalizeClassName(c.name || c.title || c.code || '').toLowerCase().trim();
+            if (cName === normGrade) return true;
+            // Handle variations: "Grade 1" vs "1" or "Form 4" vs "Form 4 East"
+            if (cName && (normGrade.startsWith(cName) || cName.startsWith(normGrade))) return true;
+            return false;
+        });
+    }
+
+    if (matchedCourse) {
+        if (!resolvedCourseId) {
+            resolvedCourseId = matchedCourse.id;
+        }
+
+        // 4. Resolve classId (CourseLevel ID) from course.levels
+        if (!resolvedClassId && Array.isArray(matchedCourse.levels) && matchedCourse.levels.length > 0) {
+            if (normStream) {
+                const matchedLevel = matchedCourse.levels.find((lvl: any) => {
+                    if (!lvl) return false;
+                    const lvlName = normalizeStreamName(lvl.name || '').toLowerCase().trim();
+                    return lvlName === normStream || (lvlName && (normStream.includes(lvlName) || lvlName.includes(normStream)));
+                });
+                if (matchedLevel?.id) {
+                    resolvedClassId = matchedLevel.id;
+                }
+            }
+
+            // Fallback: If only 1 level exists or no stream was matched, use the first level
+            if (!resolvedClassId && matchedCourse.levels[0]?.id) {
+                resolvedClassId = matchedCourse.levels[0].id;
+            }
+        }
+    }
+
+    return { courseId: resolvedCourseId, classId: resolvedClassId };
+};
+

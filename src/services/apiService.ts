@@ -2425,6 +2425,22 @@ export const apiService = {
                             enr.studentClass = enr.gradeLevel;
                         }
 
+                        // 5. Course & Class (CourseLevel) IDs: Normalize from DB columns or metadata
+                        const cIdVal = enr.course_id || enr.courseId || meta.courseId || meta.course_id || '';
+                        if (cIdVal && !['null', 'undefined'].includes(String(cIdVal).toLowerCase())) {
+                            const cleanCId = String(cIdVal).trim();
+                            enr.course_id = cleanCId;
+                            enr.courseId = cleanCId;
+                            if (!meta.courseId) meta.courseId = cleanCId;
+                        }
+                        const clsIdVal = enr.class_id || enr.classId || enr.courseLevelId || enr.course_level_id || meta.classId || meta.class_id || meta.courseLevelId || meta.levelId || '';
+                        if (clsIdVal && !['null', 'undefined'].includes(String(clsIdVal).toLowerCase())) {
+                            const cleanClsId = String(clsIdVal).trim();
+                            enr.class_id = cleanClsId;
+                            enr.classId = cleanClsId;
+                            if (!meta.classId) meta.classId = cleanClsId;
+                        }
+
                         const dobVal = enr.dateOfBirth || enr.date_of_birth || enr.dob || meta.dateOfBirth || meta.date_of_birth || meta.dob || '';
                         if (dobVal) {
                             enr.dateOfBirth = dobVal;
@@ -3051,8 +3067,18 @@ export const apiService = {
                 if (item.dateOfBirth && !item.date_of_birth) item.date_of_birth = item.dateOfBirth;
                 if (item.dob && !item.date_of_birth) item.date_of_birth = item.dob;
                 if (item.leadershipPosition && !item.leadership_position) item.leadership_position = item.leadershipPosition;
-                if (item.courseId && !item.course_id) item.course_id = item.courseId;
-                if (item.classId && !item.class_id) item.class_id = item.classId;
+                const courseIdVal = item.course_id || item.courseId || meta.courseId || meta.course_id;
+                if (courseIdVal && !['null', 'undefined'].includes(String(courseIdVal).toLowerCase())) {
+                    const cleanCId = String(courseIdVal).trim();
+                    item.course_id = cleanCId;
+                    meta.courseId = cleanCId;
+                }
+                const classIdVal = item.class_id || item.classId || item.courseLevelId || item.course_level_id || meta.classId || meta.class_id || meta.courseLevelId;
+                if (classIdVal && !['null', 'undefined'].includes(String(classIdVal).toLowerCase())) {
+                    const cleanClsId = String(classIdVal).trim();
+                    item.class_id = cleanClsId;
+                    meta.classId = cleanClsId;
+                }
 
                 // Strip non-column transient fields from root so PostgreSQL doesn't reject them
                 delete item.admissionNumber;

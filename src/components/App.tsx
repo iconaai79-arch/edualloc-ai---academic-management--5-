@@ -2113,13 +2113,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             const meta = (typeof matched.metadata === 'object' && matched.metadata !== null) ? matched.metadata : {};
                             const gLvl = matched.gradeLevel || (matched as any).grade_level || (matched as any).studentClass || (matched as any).student_class || meta.gradeLevel || meta.studentClass;
                             const strm = matched.stream || (matched as any).streamName || meta.stream;
+                            const mCourseId = matched.courseId || (matched as any).course_id || meta.courseId;
+                            const mClassId = matched.classId || (matched as any).class_id || (matched as any).courseLevelId || meta.classId || meta.courseLevelId;
 
                             const curAdm = u.admissionNumber || (u as any).admission_number;
                             const needsAdm = (!curAdm || curAdm === '—' || curAdm === '-') && mAdm;
                             const needsClass = (!u.studentClass && !u.gradeLevel) && gLvl;
                             const needsStream = !u.stream && strm;
+                            const needsCourse = !u.courseId && mCourseId;
+                            const needsLevel = !u.courseLevelId && mClassId;
 
-                            if (needsAdm || needsClass || needsStream) {
+                            if (needsAdm || needsClass || needsStream || needsCourse || needsLevel) {
                                 hasChanges = true;
                                 const updated = { ...u };
                                 if (needsAdm) {
@@ -2134,6 +2138,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 }
                                 if (needsStream) {
                                     updated.stream = strm;
+                                }
+                                if (needsCourse) {
+                                    updated.courseId = mCourseId;
+                                    if (!updated.metadata) updated.metadata = {};
+                                    (updated.metadata as any).courseId = mCourseId;
+                                }
+                                if (needsLevel) {
+                                    updated.courseLevelId = mClassId;
+                                    if (!updated.metadata) updated.metadata = {};
+                                    (updated.metadata as any).courseLevelId = mClassId;
                                 }
                                 return updated;
                             }
