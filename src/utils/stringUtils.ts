@@ -114,3 +114,104 @@ export const slugify = (text: string): string => {
         .replace(/[^\w-]+/g, '')
         .replace(/--+/g, '-');
 };
+
+/**
+ * Safely and comprehensively extracts a clean, dialed-ready Kenyan parent phone number
+ * from a student object and/or linked enrollments list.
+ * Checks all nested metadata, alternate fields, guardian contacts, and enrollment records.
+ */
+export const extractParentPhoneNumber = (student?: any, enrollments?: any[]): string => {
+    if (!student) return '';
+
+    const isPlaceholderPhone = (p: string): boolean => {
+        if (!p) return true;
+        const digits = p.replace(/\D/g, '');
+        if (digits.length < 9) return true;
+        if (/^(0+|1+|2+|3+|4+|5+|6+|7+|8+|9+)$/.test(digits)) return true;
+        if (digits === '254700000000' || digits === '0700000000' || digits === '123456789') return true;
+        return false;
+    };
+
+    const candidates: (string | undefined | null)[] = [
+        student.parentPhone,
+        student.parent_phone,
+        student.parentPhoneNumber,
+        student.parent_phone_number,
+        student.parentPhone2,
+        student.guardianPhone,
+        student.guardian_phone,
+        student.guardianPhoneNumber,
+        student.metadata?.parentPhone,
+        student.metadata?.parent_phone,
+        student.metadata?.parentPhoneNumber,
+        student.metadata?.parent_phone_number,
+        student.metadata?.parentPhone2,
+        student.metadata?.secondaryPhone,
+        student.metadata?.guardianPhone,
+        student.metadata?.guardian_phone,
+        student.metadata?.fatherPhone,
+        student.metadata?.motherPhone,
+        student.metadata?.parents?.[0]?.phone,
+        student.metadata?.parents?.[1]?.phone,
+        student.phone,
+        student.phoneNumber,
+        student.phone_number,
+        student.metadata?.phoneNumber,
+        student.metadata?.phone_number
+    ];
+
+    // Check linked enrollments if available
+    if (Array.isArray(enrollments) && enrollments.length > 0) {
+        const studentId = student.id || student.userId || (student as any).user_id;
+        const studentAdm = student.admissionNumber || (student as any).admission_number || (student as any).admNo || student.metadata?.admissionNumber;
+        
+        const matchedEnrs = enrollments.filter((e: any) => {
+            if (!e) return false;
+            if (studentId && (e.userId === studentId || e.user_id === studentId || e.studentId === studentId || e.student_id === studentId || e.id === studentId)) return true;
+            if (studentAdm) {
+                const eAdm = e.admissionNumber || e.admission_number || e.admNo || e.metadata?.admissionNumber;
+                if (eAdm && String(eAdm).trim().toLowerCase() === String(studentAdm).trim().toLowerCase()) return true;
+            }
+            return false;
+        });
+
+        matchedEnrs.forEach((enr: any) => {
+            candidates.push(
+                enr.parentPhone,
+                enr.parent_phone,
+                enr.parentPhoneNumber,
+                enr.parent_phone_number,
+                enr.secondaryPhone,
+                enr.secondary_phone,
+                enr.guardianPhone,
+                enr.guardian_phone,
+                enr.metadata?.parentPhone,
+                enr.metadata?.parent_phone,
+                enr.metadata?.parentPhoneNumber,
+                enr.metadata?.parent_phone_number,
+                enr.metadata?.parentPhone2,
+                enr.metadata?.secondaryPhone,
+                enr.metadata?.guardianPhone,
+                enr.metadata?.guardian_phone,
+                enr.metadata?.fatherPhone,
+                enr.metadata?.motherPhone,
+                enr.metadata?.parents?.[0]?.phone,
+                enr.phoneNumber,
+                enr.phone_number
+            );
+        });
+    }
+
+    for (const raw of candidates) {
+        if (!raw || typeof raw !== 'string') continue;
+        const trimmed = raw.trim();
+        if (isPlaceholderPhone(trimmed)) continue;
+        if (trimmed.includes('@')) continue;
+        const formatted = formatPhoneNumber(trimmed);
+        if (formatted && formatted.length >= 10 && !isPlaceholderPhone(formatted)) {
+            return formatted;
+        }
+    }
+
+    return '';
+};

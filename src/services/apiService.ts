@@ -5850,7 +5850,8 @@ export const apiService = {
                     units, 
                     institutionId: effectiveInstId,
                     isOtp: isOtpMsg,
-                    isSystemMessage: isOtpMsg
+                    isSystemMessage: isOtpMsg || Boolean(isSystemAlert),
+                    isSystemAlert: Boolean(isSystemAlert)
                 })
             });
 

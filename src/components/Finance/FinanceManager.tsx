@@ -49,6 +49,7 @@ import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { generateKenyanStampSvgString } from '../../utils/stampGenerator';
 import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
+import { extractParentPhoneNumber } from '../../utils/stringUtils';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -5804,8 +5805,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
                         const bSms = `[${bulkSchool}] KSh ${rec.amountPaid.toLocaleString()} received. Receipt: ${rec.receiptNumber}. Download: ${bLink}`;
                         if (excelImportSendSms) {
-                            if (bStudent.phoneNumber) apiService.sendSms(bStudent.phoneNumber, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
-                            if (bStudent.metadata?.parentPhone) apiService.sendSms(bStudent.metadata.parentPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id).catch(() => {});
+                            const bPhone = extractParentPhoneNumber(bStudent, mergedEnrollments);
+                            if (bPhone) {
+                                apiService.sendSms(bPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id, undefined, true).catch(() => {});
+                            }
                         }
                         if (excelImportSendEmail && bStudent.email && !isPlaceholderEmail(bStudent.email)) {
                             const bHtml = `<p>Dear ${bStudent.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${rec.amountPaid.toLocaleString()}</strong> received. Receipt No: <strong>${rec.receiptNumber}</strong>.</p><p>Download: <a href="${bLink}">${bLink}</a></p><p>${bulkSchool} Accounts Office</p>`;
@@ -25629,7 +25632,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                 invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
                 receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
-                enrollments={enrollments}
+                enrollments={mergedEnrollments.length > 0 ? mergedEnrollments : enrollments}
                 userName={props.currentUser?.name || props.currentUser?.email || 'Finance Officer'}
                 currentUser={props.currentUser}
                 onReceiptCreated={(r: any) => {

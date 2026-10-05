@@ -22,6 +22,7 @@ import {
 import { apiService } from '../../services/apiService';
 import { whatsappService } from '../../services/whatsappService';
 import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
+import { extractParentPhoneNumber } from '../../utils/stringUtils';
 
 export interface VoteHeadAllocationItem {
     voteHead: string;
@@ -1347,12 +1348,12 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                     // Asynchronous SMS dispatch to Parent if enabled
                     if (sendSmsNotification && student) {
-                        const parentPhone = student.parentPhone || student.phoneNumber || student.parentPhone2 || (student as any)?.guardianPhone;
+                        const parentPhone = extractParentPhoneNumber(student, enrollments);
                         if (parentPhone) {
                             const cleanPhone = String(parentPhone).trim();
                             const shortName = (student.name || 'Student').split(' ')[0];
                             const smsMsg = `Dear Parent/Guardian, received KES ${Number(item.rawAmount).toLocaleString()} for ${shortName} (${sAdm}). Receipt: ${receiptNumber}. Date: ${item.rawDate}. Thank you, ${institution?.name || 'School'}.`;
-                            apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId).catch(err => {
+                            apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId, undefined, true).catch(err => {
                                 console.warn('[ReceiveFeesModal] SMS notification error:', err);
                             });
                         }
@@ -1360,7 +1361,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
                     // Asynchronous WhatsApp receipt dispatch if enabled
                     if (sendWhatsAppNotification && student) {
-                        const parentPhone = student.parentPhone || student.phoneNumber || student.parentPhone2 || (student as any)?.guardianPhone;
+                        const parentPhone = extractParentPhoneNumber(student, enrollments);
                         if (parentPhone) {
                             whatsappService.sendPaymentReceipt({
                                 institutionId: instId,
@@ -1487,21 +1488,32 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
             if (onLogAction) await onLogAction(`Manually received KES ${Number(manualAmount).toLocaleString()} for ${manualSelectedStudent.name} (${sAdm}) with Receipt ${receiptNumber}`);
             
             // Dispatch SMS if checked
+            let smsSuccessNote = '';
             if (manualSendSms) {
-                const parentPhone = manualSelectedStudent.parentPhone || manualSelectedStudent.phoneNumber || manualSelectedStudent.parentPhone2;
+                const parentPhone = extractParentPhoneNumber(manualSelectedStudent, enrollments);
                 if (parentPhone) {
                     const cleanPhone = String(parentPhone).trim();
                     const shortName = manualSelectedStudent.name.split(' ')[0];
                     const smsMsg = `Dear Parent/Guardian, received KES ${Number(manualAmount).toLocaleString()} for ${shortName} (${sAdm}). Receipt: ${receiptNumber}. Date: ${manualDate}. Thank you, ${institution?.name || 'School'}.`;
-                    apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId).catch(err => {
+                    try {
+                        const smsRes = await apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId, undefined, true);
+                        if (smsRes && smsRes.success === false) {
+                            smsSuccessNote = ` (⚠️ SMS Notice: ${smsRes.message || 'Check SMS balance in Settings'})`;
+                        } else {
+                            smsSuccessNote = ` (📱 SMS receipt sent to ${cleanPhone})`;
+                        }
+                    } catch (err: any) {
                         console.warn('[ReceiveFeesModal] Manual SMS notice:', err);
-                    });
+                        smsSuccessNote = ` (⚠️ SMS Notice: ${err?.message || 'Delivery error'})`;
+                    }
+                } else {
+                    smsSuccessNote = ` (⚠️ Note: No parent phone found on record for ${manualSelectedStudent.name})`;
                 }
             }
 
             // Dispatch WhatsApp receipt if checked
             if (manualSendWhatsApp) {
-                const parentPhone = manualSelectedStudent.parentPhone || manualSelectedStudent.phoneNumber || manualSelectedStudent.parentPhone2;
+                const parentPhone = extractParentPhoneNumber(manualSelectedStudent, enrollments);
                 if (parentPhone) {
                     whatsappService.sendPaymentReceipt({
                         institutionId: instId,
@@ -1521,7 +1533,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
 
             if (onRefreshData) await onRefreshData();
 
-            setManualSuccessMsg(`Receipt ${receiptNumber} created successfully for ${manualSelectedStudent.name}!`);
+            setManualSuccessMsg(`Receipt ${receiptNumber} created successfully for ${manualSelectedStudent.name}!${smsSuccessNote}`);
             setManualSelectedStudent(null);
             setManualStudentSearch('');
             setManualAmount('');

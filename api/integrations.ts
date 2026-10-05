@@ -121,8 +121,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Detect system messages (OTPs, recovery links, 2FA codes) early for auth bypass and failover routing
     const msgLower = (message || '').toLowerCase();
-    const isExplicitOtp = getParam('isOtp') === 'true' || getParam('isSystemMessage') === 'true' || (paramsMap as any).isOtp === true || (paramsMap as any).isSystemMessage === true;
-    const isSystemMessage = isExplicitOtp ||
+    const isExplicitOtp = getParam('isOtp') === 'true' || getParam('isSystemMessage') === 'true' || getParam('isSystemAlert') === 'true' || (paramsMap as any).isOtp === true || (paramsMap as any).isSystemMessage === true || (paramsMap as any).isSystemAlert === true;
+    const isPaymentReceiptMsg = msgLower.includes('receipt') || msgLower.includes('received kes') || msgLower.includes('received ksh') || msgLower.includes('payment receipt') || msgLower.includes('fees received') || (paramsMap as any).isPaymentReceipt === true;
+    const isSystemMessage = isExplicitOtp || isPaymentReceiptMsg ||
         msgLower.includes('verification code') ||
         msgLower.includes('verification') ||
         msgLower.includes('verificaiton') || // Typo tolerance
@@ -1216,10 +1217,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'admin', 'super_admin', 'reseller', 'county_admin', 'county_staff', 'county_cec', 'county_governor', 'county_director', 'county_co', 
                 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
                 'agrovet_admin', 'coop_admin', 'coop_chairman', 'sacco_officer', 'cooperative_manager',
-                'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin'
+                'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin',
+                'teacher', 'lecturer', 'driving_instructor', 'director', 'manager', 'finance', 'finance_officer', 'bursar', 'accountant', 'cashier', 'treasurer', 'hoi', 'managing_director', 'procurement_officer', 'hr_officer', 'staff'
             ];
             // Regular authenticated sendEmail requires admin privileges. 
-            // 'system' user or isSystemMessage (OTP, Reset) is allowed for all categories
+            // 'system' user or isSystemMessage (OTP, Reset, Receipts) is allowed for all categories
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system emails.' });
             }
@@ -1713,7 +1715,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 'head_teacher', 'hod', 'tto', 'dos', 'deputy', 'academics_officer',
                 'agrovet_admin', 'coop_admin', 'coop_chairman', 'sacco_officer', 'cooperative_manager',
                 'property_admin', 'landlord', 'his_admin', 'carwash_admin', 'transport_admin', 'mechanic_admin', 'church_admin',
-                'teacher', 'lecturer', 'driving_instructor', 'director', 'manager', 'finance', 'staff'
+                'teacher', 'lecturer', 'driving_instructor', 'director', 'manager', 'finance', 'finance_officer', 'bursar', 'accountant', 'cashier', 'treasurer', 'hoi', 'managing_director', 'procurement_officer', 'hr_officer', 'staff'
             ];
 
             if (!adminRoles.includes(user.role) && user.id !== 'system' && !isSystemMessage) {
@@ -1795,10 +1797,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     // For non-system administrative messages, verify tenant has sufficient SMS balance
-                    if (user.id !== 'system' && !isSystemMessage && instBalance < totalUnitsToDeduct) {
+                    // If tenant has configured their own third-party SMS gateway credentials, they bypass platform credit deduction
+                    const tenantHasCustomGateway = hasValidSmsCreds(bodyConfig) || hasValidSmsCreds(instConfig);
+                    if (!tenantHasCustomGateway && user.id !== 'system' && !isSystemMessage && instBalance < totalUnitsToDeduct) {
                         return res.status(402).json({
                             success: false,
-                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${instBalance}.`,
+                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${instBalance}. Please top up units in Settings > Billing.`,
                             balance: instBalance,
                             required: totalUnitsToDeduct,
                             buy_url: '/settings?tab=billing'

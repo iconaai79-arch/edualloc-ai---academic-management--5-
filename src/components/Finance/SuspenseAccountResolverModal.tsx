@@ -8,6 +8,7 @@ import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { MpesaIcon } from '../icons/MpesaIcon';
 import { UserIcon } from '../icons/UserIcon';
 import { apiService } from '../../services/apiService';
+import { extractParentPhoneNumber } from '../../utils/stringUtils';
 
 export interface UnmatchedTransaction {
     id: string;
@@ -175,14 +176,16 @@ export function SuspenseAccountResolverModal({
             });
 
             // 3. Dispatch SMS notification to parent if enabled
-            if (sendSmsNotification && (transaction.payerPhone || activeSelectedStudent.parentPhone)) {
-                const targetPhone = transaction.payerPhone || activeSelectedStudent.parentPhone;
+            const resolvedParentPhone = transaction.payerPhone || extractParentPhoneNumber(activeSelectedStudent);
+            if (sendSmsNotification && resolvedParentPhone) {
                 await apiService.sendSms(
-                    targetPhone,
+                    resolvedParentPhone,
                     `Dear Parent, your fee payment of KES ${transaction.amount.toLocaleString()} (Ref: ${transaction.transactionCode}) has been successfully credited to ${studentName} (Adm: ${admNo}). Thank you.`,
                     undefined,
                     1,
-                    institutionId
+                    institutionId,
+                    undefined,
+                    true
                 ).catch(() => null);
             }
 

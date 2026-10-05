@@ -3,6 +3,7 @@ import type { User, Institution, Invoice, Receipt } from '../../types';
 import { XIcon } from '../icons';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentAdmNo, isPlaceholderEmail, isSyntheticAdmNo } from '../../utils/academicUtils';
+import { extractParentPhoneNumber } from '../../utils/stringUtils';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -596,23 +597,41 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                 onRefreshData().catch(() => {});
             }
 
-            // Background notifications without blocking modal completion
+            // Notification dispatch
+            let smsNotice = '';
             try {
                 const notifyStudent = students.find((s: any) => s.id === manualPayStudentId);
                 const notifySchool = institution.name || 'School';
+                const sAdm = resolveRealStudentAdmNo(notifyStudent, undefined, enrollments);
+                const sAdmDisplay = sAdm && sAdm !== 'N/A' ? ` (${sAdm})` : '';
                 const receiptLink = `${window.location.origin}/?receipt=${receiptNumber}`;
-                const smsText = `[${notifySchool}] KSh ${amountNum.toLocaleString()} received. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
+                const smsText = `[${notifySchool}] KSh ${amountNum.toLocaleString()} received for ${notifyStudent?.name?.split(' ')[0] || 'student'}${sAdmDisplay}. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
                 const emailHtml = `<p>Dear ${notifyStudent?.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${amountNum.toLocaleString()}</strong> has been received.</p><p><b>Receipt No:</b> ${receiptNumber}<br/><b>Method:</b> ${manualPayMethod}<br/><b>Ref:</b> ${manualPayReference || 'N/A'}<br/><b>Date:</b> ${manualPayDate}</p><p>Download receipt: <a href="${receiptLink}">${receiptLink}</a></p><p>Thank you,<br/>${notifySchool} Accounts Office</p>`;
+
                 if (sendSmsNotification) {
-                    if (notifyStudent?.phoneNumber) apiService.sendSms(notifyStudent.phoneNumber, smsText, (institution as any).smsConfig, 1, institution.id).catch(() => {});
-                    if (notifyStudent?.metadata?.parentPhone) apiService.sendSms(notifyStudent.metadata.parentPhone, smsText, (institution as any).smsConfig, 1, institution.id).catch(() => {});
+                    const parentPhone = extractParentPhoneNumber(notifyStudent, enrollments);
+                    if (parentPhone) {
+                        try {
+                            const smsRes = await apiService.sendSms(parentPhone, smsText, (institution as any).smsConfig, 1, institution.id, undefined, true);
+                            if (smsRes && smsRes.success === false) {
+                                smsNotice = `\n\n⚠️ SMS Receipt Warning: Failed to send SMS to parent (${parentPhone}): ${smsRes.message || 'Insufficient SMS units or gateway offline'}`;
+                            } else {
+                                smsNotice = `\n\n📱 Instant SMS receipt alert sent to parent (${parentPhone}).`;
+                            }
+                        } catch (smsErr: any) {
+                            smsNotice = `\n\n⚠️ SMS Receipt Warning: ${smsErr?.message || 'SMS delivery failed'}`;
+                        }
+                    } else {
+                        smsNotice = `\n\n⚠️ SMS Receipt Notice: No parent phone number found for ${notifyStudent?.name || 'this student'}. Please add a parent phone in Student Enrollments to enable instant receipt SMS alerts.`;
+                    }
                 }
+
                 if (sendEmailNotification && notifyStudent?.email && !isPlaceholderEmail(notifyStudent.email)) {
                     apiService.sendEmail(notifyStudent.email, `Payment Receipt ${receiptNumber} — ${notifySchool}`, emailHtml).catch(() => {});
                 }
             } catch (_ne) { /* notifications are non-critical */ }
 
-            alert(`Receipt ${receiptNumber} generated and payment allocated successfully!`);
+            alert(`Receipt ${receiptNumber} generated and payment allocated successfully!${smsNotice}`);
             onClose();
         } catch (e: any) {
             alert("Failed to post receipt: " + (e.message || e));
