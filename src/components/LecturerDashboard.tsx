@@ -22,7 +22,7 @@ import { AbsenceRequestModal } from './AbsenceRequestModal';
 import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/locationUtils';
 import { MyTasks } from './MyTasks';
 import { AttendanceTakerModal } from './AttendanceTakerModal';
-import { CheckCircle2, ArrowRight, Clock, AlertTriangle, Play, Calendar } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Clock, AlertTriangle, Play, Calendar, UserPlus, GraduationCap } from 'lucide-react';
 
 
 interface LecturerDashboardProps {
@@ -490,13 +490,22 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => setActiveTab('class_supervisor_attendance')}
-                        className="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
-                    >
-                        <span>Take Class Roll Call</span>
-                        <ArrowRight className="w-4 h-4" />
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto shrink-0">
+                        <button
+                            onClick={() => setActiveTab('class_supervisor_students')}
+                            className="px-5 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            <span>Manage & Enroll Students</span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('class_supervisor_attendance')}
+                            className="px-6 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                        >
+                            <span>Take Class Roll Call</span>
+                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -507,12 +516,19 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                     <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-widest mt-0.5">Primary Launch Pad</p>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <div className={`grid grid-cols-2 sm:grid-cols-3 ${canAccessSupervisor ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-4`}>
                     {[
                         { id: 'self_checkin', label: 'Clock In/Out', desc: 'Verify Attendance', color: 'from-emerald-500/10 to-teal-500/5 border-emerald-500/20 text-emerald-600 dark:text-emerald-400', icon: <ClockInIcon className="w-6 h-6" /> },
                         { id: 'my_timetable', label: 'Weekly Schedule', desc: 'Browse Timetable', color: 'from-indigo-500/10 to-violet-500/5 border-indigo-500/20 text-indigo-600 dark:text-indigo-400', icon: <CalendarDaysIcon className="w-6 h-6" /> },
                         { id: 'eduflow', label: 'EduFlow Tasks', desc: 'View Workflows', color: 'from-purple-500/10 to-pink-500/5 border-purple-500/20 text-purple-600 dark:text-purple-400', icon: <ClipboardListIcon className="w-6 h-6" /> },
                         { id: 'academic_hub', label: 'Marks Hub', desc: 'Assessments', color: 'from-amber-500/10 to-orange-500/5 border-amber-500/20 text-amber-600 dark:text-amber-400', icon: <BookOpenIcon className="w-6 h-6" /> },
+                        ...(canAccessSupervisor ? [{
+                            id: 'class_supervisor_students',
+                            label: 'Class Students',
+                            desc: 'Enroll & Edit Learners',
+                            color: 'from-blue-500/10 to-cyan-500/5 border-blue-500/20 text-blue-600 dark:text-blue-400',
+                            icon: <GraduationCap className="w-6 h-6" />
+                        }] : []),
                         { 
                             id: 'remedials', 
                             label: 'Remedials Hub', 

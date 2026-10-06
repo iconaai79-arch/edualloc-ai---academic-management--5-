@@ -43,7 +43,8 @@ END $$;
 
 -- Helper to extract grade name from metadata or text
 CREATE OR REPLACE FUNCTION public.fn_extract_clean_grade(p_grade TEXT, p_meta JSONB)
-RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE
+SET search_path = public, pg_temp AS $$
 DECLARE
     candidates TEXT[];
     c TEXT;
@@ -75,7 +76,8 @@ $$;
 
 -- Helper to extract stream name from metadata or text
 CREATE OR REPLACE FUNCTION public.fn_extract_clean_stream(p_stream TEXT, p_meta JSONB)
-RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE
+SET search_path = public, pg_temp AS $$
 DECLARE
     candidates TEXT[];
     c TEXT;

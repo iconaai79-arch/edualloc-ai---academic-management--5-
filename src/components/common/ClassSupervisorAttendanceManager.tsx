@@ -4,7 +4,7 @@ import { apiService } from '../../services/apiService';
 import { extractClassAndStream, naturalClassSort } from '../../utils/academicUtils';
 import { 
     CheckCircle2, XCircle, Clock, Users, 
-    CheckCheck, Send, Printer, Search, ShieldCheck
+    CheckCheck, Send, Printer, Search, ShieldCheck, UserPlus
 } from 'lucide-react';
 
 export interface ClassSupervisorAttendanceManagerProps {
@@ -19,6 +19,7 @@ export interface ClassSupervisorAttendanceManagerProps {
     activeSemester?: Semester | null;
     onSaveAttendance?: (lessonId: string, data: { studentId: string; status: 'present' | 'absent' | 'late' | 'excused'; remarks?: string }[]) => Promise<void>;
     onLogAction?: (msg: string) => void;
+    onManageStudents?: () => void;
 }
 
 export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanceManagerProps> = ({
@@ -32,7 +33,8 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
     activeAcademicYear,
     activeSemester,
     onSaveAttendance,
-    onLogAction
+    onLogAction,
+    onManageStudents
 }) => {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -309,16 +311,30 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
                         </p>
                     </div>
 
-                    {/* Date Control */}
-                    <div className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-lg">
-                        <div>
-                            <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block px-2">Register Date</label>
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={e => setSelectedDate(e.target.value)}
-                                className="bg-slate-950 text-xs font-mono font-bold text-white px-3 py-2 rounded-xl border border-slate-700/80 focus:ring-2 focus:ring-cyan-500 outline-none"
-                            />
+                    <div className="flex flex-wrap items-center gap-3">
+                        {onManageStudents && (
+                            <button
+                                type="button"
+                                onClick={onManageStudents}
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+                                title="Enroll new students or edit student details for this class"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                <span>Enroll / Edit Students</span>
+                            </button>
+                        )}
+
+                        {/* Date Control */}
+                        <div className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-lg">
+                            <div>
+                                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block px-2">Register Date</label>
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={e => setSelectedDate(e.target.value)}
+                                    className="bg-slate-950 text-xs font-mono font-bold text-white px-3 py-2 rounded-xl border border-slate-700/80 focus:ring-2 focus:ring-cyan-500 outline-none"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -337,7 +353,7 @@ export const ClassSupervisorAttendanceManager: React.FC<ClassSupervisorAttendanc
                 </div>
 
                 <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
-                    {availableClasses.map(cls => {
+                    {availableClasses.map((cls: string) => {
                         const isActive = selectedClass === cls;
                         const studentCount = allStudents.filter(s => doesStudentMatchClass(s, cls)).length;
                         return (

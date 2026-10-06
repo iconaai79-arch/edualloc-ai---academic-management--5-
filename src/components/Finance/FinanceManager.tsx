@@ -2463,7 +2463,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const strictAdmToStudent = new Map<string, any>();
 
             allStudentsPool.forEach(student => {
-                const enr = (props.enrollments || []).find(e => e.userId === student.id || (e as any).studentId === student.id);
+                const enr = ((props as any).enrollments || []).find((e: any) => e.userId === student.id || e.studentId === student.id);
                 const adms = [
                     student.admissionNumber,
                     (student as any).admission_number,
@@ -7276,25 +7276,25 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     // Un-invoiced students billing scope, periods, and fee structure resolution
     const [uninvoicedBillingScope, setUninvoicedBillingScope] = useState<'all_time' | 'term' | 'annual'>('all_time');
     const [uninvoicedAcademicYearId, setUninvoicedAcademicYearId] = useState<string>(() => {
-        const activeAY = props.academicYears?.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears?.[0];
+        const activeAY = props.academicYears?.find(ay => ay.status?.toLowerCase() === 'active' || ay.isCurrent) || props.academicYears?.[0];
         return activeAY?.id || '';
     });
     const [uninvoicedSemesterId, setUninvoicedSemesterId] = useState<string>(() => {
-        const activeSem = props.semesters?.find(s => s.status === 'Active' || s.isCurrent) || props.semesters?.[0];
+        const activeSem = props.semesters?.find(s => s.status?.toLowerCase() === 'active' || s.isCurrent) || props.semesters?.[0];
         return activeSem?.id || '';
     });
     const [uninvoicedIncludeTransport, setUninvoicedIncludeTransport] = useState(true);
 
     useEffect(() => {
         if (!uninvoicedAcademicYearId && props.academicYears && props.academicYears.length > 0) {
-            const active = props.academicYears.find(ay => ay.status === 'Active' || ay.isCurrent) || props.academicYears[0];
+            const active = props.academicYears.find(ay => ay.status?.toLowerCase() === 'active' || ay.isCurrent) || props.academicYears[0];
             if (active?.id) setUninvoicedAcademicYearId(active.id);
         }
     }, [props.academicYears, uninvoicedAcademicYearId]);
 
     useEffect(() => {
         if (!uninvoicedSemesterId && props.semesters && props.semesters.length > 0) {
-            const active = props.semesters.find(s => s.status === 'Active' || s.isCurrent) || props.semesters[0];
+            const active = props.semesters.find(s => s.status?.toLowerCase() === 'active' || s.isCurrent) || props.semesters[0];
             if (active?.id) setUninvoicedSemesterId(active.id);
         }
     }, [props.semesters, uninvoicedSemesterId]);
@@ -7767,8 +7767,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const nowIso = new Date().toISOString();
             const issueDate = nowIso.split('T')[0];
             const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
-            const activeAY = props.academicYears.find(ay => ay.id === uninvoicedAcademicYearId || ay.status === 'Active' || ay.isCurrent) || props.academicYears[0];
-            const activeSem = props.semesters.find(s => s.id === uninvoicedSemesterId || s.status === 'Active' || s.isCurrent) || props.semesters[0];
+            const activeAY = props.academicYears.find(ay => ay.id === uninvoicedAcademicYearId || ay.status?.toLowerCase() === 'active' || ay.isCurrent) || props.academicYears[0];
+            const activeSem = props.semesters.find(s => s.id === uninvoicedSemesterId || s.status?.toLowerCase() === 'active' || s.isCurrent) || props.semesters[0];
 
             for (let i = 0; i < selectedList.length; i++) {
                 const item = selectedList[i];
@@ -9427,7 +9427,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         className="w-full py-3 px-4 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
                     >
                         <option value="All">All Classes</option>
-                        {availableClassesForBalances.map(cls => (
+                        {availableClassesForBalances.map((cls: string) => (
                             <option key={cls} value={cls}>{cls}</option>
                         ))}
                     </select>
@@ -10115,13 +10115,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 <td className="py-2 px-3 font-black text-emerald-600">{entry.credit > 0 ? `KSh ${entry.credit.toLocaleString()}` : '—'}</td>
                                                                 <td className={`py-2 px-3 font-black whitespace-nowrap ${entry.balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>KSh {Math.abs(entry.balance).toLocaleString()} <span className="text-[10px] opacity-70">{entry.balance > 0 ? 'Dr' : 'Cr'}</span></td>
                                                                 <td className="py-2 px-3 whitespace-nowrap">
-                                                                    {entry.eType === 'payment' && entry.data?.id ? (
+                                                                    {entry.eType === 'payment' && (entry as any).data?.id ? (
                                                                         <div className="flex items-center gap-1.5">
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={async () => {
                                                                                     if (window.confirm(`Are you sure you want to permanently delete and reverse receipt "${entry.description}" (KSh ${entry.credit.toLocaleString()}) from ${balPrevStudent.name}'s account?`)) {
-                                                                                        await handleDeleteReceipts([entry.data.id]);
+                                                                                        await handleDeleteReceipts([(entry as any).data.id]);
                                                                                     }
                                                                                 }}
                                                                                 className="inline-flex items-center gap-1 px-2 py-1 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-rose-200 shadow-xs cursor-pointer active:scale-95"
@@ -10439,7 +10439,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                                     >
                                         <option value="All">All Classes</option>
-                                        {availableClassesForBalances.map(cls => (
+                                        {availableClassesForBalances.map((cls: string) => (
                                             <option key={cls} value={cls}>{cls}</option>
                                         ))}
                                     </select>

@@ -616,6 +616,7 @@ interface StudentEnrollmentManagerProps {
     initialSubjects?: Subject[];
     initialCourses?: Course[];
     initialEnrollments?: StudentEnrollment[];
+    defaultGradeFilter?: string;
 }
 
 interface EnrollmentManagerCache {
@@ -644,7 +645,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     initialUsers,
     initialSubjects,
     initialCourses,
-    initialEnrollments
+    initialEnrollments,
+    defaultGradeFilter
 }) => {
     const instId = currentInstitution?.id || 'default_inst';
     const cacheKey = `${instId}_${context}`;
@@ -989,8 +991,14 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
     const [isLoading, setIsLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'All' | 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped'>('All');
-    const [gradeFilter, setGradeFilter] = useState('');
+    const [gradeFilter, setGradeFilter] = useState<string>(() => defaultGradeFilter || '');
     const [streamFilter, setStreamFilter] = useState('');
+
+    useEffect(() => {
+        if (defaultGradeFilter && !gradeFilter) {
+            setGradeFilter(defaultGradeFilter);
+        }
+    }, [defaultGradeFilter]);
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
@@ -2216,6 +2224,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
             nextAdm = 'ADM-1001';
         }
         previewAdmissionNumberRef.current = nextAdm;
+        
+        const activeGrade = gradeFilter || defaultGradeFilter || '';
+        let prefillGradeLevel = '';
+        let prefillStream = streamFilter || '';
+        if (activeGrade) {
+            const parsed = extractClassAndStream(activeGrade);
+            prefillGradeLevel = parsed.className || activeGrade;
+            if (parsed.stream) prefillStream = parsed.stream;
+        }
+
         setFormData({
             fullName: '',
             email: '',
@@ -2237,8 +2255,8 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                 preferredInstructorId: '',
                 preferredLessonHours: 'Morning',
                 priorAttendedDays: 0,
-                gradeLevel: '',
-                stream: '',
+                gradeLevel: prefillGradeLevel,
+                stream: prefillStream,
                 boardingStatus: 'day_scholar',
                 subjects: [],
                 assessmentNo: '',
@@ -7266,7 +7284,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
                                                     >
                                                         <CreditCard className="w-4 h-4" />
                                                     </button>
-                                                    {currentUser && ['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role) && (
+                                                    {currentUser && (['admin', 'head_teacher', 'dos', 'deputy', 'super_admin'].includes(currentUser.role) || (currentUser as any)?.isClassSupervisor || (currentUser as any)?.is_class_supervisor || (currentUser as any)?.supervisedClass) && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); setLeaveOutStudent({ enr, user: user || {} as User }); }}
                                                             className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-all"

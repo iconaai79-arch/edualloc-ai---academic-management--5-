@@ -776,10 +776,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const normalizedR = { ...r, metadata: meta };
         setRateSetting(normalizedR);
 
-        setHourlyRate(r.hourlyRate ?? r.hourly_rate ?? 1000);
-        setWeekdayHourlyRate(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000);
-        setWeekendHourlyRate(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500);
-        setWeekdayDutyFlatRate(r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200);
+        setHourlyRate(Number(r.hourlyRate ?? r.hourly_rate ?? 1000) || 1000);
+        setWeekdayHourlyRate(Number(r.weekdayHourlyRate ?? r.weekday_hourly_rate ?? r.hourlyRate ?? r.hourly_rate ?? 1000) || 1000);
+        setWeekendHourlyRate(Number(r.weekendHourlyRate ?? r.weekend_hourly_rate ?? 1500) || 1500);
+        setWeekdayDutyFlatRate(Number(r.weekdayDutyFlatRate ?? r.weekday_duty_flat_rate ?? meta.weekdayDutyFlatRate ?? meta.weekday_duty_flat_rate ?? 200) || 200);
         const cachedSatStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_start_${institutionId}`) : null;
         const cachedSatEnd = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sat_end_${institutionId}`) : null;
         const cachedSunStart = institutionId ? safeLocalStorage.getItem(`eduai_remedial_sun_start_${institutionId}`) : null;
@@ -7547,8 +7547,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     };
 
     // Helper to compute correct payout amount for any session (considering Weekday TOD flat rates vs hourly rates)
-    const computeSessionPayout = useCallback((s: RemedialSession) => {
-        const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+    const computeSessionPayout = useCallback((s: RemedialSession): number => {
+        const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+        const sHours = Math.max(0.1, Number(rawHours) || 1);
         const sDate = new Date(s.date || s.startTime);
         const dayIdx = sDate.getDay();
         const isWeekend = dayIdx === 0 || dayIdx === 6;
@@ -7556,7 +7557,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const dayName = s.dayOfWeek || dayNames[dayIdx];
 
         // Check if teacher has a duty record for this session
-        const isDuty = s.isDutyLesson || s.is_duty_lesson;
+        const isDuty = Boolean(s.isDutyLesson || s.is_duty_lesson);
         const dutyRecord = weekendDutyRoster.find(d =>
             d.teacherId === s.teacherId && (
                 (d.dutyType === 'weekday' && (d.weekdayDay === dayName || d.weekdayDay?.toLowerCase() === dayName?.toLowerCase())) ||
@@ -7568,21 +7569,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (isDuty || dutyRecord) {
             const recRate = dutyRecord?.dutyPayRate ?? dutyRecord?.duty_pay_rate;
             const recType = dutyRecord?.dutyPayType || dutyRecord?.duty_pay_type;
-            if (recRate !== undefined && recRate !== null) {
+            if (recRate !== undefined && recRate !== null && recRate !== '') {
+                const numericRecRate = Number(recRate) || 0;
                 return (recType === 'flat' || dutyRecord?.dutyType === 'weekday')
-                    ? Number(recRate)
-                    : sHours * Number(recRate);
+                    ? numericRecRate
+                    : Number((sHours * numericRecRate).toFixed(2));
             }
             if (dutyRecord?.dutyType === 'weekday' || (!isWeekend && isDuty)) {
                 // Weekday TOD default flat rate per teacher per day (e.g. 200)
-                return weekdayDutyFlatRate || 200;
+                return Number(weekdayDutyFlatRate || 200) || 200;
             }
         }
 
         if (isWeekend) {
-            return sHours * (weekendHourlyRate || 1500);
+            const numWeekendRate = Number(weekendHourlyRate || 1500) || 1500;
+            return Number((sHours * numWeekendRate).toFixed(2));
         }
-        return sHours * (weekdayHourlyRate || hourlyRate || 1000);
+        const numWeekdayRate = Number(weekdayHourlyRate || hourlyRate || 1000) || 1000;
+        return Number((sHours * numWeekdayRate).toFixed(2));
     }, [weekendDutyRoster, weekdayDutyFlatRate, weekendHourlyRate, weekdayHourlyRate, hourlyRate]);
 
     // Calculate accrued unpaid earnings per teacher (distinguishing weekday vs weekend rates)
@@ -7599,25 +7603,29 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sessionIds: []
                 };
             }
-            const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
-            const sessionAmount = computeSessionPayout(s);
-            grouped[s.teacherId].totalHours += sHours;
-            grouped[s.teacherId].totalAmount += sessionAmount;
+            const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+            const sHours = Number(rawHours) || 1;
+            const sessionAmount = Number(computeSessionPayout(s)) || 0;
+            grouped[s.teacherId].totalHours = Number((grouped[s.teacherId].totalHours + sHours).toFixed(2));
+            grouped[s.teacherId].totalAmount = Number((grouped[s.teacherId].totalAmount + sessionAmount).toFixed(2));
             grouped[s.teacherId].sessionIds.push(s.id);
         });
 
         return Object.entries(grouped).map(([teacherId, data]) => {
             const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
-            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? openBal.amount : -openBal.amount) : 0;
+            const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
+            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
+            const earnedAmount = Number(data.totalAmount) || 0;
+            const totalWithOpenBal = Math.max(0, earnedAmount + openBalAmount);
             return {
                 teacherId,
                 teacherName: data.teacherName,
                 totalHours: data.totalHours,
                 sessionIds: data.sessionIds,
-                rate: Math.round(data.totalAmount / (data.totalHours || 1)),
-                earnedAmount: data.totalAmount,
+                rate: Math.round(earnedAmount / (data.totalHours || 1)),
+                earnedAmount,
                 openingBalanceAmount: openBalAmount,
-                totalAmount: Math.max(0, data.totalAmount + openBalAmount)
+                totalAmount: totalWithOpenBal
             };
         });
     }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
@@ -7635,24 +7643,28 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     sessionIds: []
                 };
             }
-            const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
-            const sessionAmount = computeSessionPayout(s);
-            grouped[s.teacherId].totalHours += sHours;
-            grouped[s.teacherId].totalAmount += sessionAmount;
+            const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+            const sHours = Number(rawHours) || 1;
+            const sessionAmount = Number(computeSessionPayout(s)) || 0;
+            grouped[s.teacherId].totalHours = Number((grouped[s.teacherId].totalHours + sHours).toFixed(2));
+            grouped[s.teacherId].totalAmount = Number((grouped[s.teacherId].totalAmount + sessionAmount).toFixed(2));
             grouped[s.teacherId].sessionIds.push(s.id);
         });
         return Object.entries(grouped).map(([teacherId, data]) => {
             const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
-            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? openBal.amount : -openBal.amount) : 0;
+            const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
+            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
+            const earnedAmount = Number(data.totalAmount) || 0;
+            const totalWithOpenBal = Math.max(0, earnedAmount + openBalAmount);
             return {
                 teacherId,
                 teacherName: data.teacherName,
                 totalHours: data.totalHours,
                 sessionIds: data.sessionIds,
-                rate: Math.round(data.totalAmount / (data.totalHours || 1)),
-                earnedAmount: data.totalAmount,
+                rate: Math.round(earnedAmount / (data.totalHours || 1)),
+                earnedAmount,
                 openingBalanceAmount: openBalAmount,
-                totalAmount: Math.max(0, data.totalAmount + openBalAmount)
+                totalAmount: totalWithOpenBal
             };
         });
     }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
@@ -7672,26 +7684,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     operationsManagerName: s.operationsDisbursedBy
                 };
             }
-            const sHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
-            const sessionAmount = computeSessionPayout(s);
-            grouped[s.teacherId].totalHours += sHours;
-            grouped[s.teacherId].totalAmount += sessionAmount;
+            const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+            const sHours = Number(rawHours) || 1;
+            const sessionAmount = Number(computeSessionPayout(s)) || 0;
+            grouped[s.teacherId].totalHours = Number((grouped[s.teacherId].totalHours + sHours).toFixed(2));
+            grouped[s.teacherId].totalAmount = Number((grouped[s.teacherId].totalAmount + sessionAmount).toFixed(2));
             grouped[s.teacherId].sessionIds.push(s.id);
             if (s.cashVoucherRef) grouped[s.teacherId].cashVoucherRef = s.cashVoucherRef;
             if (s.operationsDisbursedBy) grouped[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
         });
         return Object.entries(grouped).map(([teacherId, data]) => {
             const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
-            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? openBal.amount : -openBal.amount) : 0;
+            const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
+            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
+            const earnedAmount = Number(data.totalAmount) || 0;
+            const totalWithOpenBal = Math.max(0, earnedAmount + openBalAmount);
             return {
                 teacherId,
                 teacherName: data.teacherName,
                 totalHours: data.totalHours,
                 sessionIds: data.sessionIds,
-                rate: Math.round(data.totalAmount / (data.totalHours || 1)),
-                earnedAmount: data.totalAmount,
+                rate: Math.round(earnedAmount / (data.totalHours || 1)),
+                earnedAmount,
                 openingBalanceAmount: openBalAmount,
-                totalAmount: Math.max(0, data.totalAmount + openBalAmount),
+                totalAmount: totalWithOpenBal,
                 cashVoucherRef: data.cashVoucherRef,
                 operationsManagerName: data.operationsManagerName
             };
@@ -7823,19 +7839,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 };
             }
 
-            const hrs = s.hours || 1;
+            const hrs = Number(s.hours || s.durationHours || s.duration_hours || 1) || 1;
             const sDate = new Date(s.date || s.startTime);
             const isWeekend = sDate.getDay() === 0 || sDate.getDay() === 6;
 
-            const sessionAmount = computeSessionPayout(s);
+            const sessionAmount = Number(computeSessionPayout(s)) || 0;
 
             if (isWeekend) {
-                teacherMap[tId].weekendHours += hrs;
+                teacherMap[tId].weekendHours = Number((teacherMap[tId].weekendHours + hrs).toFixed(2));
             } else {
-                teacherMap[tId].weekdayHours += hrs;
+                teacherMap[tId].weekdayHours = Number((teacherMap[tId].weekdayHours + hrs).toFixed(2));
             }
-            teacherMap[tId].totalAmount += sessionAmount;
-            teacherMap[tId].totalHours += hrs;
+            teacherMap[tId].totalAmount = Number((teacherMap[tId].totalAmount + sessionAmount).toFixed(2));
+            teacherMap[tId].totalHours = Number((teacherMap[tId].totalHours + hrs).toFixed(2));
             teacherMap[tId].sessionCount += 1;
             if (s.status === 'Paid') teacherMap[tId].status = 'Paid';
         });
@@ -14729,8 +14745,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     {session.status === 'Pending Operations Payout' && (
                                                         <button 
                                                             onClick={() => {
-                                                                const sHours = session.hours || 1;
-                                                                const totalAmount = computeSessionPayout(session);
+                                                                const sHours = Number(session.hours || session.durationHours || session.duration_hours || 1) || 1;
+                                                                const totalAmount = Number(computeSessionPayout(session)) || 0;
                                                                 setOpsDisburseBatch({
                                                                     teacherId: session.teacherId,
                                                                     teacherName: session.teacherName || 'Teacher',
@@ -14749,8 +14765,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     {session.status === 'Cash Issued to DOS' && (
                                                         <button 
                                                             onClick={() => {
-                                                                const sHours = session.hours || 1;
-                                                                const totalAmount = computeSessionPayout(session);
+                                                                const sHours = Number(session.hours || session.durationHours || session.duration_hours || 1) || 1;
+                                                                const totalAmount = Number(computeSessionPayout(session)) || 0;
                                                                 setDosPayTeacherData({
                                                                     teacherId: session.teacherId,
                                                                     teacherName: session.teacherName || 'Teacher',

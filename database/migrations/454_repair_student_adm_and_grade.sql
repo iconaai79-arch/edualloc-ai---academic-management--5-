@@ -19,7 +19,8 @@ ALTER TABLE public.student_enrollments ADD COLUMN IF NOT EXISTS metadata JSONB D
 ALTER TABLE public.student_enrollments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 CREATE OR REPLACE FUNCTION public.fn_is_synthetic_adm(p_adm TEXT)
-RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE
+SET search_path = public, pg_temp AS $$
     SELECT p_adm IS NULL
         OR btrim(p_adm) IN ('', '-', '—', 'N/A', 'null', 'undefined', 'pending', 'not set')
         OR p_adm ~* '^(usr_|user_|st_|enr_|u_)'
@@ -27,7 +28,8 @@ RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION public.fn_student_real_adm(j JSONB)
-RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE
+SET search_path = public, pg_temp AS $$
 DECLARE
     c TEXT;
 BEGIN
@@ -50,7 +52,8 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.fn_student_real_grade(j JSONB)
-RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE
+SET search_path = public, pg_temp AS $$
 DECLARE
     c TEXT;
 BEGIN
@@ -71,7 +74,8 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.fn_student_real_stream(j JSONB)
-RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE
+SET search_path = public, pg_temp AS $$
 DECLARE
     c TEXT;
 BEGIN

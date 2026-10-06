@@ -943,8 +943,8 @@ export const BroadsheetReportView: React.FC<BroadsheetReportViewProps> = ({
             (kNorm.includes('hyg') || kNorm.includes('nutri') || kNorm.includes('health'))) return true;
 
         // Normalized word token match (tokens of length >= 4)
-        const subTokens = subName.split(/[^a-z0-9]/).filter(t => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
-        if (subTokens.length > 0 && subTokens.some(tok => kNorm.includes(tok))) return true;
+        const subTokens = subName.split(/[^a-z0-9]/).filter((t: string) => t.length >= 4 && !['lower', 'upper', 'primary', 'secondary', 'activities', 'activity'].includes(t));
+        if (subTokens.length > 0 && subTokens.some((tok: string) => kNorm.includes(tok))) return true;
 
         return false;
     };

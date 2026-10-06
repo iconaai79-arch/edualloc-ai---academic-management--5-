@@ -799,7 +799,7 @@ export const AutomatedBilling: React.FC<AutomatedBillingProps> = ({
                                 className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-indigo-600 focus:bg-white transition-all text-sm font-bold text-slate-700 outline-none"
                             >
                                 <option value="">Select class...</option>
-                                {classes.map(cls => (
+                                {classes.map((cls: string) => (
                                     <option key={cls} value={cls}>{cls}</option>
                                 ))}
                             </select>

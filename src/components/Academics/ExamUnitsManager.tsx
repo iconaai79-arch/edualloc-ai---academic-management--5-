@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Institution, Subject, User, Assessment, AssessmentMark, AcademicYear, Course, AcademicLevel } from '../../types';
-import { apiService, safeLocalStorage } from '../../services/apiService';
+import { apiService, safeLocalStorage, getDeletedExamIds, filterDeletedExams, buildExamUnitsStatePayload } from '../../services/apiService';
 import { isSubjectApplicableToClass } from '../../utils/academicSubjectUtils';
 import { extractClassAndStream, resolveRealStudentStream, resolveRealStudentClass, normalizeStreamName, naturalClassSort, extractStreamOnly, isDemoClassName } from '../../utils/academicUtils';
 import { PlusIcon } from '../icons/PlusIcon';
@@ -442,7 +442,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                             const map = new Map<string, ExamUnitRecord>();
                             prev.filter(e => !dummyIds.has(e.id)).forEach(e => map.set(e.id, e));
                             cleanRecords.forEach(r => map.set(r.id, { ...map.get(r.id), ...r }));
-                            const merged = Array.from(map.values());
+                            const merged = filterDeletedExams(currentInstitution.id, Array.from(map.values()));
                             try {
                                 localStorage.setItem(`eduai_exam_units_${currentInstitution.id}`, JSON.stringify(merged));
                             } catch (e) { }
@@ -458,27 +458,108 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const syncExamsToCloud = useCallback(async (nextExams: ExamUnitRecord[]) => {
         if (!currentInstitution?.id) return;
         const targetInstId = currentInstitution.id;
+        const { exams: cleanExams, payload } = buildExamUnitsStatePayload(targetInstId, nextExams);
         try {
-            localStorage.setItem(`eduai_exam_units_${targetInstId}`, JSON.stringify(nextExams));
+            localStorage.setItem(`eduai_exam_units_${targetInstId}`, JSON.stringify(cleanExams));
         } catch (e) { }
 
         try {
-            await apiService.saveModuleRecord('institution_module_states', {
-                id: `ims_exam_units_${targetInstId}`,
-                institution_id: targetInstId,
-                institutionId: targetInstId,
-                module_id: 'exam_units',
-                moduleId: 'exam_units',
-                moduleName: 'Exam Units',
-                status: 'active',
-                data: nextExams,
-                settings: nextExams,
-                stateData: nextExams,
-                updated_at: new Date().toISOString()
-            });
+            await apiService.saveModuleRecord('institution_module_states', payload);
         } catch (err) {
             console.warn('[ExamUnitsManager] Failed to sync exams to cloud:', err);
         }
+    }, [currentInstitution?.id]);
+
+    // Remove exams deleted elsewhere (other components, tabs or devices via sync events)
+    useEffect(() => {
+        const applyDeletion = (deletedIds?: string[]) => {
+            const ids = new Set<string>([...(deletedIds || []), ...getDeletedExamIds(instId)]);
+            if (ids.size === 0) return;
+            setExams(prev => {
+                const next = prev.filter(e => e && !ids.has(String(e.id)));
+                return next.length === prev.length ? prev : next;
+            });
+            setSelectedExamId(prev => (prev && ids.has(prev) ? '' : prev));
+        };
+        const onWindowEvent = (ev: Event) => {
+            const detail = (ev as CustomEvent)?.detail;
+            if (detail && detail.type && detail.type !== 'exam_deleted') return;
+            applyDeletion(detail?.deletedIds);
+        };
+        window.addEventListener('eduai_exam_deleted', onWindowEvent);
+        window.addEventListener('eduai_academics_synced', onWindowEvent);
+        let bc: BroadcastChannel | null = null;
+        try {
+            if (typeof BroadcastChannel !== 'undefined') {
+                bc = new BroadcastChannel('eduai_academics_channel');
+                bc.onmessage = (msg) => {
+                    if (msg?.data?.type === 'exam_deleted') applyDeletion(msg.data.deletedIds);
+                };
+            }
+        } catch (_) { }
+        return () => {
+            window.removeEventListener('eduai_exam_deleted', onWindowEvent);
+            window.removeEventListener('eduai_academics_synced', onWindowEvent);
+            try { bc?.close(); } catch (_) { }
+        };
+    }, [instId]);
+
+    // Supabase Realtime subscription for instant cross-device exam sync
+    useEffect(() => {
+        if (!currentInstitution?.id) return;
+        const targetInstId = currentInstitution.id;
+        const supabase = apiService.getSupabase();
+        if (!supabase) return;
+
+        const imsRowId = `ims_exam_units_${targetInstId}`;
+        const channel = supabase
+            .channel(`exam_units_realtime_${targetInstId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'institution_module_states',
+                filter: `id=eq.${imsRowId}`
+            }, (payload: any) => {
+                try {
+                    const newRow = payload.new || payload.record;
+                    if (!newRow) return;
+                    const rawData = newRow.data || newRow.settings || newRow.state_data;
+                    let remoteExams: ExamUnitRecord[] = [];
+                    if (Array.isArray(rawData)) {
+                        remoteExams = rawData;
+                    } else if (rawData && Array.isArray(rawData.exams)) {
+                        remoteExams = rawData.exams;
+                    }
+                    // Collect remote tombstones
+                    const remoteDel: string[] = newRow.deleted_exam_ids ||
+                        (rawData && rawData.deletedExamIds) ||
+                        (rawData && Array.isArray(rawData.deletedExamIds) ? rawData.deletedExamIds : []) || [];
+                    const localDel = getDeletedExamIds(targetInstId);
+                    const allDel = new Set<string>([...remoteDel, ...localDel]);
+                    try {
+                        localStorage.setItem(`eduai_deleted_exam_ids_${targetInstId}`, JSON.stringify(Array.from(allDel)));
+                    } catch (_) {}
+                    const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
+                    const cleanRemote = remoteExams.filter(e => e && e.id && !dummyIds.has(e.id) && !allDel.has(String(e.id)));
+                    if (cleanRemote.length === 0 && remoteDel.length === 0) return;
+                    setExams(prev => {
+                        const map = new Map<string, ExamUnitRecord>();
+                        prev.filter(e => !allDel.has(String(e.id))).forEach(e => map.set(e.id, e));
+                        cleanRemote.forEach(r => map.set(r.id, { ...map.get(r.id), ...r }));
+                        const merged = Array.from(map.values()).filter(e => !allDel.has(String(e.id)));
+                        try {
+                            localStorage.setItem(`eduai_exam_units_${targetInstId}`, JSON.stringify(merged));
+                        } catch (_) {}
+                        return merged;
+                    });
+                    setSelectedExamId(prev => (prev && allDel.has(prev) ? '' : prev));
+                } catch (_) {}
+            })
+            .subscribe();
+
+        return () => {
+            try { supabase.removeChannel(channel); } catch (_) {}
+        };
     }, [currentInstitution?.id]);
 
     const [selectedExamId, setSelectedExamId] = useState<string>(() => {
@@ -2049,6 +2130,13 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                     if (examUnitsMatch) {
                         const rawData = examUnitsMatch.data || examUnitsMatch.settings || examUnitsMatch.stateData;
                         const remoteExams = Array.isArray(rawData) ? rawData : (rawData?.exams || []);
+                        const remoteTombstones = examUnitsMatch.settings?.deletedExamIds || examUnitsMatch.data?.deletedExamIds;
+                        if (Array.isArray(remoteTombstones) && remoteTombstones.length > 0) {
+                            try {
+                                const mergedTombstones = Array.from(new Set([...getDeletedExamIds(instId), ...remoteTombstones.map(String)]));
+                                localStorage.setItem(`eduai_deleted_exam_ids_${instId}`, JSON.stringify(mergedTombstones));
+                            } catch (_) { }
+                        }
                         if (remoteExams.length > 0) {
                             const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
                             const cleanRemote = remoteExams.filter((e: any) => e && e.id && !dummyIds.has(e.id));
@@ -2056,7 +2144,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                 const map = new Map<string, ExamUnitRecord>();
                                 prev.filter(e => !dummyIds.has(e.id)).forEach(e => map.set(e.id, e));
                                 cleanRemote.forEach((r: any) => map.set(r.id, { ...map.get(r.id), ...r }));
-                                const merged = Array.from(map.values());
+                                const merged = filterDeletedExams(instId, Array.from(map.values()));
                                 // Asynchronously persist to avoid blocking React state update
                                 setTimeout(() => {
                                     try {
@@ -4340,27 +4428,36 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         if (!activeExam) return;
         if (confirm(`Are you sure you want to delete "${activeExam.name}"?`)) {
             const targetId = activeExam.id;
-            setExams(prev => {
-                const nextExams = prev.filter(e => e.id !== targetId);
-                try {
-                    localStorage.setItem(`eduai_exam_units_${currentInstitution?.id || 'default_inst'}`, JSON.stringify(nextExams));
-                } catch (e) { }
-                syncExamsToCloud(nextExams);
-                if (nextExams.length > 0) {
-                    setSelectedExamId(nextExams[0].id);
-                } else {
-                    setSelectedExamId('');
-                }
-                return nextExams;
-            });
+            const examName = activeExam.name;
+            const resolvedInstId = currentInstitution?.id || 'default_inst';
 
-            // Delete from database to prevent backend sync restoration
-            if (currentInstitution?.id) {
-                await apiService.deleteModuleRecord('exam_units', targetId).catch(() => { });
-                await apiService.deleteModuleRecord('exam_broadsheets', targetId).catch(() => { });
+            // Compute the filtered list before calling setExams so the value
+            // is stable across React StrictMode double-invocations of the updater.
+            const nextExams = exams.filter(e => e.id !== targetId);
+
+            // 1. Update local state and localStorage atomically
+            setExams(nextExams);
+            try {
+                localStorage.setItem(`eduai_exam_units_${resolvedInstId}`, JSON.stringify(nextExams));
+            } catch (e) { }
+
+            // 2. Update selectedExamId
+            if (nextExams.length > 0) {
+                setSelectedExamId(nextExams[0].id);
+            } else {
+                setSelectedExamId('');
             }
 
-            setSaveToastMessage(`🗑️ Deleted "${activeExam.name}".`);
+            // 3. Hard-delete from cloud (pass institutionId so tombstone key is correct)
+            if (currentInstitution?.id) {
+                await apiService.deleteModuleRecord('exam_units', targetId, currentInstitution.id).catch(() => { });
+                await apiService.deleteModuleRecord('exam_broadsheets', targetId, currentInstitution.id).catch(() => { });
+            }
+
+            // 4. Sync cleaned list to cloud — after setExams, never inside the updater
+            await syncExamsToCloud(nextExams);
+
+            setSaveToastMessage(`🗑️ Deleted "${examName}".`);
             setTimeout(() => setSaveToastMessage(null), 4000);
         }
     };

@@ -848,7 +848,7 @@ export const SubjectGradesDistributionDashboard: React.FC<SubjectGradesDistribut
                     });
 
                     relevantMarks.forEach(m => {
-                        const val = m.score ?? m.mark ?? 0;
+                        const val = m.score ?? (m as any).marks ?? 0;
                         const { grade, points } = getGradeInfo(val);
                         if (counts[grade] !== undefined) {
                             counts[grade] += 1;

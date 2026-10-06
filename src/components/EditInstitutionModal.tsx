@@ -173,7 +173,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         ? undefined 
         : (formData.subscriptionEndsAt ? new Date(`${formData.subscriptionEndsAt}T23:59:59.999Z`).toISOString() : undefined),
       isSuspendedForBilling: isReseller ? false : formData.isSuspendedForBilling,
-      is_suspended_for_billing: isReseller ? false : formData.isSuspendedForBilling,
+      ...(isReseller ? {} : { is_suspended_for_billing: formData.isSuspendedForBilling } as any),
       customSubscriptionPrice: isReseller ? undefined : {
         monthly: formData.customSubscriptionPrice.monthly ? parseFloat(formData.customSubscriptionPrice.monthly) : undefined,
         quarterly: formData.customSubscriptionPrice.quarterly ? parseFloat(formData.customSubscriptionPrice.quarterly) : undefined,

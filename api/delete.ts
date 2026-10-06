@@ -129,19 +129,136 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    let q = supabase.from(moduleName).delete();
-    if (idsArray.length === 1) {
-      q = q.eq('id', idsArray[0]);
-    } else {
-      q = q.in('id', idsArray);
+    if (moduleName === 'exam_units') {
+      const idsSet = new Set(idsArray);
+      try {
+        // 1. Delete standalone rows in institution_module_states if any exist
+        await supabase.from('institution_module_states').delete().in('id', idsArray);
+        const altIds = idsArray.flatMap(id => [`ims_exam_unit_${id}`, `exam_unit_${id}`]);
+        await supabase.from('institution_module_states').delete().in('id', altIds);
+
+        // 2. Update all exam_units state rows in institution_module_states
+        const { data: imsRows } = await supabase
+          .from('institution_module_states')
+          .select('id, data, settings, institution_id')
+          .or('module_id.eq.exam_units,id.like.%exam_units%');
+
+        if (Array.isArray(imsRows) && imsRows.length > 0) {
+          for (const row of imsRows) {
+            let currentExams: any[] = [];
+            if (Array.isArray(row.data)) currentExams = row.data;
+            else if (row.data && Array.isArray(row.data.exams)) currentExams = row.data.exams;
+            else if (row.settings && Array.isArray(row.settings.exams)) currentExams = row.settings.exams;
+            else if (Array.isArray(row.settings)) currentExams = row.settings;
+
+            const hasTarget = currentExams.some((e: any) => e && idsSet.has(e.id));
+            if (hasTarget) {
+              const remaining = currentExams.filter((e: any) => e && !idsSet.has(e.id));
+              const prevDeleted: string[] = Array.isArray(row.data?.deletedExamIds) 
+                ? row.data.deletedExamIds 
+                : (Array.isArray(row.settings?.deletedExamIds) ? row.settings.deletedExamIds : []);
+              const updatedDeleted = Array.from(new Set([...prevDeleted, ...idsArray]));
+
+              await supabase.from('institution_module_states').update({
+                data: remaining,
+                settings: { exams: remaining, deletedExamIds: updatedDeleted },
+                updated_at: new Date().toISOString()
+              }).eq('id', row.id);
+            }
+          }
+        }
+
+        // 3. Purge corresponding broadsheets
+        const { data: bsRows } = await supabase
+          .from('institution_module_states')
+          .select('id, data, settings')
+          .or('module_id.eq.exam_broadsheets,id.like.%exam_broadsheets%');
+
+        if (Array.isArray(bsRows) && bsRows.length > 0) {
+          for (const row of bsRows) {
+            const bsData = (typeof row.data === 'object' && row.data !== null && !Array.isArray(row.data))
+              ? { ...row.data }
+              : ((typeof row.settings === 'object' && row.settings !== null && !Array.isArray(row.settings)) ? { ...row.settings } : null);
+            if (bsData) {
+              let changed = false;
+              idsArray.forEach(id => {
+                if (bsData[id]) {
+                  delete bsData[id];
+                  changed = true;
+                }
+              });
+              if (changed) {
+                await supabase.from('institution_module_states').update({
+                  data: bsData,
+                  settings: bsData,
+                  updated_at: new Date().toISOString()
+                }).eq('id', row.id);
+              }
+            }
+          }
+        }
+
+        // 4. Delete linked assessments and assessment_marks in Supabase if tables exist
+        try { await supabase.from('assessments').delete().in('id', idsArray); } catch (_) {}
+        try { await supabase.from('assessment_marks').delete().in('assessment_id', idsArray); } catch (_) {}
+        try { await supabase.from('assessment_marks').delete().in('exam_id', idsArray); } catch (_) {}
+      } catch (err) {
+        console.error('[/api/delete] Failed to clean up exam_units in institution_module_states:', err);
+      }
     }
 
-    const { error: delErr } = await q;
+    if (moduleName === 'exam_broadsheets') {
+      try {
+        const { data: bsRows } = await supabase
+          .from('institution_module_states')
+          .select('id, data, settings')
+          .or('module_id.eq.exam_broadsheets,id.like.%exam_broadsheets%');
 
-    if (delErr) {
-      console.error(`[/api/delete] Supabase error for ${moduleName}:`, delErr);
-      return res.status(200).json({ success: false, error: delErr.message, code: delErr.code });
+        if (Array.isArray(bsRows) && bsRows.length > 0) {
+          for (const row of bsRows) {
+            const bsData = (typeof row.data === 'object' && row.data !== null && !Array.isArray(row.data))
+              ? { ...row.data }
+              : null;
+            if (bsData) {
+              let changed = false;
+              idsArray.forEach(id => {
+                if (bsData[id]) {
+                  delete bsData[id];
+                  changed = true;
+                }
+              });
+              if (changed) {
+                await supabase.from('institution_module_states').update({
+                  data: bsData,
+                  settings: bsData,
+                  updated_at: new Date().toISOString()
+                }).eq('id', row.id);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[/api/delete] Failed to clean up exam_broadsheets in institution_module_states:', err);
+      }
     }
+
+    try {
+      let q = supabase.from(moduleName).delete();
+      if (idsArray.length === 1) {
+        q = q.eq('id', idsArray[0]);
+      } else {
+        q = q.in('id', idsArray);
+      }
+
+      const { error: delErr } = await q;
+
+      if (delErr) {
+        if (moduleName !== 'exam_units' && moduleName !== 'exam_broadsheets') {
+          console.error(`[/api/delete] Supabase error for ${moduleName}:`, delErr);
+          return res.status(200).json({ success: false, error: delErr.message, code: delErr.code });
+        }
+      }
+    } catch (_) {}
 
     console.log(`[/api/delete] Deleted ${idsArray.length} record(s) from ${moduleName}`);
     return res.status(200).json({ success: true, count: idsArray.length, module: moduleName });

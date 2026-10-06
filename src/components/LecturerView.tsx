@@ -54,6 +54,7 @@ import { TeacherLessonPlanManager } from './Academics/TeacherLessonPlanManager';
 
 const EduFlowManager = lazy(() => import('./common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 const StudentLeaveOutManager = lazy(() => import('./StudentLeaveOutManager').then(m => ({ default: m.StudentLeaveOutManager })));
+const StudentEnrollmentManager = lazy(() => import('./common/StudentEnrollmentManager').then(m => ({ default: m.StudentEnrollmentManager })));
 
 
 const renderTabIcon = (tab: string, className = "w-5 h-5") => {
@@ -64,6 +65,11 @@ const renderTabIcon = (tab: string, className = "w-5 h-5") => {
             </svg>
         );
         case 'class_supervisor_attendance': return <CheckCircleIcon className={className} />;
+        case 'class_supervisor_students': return (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+        );
         case 'student_leave_out': return (
             <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -1383,10 +1389,45 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         }
     };
 
+    // Compute default supervised class for class supervisor
+    const defaultSupervisedClass = useMemo(() => {
+        if (!user) return '';
+        if (user.supervisedClass) return user.supervisedClass.trim();
+        if ((user as any).supervised_class) return String((user as any).supervised_class).trim();
+        if (user.studentClass) return user.studentClass.trim();
+        if (courses && courses.length > 0) {
+            for (const c of courses) {
+                for (const lvl of (c.levels || [])) {
+                    if (lvl.classTeacherId === user.id || 
+                        (lvl as any).supervisorId === user.id ||
+                        ((lvl as any).classTeacher && user.name && (lvl as any).classTeacher.toLowerCase().trim() === user.name.toLowerCase().trim())) {
+                        if (lvl.name) return lvl.name.trim();
+                    }
+                }
+            }
+        }
+        if (subjectAllocations && subjectAllocations.length > 0) {
+            const uId = user.id;
+            const uName = (user.name || '').toLowerCase().trim();
+            for (const a of subjectAllocations) {
+                if (!a) continue;
+                const isMe = a.teacherId === uId || (uName && a.teacherName && a.teacherName.toLowerCase().trim() === uName);
+                if (isMe && (a.isClassTeacher || a.is_class_teacher || a.isSupervisor || a.is_supervisor || a.role === 'class_teacher' || a.role === 'class_supervisor')) {
+                    const cName = a.className || a.class || a.grade;
+                    if (cName) return cName.trim();
+                }
+            }
+        }
+        if (teacherAllocatedGrades && teacherAllocatedGrades.length > 0) {
+            return teacherAllocatedGrades[0];
+        }
+        return '';
+    }, [user, courses, subjectAllocations, teacherAllocatedGrades]);
+
     const menuTabs = useMemo(() => {
         const base = ['dashboard', 'lesson_plans'];
         if (canAccessLeaveOutAndSupervisor) {
-            base.push('class_supervisor_attendance', 'student_leave_out');
+            base.push('class_supervisor_attendance', 'class_supervisor_students', 'student_leave_out');
         }
         base.push('academic_hub', 'my_timetable', 'scan_session', 'eduflow', 'synergy_hub', 'self_checkin');
         if (useRequests) base.push('my_requests');
@@ -1396,7 +1437,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
     // Safety fallback: if user loses supervisor rights or navigates directly to supervisor tabs, reset to dashboard
     useEffect(() => {
-        if (!canAccessLeaveOutAndSupervisor && (activeTab === 'class_supervisor_attendance' || activeTab === 'student_leave_out')) {
+        if (!canAccessLeaveOutAndSupervisor && (activeTab === 'class_supervisor_attendance' || activeTab === 'class_supervisor_students' || activeTab === 'student_leave_out')) {
             setActiveTab('dashboard');
         }
     }, [canAccessLeaveOutAndSupervisor, activeTab]);
@@ -1455,7 +1496,12 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 >
                                     <div className="flex items-center gap-3.5 relative z-10">
                                         {renderTabIcon(tab, "w-4.5 h-4.5")}
-                                        <span>{tab.replace(/_/g, ' ')}</span>
+                                        <span>
+                                            {tab === 'class_supervisor_students' ? 'Class Students' :
+                                             tab === 'class_supervisor_attendance' ? 'Class Attendance' :
+                                             tab === 'student_leave_out' ? 'Student Leave Out' :
+                                             tab.replace(/_/g, ' ')}
+                                        </span>
                                         {tab === 'my_timetable' && pendingSubstituteRequests.length > 0 && (
                                             <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[8px] font-black animate-pulse">
                                                 {pendingSubstituteRequests.length} Sub Req
@@ -1555,7 +1601,27 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 activeAcademicYear={props.activeAcademicYear}
                                 activeSemester={props.activeSemester}
                                 onSaveAttendance={props.onSaveAttendance}
+                                onManageStudents={() => setActiveTab('class_supervisor_students')}
                             />
+                        </div>
+                    )}
+
+                    {activeTab === 'class_supervisor_students' && canAccessLeaveOutAndSupervisor && (
+                        <div className="animate-fade-in-up">
+                            <Suspense fallback={<div className="p-8 text-center text-slate-400 font-bold">Loading Class Students Registry...</div>}>
+                                <StudentEnrollmentManager
+                                    context="academic"
+                                    currentInstitution={currentInstitution || { id: user?.institutionId || 'default_inst', name: 'Institution' } as any}
+                                    activeTab="students"
+                                    companyDetails={{ smsConfig: {} } as any}
+                                    currentUser={user!}
+                                    onLogAction={props.onLogAction ? async (msg) => { props.onLogAction?.(msg); } : undefined}
+                                    initialUsers={props.users || []}
+                                    initialSubjects={subjects}
+                                    initialCourses={courses}
+                                    defaultGradeFilter={defaultSupervisedClass}
+                                />
+                            </Suspense>
                         </div>
                     )}
 
@@ -3504,6 +3570,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     { id: 'academic_hub', label: 'Academic Hub' },
                                     { id: 'remedials', label: 'Remedials Hub' },
                                     { id: 'class_supervisor_attendance', label: 'Class Attendance', enabled: canAccessLeaveOutAndSupervisor },
+                                    { id: 'class_supervisor_students', label: 'Class Students', enabled: canAccessLeaveOutAndSupervisor },
                                     { id: 'student_leave_out', label: 'Student Leave Out', enabled: canAccessLeaveOutAndSupervisor },
                                     { id: 'scan_session', label: 'Scanner Module' },
                                     { id: 'synergy_hub', label: 'Synergy Hub' },

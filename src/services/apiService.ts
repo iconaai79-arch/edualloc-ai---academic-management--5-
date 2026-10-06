@@ -427,6 +427,49 @@ const ls = {
     }
 };
 
+/** Returns locally-known deleted exam IDs (tombstones) for an institution. */
+export const getDeletedExamIds = (instId: string): string[] => {
+    try {
+        const raw = localStorage.getItem(`eduai_deleted_exam_ids_${instId || 'default_inst'}`);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch (_) {
+        return [];
+    }
+};
+
+/** Removes tombstoned exams from a list. */
+export const filterDeletedExams = <T extends { id?: any }>(instId: string, exams: T[]): T[] => {
+    const deleted = new Set(getDeletedExamIds(instId));
+    if (deleted.size === 0) return (exams || []).filter(Boolean);
+    return (exams || []).filter((e: any) => e && !deleted.has(String(e.id)));
+};
+
+/**
+ * Builds the institution_module_states payload for exam_units, stripping deleted exams
+ * and preserving the deletedExamIds tombstone list so saves never resurrect deleted exams.
+ */
+export const buildExamUnitsStatePayload = (instId: string, exams: any[]) => {
+    const deletedExamIds = getDeletedExamIds(instId);
+    const clean = filterDeletedExams(instId, exams || []);
+    return {
+        exams: clean,
+        payload: {
+            id: `ims_exam_units_${instId}`,
+            institution_id: instId,
+            institutionId: instId,
+            module_id: 'exam_units',
+            moduleId: 'exam_units',
+            moduleName: 'Exam Units',
+            status: 'active',
+            data: clean,
+            settings: { exams: clean, deletedExamIds },
+            stateData: clean,
+            updated_at: new Date().toISOString()
+        }
+    };
+};
+
 export const apiService = {
     getSupabase() {
         return _supabase;
@@ -1952,6 +1995,7 @@ export const apiService = {
             if (module === 'exam_units') {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
                 let remoteExams: any[] = [];
+                let remoteDeletedIds: string[] = [];
 
                 const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
                 if (Array.isArray(imsRows) && imsRows.length > 0) {
@@ -1967,6 +2011,12 @@ export const apiService = {
                             } else if (rawData && typeof rawData === 'object' && rawData.id) {
                                 remoteExams.push(rawData);
                             }
+
+                            // Collect deleted tombstones from remote
+                            const dIds = row.deletedExamIds || row.deleted_exam_ids || row.settings?.deletedExamIds || row.data?.deletedExamIds;
+                            if (Array.isArray(dIds)) {
+                                remoteDeletedIds.push(...dIds);
+                            }
                         } else if (modId === 'exam_unit' || rowId.includes('_exam_unit_')) {
                             const rawData = row.data || row.settings || row.stateData || row;
                             if (rawData && rawData.id) {
@@ -1976,9 +2026,23 @@ export const apiService = {
                     }
                 }
 
-                // Filter out legacy dummy sample exams
+                // Collect local tombstones
+                let localDeletedIds: string[] = [];
+                try {
+                    const savedDel = localStorage.getItem(`eduai_deleted_exam_ids_${targetInstId}`);
+                    if (savedDel) localDeletedIds = JSON.parse(savedDel) || [];
+                } catch (_) {}
+
+                const allDeletedIds = new Set<string>([...remoteDeletedIds, ...localDeletedIds]);
+                try {
+                    localStorage.setItem(`eduai_deleted_exam_ids_${targetInstId}`, JSON.stringify(Array.from(allDeletedIds)));
+                } catch (_) {}
+
+                // Filter out legacy dummy sample exams and deleted exams
                 const dummyIds = new Set(['exam_1', 'exam_2', 'exam_3', 'exam_pub_1', 'exam_pub_2', 'exam_pub_3']);
-                const cleanRemote = remoteExams.filter(e => e && e.id && !dummyIds.has(e.id)).map(e => toCamelCase(e));
+                const cleanRemote = remoteExams
+                    .filter(e => e && e.id && !dummyIds.has(e.id) && !allDeletedIds.has(e.id))
+                    .map(e => toCamelCase(e));
 
                 // Local storage fallback / merge
                 let localUnits: any[] = [];
@@ -1993,12 +2057,29 @@ export const apiService = {
                     const lsRecs = ls.get('exam_units');
                     if (Array.isArray(lsRecs)) localUnits = lsRecs;
                 }
-                const cleanLocal = localUnits.filter(e => e && e.id && !dummyIds.has(e.id)).map(e => toCamelCase(e));
+                const cleanLocal = localUnits
+                    .filter(e => e && e.id && !dummyIds.has(e.id) && !allDeletedIds.has(e.id))
+                    .map(e => toCamelCase(e));
 
-                // CleanRemote takes priority; merge in any local units not yet on remote
+                // Remote authoritative sync: remote list replaces stale local exams.
+                // We only keep local exams if remote returned nothing (offline) or if a local exam is marked pending sync.
                 const examsMap = new Map<string, any>();
-                cleanLocal.forEach(e => examsMap.set(e.id, e));
-                cleanRemote.forEach(e => examsMap.set(e.id, { ...examsMap.get(e.id), ...e }));
+                if (cleanRemote.length > 0 || (imsRows && imsRows.length > 0)) {
+                    cleanRemote.forEach(e => examsMap.set(e.id, e));
+                    cleanLocal.forEach(e => {
+                        if (e._isOffline || e._pendingSync) {
+                            if (!examsMap.has(e.id) && !allDeletedIds.has(e.id)) {
+                                examsMap.set(e.id, e);
+                            }
+                        }
+                    });
+                } else {
+                    cleanLocal.forEach(e => {
+                        if (!allDeletedIds.has(e.id)) {
+                            examsMap.set(e.id, e);
+                        }
+                    });
+                }
                 const finalExams = Array.from(examsMap.values());
 
                 // Write through cache
@@ -2008,6 +2089,25 @@ export const apiService = {
                     }
                     ls.set('exam_units', finalExams);
                 } catch (e) {}
+
+                // Also clean local broadsheets of deleted exams
+                try {
+                    const bsRaw = localStorage.getItem(`eduai_exam_broadsheets_${targetInstId}`);
+                    if (bsRaw) {
+                        const bsData = JSON.parse(bsRaw);
+                        let bsChanged = false;
+                        allDeletedIds.forEach(delId => {
+                            if (bsData && bsData[delId]) {
+                                delete bsData[delId];
+                                bsChanged = true;
+                            }
+                        });
+                        if (bsChanged) {
+                            localStorage.setItem(`eduai_exam_broadsheets_${targetInstId}`, JSON.stringify(bsData));
+                            ls.set('exam_broadsheets', bsData);
+                        }
+                    }
+                } catch (_) {}
 
                 return finalExams as T[];
             }
@@ -3793,25 +3893,14 @@ export const apiService = {
             } else {
                 localExams.push({ id, ...payload });
             }
+            const { exams: cleanExams, payload: imsPayload } = buildExamUnitsStatePayload(instId, localExams);
             try {
-                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(localExams));
-                ls.set('exam_units', localExams);
+                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(cleanExams));
+                ls.set('exam_units', cleanExams);
             } catch (e) {}
 
             if (instId) {
-                apiService.saveModuleRecord('institution_module_states', {
-                    id: `ims_exam_units_${instId}`,
-                    institution_id: instId,
-                    institutionId: instId,
-                    module_id: 'exam_units',
-                    moduleId: 'exam_units',
-                    moduleName: 'Exam Units',
-                    status: 'active',
-                    data: localExams,
-                    settings: localExams,
-                    stateData: localExams,
-                    updated_at: new Date().toISOString()
-                }).catch(() => {});
+                apiService.saveModuleRecord('institution_module_states', imsPayload).catch(() => {});
             }
             return toCamelCase(payload);
         }
@@ -3928,11 +4017,20 @@ export const apiService = {
         }
     },
 
-    async deleteModuleRecord(module: string, id: string): Promise<void> {
+    async deleteModuleRecord(module: string, id: string, institutionId?: string): Promise<void> {
         invalidateModuleCache(module);
         const idsArray = id.split(',').map(s => s.trim()).filter(Boolean);
         if (idsArray.length === 0) return;
         const idsSet = new Set(idsArray);
+
+        const resolveInstId = (passedId?: string): string => {
+            return passedId ||
+                (_sessionUser?.institutionId || (_sessionUser as any)?.institution_id) ||
+                ((ls.get('current_institution') as any)?.id) ||
+                ((ls.get('institution') as any)?.id) ||
+                localStorage.getItem('eduai_active_institution_id') ||
+                'default_inst';
+        };
 
         // ALWAYS purge from local storage (ls) & IndexedDB (localDb) immediately
         try {
@@ -3957,7 +4055,23 @@ export const apiService = {
         }
 
         if (module === 'exam_units') {
-            const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
+            const instId = resolveInstId(institutionId);
+            
+            // 1. Maintain deleted tombstones locally
+            let localDeletedIds: string[] = [];
+            try {
+                const savedDeleted = localStorage.getItem(`eduai_deleted_exam_ids_${instId}`);
+                if (savedDeleted) localDeletedIds = JSON.parse(savedDeleted) || [];
+            } catch (_) {}
+            const combinedDeleted = Array.from(new Set([...localDeletedIds, ...idsArray]));
+            try {
+                localStorage.setItem(`eduai_deleted_exam_ids_${instId}`, JSON.stringify(combinedDeleted));
+                if (instId !== 'default_inst') {
+                    localStorage.setItem('eduai_deleted_exam_ids_default_inst', JSON.stringify(combinedDeleted));
+                }
+            } catch (_) {}
+
+            // 2. Filter local storage & IndexedDB
             let localExams: any[] = [];
             try {
                 const saved = localStorage.getItem(`eduai_exam_units_${instId}`);
@@ -3968,10 +4082,40 @@ export const apiService = {
             const remaining = localExams.filter((e: any) => e && !idsSet.has(e.id));
             try {
                 localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(remaining));
+                if (instId !== 'default_inst') {
+                    localStorage.setItem('eduai_exam_units_default_inst', JSON.stringify(remaining));
+                }
                 ls.set('exam_units', remaining);
             } catch (e) {}
 
+            // 3. Purge corresponding broadsheets locally
+            try {
+                const savedBs = localStorage.getItem(`eduai_exam_broadsheets_${instId}`);
+                if (savedBs) {
+                    const bsStore = JSON.parse(savedBs) || {};
+                    let bsModified = false;
+                    idsArray.forEach(delId => {
+                        if (bsStore[delId]) {
+                            delete bsStore[delId];
+                            bsModified = true;
+                        }
+                    });
+                    if (bsModified) {
+                        localStorage.setItem(`eduai_exam_broadsheets_${instId}`, JSON.stringify(bsStore));
+                        ls.set('exam_broadsheets', bsStore);
+                    }
+                }
+            } catch (_) {}
+
+            // 4. Invalidate memory caches
+            invalidateModuleCache('exam_units');
+            invalidateModuleCache('exam_broadsheets');
+            _imsSharedCache.clear();
+            _imsSharedPromises.clear();
+
+            // 5. Cloud updates to institution_module_states
             if (instId) {
+                // Upsert cleaned exam_units with deleted tombstones
                 apiService.saveModuleRecord('institution_module_states', {
                     id: `ims_exam_units_${instId}`,
                     institution_id: instId,
@@ -3981,11 +4125,80 @@ export const apiService = {
                     moduleName: 'Exam Units',
                     status: 'active',
                     data: remaining,
-                    settings: remaining,
+                    settings: { exams: remaining, deletedExamIds: combinedDeleted },
                     stateData: remaining,
                     updated_at: new Date().toISOString()
                 }).catch(() => {});
+
+                // Also clean cloud broadsheet row
+                if (_supabase) {
+                    try {
+                        const { data: bsRow } = await _supabase
+                            .from('institution_module_states')
+                            .select('id, data, settings')
+                            .eq('id', `ims_exam_broadsheets_${instId}`)
+                            .maybeSingle();
+                        if (bsRow) {
+                            const cloudBs = (bsRow.data && typeof bsRow.data === 'object') ? { ...bsRow.data } : {};
+                            let cloudBsChanged = false;
+                            idsArray.forEach(delId => {
+                                if (cloudBs[delId]) {
+                                    delete cloudBs[delId];
+                                    cloudBsChanged = true;
+                                }
+                            });
+                            if (cloudBsChanged) {
+                                await _supabase.from('institution_module_states').update({
+                                    data: cloudBs,
+                                    settings: cloudBs,
+                                    updated_at: new Date().toISOString()
+                                }).eq('id', bsRow.id);
+                            }
+                        }
+                    } catch (_) {}
+                }
             }
+
+            // 6. Direct Supabase row delete for standalone exam entries, assessments & marks
+            if (_supabase) {
+                try {
+                    await _supabase.from('institution_module_states').delete().in('id', idsArray);
+                    const altRowIds = idsArray.flatMap(id => [`ims_exam_unit_${id}`, `exam_unit_${id}`]);
+                    await _supabase.from('institution_module_states').delete().in('id', altRowIds);
+                    await _supabase.from('assessments').delete().in('id', idsArray);
+                    await _supabase.from('assessment_marks').delete().in('assessment_id', idsArray);
+                    await _supabase.from('assessment_marks').delete().in('exam_id', idsArray);
+                } catch (_) {}
+            }
+
+            // 7. Invoke backend delete proxy to ensure server-side deletion & cross-origin sync
+            try {
+                const token = await apiService.getAuthToken();
+                fetch(`${window.location.origin}/api/delete?module=exam_units`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token ? `Bearer ${token}` : '',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ids: idsArray, institution_id: instId })
+                }).catch(() => {});
+            } catch (_) {}
+
+            // 8. Dispatch global sync events across tabs & components
+            try {
+                window.dispatchEvent(new CustomEvent('eduai_academics_synced', { 
+                    detail: { type: 'exam_deleted', deletedIds: idsArray, institutionId: instId } 
+                }));
+                window.dispatchEvent(new CustomEvent('eduai_exam_deleted', { 
+                    detail: { deletedIds: idsArray, institutionId: instId } 
+                }));
+                if (typeof BroadcastChannel !== 'undefined') {
+                    const bc = new BroadcastChannel('eduai_academics_channel');
+                    bc.postMessage({ type: 'exam_deleted', deletedIds: idsArray, institutionId: instId });
+                    bc.close();
+                }
+            } catch (_) {}
+
             return;
         }
 
@@ -4264,25 +4477,14 @@ export const apiService = {
                 }
             }
 
+            const { exams: cleanAllExams, payload: stateData } = buildExamUnitsStatePayload(instId, allExams);
+            allExams = cleanAllExams;
             try {
                 localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(allExams));
                 ls.set('exam_units', allExams);
             } catch (e) {}
 
             if (instId) {
-                const stateData = {
-                    id: `ims_exam_units_${instId}`,
-                    institution_id: instId,
-                    institutionId: instId,
-                    module_id: 'exam_units',
-                    moduleId: 'exam_units',
-                    moduleName: 'Exam Units',
-                    status: 'active',
-                    data: allExams,
-                    settings: allExams,
-                    stateData: allExams,
-                    updated_at: new Date().toISOString()
-                };
                 apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
                     console.warn('[apiService] saveModuleRecord exam_units error:', err);
                 });
@@ -4865,25 +5067,14 @@ export const apiService = {
                     localExams.push(item);
                 }
             });
+            const { exams: cleanBulkExams, payload: bulkImsPayload } = buildExamUnitsStatePayload(instId, localExams);
             try {
-                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(localExams));
-                ls.set('exam_units', localExams);
+                localStorage.setItem(`eduai_exam_units_${instId}`, JSON.stringify(cleanBulkExams));
+                ls.set('exam_units', cleanBulkExams);
             } catch (e) {}
 
             if (instId) {
-                apiService.saveModuleRecord('institution_module_states', {
-                    id: `ims_exam_units_${instId}`,
-                    institution_id: instId,
-                    institutionId: instId,
-                    module_id: 'exam_units',
-                    moduleId: 'exam_units',
-                    moduleName: 'Exam Units',
-                    status: 'active',
-                    data: localExams,
-                    settings: localExams,
-                    stateData: localExams,
-                    updated_at: new Date().toISOString()
-                }).catch(() => {});
+                apiService.saveModuleRecord('institution_module_states', bulkImsPayload).catch(() => {});
             }
             return data;
         }
