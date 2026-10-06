@@ -96,6 +96,38 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
         }, 1500);
     };
 
+    const formatDisplayPhone = (raw?: string): string => {
+        if (!raw) return '-';
+        let clean = String(raw).replace(/[^0-9]/g, '');
+        if (clean.startsWith('254') && clean.length === 12) {
+            return '0' + clean.slice(3);
+        }
+        if (clean.length === 9) {
+            return '0' + clean;
+        }
+        return clean || raw;
+    };
+
+    const formatPaidOn = (dateStr?: string): string => {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr);
+        
+        const now = new Date();
+        const isToday = d.toDateString() === now.toDateString();
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+        if (isToday) {
+            return timeStr;
+        }
+        if (diffDays < 7 && diffDays >= 0) {
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            return `${dayNames[d.getDay()]} ${timeStr}`;
+        }
+        return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeStr}`;
+    };
+
     return (
         <div className="space-y-6 animate-fade-in">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -186,72 +218,81 @@ export const DSFinanceFeeds: React.FC<DSFinanceFeedsProps> = ({
 
             <div className="bg-white dark:bg-slate-900 rounded-[2rem] md:rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                    <thead>
-                        <tr className="border-b border-slate-50 dark:border-slate-800">
-                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Source & Date</th>
-                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Reference</th>
-                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Amount</th>
-                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Status</th>
-                            <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Reconcile</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                        {(activeFeed === 'bank' ? filteredBank : filteredMpesa).map((t: any) => (
-                            <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                <td className="px-10 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${activeFeed === 'mpesa' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                                            {activeFeed === 'mpesa' ? <CreditCard className="w-5 h-5" /> : <Banknote className="w-5 h-5" />}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                                {activeFeed === 'mpesa' ? (t.payerName || t.phoneNumber) : (t.senderName || 'Bank Deposit')}
-                                            </p>
-                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                                                {new Date(t.transactionDate || t.timestamp).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-10 py-6 font-mono text-[11px] font-bold text-slate-500">
-                                    {t.reference || t.transactionId}
-                                </td>
-                                <td className="px-10 py-6 text-right">
-                                    <p className="text-sm font-black text-slate-900 dark:text-white">
-                                        KES {(t.amount ?? 0)?.toLocaleString()}
-                                    </p>
-                                </td>
-                                <td className="px-10 py-6">
-                                    <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                                        (t.status === 'reconciled' || t.metadata?.reconciled) ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                                    }`}>
-                                        {(t.status === 'reconciled' || t.metadata?.reconciled) ? 'Synced' : 'Awaiting Match'}
-                                    </span>
-                                </td>
-                                <td className="px-10 py-6 text-right">
-                                    {!(t.status === 'reconciled' || t.metadata?.reconciled) ? (
-                                        <button 
-                                            onClick={() => {
-                                                const match = invoices.find(inv => inv.totalAmount === t.amount && inv.status !== 'Fully Paid');
-                                                if (match) {
-                                                    onReconcile(t.id, match.id, activeFeed);
-                                                } else {
-                                                    alert("No exact amount match found. Manual selection required.");
-                                                }
-                                            }}
-                                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                        >
-                                            <LinkIcon className="w-4 h-4" />
-                                        </button>
-                                    ) : (
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-500 ml-auto" />
-                                    )}
-                                </td>
+                    <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr className="bg-[#4b6b82] text-white text-xs font-bold border-b border-slate-300">
+                                <th className="px-4 py-3.5 border-r border-white/20 text-left">ID</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-left">Name</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-right">Amount</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-left">Reference</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-left">Paid By</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-left">Phone Number</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-left">Paid On</th>
+                                <th className="px-4 py-3.5 border-r border-white/20 text-center">Status</th>
+                                <th className="px-4 py-3.5 text-left">Source</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                            {(activeFeed === 'bank' ? filteredBank : filteredMpesa).map((t: any) => {
+                                const match = (invoices || []).find(inv => 
+                                    (t.reference && inv.invoiceNumber && t.reference.includes(inv.invoiceNumber)) ||
+                                    (t.linkedInvoiceId && t.linkedInvoiceId === inv.id) ||
+                                    (t.metadata?.invoice_id && t.metadata.invoice_id === inv.id) ||
+                                    (t.description?.includes(inv.invoiceNumber) || inv.invoiceNumber.includes(t.transactionId)) ||
+                                    (inv.totalAmount === t.amount && (t.status === 'reconciled' || t.metadata?.reconciled))
+                                );
+
+                                const idVal = (match as any)?.admissionNumber || (match as any)?.studentId?.split('_')[1] || (match as any)?.invoiceNumber || (t.id ? t.id.slice(-4) : '-');
+                                const nameVal = (match as any)?.studentName || (activeFeed === 'mpesa' ? t.payerName : t.senderName) || 'Unassigned';
+                                const amountVal = (Number(t.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                const refVal = t.reference || t.transactionId;
+                                const paidByVal = (activeFeed === 'mpesa' ? t.payerName : t.senderName) || 'Unknown';
+                                const phoneVal = formatDisplayPhone(t.phoneNumber || t.payerPhone || (match as any)?.phone);
+                                const paidOnVal = formatPaidOn(t.transactionDate || t.timestamp);
+                                const isReconciled = t.status === 'reconciled' || t.metadata?.reconciled;
+                                const sourceVal = activeFeed === 'bank' 
+                                    ? `${t.bankName || 'National Bank'} account [${t.payload?.accountNumber || (institution as any)?.ncbaConfig?.accountNumber || '7700089957'}]`
+                                    : `M-Pesa Paybill [${(institution as any)?.mpesaConfig?.shortCode || (institution as any)?.mpesaConfig?.paybillNumber || '522522'}]`;
+
+                                return (
+                                    <tr key={t.id} className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono text-xs">{idVal}</td>
+                                        <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100 text-xs">{nameVal}</td>
+                                        <td className="px-4 py-3 text-right font-medium text-slate-800 dark:text-slate-200 font-mono text-xs">{amountVal}</td>
+                                        <td className="px-4 py-3 font-mono font-medium text-slate-700 dark:text-slate-300 text-xs">{refVal}</td>
+                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{paidByVal}</td>
+                                        <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400 text-xs">{phoneVal}</td>
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">{paidOnVal}</td>
+                                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                                            {isReconciled ? (
+                                                <span className="inline-block px-2.5 py-0.5 rounded bg-[#5cb85c] text-white text-[11px] font-bold tracking-wide shadow-sm">
+                                                    Reconciled
+                                                </span>
+                                            ) : (
+                                                <button 
+                                                    onClick={() => {
+                                                        const m = invoices.find(inv => inv.totalAmount === t.amount && inv.status !== 'Fully Paid');
+                                                        if (m) {
+                                                            onReconcile(t.id, m.id, activeFeed);
+                                                        } else {
+                                                            alert("No exact amount match found. Manual selection required.");
+                                                        }
+                                                    }}
+                                                    className="inline-block px-2.5 py-0.5 rounded bg-[#f0ad4e] hover:bg-[#ec971f] text-white text-[11px] font-bold tracking-wide shadow-sm transition-all cursor-pointer"
+                                                    title="Click to Match"
+                                                >
+                                                    Pending (Match)
+                                                </button>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
+                                            {sourceVal}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

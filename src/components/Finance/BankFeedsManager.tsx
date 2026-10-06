@@ -205,6 +205,76 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         return clean;
     }, []);
 
+    // Helper: Format Kenyan phone number to 07... / 01... like in the photo
+    const formatDisplayPhone = useCallback((raw?: string): string => {
+        if (!raw) return '-';
+        let clean = String(raw).replace(/[^0-9]/g, '');
+        if (clean.startsWith('254') && clean.length === 12) {
+            return '0' + clean.slice(3);
+        }
+        if (clean.length === 9) {
+            return '0' + clean;
+        }
+        return clean || raw;
+    }, []);
+
+    // Helper: Format transaction timestamp (e.g. "05:28 PM", "Sat 08:01 AM") like in the photo
+    const formatPaidOn = useCallback((dateStr?: string): string => {
+        if (!dateStr) return '-';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return String(dateStr);
+        
+        const now = new Date();
+        const isToday = d.toDateString() === now.toDateString();
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        
+        const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+        if (isToday) {
+            return timeStr;
+        }
+        if (diffDays < 7 && diffDays >= 0) {
+            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            return `${dayNames[d.getDay()]} ${timeStr}`;
+        }
+        return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeStr}`;
+    }, []);
+
+    // Helper: Format Source string (e.g. "National Bank account [7700089957]") like in the photo
+    const resolveSource = useCallback((txn: IngestedTransaction): string => {
+        if (txn.rawPayload?.bank_account_formatted) {
+            return txn.rawPayload.bank_account_formatted;
+        }
+        if (txn.rawPayload?.bank_name && txn.rawPayload?.account_number) {
+            return `${txn.rawPayload.bank_name} account [${txn.rawPayload.account_number}]`;
+        }
+        
+        const matchedAccount = accounts.find(a => a.provider === txn.provider);
+        if (matchedAccount) {
+            if (txn.provider === 'MPESA_DARAJA') {
+                return `M-Pesa Paybill [${matchedAccount.paybillOrTillNumber || matchedAccount.accountNumber || '522522'}]`;
+            }
+            const bName = matchedAccount.accountName.split(' ')[0] || 'Bank';
+            return `${bName} Bank account [${matchedAccount.accountNumber}]`;
+        }
+        
+        switch (txn.provider) {
+            case 'MPESA_DARAJA':
+                return `M-Pesa Paybill [${institution?.mpesaConfig?.shortCode || institution?.mpesaConfig?.paybillNumber || '522522'}]`;
+            case 'KCB_BUNI':
+                return `KCB Bank account [${institution?.kcbConfig?.accountNumber || '1109482019'}]`;
+            case 'COOP_CONNECT':
+                return `Co-operative Bank account [${institution?.coopConfig?.accountNumber || '01129000458100'}]`;
+            case 'EQUITY_JENGA':
+                return `Equity Bank account [${institution?.equityConfig?.accountNumber || '0810294820194'}]`;
+            case 'NCBA_DIRECT':
+                return `NCBA Bank account [${institution?.ncbaConfig?.accountNumber || '7700089957'}]`;
+            case 'IM_BANK':
+                return `I&M Bank account [${institution?.imBankConfig?.accountNumber || '0019283746'}]`;
+            default:
+                return `National Bank account [7700089957]`;
+        }
+    }, [accounts, institution]);
+
     // ── Helper 2: Extract Genuine Alphanumeric Transaction Code (e.g. "UJ1F48QRBS") ──
     const extractRealTransactionCode = useCallback((row: any): string => {
         const meta = row.metadata || {};
@@ -1175,125 +1245,71 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse text-xs">
                                 <thead>
-                                    <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                                        <th className="px-6 py-3.5">Provider · Reference</th>
-                                        <th className="px-6 py-3.5">Payer / Account Key</th>
-                                        <th className="px-6 py-3.5">Amount</th>
-                                        <th className="px-6 py-3.5">Matched Student</th>
-                                        <th className="px-6 py-3.5">Receipt #</th>
-                                        <th className="px-6 py-3.5 text-center">Status</th>
-                                        <th className="px-6 py-3.5 text-right">Actions</th>
+                                    <tr className="bg-[#4b6b82] text-white text-xs font-bold border-b border-slate-300">
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-left">ID</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-left">Name</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-right">Amount</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-left">Reference</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-left">Paid By</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-left">Phone Number</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-left">Paid On</th>
+                                        <th className="px-4 py-3.5 border-r border-white/20 text-center">Status</th>
+                                        <th className="px-4 py-3.5 text-left">Source</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                                     {filteredTxns.map(txn => {
-                                        const isKcb = txn.provider === 'KCB_BUNI';
-                                        const isMpesa = txn.provider === 'MPESA_DARAJA';
-                                        const isCoop = txn.provider === 'COOP_CONNECT';
-                                        const isEquity = txn.provider === 'EQUITY_JENGA';
+                                        const idVal = txn.matchedStudentAdm || parseAdmissionNumberFromRef(txn.billReferenceNumber || '') || txn.billReferenceNumber || (txn.matchedStudentId ? txn.matchedStudentId.slice(-4) : txn.id.slice(-4));
+                                        const nameVal = txn.matchedStudentName || (students.find(s => s.id === txn.matchedStudentId)?.name) || (students.find(s => s.id === txn.matchedStudentId)?.fullName) || txn.payerName || 'Unassigned';
+                                        const amountVal = (Number(txn.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                        const refVal = txn.transactionReference;
+                                        const paidByVal = txn.payerName || 'Unknown';
+                                        const phoneVal = formatDisplayPhone(txn.payerPhone);
+                                        const paidOnVal = formatPaidOn(txn.transactionDate || txn.createdAt);
+                                        const isReconciled = txn.status === 'MATCHED_AND_RECEIPTED' || Boolean(txn.generatedReceiptNumber);
+                                        const sourceVal = resolveSource(txn);
 
                                         return (
-                                            <tr key={txn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                                <td className="px-6 py-3.5">
-                                                    <div className="flex items-center gap-2.5">
-                                                        <span className={`p-2 rounded-xl flex items-center justify-center ${
-                                                            isKcb 
-                                                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800' 
-                                                                : isMpesa 
-                                                                    ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400' 
-                                                                    : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400'
-                                                        }`}>
-                                                            {isMpesa ? (
-                                                                <DevicePhoneMobileIcon className="w-4 h-4" />
-                                                            ) : (
-                                                                <BuildingLibraryIcon className="w-4 h-4" />
-                                                            )}
+                                            <tr key={txn.id} className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-mono text-xs">{idVal}</td>
+                                                <td className="px-4 py-3 font-semibold text-slate-900 dark:text-slate-100 text-xs">{nameVal}</td>
+                                                <td className="px-4 py-3 text-right font-medium text-slate-800 dark:text-slate-200 font-mono text-xs">{amountVal}</td>
+                                                <td className="px-4 py-3 font-mono font-medium text-slate-700 dark:text-slate-300 text-xs">{refVal}</td>
+                                                <td className="px-4 py-3 text-slate-700 dark:text-slate-300 text-xs">{paidByVal}</td>
+                                                <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-400 text-xs">{phoneVal}</td>
+                                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">{paidOnVal}</td>
+                                                <td className="px-4 py-3 text-center whitespace-nowrap">
+                                                    {isReconciled ? (
+                                                        <span className="inline-block px-2.5 py-0.5 rounded bg-[#5cb85c] text-white text-[11px] font-bold tracking-wide shadow-sm">
+                                                            Reconciled
                                                         </span>
-                                                        <div>
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span className="font-mono font-black text-slate-900 dark:text-white block">
-                                                                    {txn.transactionReference}
-                                                                </span>
-                                                                {isKcb && (
-                                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 font-mono text-[9px] font-black">
-                                                                        KCB
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                                                                {new Date(txn.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })} · {txn.provider.replace('_', ' ')}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3.5">
-                                                    <span className="font-bold text-slate-800 dark:text-slate-200 block">{txn.payerName}</span>
-                                                    <div className="font-mono text-[10px] text-slate-400 flex flex-wrap items-center gap-1 mt-0.5">
-                                                        <span>Acc:</span>
-                                                        <strong className="text-slate-700 dark:text-slate-300 font-bold">
-                                                            "{parseAdmissionNumberFromRef(txn.billReferenceNumber || '') || txn.billReferenceNumber || 'None'}"
-                                                        </strong>
-                                                        {parseAdmissionNumberFromRef(txn.billReferenceNumber || '') && 
-                                                         txn.billReferenceNumber && 
-                                                         parseAdmissionNumberFromRef(txn.billReferenceNumber || '') !== txn.billReferenceNumber && (
-                                                            <span className="text-[9px] text-slate-400 font-mono">({txn.billReferenceNumber})</span>
-                                                        )}
-                                                        {txn.payerPhone ? `· ${txn.payerPhone}` : ''}
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3.5 font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm whitespace-nowrap">
-                                                    KSh {txn.amount.toLocaleString()}
-                                                </td>
-                                                <td className="px-6 py-3.5">
-                                                    {txn.matchedStudentName ? (
-                                                        <div>
-                                                            <span className="font-bold text-slate-900 dark:text-white block">
-                                                                {txn.matchedStudentName}
-                                                            </span>
-                                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                                                                ADM {txn.matchedStudentAdm || 'Matched'} {txn.reconciliationConfidence ? `(${txn.reconciliationConfidence})` : ''}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-900">
-                                                            <ExclamationTriangleIcon className="w-3 h-3" />
-                                                            Unmatched (Suspense)
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-3.5">
-                                                    {txn.generatedReceiptNumber ? (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                                                            🧾 {txn.generatedReceiptNumber}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-[10px] text-slate-400 italic">Pending receipt</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-3.5 text-center">
-                                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                                                        txn.status === 'MATCHED_AND_RECEIPTED'
-                                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                                                    }`}>
-                                                        {txn.status === 'MATCHED_AND_RECEIPTED' ? '✓ Auto-Receipted' : '⚠ Suspense'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-3.5 text-right whitespace-nowrap">
-                                                    {txn.status === 'UNMATCHED_SUSPENSE' ? (
+                                                    ) : txn.status === 'UNMATCHED_SUSPENSE' ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => {
                                                                 setSuspenseTargetTxn(txn);
                                                                 setSelectedStudentForSuspense(students[0]?.id || '');
                                                             }}
-                                                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all cursor-pointer"
+                                                            className="inline-block px-2.5 py-0.5 rounded bg-[#f0ad4e] hover:bg-[#ec971f] text-white text-[11px] font-bold tracking-wide shadow-sm transition-all cursor-pointer"
+                                                            title="Click to link student"
                                                         >
-                                                            Link Student
+                                                            Pending (Link)
                                                         </button>
                                                     ) : (
-                                                        <span className="text-[10px] font-bold text-slate-400">Reconciled</span>
+                                                        <span className="inline-block px-2.5 py-0.5 rounded bg-[#f0ad4e] text-white text-[11px] font-bold tracking-wide shadow-sm">
+                                                            Pending
+                                                        </span>
                                                     )}
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span>{sourceVal}</span>
+                                                        {txn.generatedReceiptNumber && (
+                                                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono shrink-0 font-bold bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800" title="Receipt Number">
+                                                                #{txn.generatedReceiptNumber}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );

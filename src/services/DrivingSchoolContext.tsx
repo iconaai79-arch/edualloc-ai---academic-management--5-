@@ -39,6 +39,7 @@ interface DrivingSchoolContextType {
     verifyStudentPayment: (studentId: string) => Promise<void>;
     updateStudent: (data: any) => Promise<void>;
     deleteStudent: (id: string) => Promise<void>;
+    deleteStudents: (ids: string[], skipConfirmation?: boolean) => Promise<void>;
     addLesson: (data: any) => Promise<void>;
     addMastery: (data: any) => Promise<void>;
     updateSettings: (data: any) => Promise<void>;
@@ -613,6 +614,58 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             throw err;
         }
     }, [institutionId, students, onRefresh, success, error]);
+
+    const deleteStudents = useCallback(async (ids: string[], skipConfirmation = false) => {
+        if (!institutionId || !ids || ids.length === 0) return;
+        
+        if (!skipConfirmation) {
+            const count = ids.length;
+            if (!window.confirm(`Are you sure you want to permanently delete ${count === 1 ? 'this student' : `these ${count} students`}? This will remove their student profiles, progress records, and linked portal accounts. This action cannot be undone.`)) {
+                return;
+            }
+        }
+        
+        try {
+            const idsSet = new Set(ids);
+            const targetStudents = students.filter(s => idsSet.has(s.id));
+            
+            // 1. Delete student records from ds_students in bulk
+            await apiService.deleteModuleRecord('ds_students', ids.join(','));
+            
+            // 2. Collect and delete all linked user accounts in bulk
+            const userIdsToDelete = targetStudents
+                .map(s => s.userId || (s as any).user_id)
+                .filter(Boolean) as string[];
+                
+            if (userIdsToDelete.length > 0) {
+                await apiService.deleteModuleRecord('users', userIdsToDelete.join(',')).catch(err => {
+                    console.warn("[DS] Failed to delete linked student user accounts:", err);
+                });
+            }
+
+            // 3. Clean up associated lessons if any
+            const lessonIdsToDelete = (lessons || [])
+                .filter(l => l && idsSet.has(l.studentId))
+                .map(l => l.id)
+                .filter(Boolean);
+            if (lessonIdsToDelete.length > 0) {
+                await apiService.deleteModuleRecord('ds_lessons', lessonIdsToDelete.join(',')).catch(err => {
+                    console.warn("[DS] Failed to delete associated lessons:", err);
+                });
+                setLessons(prev => prev.filter(l => !idsSet.has(l.studentId)));
+            }
+
+            // 4. Update local students state immediately
+            setStudents(prev => prev.filter(s => !idsSet.has(s.id)));
+            
+            success(`${ids.length} student${ids.length === 1 ? '' : 's'} removed successfully`);
+            await onRefresh();
+        } catch (err: any) {
+            console.error("[DSContext] Failed to bulk delete students:", err);
+            error("Failed to delete students: " + (err.message || "Unknown error"));
+            throw err;
+        }
+    }, [institutionId, students, lessons, onRefresh, success, error]);
 
     const sendLessonNotification = useCallback(async (lesson: DSLesson, isReminder = false) => {
         const student = students.find(s => s.id === lesson.studentId);
@@ -1494,7 +1547,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions, leads, expenditures,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads, setExpenditures,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
         addExpenditure, updateExpenditure, deleteExpenditure,
         sendLessonNotification,
         refreshData, stats

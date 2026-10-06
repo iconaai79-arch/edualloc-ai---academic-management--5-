@@ -3437,6 +3437,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         verifyStudentPayment: onVerifyStudentPayment,
         updateStudent: onUpdateStudent,
         deleteStudent: onDeleteStudent,
+        deleteStudents: onDeleteStudents,
         addLesson: onAddLesson,
         updateLesson: onUpdateLesson,
         deleteLesson: onDeleteLesson,
@@ -3663,6 +3664,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
     const [pendingAttendanceOverride, setPendingAttendanceOverride] = useState<{ lesson: DSLesson; ms: any } | null>(null);
     const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
     const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+    const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
     const [feeReminderType, setFeeReminderType] = useState<'overall' | 'shortfall'>('overall');
     const [selectedProgramCategory, setSelectedProgramCategory] = useState<any | null>(null);
     const [dailyProgramDraft, setDailyProgramDraft] = useState<Array<{ day: number; topic: string; objective?: string }>>([]);
@@ -4625,6 +4627,10 @@ END $$;
     useEffect(() => {
         setSelectedLeadIds([]);
     }, [searchTerm, leadStatusFilter, selectedLeadCategory, leadPage, activeTab]);
+
+    useEffect(() => {
+        setSelectedStudentIds([]);
+    }, [searchTerm, studentSubTab, studentSortBy, studentPage, activeTab]);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isLeadImportModalOpen, setIsLeadImportModalOpen] = useState(false);
     const [isOpeningBalanceModalOpen, setIsOpeningBalanceModalOpen] = useState(false);
@@ -6083,6 +6089,28 @@ END $$;
                                         >
                                             Export NTSA Roster
                                         </button>
+                                        {selectedStudentIds.length > 0 && (
+                                            <button 
+                                                type="button"
+                                                onClick={async () => {
+                                                    if (selectedStudentIds.length === 0) return;
+                                                    setIsActionLoading(true);
+                                                    try {
+                                                        await onDeleteStudents(selectedStudentIds);
+                                                        setSelectedStudentIds([]);
+                                                    } catch (err) {
+                                                        console.error("Bulk remove students failed:", err);
+                                                    } finally {
+                                                        setIsActionLoading(false);
+                                                    }
+                                                }}
+                                                disabled={isActionLoading}
+                                                className="px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 transition-all flex items-center justify-center gap-2 min-w-max animate-fade-in"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                                Delete Selected ({selectedStudentIds.length})
+                                            </button>
+                                        )}
                                         {isSuperAdmin && (
                                             <button 
                                                 onClick={handleBulkUpdateDays}
@@ -6097,10 +6125,51 @@ END $$;
 
                             {studentSubTab !== 'preview' ? (
                                 <>
+                                    {selectedStudentIds.length > 0 && (
+                                        <div className="px-8 py-3 bg-indigo-50/80 dark:bg-indigo-950/40 border-b border-indigo-100 dark:border-indigo-900/50 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-indigo-900 dark:text-indigo-200 animate-fade-in">
+                                            <div className="flex items-center gap-2">
+                                                <CheckCircleIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                                <span>{selectedStudentIds.length} student{selectedStudentIds.length === 1 ? '' : 's'} selected.</span>
+                                                {filteredStudents.length > selectedStudentIds.length && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSelectedStudentIds(filteredStudents.map(s => s.id))}
+                                                        className="underline text-indigo-600 dark:text-indigo-400 font-black hover:text-indigo-800 ml-2"
+                                                    >
+                                                        Select all {filteredStudents.length} matching students
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedStudentIds([])}
+                                                className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-[11px] font-black uppercase tracking-wider"
+                                            >
+                                                Clear Selection
+                                            </button>
+                                        </div>
+                                    )}
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left min-w-[1200px]">
                                             <thead>
                                                 <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
+                                                    <th className="px-6 py-8 w-12 text-center">
+                                                        <input 
+                                                            type="checkbox"
+                                                            checked={paginatedStudents.length > 0 && paginatedStudents.every(s => selectedStudentIds.includes(s.id))}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    const pageIds = paginatedStudents.map(s => s.id);
+                                                                    setSelectedStudentIds(prev => Array.from(new Set([...prev, ...pageIds])));
+                                                                } else {
+                                                                    const pageIdsSet = new Set(paginatedStudents.map(s => s.id));
+                                                                    setSelectedStudentIds(prev => prev.filter(id => !pageIdsSet.has(id)));
+                                                                }
+                                                            }}
+                                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                            title="Select / Deselect all on current page"
+                                                        />
+                                                    </th>
                                                     <th className="px-10 py-8">Student</th>
                                                     <th className="px-10 py-8">Contact</th>
                                                     <th className="px-10 py-8">Category</th>
@@ -6115,6 +6184,20 @@ END $$;
                                             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                                 {paginatedStudents.map(student => (
                                                     <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
+                                                        <td className="px-6 py-8 text-center w-12">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={selectedStudentIds.includes(student.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedStudentIds(prev => [...prev, student.id]);
+                                                                    } else {
+                                                                        setSelectedStudentIds(prev => prev.filter(id => id !== student.id));
+                                                                    }
+                                                                }}
+                                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                                            />
+                                                        </td>
                                                         <td className="px-10 py-8">
                                                             <div className="flex items-center gap-4">
                                                                 <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center font-black text-indigo-600 overflow-hidden">
