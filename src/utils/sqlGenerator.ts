@@ -3394,7 +3394,14 @@ BEGIN
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
             EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
             EXECUTE format('DROP POLICY IF EXISTS "master_unblock_%I" ON public.%I', t, t);
-            EXECUTE format('CREATE POLICY "master_unblock_%I" ON public.%I FOR ALL TO authenticated, anon USING (true) WITH CHECK (true)', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS "%I_select" ON public.%I', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS "%I_insert" ON public.%I', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS "%I_update" ON public.%I', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS "%I_delete" ON public.%I', t, t);
+            EXECUTE format('CREATE POLICY "%I_select" ON public.%I FOR SELECT TO authenticated, anon USING (true)', t, t);
+            EXECUTE format('CREATE POLICY "%I_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL AND length(id) > 0)', t, t);
+            EXECUTE format('CREATE POLICY "%I_update" ON public.%I FOR UPDATE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0) WITH CHECK (id IS NOT NULL AND length(id) > 0)', t, t);
+            EXECUTE format('CREATE POLICY "%I_delete" ON public.%I FOR DELETE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0)', t, t);
             EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
         END IF;
     END LOOP;
