@@ -2939,10 +2939,7 @@ export const apiService = {
                 'staff_attendance_daily', 'student_attendance',
                 'zkteco_commands', 'zkteco_attendance_raw',
                 'sms_logs', 'sms_outbox', 'sms_gateway_logs', 'integration_logs',
-                'audit_logs', 'activity_logs',
-                // Remedial sessions must have a UUID id — strip any prefixed string id
-                // so Postgres generates a valid UUID via DEFAULT gen_random_uuid()
-                'school_remedial_sessions'
+                'audit_logs', 'activity_logs'
             ];
 
             const isValidUuid = (val: any) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -4369,6 +4366,111 @@ export const apiService = {
                     if ('BroadcastChannel' in window) {
                         const bc = new BroadcastChannel('eduai_remedial_duty_sync');
                         bc.postMessage({ type: 'DUTY_ROSTER_UPDATED', institutionId: instId, roster: remaining });
+                        bc.close();
+                    }
+                } catch (_) {}
+            }
+            return;
+        }
+
+        if (module === 'school_remedial_sessions') {
+            const instId = resolveInstId(institutionId);
+            const delKey = `eduai_deleted_remedial_session_ids_${instId}`;
+            let deletedIds: string[] = [];
+            try {
+                const s = safeLocalStorage.getItem(delKey);
+                if (s) deletedIds = JSON.parse(s);
+            } catch (_) {}
+            deletedIds = Array.from(new Set([...deletedIds, ...Array.from(idsSet)]));
+            try {
+                safeLocalStorage.setItem(delKey, JSON.stringify(deletedIds));
+                if (instId !== 'default_inst') {
+                    safeLocalStorage.setItem('eduai_deleted_remedial_session_ids_default_inst', JSON.stringify(deletedIds));
+                }
+            } catch (_) {}
+
+            // Purge from remedial_sessions_${instId}
+            try {
+                const cacheKey = `remedial_sessions_${instId}`;
+                const cached = safeLocalStorage.getItem(cacheKey);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        safeLocalStorage.setItem(cacheKey, JSON.stringify(parsed.filter((s: any) => s && !idsSet.has(s.id))));
+                    }
+                }
+            } catch (_) {}
+
+            // Purge from global eduai_remedial_sessions
+            try {
+                const globalKey = 'eduai_remedial_sessions';
+                const cached = safeLocalStorage.getItem(globalKey);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        safeLocalStorage.setItem(globalKey, JSON.stringify(parsed.filter((s: any) => s && !idsSet.has(s.id))));
+                    }
+                }
+            } catch (_) {}
+
+            // Purge from ls and localDb
+            try {
+                const lsRecs = ls.get('school_remedial_sessions') || [];
+                if (Array.isArray(lsRecs)) {
+                    ls.set('school_remedial_sessions', lsRecs.filter((s: any) => s && !idsSet.has(s.id)));
+                }
+                for (const singleId of idsArray) {
+                    localDb.delete('school_remedial_sessions', singleId).catch(() => {});
+                }
+            } catch (_) {}
+
+            // 1. Direct Supabase table deletion
+            if (_supabase) {
+                try {
+                    await _supabase.from('school_remedial_sessions').delete().in('id', Array.from(idsSet));
+                } catch (sbErr) {
+                    console.warn('[apiService] Direct table delete from school_remedial_sessions failed:', sbErr);
+                }
+            }
+
+            // 2. Proxy API delete call
+            if (typeof navigator === 'undefined' || navigator.onLine) {
+                try {
+                    const token = await apiService.getAuthToken();
+                    const url = `${window.location.origin}/api/delete?module=school_remedial_sessions`;
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ ids: Array.from(idsSet) })
+                    });
+                    const resData = await res.json().catch(() => ({}));
+                    if (!res.ok || resData.success === false) {
+                        // Fallback to /api/records bulk_delete
+                        await fetch(`${window.location.origin}/api/records?module=school_remedial_sessions`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': token ? `Bearer ${token}` : '',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ action: 'bulk_delete', ids: Array.from(idsSet) })
+                        });
+                    }
+                } catch (_) {}
+            }
+
+            // 3. Invalidate caches and broadcast across tabs/windows
+            invalidateModuleCache('school_remedial_sessions');
+            if (typeof window !== 'undefined') {
+                try {
+                    window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', {
+                        detail: { institutionId: instId, deletedId: idsArray[0], deletedIds: Array.from(idsSet) }
+                    }));
+                    if ('BroadcastChannel' in window) {
+                        const bc = new BroadcastChannel('eduai_remedial_sessions_sync');
+                        bc.postMessage({ type: 'remedial_sessions_deleted', action: 'SESSIONS_DELETED', institutionId: instId, deletedIds: Array.from(idsSet) });
                         bc.close();
                     }
                 } catch (_) {}
@@ -7752,90 +7854,144 @@ export const apiService = {
         ls.upsert('institution_module_states', [payload]);
     },
     // Remedial Module
-    async fetchRemedialSessions(instId?: string): Promise<RemedialSession[]> { 
-        const records = await apiService.fetchModuleRecords<any>('school_remedial_sessions', instId); 
+    async fetchRemedialSessions(instId?: string, options?: { bypassCache?: boolean; forceRefresh?: boolean }): Promise<RemedialSession[]> { 
+        const targetInst = instId || (_sessionUser?.institutionId || (_sessionUser as any)?.institution_id) || ((ls.get('current_institution') as any)?.id) || 'default_inst';
+
+        // Collect deleted session tombstones
+        let localDeletedIds: string[] = [];
+        try {
+            const savedDel = safeLocalStorage.getItem(`eduai_deleted_remedial_session_ids_${targetInst}`);
+            if (savedDel) localDeletedIds = JSON.parse(savedDel) || [];
+            const defaultDel = safeLocalStorage.getItem('eduai_deleted_remedial_session_ids_default_inst');
+            if (defaultDel) localDeletedIds = [...localDeletedIds, ...(JSON.parse(defaultDel) || [])];
+        } catch (_) {}
+        const deletedSet = new Set(localDeletedIds);
+
+        const records = await apiService.fetchModuleRecords<any>('school_remedial_sessions', instId, undefined, options); 
 
         // Lookup fallbacks from cached registry tables
         const cachedUsers = (ls.get('users') || []) as any[];
         const cachedSubjects = (ls.get('subjects') || []) as any[];
         const cachedCourses = (ls.get('courses') || []) as any[];
 
-        return (records || []).map((raw: any) => {
-            let meta: any = {};
-            if (raw.metadata && typeof raw.metadata === 'object') {
-                meta = raw.metadata;
-            } else if (typeof raw.metadata === 'string') {
-                try { meta = JSON.parse(raw.metadata); } catch (_) { meta = {}; }
-            }
-            const r = { ...meta, ...raw };
+        const mappedSessions: RemedialSession[] = (records || [])
+            .filter((raw: any) => raw && raw.id && !deletedSet.has(raw.id))
+            .map((raw: any) => {
+                let meta: any = {};
+                if (raw.metadata && typeof raw.metadata === 'object') {
+                    meta = raw.metadata;
+                } else if (typeof raw.metadata === 'string') {
+                    try { meta = JSON.parse(raw.metadata); } catch (_) { meta = {}; }
+                }
+                const r = { ...meta, ...raw };
 
-            // Normalize status: ensure 'in_progress', 'in progress', 'InProgress' -> 'In Progress'
-            let status = r.status || meta.status || raw.status || 'In Progress';
-            if (typeof status === 'string' && status.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') {
-                status = 'In Progress';
-            }
+                // Normalize status: ensure 'in_progress', 'in progress', 'InProgress' -> 'In Progress'
+                let status = r.status || meta.status || raw.status || 'In Progress';
+                if (typeof status === 'string' && status.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') {
+                    status = 'In Progress';
+                }
 
-            const teacherId = r.teacherId || r.teacher_id || meta.teacherId || meta.teacher_id || raw.teacherId || raw.teacher_id || '';
-            const subjectId = r.subjectId || r.subject_id || meta.subjectId || meta.subject_id || raw.subjectId || raw.subject_id || '';
-            const courseId = r.courseId || r.course_id || meta.courseId || meta.course_id || raw.courseId || raw.course_id || '';
+                const teacherId = r.teacherId || r.teacher_id || meta.teacherId || meta.teacher_id || raw.teacherId || raw.teacher_id || '';
+                const subjectId = r.subjectId || r.subject_id || meta.subjectId || meta.subject_id || raw.subjectId || raw.subject_id || '';
+                const courseId = r.courseId || r.course_id || meta.courseId || meta.course_id || raw.courseId || raw.course_id || '';
 
-            // Hydrate names with fallback to cached registry
-            const teacherName = r.teacherName || r.teacher_name || meta.teacherName || meta.teacher_name || raw.teacherName || raw.teacher_name || cachedUsers.find(u => u.id === teacherId)?.name || 'Teacher';
-            const subjectName = r.subjectName || r.subject_name || meta.subjectName || meta.subject_name || raw.subjectName || raw.subject_name || cachedSubjects.find(s => s.id === subjectId)?.name || 'Remedial Subject';
-            const className = r.className || r.class_name || meta.className || meta.class_name || raw.className || raw.class_name || cachedCourses.find(c => c.id === courseId)?.name || 'Class';
-            const prefectName = r.prefectName || r.prefect_name || meta.prefectName || meta.prefect_name || raw.prefectName || raw.prefect_name || 'Class Leader';
-            const prefectToken = r.prefectToken || r.prefect_token || meta.prefectToken || meta.prefect_token || raw.prefectToken || raw.prefect_token || '';
-            const startTime = r.startTime || r.start_time || meta.startTime || meta.start_time || raw.startTime || raw.start_time || '';
-            const endTime = r.endTime || r.end_time || meta.endTime || meta.end_time || raw.endTime || raw.end_time || '';
-            const stream = r.stream || meta.stream || raw.stream || '';
+                // Hydrate names with fallback to cached registry
+                const teacherName = r.teacherName || r.teacher_name || meta.teacherName || meta.teacher_name || raw.teacherName || raw.teacher_name || cachedUsers.find(u => u.id === teacherId)?.name || 'Teacher';
+                const subjectName = r.subjectName || r.subject_name || meta.subjectName || meta.subject_name || raw.subjectName || raw.subject_name || cachedSubjects.find(s => s.id === subjectId)?.name || 'Remedial Subject';
+                const className = r.className || r.class_name || meta.className || meta.class_name || raw.className || raw.class_name || cachedCourses.find(c => c.id === courseId)?.name || 'Class';
+                const prefectName = r.prefectName || r.prefect_name || meta.prefectName || meta.prefect_name || raw.prefectName || raw.prefect_name || 'Class Leader';
+                const prefectToken = r.prefectToken || r.prefect_token || meta.prefectToken || meta.prefect_token || raw.prefectToken || raw.prefect_token || '';
+                const startTime = r.startTime || r.start_time || meta.startTime || meta.start_time || raw.startTime || raw.start_time || '';
+                const endTime = r.endTime || r.end_time || meta.endTime || meta.end_time || raw.endTime || raw.end_time || '';
+                const stream = r.stream || meta.stream || raw.stream || '';
 
-            let numH = r.hours ?? r.durationHours ?? r.duration_hours ?? meta.hours ?? meta.durationHours ?? meta.duration_hours;
-            let numM = r.durationMinutes ?? r.duration_minutes ?? meta.durationMinutes ?? meta.duration_minutes;
+                let numH = r.hours ?? r.durationHours ?? r.duration_hours ?? meta.hours ?? meta.durationHours ?? meta.duration_hours;
+                let numM = r.durationMinutes ?? r.duration_minutes ?? meta.durationMinutes ?? meta.duration_minutes;
 
-            if ((numH === undefined || numH === null || isNaN(Number(numH))) && startTime && endTime) {
-                const calc = calculateRemedialSessionDuration(startTime, endTime, {
-                    startTime: r.scheduledStartTime ?? meta.scheduledStartTime ?? meta.scheduled_start_time,
-                    endTime: r.scheduledEndTime ?? meta.scheduledEndTime ?? meta.scheduled_end_time,
-                    durationMinutes: r.scheduledDurationMinutes ?? meta.scheduledDurationMinutes ?? meta.scheduled_duration_minutes
-                });
-                numH = calc.hours;
-                numM = calc.durationMinutes;
-            } else if (numH !== undefined && numH !== null && !isNaN(Number(numH))) {
-                numH = Number(numH);
-            } else {
-                numH = 1;
-            }
+                if ((numH === undefined || numH === null || isNaN(Number(numH))) && startTime && endTime) {
+                    const calc = calculateRemedialSessionDuration(startTime, endTime, {
+                        startTime: r.scheduledStartTime ?? meta.scheduledStartTime ?? meta.scheduled_start_time,
+                        endTime: r.scheduledEndTime ?? meta.scheduledEndTime ?? meta.scheduled_end_time,
+                        durationMinutes: r.scheduledDurationMinutes ?? meta.scheduledDurationMinutes ?? meta.scheduled_duration_minutes
+                    });
+                    numH = calc.hours;
+                    numM = calc.durationMinutes;
+                } else if (numH !== undefined && numH !== null && !isNaN(Number(numH))) {
+                    numH = Number(numH);
+                } else {
+                    numH = 1;
+                }
 
-            return {
-                ...r,
-                teacherId,
-                teacher_id: teacherId,
-                teacherName,
-                teacher_name: teacherName,
-                subjectId,
-                subject_id: subjectId,
-                subjectName,
-                subject_name: subjectName,
-                courseId,
-                course_id: courseId,
-                className,
-                class_name: className,
-                stream,
-                prefectName,
-                prefect_name: prefectName,
-                prefectToken,
-                prefect_token: prefectToken,
-                startTime,
-                start_time: startTime,
-                endTime,
-                end_time: endTime,
-                status,
-                hours: numH,
-                durationHours: numH,
-                duration_hours: numH,
-                durationMinutes: numM ?? (r.durationMinutes || Math.round(numH * 60))
-            };
-        });
+                return {
+                    ...r,
+                    teacherId,
+                    teacher_id: teacherId,
+                    teacherName,
+                    teacher_name: teacherName,
+                    subjectId,
+                    subject_id: subjectId,
+                    subjectName,
+                    subject_name: subjectName,
+                    courseId,
+                    course_id: courseId,
+                    className,
+                    class_name: className,
+                    stream,
+                    prefectName,
+                    prefect_name: prefectName,
+                    prefectToken,
+                    prefect_token: prefectToken,
+                    startTime,
+                    start_time: startTime,
+                    endTime,
+                    end_time: endTime,
+                    status,
+                    hours: numH,
+                    durationHours: numH,
+                    duration_hours: numH,
+                    durationMinutes: numM ?? (r.durationMinutes || Math.round(numH * 60)),
+                    // Hydrate all approval and rejection fields robustly
+                    dutyApproved: r.dutyApproved ?? r.duty_approved ?? meta.dutyApproved ?? meta.duty_approved ?? false,
+                    dutyApprovedBy: r.dutyApprovedBy || r.duty_approved_by || meta.dutyApprovedBy || meta.duty_approved_by || '',
+                    dutyApprovedById: r.dutyApprovedById || r.duty_approved_by_id || meta.dutyApprovedById || meta.duty_approved_by_id || '',
+                    dutyApprovedAt: r.dutyApprovedAt || r.duty_approved_at || meta.dutyApprovedAt || meta.duty_approved_at || '',
+                    dutyNotes: r.dutyNotes || r.duty_notes || meta.dutyNotes || meta.duty_notes || '',
+                    dutyRejected: r.dutyRejected ?? r.duty_rejected ?? meta.dutyRejected ?? meta.duty_rejected ?? false,
+                    dutyRejectionReason: r.dutyRejectionReason || r.duty_rejection_reason || meta.dutyRejectionReason || meta.duty_rejection_reason || '',
+                    dutyRejectedBy: r.dutyRejectedBy || r.duty_rejected_by || meta.dutyRejectedBy || meta.duty_rejected_by || '',
+                    dutyRejectedAt: r.dutyRejectedAt || r.duty_rejected_at || meta.dutyRejectedAt || meta.duty_rejected_at || '',
+                    headteacherApproved: r.headteacherApproved ?? r.headteacher_approved ?? meta.headteacherApproved ?? meta.headteacher_approved ?? false,
+                    headteacherApprovedBy: r.headteacherApprovedBy || r.headteacher_approved_by || meta.headteacherApprovedBy || meta.headteacher_approved_by || '',
+                    headteacherApprovedById: r.headteacherApprovedById || r.headteacher_approved_by_id || meta.headteacherApprovedById || meta.headteacher_approved_by_id || '',
+                    headteacherApprovedAt: r.headteacherApprovedAt || r.headteacher_approved_at || meta.headteacherApprovedAt || meta.headteacher_approved_at || '',
+                    headteacherNotes: r.headteacherNotes || r.headteacher_notes || meta.headteacherNotes || meta.headteacher_notes || '',
+                    headteacherRejected: r.headteacherRejected ?? r.headteacher_rejected ?? meta.headteacherRejected ?? meta.headteacher_rejected ?? false,
+                    headteacherRejectionReason: r.headteacherRejectionReason || r.headteacher_rejection_reason || meta.headteacherRejectionReason || meta.headteacher_rejection_reason || '',
+                    headteacherRejectedBy: r.headteacherRejectedBy || r.headteacher_rejected_by || meta.headteacherRejectedBy || meta.headteacher_rejected_by || '',
+                    headteacherRejectedAt: r.headteacherRejectedAt || r.headteacher_rejected_at || meta.headteacherRejectedAt || meta.headteacher_rejected_at || '',
+                    operationsDisbursed: r.operationsDisbursed ?? r.operations_disbursed ?? meta.operationsDisbursed ?? meta.operations_disbursed ?? false,
+                    operationsManagerName: r.operationsManagerName || r.operations_manager_name || meta.operationsManagerName || meta.operations_manager_name || '',
+                    operationsManagerId: r.operationsManagerId || r.operations_manager_id || meta.operationsManagerId || meta.operations_manager_id || '',
+                    operationsDisbursedBy: r.operationsDisbursedBy || r.operations_disbursed_by || meta.operationsDisbursedBy || meta.operations_disbursed_by || '',
+                    operationsDisbursedAt: r.operationsDisbursedAt || r.operations_disbursed_at || meta.operationsDisbursedAt || meta.operations_disbursed_at || '',
+                    cashDisbursedToDosAt: r.cashDisbursedToDosAt || r.cash_disbursed_to_dos_at || meta.cashDisbursedToDosAt || meta.cash_disbursed_to_dos_at || '',
+                    cashVoucherRef: r.cashVoucherRef || r.cash_voucher_ref || meta.cashVoucherRef || meta.cash_voucher_ref || '',
+                    paidByDosName: r.paidByDosName || r.paid_by_dos_name || meta.paidByDosName || meta.paid_by_dos_name || '',
+                    paidByDosId: r.paidByDosId || r.paid_by_dos_id || meta.paidByDosId || meta.paid_by_dos_id || '',
+                    paidAt: r.paidAt || r.paid_at || meta.paidAt || meta.paid_at || '',
+                    teacherSignatureDataUrl: r.teacherSignatureDataUrl || r.teacher_signature_data_url || meta.teacherSignatureDataUrl || meta.teacher_signature_data_url || '',
+                    paymentMethod: r.paymentMethod || r.payment_method || meta.paymentMethod || meta.payment_method || ''
+                };
+            });
+
+        // Always update cache with tombstone-cleared list
+        if (targetInst && targetInst !== 'default_inst') {
+            try {
+                safeLocalStorage.setItem(`remedial_sessions_${targetInst}`, JSON.stringify(mappedSessions));
+            } catch (_) {}
+        }
+
+        return mappedSessions;
     },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { 
         const payload: any = { ...data };
@@ -7970,10 +8126,10 @@ export const apiService = {
 
         await apiService.saveModuleRecord('school_remedial_sessions', payload); 
     },
-    async deleteRemedialSession(ids: string | string[]): Promise<void> {
+    async deleteRemedialSession(ids: string | string[], instId?: string): Promise<void> {
         const idStr = Array.isArray(ids) ? ids.join(',') : ids;
         if (!idStr) return;
-        await apiService.deleteModuleRecord('school_remedial_sessions', idStr);
+        await apiService.deleteModuleRecord('school_remedial_sessions', idStr, instId);
     },
     async fetchRemedialRateSettings(instId?: string): Promise<RemedialRateSetting[]> {
         let records = await apiService.fetchModuleRecords('school_remedial_rate_settings', instId);

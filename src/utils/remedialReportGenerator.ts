@@ -196,7 +196,13 @@ export const generateTeacherPayoutLedgerPdf = async ({
         totalHours: number;
         hourlyRate: number;
         weekendRate: number;
+        effectiveRate?: number;
+        earnedAmount?: number;
+        openingBalanceAmount?: number;
+        paidAmount?: number;
+        pendingAmount?: number;
         totalAmount: number;
+        netPayable?: number;
         status: string;
         sessionCount: number;
     }>;
@@ -216,12 +222,14 @@ export const generateTeacherPayoutLedgerPdf = async ({
         filtersSummary
     );
 
-    // Summary Metric Cards
+    // Summary Metric Calculations
     const totalTeachers = payoutsData.length;
     const totalWeekdayHrs = payoutsData.reduce((acc, p) => acc + (p.weekdayHours || 0), 0);
     const totalWeekendHrs = payoutsData.reduce((acc, p) => acc + (p.weekendHours || 0), 0);
     const totalHours = payoutsData.reduce((acc, p) => acc + (p.totalHours || 0), 0);
-    const totalPayable = payoutsData.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
+    const totalGrossEarned = payoutsData.reduce((acc, p) => acc + (p.earnedAmount ?? p.totalAmount ?? 0), 0);
+    const totalOpeningBal = payoutsData.reduce((acc, p) => acc + (p.openingBalanceAmount || 0), 0);
+    const totalNetPayable = payoutsData.reduce((acc, p) => acc + (p.netPayable ?? p.totalAmount ?? 0), 0);
 
     // Render Stat Boxes
     const cardWidth = (pageWidth - (margin * 2) - 9) / 4;
@@ -229,9 +237,9 @@ export const generateTeacherPayoutLedgerPdf = async ({
 
     const stats = [
         { label: 'DELIVERY INSTRUCTORS', value: totalTeachers.toString(), color: [248, 250, 252], textCol: [30, 41, 59] },
-        { label: 'WEEKDAY HOURS', value: `${totalWeekdayHrs.toFixed(1)} hrs`, color: [240, 253, 250], textCol: [15, 118, 110] },
-        { label: 'WEEKEND HOURS', value: `${totalWeekendHrs.toFixed(1)} hrs`, color: [254, 243, 199], textCol: [180, 83, 9] },
-        { label: 'TOTAL LIABILITY', value: `KES ${Math.round(totalPayable).toLocaleString()}`, color: [238, 242, 255], textCol: [67, 56, 202] },
+        { label: 'DELIVERED HOURS', value: `${totalHours.toFixed(1)} hrs (${totalWeekdayHrs.toFixed(1)}w / ${totalWeekendHrs.toFixed(1)}we)`, color: [240, 253, 250], textCol: [15, 118, 110] },
+        { label: 'GROSS EARNED', value: `KES ${Math.round(totalGrossEarned).toLocaleString()}`, color: [254, 243, 199], textCol: [180, 83, 9] },
+        { label: 'NET TOTAL LIABILITY', value: `KES ${Math.round(totalNetPayable).toLocaleString()}`, color: [238, 242, 255], textCol: [67, 56, 202] },
     ];
 
     stats.forEach((s, idx) => {
@@ -250,16 +258,29 @@ export const generateTeacherPayoutLedgerPdf = async ({
     currentY += cardHeight + 8;
 
     // Table Data
-    const tableRows = payoutsData.map((item, idx) => [
-        (idx + 1).toString(),
-        item.teacherName || 'Unknown Teacher',
-        `${item.weekdayHours || 0} hrs`,
-        `${item.weekendHours || 0} hrs`,
-        `${item.totalHours || 0} hrs`,
-        `KES ${item.hourlyRate?.toLocaleString() || 1000} / ${item.weekendRate?.toLocaleString() || 1500}`,
-        `KES ${Math.round(item.totalAmount || 0).toLocaleString()}`,
-        item.status || 'Pending Approval'
-    ]);
+    const tableRows = payoutsData.map((item, idx) => {
+        const earned = item.earnedAmount ?? item.totalAmount ?? 0;
+        const openBal = item.openingBalanceAmount || 0;
+        const net = item.netPayable ?? item.totalAmount ?? Math.max(0, earned + openBal);
+        const openBalStr = openBal > 0 
+            ? `+${Math.round(openBal).toLocaleString()}` 
+            : (openBal < 0 ? `-${Math.round(Math.abs(openBal)).toLocaleString()}` : '-');
+
+        return [
+            (idx + 1).toString(),
+            item.teacherName || 'Unknown Teacher',
+            `${(item.weekdayHours || 0).toFixed(1)} hrs`,
+            `${(item.weekendHours || 0).toFixed(1)} hrs`,
+            `${(item.totalHours || 0).toFixed(1)} hrs`,
+            item.effectiveRate && item.effectiveRate !== item.hourlyRate
+                ? `~KES ${item.effectiveRate.toLocaleString()}/h`
+                : `KES ${item.hourlyRate?.toLocaleString() || 1000} / ${item.weekendRate?.toLocaleString() || 1500}`,
+            `KES ${Math.round(earned).toLocaleString()}`,
+            openBalStr,
+            `KES ${Math.round(net).toLocaleString()}`,
+            item.status || 'Pending Approval'
+        ];
+    });
 
     // Totals Row
     tableRows.push([
@@ -269,13 +290,17 @@ export const generateTeacherPayoutLedgerPdf = async ({
         `${totalWeekendHrs.toFixed(1)} hrs`,
         `${totalHours.toFixed(1)} hrs`,
         '-',
-        `KES ${Math.round(totalPayable).toLocaleString()}`,
+        `KES ${Math.round(totalGrossEarned).toLocaleString()}`,
+        totalOpeningBal !== 0 
+            ? (totalOpeningBal > 0 ? `+${Math.round(totalOpeningBal).toLocaleString()}` : `-${Math.round(Math.abs(totalOpeningBal)).toLocaleString()}`)
+            : '-',
+        `KES ${Math.round(totalNetPayable).toLocaleString()}`,
         ''
     ]);
 
     autoTable(doc, {
         startY: currentY,
-        head: [['#', 'Teacher / Instructor', 'Weekday', 'Weekend', 'Total Hrs', 'Tariff Rate', 'Gross Payable', 'Disbursement Status']],
+        head: [['#', 'Teacher / Instructor', 'Weekday', 'Weekend', 'Total Hrs', 'Tariff Rate', 'Gross Earned', 'Open Bal / Adv', 'Net Payable', 'Disbursement Status']],
         body: tableRows,
         margin: { left: margin, right: margin },
         theme: 'striped',
@@ -283,21 +308,23 @@ export const generateTeacherPayoutLedgerPdf = async ({
             fillColor: [67, 56, 202],
             textColor: [255, 255, 255],
             fontStyle: 'bold',
-            fontSize: 8.5
+            fontSize: 7.5
         },
         bodyStyles: {
-            fontSize: 8,
+            fontSize: 7,
             textColor: [30, 41, 59]
         },
         columnStyles: {
-            0: { cellWidth: 8, halign: 'center' },
-            1: { cellWidth: 50, fontStyle: 'bold' },
-            2: { halign: 'center' },
-            3: { halign: 'center' },
-            4: { halign: 'center', fontStyle: 'bold' },
-            5: { halign: 'center', fontSize: 7.5 },
-            6: { halign: 'right', fontStyle: 'bold' },
-            7: { halign: 'center' }
+            0: { cellWidth: 7, halign: 'center' },
+            1: { cellWidth: 36, fontStyle: 'bold' },
+            2: { cellWidth: 15, halign: 'center' },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
+            5: { cellWidth: 23, halign: 'center', fontSize: 6.5 },
+            6: { cellWidth: 19, halign: 'right' },
+            7: { cellWidth: 18, halign: 'right' },
+            8: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
+            9: { cellWidth: 14, halign: 'center', fontSize: 6.5 }
         },
         didParseCell: (data) => {
             // Highlight Grand Total row

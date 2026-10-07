@@ -967,7 +967,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         try {
             // 2. Fetch primary remedial operations in parallel (ultra-fast, ~100ms)
             const [sessResult, ratesResult, payResult, allocResult, remSubResult, dutyResult, openBalResult, subAllocResult] = await Promise.allSettled([
-                apiService.fetchRemedialSessions(institutionId),
+                apiService.fetchRemedialSessions(institutionId, { bypassCache: skipCache, forceRefresh: skipCache }),
                 apiService.fetchRemedialRateSettings(institutionId),
                 apiService.fetchRemedialPayouts(institutionId),
                 typeof (apiService as any).fetchRemedialAllocations === 'function'
@@ -1083,7 +1083,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     safeLocalStorage.setItem(`remedial_timetable_approval_${institutionId}`, JSON.stringify(rates[0].metadata.timetableApproval));
                 }
             }
-            if (sessList.length > 0) {
+            if (Array.isArray(sessList) && institutionId) {
                 safeLocalStorage.setItem(`remedial_sessions_${institutionId}`, JSON.stringify(sessList));
             }
             if (remSubList.length > 0) {
@@ -1157,6 +1157,39 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (institutionId) {
             loadData();
         }
+    }, [institutionId]);
+
+    // Cross-tab and cross-component instant sync for deleted / updated remedial sessions
+    useEffect(() => {
+        const handleSessionsUpdated = (e: any) => {
+            const deletedId = e?.detail?.deletedId;
+            const deletedIds = e?.detail?.deletedIds || (deletedId ? [deletedId] : []);
+            if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+                setSessions(prev => prev.filter(s => !deletedIds.includes(s.id)));
+            } else {
+                loadData(true);
+            }
+        };
+
+        window.addEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
+
+        let bc: BroadcastChannel | null = null;
+        try {
+            bc = new BroadcastChannel('eduai_remedial_sessions_sync');
+            bc.onmessage = (event) => {
+                if ((event.data?.type === 'remedial_sessions_deleted' || event.data?.action === 'SESSIONS_DELETED' || event.data?.type === 'SESSIONS_DELETED') && Array.isArray(event.data?.deletedIds)) {
+                    const ids: string[] = event.data.deletedIds;
+                    setSessions(prev => prev.filter(s => !ids.includes(s.id)));
+                } else {
+                    loadData(true);
+                }
+            };
+        } catch (_) {}
+
+        return () => {
+            window.removeEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
+            try { bc?.close(); } catch (_) {}
+        };
     }, [institutionId]);
 
     // Manual instant sync for Teachers on Duty (TOD) roster across devices
@@ -4540,10 +4573,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return;
         }
         try {
-            await apiService.deleteRemedialSession(session.id);
+            await apiService.deleteRemedialSession(session.id, institutionId);
             onLogAction?.(`Discarded duplicate in-progress remedial session ${session.id} for ${session.teacherName}`);
             alert('Duplicate in-progress session discarded successfully.');
-            loadData();
+            loadData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to discard session');
         }
@@ -4557,10 +4590,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         try {
             const idsToDelete = duplicateInprogressSessions.map(s => s.id);
-            await apiService.deleteRemedialSession(idsToDelete);
+            await apiService.deleteRemedialSession(idsToDelete, institutionId);
             onLogAction?.(`Cleaned up ${idsToDelete.length} duplicate in-progress remedial sessions`);
             alert(`Cleaned up ${idsToDelete.length} duplicate ghost session(s) successfully!`);
-            loadData();
+            loadData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to clean up duplicate sessions');
         }
@@ -4572,7 +4605,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return;
         }
         try {
-            await apiService.deleteRemedialSession(session.id);
+            await apiService.deleteRemedialSession(session.id, institutionId);
             setSessions(prev => prev.filter(s => s.id !== session.id));
             if (institutionId) {
                 try {
@@ -4597,7 +4630,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             onLogAction?.(`[DOS Action] Permanently deleted rejected remedial session ${session.id} for ${session.teacherName || 'Teacher'}`);
             alert('Rejected remedial session log deleted successfully.');
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedId: session.id } }));
+                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedId: session.id, deletedIds: [session.id], institutionId } }));
             }
             loadData(true);
         } catch (err: any) {
@@ -4620,7 +4653,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         try {
             const idsToDelete = rejected.map(s => s.id);
-            await apiService.deleteRemedialSession(idsToDelete);
+            await apiService.deleteRemedialSession(idsToDelete, institutionId);
             setSessions(prev => prev.filter(s => !idsToDelete.includes(s.id)));
             if (institutionId) {
                 try {
@@ -4637,7 +4670,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             onLogAction?.(`[DOS Action] Permanently purged ${idsToDelete.length} rejected remedial session logs`);
             alert(`Purged ${idsToDelete.length} rejected remedial session log(s) successfully!`);
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated'));
+                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedIds: idsToDelete, institutionId } }));
             }
             loadData(true);
         } catch (err: any) {
@@ -7923,21 +7956,40 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Helper to compute correct payout amount for any session (considering Weekday TOD flat rates vs hourly rates)
     const computeSessionPayout = useCallback((s: RemedialSession): number => {
+        // Formally rejected sessions yield 0 payout liability
+        const isSessionRejected = Boolean(
+            s.status === 'Headteacher Rejected' ||
+            s.status === 'Duty Rejected - Forwarded to Headteacher' ||
+            s.status?.toLowerCase().includes('reject') ||
+            s.headteacherRejected ||
+            s.dutyRejected
+        );
+        if (isSessionRejected) {
+            return 0;
+        }
+
         const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
         const sHours = Math.max(0.1, Number(rawHours) || 1);
-        const sDate = new Date(s.date || s.startTime);
-        const dayIdx = sDate.getDay();
-        const isWeekend = dayIdx === 0 || dayIdx === 6;
+        const sDate = s.date || s.startTime ? new Date(s.date || s.startTime) : null;
+        const dayIdx = sDate && !isNaN(sDate.getTime()) ? sDate.getDay() : -1;
+        const isWeekend = Boolean(
+            s.isWeekend ||
+            s.is_weekend ||
+            s.dayOfWeek === 'Saturday' ||
+            s.dayOfWeek === 'Sunday' ||
+            dayIdx === 0 ||
+            dayIdx === 6
+        );
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const dayName = s.dayOfWeek || dayNames[dayIdx];
+        const dayName = s.dayOfWeek || (dayIdx >= 0 ? dayNames[dayIdx] : '');
 
         // Check if teacher has a duty record for this session
         const isDuty = Boolean(s.isDutyLesson || s.is_duty_lesson);
         const dutyRecord = weekendDutyRoster.find(d =>
             d.teacherId === s.teacherId && (
                 (d.dutyType === 'weekday' && (d.weekdayDay === dayName || d.weekdayDay?.toLowerCase() === dayName?.toLowerCase())) ||
-                (dayIdx === 6 && (d.saturdayAllocated || d.dutyType === 'weekend')) ||
-                (dayIdx === 0 && (d.sundayAllocated || d.dutyType === 'weekend'))
+                ((dayIdx === 6 || isWeekend) && (d.saturdayAllocated || d.dutyType === 'weekend')) ||
+                ((dayIdx === 0 || isWeekend) && (d.sundayAllocated || d.dutyType === 'weekend'))
             )
         );
 
@@ -8174,16 +8226,47 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // 1. Report: Teacher Payouts Ledger Data
     const reportPayoutsData = useMemo(() => {
+        const isRejectedSession = (s: RemedialSession) => Boolean(
+            s.status === 'Headteacher Rejected' ||
+            s.status === 'Duty Rejected - Forwarded to Headteacher' ||
+            s.status?.toLowerCase().includes('reject') ||
+            s.headteacherRejected ||
+            s.dutyRejected
+        );
+
         const filtered = (sessions || []).filter(s => {
             const sDate = s.date || s.startTime?.split('T')[0] || '';
             const matchStart = !reportStartDate || !sDate || sDate >= reportStartDate;
             const matchEnd = !reportEndDate || !sDate || sDate <= reportEndDate;
             const matchTeacher = reportTeacherFilter === 'All' || s.teacherId === reportTeacherFilter;
-            const matchStatus = reportStatusFilter === 'all' || s.status === reportStatusFilter;
-            return matchStart && matchEnd && matchTeacher && matchStatus;
+
+            if (reportStatusFilter === 'all') {
+                // By default in official payout ledger, exclude rejected sessions and uncompleted draft sessions
+                if (isRejectedSession(s)) return false;
+                if (s.status === 'In Progress' || s.status === 'Started') return false;
+                return matchStart && matchEnd && matchTeacher;
+            } else if (reportStatusFilter === 'Rejected') {
+                return matchStart && matchEnd && matchTeacher && isRejectedSession(s);
+            } else if (reportStatusFilter === 'Paid') {
+                return matchStart && matchEnd && matchTeacher && s.status === 'Paid';
+            } else if (reportStatusFilter === 'Approved') {
+                return matchStart && matchEnd && matchTeacher && (
+                    s.status === 'Approved' ||
+                    s.status === 'Pending Operations Payout' ||
+                    s.status === 'Cash Issued to DOS'
+                );
+            } else if (reportStatusFilter === 'Pending Verification') {
+                return matchStart && matchEnd && matchTeacher && (
+                    s.status === 'Prefect Confirmed' ||
+                    s.status === 'Pending Duty Approval' ||
+                    s.status === 'Pending Headteacher Approval'
+                );
+            }
+            return matchStart && matchEnd && matchTeacher && s.status === reportStatusFilter;
         });
 
         const teacherMap: Record<string, {
+            teacherId: string;
             teacherName: string;
             teacherEmail?: string;
             weekdayHours: number;
@@ -8191,7 +8274,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             totalHours: number;
             hourlyRate: number;
             weekendRate: number;
+            effectiveRate: number;
+            earnedAmount: number;
+            openingBalanceAmount: number;
+            paidAmount: number;
+            pendingAmount: number;
             totalAmount: number;
+            netPayable: number;
             status: string;
             sessionCount: number;
         }> = {};
@@ -8200,7 +8289,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const tId = s.teacherId || 'unknown';
             if (!teacherMap[tId]) {
                 const u = tenantUsers.find(user => user.id === tId);
+                const openBal = openingBalances.find(b => b.teacherId === tId && b.status !== 'cleared');
+                const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
+                const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
+
                 teacherMap[tId] = {
+                    teacherId: tId,
                     teacherName: s.teacherName || u?.name || 'Unknown Teacher',
                     teacherEmail: u?.email,
                     weekdayHours: 0,
@@ -8208,31 +8302,118 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     totalHours: 0,
                     hourlyRate: weekdayHourlyRate || hourlyRate || 1000,
                     weekendRate: weekendHourlyRate || 1500,
+                    effectiveRate: weekdayHourlyRate || hourlyRate || 1000,
+                    earnedAmount: 0,
+                    openingBalanceAmount: openBalAmount,
+                    paidAmount: 0,
+                    pendingAmount: 0,
                     totalAmount: 0,
-                    status: s.status === 'Paid' ? 'Paid' : (s.status === 'Approved' ? 'Approved' : 'Pending Verification'),
+                    netPayable: 0,
+                    status: 'Pending Verification',
                     sessionCount: 0
                 };
             }
 
-            const hrs = Number(s.hours || s.durationHours || s.duration_hours || 1) || 1;
-            const sDate = new Date(s.date || s.startTime);
-            const isWeekend = sDate.getDay() === 0 || sDate.getDay() === 6;
+            const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+            const hrs = Math.max(0.1, Number(rawHours) || 1);
 
-            const sessionAmount = Number(computeSessionPayout(s)) || 0;
+            const sDate = s.date || s.startTime ? new Date(s.date || s.startTime) : null;
+            const dayIdx = sDate && !isNaN(sDate.getTime()) ? sDate.getDay() : -1;
+            const isWeekend = Boolean(
+                s.isWeekend ||
+                s.is_weekend ||
+                s.dayOfWeek === 'Saturday' ||
+                s.dayOfWeek === 'Sunday' ||
+                dayIdx === 0 ||
+                dayIdx === 6
+            );
+
+            const sessionAmount = isRejectedSession(s) ? 0 : (Number(computeSessionPayout(s)) || 0);
 
             if (isWeekend) {
                 teacherMap[tId].weekendHours = Number((teacherMap[tId].weekendHours + hrs).toFixed(2));
             } else {
                 teacherMap[tId].weekdayHours = Number((teacherMap[tId].weekdayHours + hrs).toFixed(2));
             }
-            teacherMap[tId].totalAmount = Number((teacherMap[tId].totalAmount + sessionAmount).toFixed(2));
+
             teacherMap[tId].totalHours = Number((teacherMap[tId].totalHours + hrs).toFixed(2));
+            teacherMap[tId].earnedAmount = Number((teacherMap[tId].earnedAmount + sessionAmount).toFixed(2));
             teacherMap[tId].sessionCount += 1;
-            if (s.status === 'Paid') teacherMap[tId].status = 'Paid';
+
+            if (s.status === 'Paid') {
+                teacherMap[tId].paidAmount = Number((teacherMap[tId].paidAmount + sessionAmount).toFixed(2));
+            } else {
+                teacherMap[tId].pendingAmount = Number((teacherMap[tId].pendingAmount + sessionAmount).toFixed(2));
+            }
         });
 
-        return Object.values(teacherMap);
-    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster]);
+        // If filtering by a specific teacher who has an active opening balance but 0 sessions in window, show their balance
+        if (reportTeacherFilter !== 'All' && !teacherMap[reportTeacherFilter]) {
+            const openBal = openingBalances.find(b => b.teacherId === reportTeacherFilter && b.status !== 'cleared');
+            if (openBal) {
+                const u = tenantUsers.find(user => user.id === reportTeacherFilter);
+                const rawOpenBal = Number(openBal.amount) || 0;
+                const openBalAmount = openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal;
+                const net = Math.max(0, openBalAmount);
+                teacherMap[reportTeacherFilter] = {
+                    teacherId: reportTeacherFilter,
+                    teacherName: u?.name || 'Selected Instructor',
+                    teacherEmail: u?.email,
+                    weekdayHours: 0,
+                    weekendHours: 0,
+                    totalHours: 0,
+                    hourlyRate: weekdayHourlyRate || hourlyRate || 1000,
+                    weekendRate: weekendHourlyRate || 1500,
+                    effectiveRate: weekdayHourlyRate || hourlyRate || 1000,
+                    earnedAmount: 0,
+                    openingBalanceAmount: openBalAmount,
+                    paidAmount: 0,
+                    pendingAmount: 0,
+                    totalAmount: net,
+                    netPayable: net,
+                    status: 'Opening Balance Only',
+                    sessionCount: 0
+                };
+            }
+        }
+
+        return Object.values(teacherMap).map(data => {
+            const effectiveRate = data.totalHours > 0
+                ? Math.round(data.earnedAmount / data.totalHours)
+                : data.hourlyRate;
+
+            const netPayable = Math.max(0, Number((data.earnedAmount + data.openingBalanceAmount).toFixed(2)));
+
+            let finalStatus = 'Pending Verification';
+            const teacherSessions = filtered.filter(s => (s.teacherId || 'unknown') === data.teacherId);
+            const allRejected = teacherSessions.length > 0 && teacherSessions.every(s => isRejectedSession(s));
+
+            if (allRejected) {
+                finalStatus = 'Rejected';
+            } else if (data.sessionCount > 0 && data.pendingAmount === 0 && data.paidAmount > 0) {
+                finalStatus = 'Paid';
+            } else if (data.paidAmount > 0 && data.pendingAmount > 0) {
+                finalStatus = 'Partially Paid';
+            } else if (data.sessionCount > 0 && data.earnedAmount > 0 && data.pendingAmount === data.earnedAmount) {
+                const allApproved = teacherSessions.length > 0 && teacherSessions.every(s =>
+                    s.status === 'Approved' ||
+                    s.status === 'Pending Operations Payout' ||
+                    s.status === 'Cash Issued to DOS'
+                );
+                finalStatus = allApproved ? 'Approved (Pending Payout)' : 'Pending Approval';
+            } else if (data.sessionCount === 0) {
+                finalStatus = data.openingBalanceAmount !== 0 ? 'Opening Balance' : 'No Claims';
+            }
+
+            return {
+                ...data,
+                effectiveRate,
+                totalAmount: netPayable,
+                netPayable,
+                status: finalStatus
+            };
+        });
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster, computeSessionPayout, openingBalances]);
 
     // 2. Report: Prefect QR Audit Trail Data
     const reportPrefectAuditData = useMemo(() => {
@@ -8361,10 +8542,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
 
     // Executive KPI Summaries
     const reportKpis = useMemo(() => {
-        const totalDeliveredHours = (sessions || []).reduce((acc, s) => acc + (s.hours || 0), 0);
-        const verifiedCount = (sessions || []).filter(s => s.status === 'Prefect Confirmed' || s.status === 'Approved' || s.status === 'Paid').length;
-        const totalSessionsCount = sessions?.length || 0;
-        const totalAccruedLiability = reportPayoutsData.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
+        const isRejectedSession = (s: RemedialSession) => Boolean(
+            s.status === 'Headteacher Rejected' ||
+            s.status === 'Duty Rejected - Forwarded to Headteacher' ||
+            s.status?.toLowerCase().includes('reject') ||
+            s.headteacherRejected ||
+            s.dutyRejected
+        );
+
+        const validDeliveredSessions = (sessions || []).filter(s => !isRejectedSession(s) && s.status !== 'In Progress');
+        const totalDeliveredHours = validDeliveredSessions.reduce((acc, s) => {
+            const rawH = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
+            return acc + (Number(rawH) || 1);
+        }, 0);
+
+        const verifiedCount = (sessions || []).filter(s => 
+            s.status === 'Prefect Confirmed' || 
+            s.status === 'Approved' || 
+            s.status === 'Paid' ||
+            s.status === 'Pending Operations Payout' ||
+            s.status === 'Cash Issued to DOS' ||
+            s.status === 'Pending Duty Approval' ||
+            s.status === 'Pending Headteacher Approval'
+        ).length;
+
+        const totalSessionsCount = (sessions || []).filter(s => !isRejectedSession(s)).length;
+        const totalAccruedLiability = reportPayoutsData.reduce((acc, p) => acc + (p.netPayable ?? p.totalAmount ?? 0), 0);
+        const totalGrossEarned = reportPayoutsData.reduce((acc, p) => acc + (p.earnedAmount ?? p.totalAmount ?? 0), 0);
         const totalBilled = reportBillingData.reduce((acc, b) => acc + (b.termFee || 0), 0);
         const totalCollected = reportBillingData.reduce((acc, b) => acc + (b.paidAmount || 0), 0);
         const totalArrears = reportBillingData.reduce((acc, b) => acc + (b.balance || 0), 0);
@@ -8375,6 +8579,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             totalSessionsCount,
             verificationRate: totalSessionsCount > 0 ? Math.round((verifiedCount / totalSessionsCount) * 100) : 100,
             totalAccruedLiability,
+            totalGrossEarned,
             totalBilled,
             totalCollected,
             totalArrears
@@ -8385,7 +8590,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const handleDownloadReportPdf = async () => {
         setIsExporting(true);
         try {
-            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(tenantUsers.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(combinedCourses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}`;
+            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(tenantUsers.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(combinedCourses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}${reportStatusFilter !== 'all' ? ` | Status: ${reportStatusFilter}` : ''}`;
 
             if (selectedReportType === 'master_timetable') {
                 const doc = await generateRemedialMasterTimetablePdf({
@@ -8446,7 +8651,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const handlePreviewReportPdf = async () => {
         setIsPreviewing(true);
         try {
-            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(tenantUsers.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(combinedCourses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}`;
+            const filterSummary = `${reportStartDate} to ${reportEndDate}${reportTeacherFilter !== 'All' ? ` | Teacher: ${(tenantUsers.find(u => u.id === reportTeacherFilter)?.name || reportTeacherFilter)}` : ''}${reportClassFilter !== 'All' ? ` | Class: ${(combinedCourses.find(c => c.id === reportClassFilter)?.name || reportClassFilter)}` : ''}${reportStatusFilter !== 'all' ? ` | Status: ${reportStatusFilter}` : ''}`;
 
             let doc: any = null;
             let filename = 'report.pdf';
@@ -8536,9 +8741,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         'Weekday Hours': p.weekdayHours,
                         'Weekend Hours': p.weekendHours,
                         'Total Hours': p.totalHours,
-                        'Tariff Rate (KES)': p.hourlyRate,
+                        'Effective Rate (KES/hr)': p.effectiveRate,
+                        'Weekday Tariff (KES)': p.hourlyRate,
                         'Weekend Tariff (KES)': p.weekendRate,
-                        'Gross Payable (KES)': p.totalAmount,
+                        'Gross Earned (KES)': p.earnedAmount,
+                        'Opening Bal / Advance (KES)': p.openingBalanceAmount,
+                        'Net Payable (KES)': p.netPayable,
                         'Status': p.status,
                         'Sessions Count': p.sessionCount
                     }))
@@ -18375,14 +18583,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <th className="py-3 px-4 text-center">Weekend</th>
                                             <th className="py-3 px-4 text-center">Total Hrs</th>
                                             <th className="py-3 px-4 text-center">Tariff Rates (KES)</th>
-                                            <th className="py-3 px-4 text-right">Gross Payable</th>
+                                            <th className="py-3 px-4 text-right">Gross Earned</th>
+                                            <th className="py-3 px-4 text-right">Open Bal / Adv</th>
+                                            <th className="py-3 px-4 text-right">Net Payable</th>
                                             <th className="py-3 px-4 text-center">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {reportPayoutsData.length === 0 ? (
                                             <tr>
-                                                <td colSpan={7} className="py-8 text-center text-slate-400 font-bold">
+                                                <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
                                                     No remedial sessions recorded within the selected period or filters.
                                                 </td>
                                             </tr>
@@ -18401,17 +18611,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         {p.totalHours}h
                                                     </td>
                                                     <td className="py-3.5 px-4 text-center text-[11px] text-slate-500 font-mono">
-                                                        {p.hourlyRate?.toLocaleString()} / {p.weekendRate?.toLocaleString()}
+                                                        {p.effectiveRate ? `~${p.effectiveRate}/hr` : `${p.hourlyRate?.toLocaleString()} / ${p.weekendRate?.toLocaleString()}`}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
+                                                        KES {Math.round(p.earnedAmount ?? p.totalAmount).toLocaleString()}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-right font-mono text-[11px]">
+                                                        {(p.openingBalanceAmount || 0) !== 0 ? (
+                                                            <span className={(p.openingBalanceAmount || 0) > 0 ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-amber-600 dark:text-amber-400 font-bold"}>
+                                                                {(p.openingBalanceAmount || 0) > 0 ? `+${Math.round(p.openingBalanceAmount || 0).toLocaleString()}` : `-${Math.round(Math.abs(p.openingBalanceAmount || 0)).toLocaleString()}`}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
                                                     </td>
                                                     <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-white">
-                                                        KES {Math.round(p.totalAmount).toLocaleString()}
+                                                        KES {Math.round(p.netPayable ?? p.totalAmount).toLocaleString()}
                                                     </td>
                                                     <td className="py-3.5 px-4 text-center">
                                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
                                                             p.status === 'Paid'
                                                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                                                                : p.status === 'Approved'
+                                                                : p.status?.toLowerCase().includes('reject')
+                                                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                                : p.status?.toLowerCase().includes('approved')
                                                                 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                                                                : p.status === 'Partially Paid'
+                                                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
                                                                 : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                                                         }`}>
                                                             {p.status}
@@ -18435,8 +18661,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     {reportPayoutsData.reduce((acc, p) => acc + p.totalHours, 0)}h
                                                 </td>
                                                 <td className="py-3 px-4 text-center">-</td>
+                                                <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-slate-300">
+                                                    KES {Math.round(reportPayoutsData.reduce((acc, p) => acc + (p.earnedAmount ?? p.totalAmount ?? 0), 0)).toLocaleString()}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono text-[11px]">
+                                                    {(() => {
+                                                        const totalOb = reportPayoutsData.reduce((acc, p) => acc + (p.openingBalanceAmount || 0), 0);
+                                                        if (totalOb === 0) return '-';
+                                                        return totalOb > 0 ? `+${Math.round(totalOb).toLocaleString()}` : `-${Math.round(Math.abs(totalOb)).toLocaleString()}`;
+                                                    })()}
+                                                </td>
                                                 <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
-                                                    KES {Math.round(reportPayoutsData.reduce((acc, p) => acc + p.totalAmount, 0)).toLocaleString()}
+                                                    KES {Math.round(reportPayoutsData.reduce((acc, p) => acc + (p.netPayable ?? p.totalAmount ?? 0), 0)).toLocaleString()}
                                                 </td>
                                                 <td></td>
                                             </tr>

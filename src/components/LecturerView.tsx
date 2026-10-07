@@ -1175,11 +1175,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         } catch (_) {}
     };
 
-    const loadRemedialData = async () => {
+    const loadRemedialData = async (forceRefresh = false) => {
         try {
-            const instId = currentInstitution?.id || user?.institutionId || '';
+            const instId = effectiveInstId || currentInstitution?.id || user?.institutionId || '';
             const [sessList, payList, allocList, ratesList] = await Promise.all([
-                apiService.fetchRemedialSessions(instId),
+                apiService.fetchRemedialSessions(instId, { bypassCache: forceRefresh, forceRefresh }),
                 apiService.fetchRemedialPayouts(instId),
                 apiService.fetchRemedialAllocations(instId).catch(() => []),
                 apiService.fetchRemedialRateSettings(instId).catch(() => [])
@@ -1220,15 +1220,33 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         loadRemedialData();
         const handleSessionsUpdated = (e: any) => {
             const deletedId = e?.detail?.deletedId;
-            if (deletedId) {
-                setRemedialSessions(prev => prev.filter(s => s.id !== deletedId));
+            const deletedIds = e?.detail?.deletedIds || (deletedId ? [deletedId] : []);
+            if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+                setRemedialSessions(prev => prev.filter(s => !deletedIds.includes(s.id)));
             } else {
-                loadRemedialData();
+                loadRemedialData(true);
             }
         };
         window.addEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
-        return () => window.removeEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
-    }, [currentInstitution?.id, user?.institutionId]);
+
+        let bc: BroadcastChannel | null = null;
+        try {
+            bc = new BroadcastChannel('eduai_remedial_sessions_sync');
+            bc.onmessage = (event) => {
+                if ((event.data?.type === 'remedial_sessions_deleted' || event.data?.action === 'SESSIONS_DELETED' || event.data?.type === 'SESSIONS_DELETED') && Array.isArray(event.data?.deletedIds)) {
+                    const ids: string[] = event.data.deletedIds;
+                    setRemedialSessions(prev => prev.filter(s => !ids.includes(s.id)));
+                } else {
+                    loadRemedialData(true);
+                }
+            };
+        } catch (_) {}
+
+        return () => {
+            window.removeEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
+            try { bc?.close(); } catch (_) {}
+        };
+    }, [currentInstitution?.id, user?.institutionId, effectiveInstId]);
 
     useEffect(() => {
         if (activeTab === 'remedials') {
@@ -1318,7 +1336,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 );
                 if (orphanDuplicates.length > 0) {
                     const orphanIds = orphanDuplicates.map(o => o.id);
-                    await apiService.deleteRemedialSession(orphanIds);
+                    const instId = effectiveInstId || currentInstitution?.id || user?.institutionId || '';
+                    await apiService.deleteRemedialSession(orphanIds, instId);
                 }
             } catch (_) {}
 
@@ -1334,7 +1353,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
             props.onLogAction?.(`Ended remedial lesson: ${session.subjectName} (${calc.hours} hrs, ${calc.durationMinutes} mins)`);
             alert(`✅ Remedial class completed!\n\n• Subject: ${session.subjectName}\n• Class: ${session.className}\n${durationBreakdown}\n• Concluded At: ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\nStatus: Pending Teacher on Duty approval before payout.`);
-            loadRemedialData();
+            loadRemedialData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to end remedial session');
         }
@@ -1345,10 +1364,10 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         if (!window.confirm(`Are you sure you want to delete this rejected remedial session log for ${session.subjectName || 'Subject'} (${session.className || 'Class'})?\n\nThis will remove the rejected record from the remedial hours log.`)) {
             return;
         }
+        const instId = effectiveInstId || currentInstitution?.id || user?.institutionId || '';
         try {
-            await apiService.deleteRemedialSession(session.id);
+            await apiService.deleteRemedialSession(session.id, instId);
             setRemedialSessions(prev => prev.filter(s => s.id !== session.id));
-            const instId = effectiveInstId || currentInstitution?.id || user?.institutionId || '';
             if (instId) {
                 try {
                     const cacheKey = `remedial_sessions_${instId}`;
@@ -1372,8 +1391,9 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             props.onLogAction?.(`[DOS Action] Deleted rejected remedial session ${session.id} for ${session.subjectName || 'Subject'}`);
             alert('Rejected remedial session log deleted successfully.');
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedId: session.id } }));
+                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedId: session.id, deletedIds: [session.id], institutionId: instId } }));
             }
+            loadRemedialData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to delete rejected remedial session');
         }

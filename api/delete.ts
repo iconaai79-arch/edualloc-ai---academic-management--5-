@@ -14,6 +14,61 @@ const getSupabase = () => {
   });
 };
 
+let _pgPool: any = null;
+let _directPgDisabledUntil = 0;
+
+const getPgPool = async () => {
+  if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+    return null;
+  }
+  if (Date.now() < _directPgDisabledUntil) {
+    return null;
+  }
+  if (_pgPool) return _pgPool;
+  const connectionString = 
+    process.env.DATABASE_URL || 
+    process.env.POSTGRES_URL || 
+    process.env.VITE_DATABASE_URL ||
+    process.env.SUPABASE_DB_URL;
+  if (!connectionString) return null;
+
+  try {
+    const pgModule: any = await import('pg');
+    const Pool = pgModule.Pool || pgModule.default?.Pool || null;
+    if (!Pool) return null;
+
+    let cleanConnString = connectionString.trim();
+    try {
+      const parsedUrl = new URL(cleanConnString);
+      parsedUrl.searchParams.delete('sslmode');
+      cleanConnString = parsedUrl.toString();
+    } catch {
+      cleanConnString = cleanConnString
+        .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+        .replace(/\?$/, '');
+    }
+
+    _pgPool = new Pool({
+      connectionString: cleanConnString,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 2000,
+      statement_timeout: 4000,
+      max: 2,
+      idleTimeoutMillis: 3000
+    });
+
+    _pgPool.on('error', (err: any) => {
+      console.warn('[Direct SQL Pool Error in /api/delete]:', err?.message || err);
+      _directPgDisabledUntil = Date.now() + 60000;
+    });
+
+    return _pgPool;
+  } catch (err) {
+    console.error('[Direct SQL Pool Init Error in /api/delete]:', err);
+    return null;
+  }
+};
+
 /**
  * Dedicated DELETE endpoint — bypasses all the ambiguity in the generic /api/records handler.
  *
@@ -280,6 +335,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    let pgDeleteSuccess = false;
+    try {
+      const pool = await getPgPool();
+      if (pool) {
+        await pool.query(`DELETE FROM public."${moduleName}" WHERE id = ANY($1)`, [idsArray]);
+        pgDeleteSuccess = true;
+        console.log(`[/api/delete] Direct PG pool deleted ${idsArray.length} record(s) from ${moduleName}`);
+      }
+    } catch (pgErr) {
+      console.warn(`[/api/delete] Direct PG pool delete warning for ${moduleName}:`, pgErr);
+    }
+
     try {
       let q = supabase.from(moduleName).delete();
       if (idsArray.length === 1) {
@@ -290,7 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const { error: delErr } = await q;
 
-      if (delErr) {
+      if (delErr && !pgDeleteSuccess) {
         if (moduleName !== 'exam_units' && moduleName !== 'exam_broadsheets') {
           console.error(`[/api/delete] Supabase error for ${moduleName}:`, delErr);
           return res.status(200).json({ success: false, error: delErr.message, code: delErr.code });
