@@ -242,6 +242,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    if (moduleName === 'school_remedial_duty_roster') {
+      const idsSet = new Set(idsArray);
+      try {
+        const { data: imsRows } = await supabase
+          .from('institution_module_states')
+          .select('id, data, settings, state_data')
+          .or('module_id.eq.school_remedial_duty_roster,id.like.%school_remedial_duty_roster%');
+
+        if (Array.isArray(imsRows) && imsRows.length > 0) {
+          for (const row of imsRows) {
+            let currentDuty: any[] = [];
+            if (Array.isArray(row.data)) currentDuty = row.data;
+            else if (row.data && Array.isArray(row.data.roster)) currentDuty = row.data.roster;
+            else if (row.settings && Array.isArray(row.settings.roster)) currentDuty = row.settings.roster;
+            else if (Array.isArray(row.settings)) currentDuty = row.settings;
+
+            const hasTarget = currentDuty.some((d: any) => d && idsSet.has(d.id));
+            if (hasTarget) {
+              const remaining = currentDuty.filter((d: any) => d && !idsSet.has(d.id));
+              const prevDeleted: string[] = Array.isArray((row as any).deleted_duty_ids)
+                ? (row as any).deleted_duty_ids
+                : (Array.isArray((row.data as any)?.deletedDutyIds) ? (row.data as any).deletedDutyIds : []);
+              const updatedDeleted = Array.from(new Set([...prevDeleted, ...idsArray]));
+
+              await supabase.from('institution_module_states').update({
+                data: remaining,
+                settings: remaining,
+                state_data: { roster: remaining, deletedDutyIds: updatedDeleted },
+                updated_at: new Date().toISOString()
+              }).eq('id', row.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[/api/delete] Failed to clean up school_remedial_duty_roster in institution_module_states:', err);
+      }
+    }
+
     try {
       let q = supabase.from(moduleName).delete();
       if (idsArray.length === 1) {

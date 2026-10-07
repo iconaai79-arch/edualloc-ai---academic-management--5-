@@ -13,7 +13,7 @@ import {
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
     Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
     SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle,
-    ChevronLeft, ChevronRight, Search, Filter
+    ChevronLeft, ChevronRight, Search, Filter, Trash2
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
@@ -1218,6 +1218,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
     useEffect(() => {
         loadRemedialData();
+        const handleSessionsUpdated = (e: any) => {
+            const deletedId = e?.detail?.deletedId;
+            if (deletedId) {
+                setRemedialSessions(prev => prev.filter(s => s.id !== deletedId));
+            } else {
+                loadRemedialData();
+            }
+        };
+        window.addEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
+        return () => window.removeEventListener('eduai_remedial_sessions_updated', handleSessionsUpdated);
     }, [currentInstitution?.id, user?.institutionId]);
 
     useEffect(() => {
@@ -1329,6 +1339,46 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
             alert(err.message || 'Failed to end remedial session');
         }
     };
+
+    // Delete rejected remedial session log (DOS / Admin action)
+    const handleDeleteRejectedSession = async (session: RemedialSession) => {
+        if (!window.confirm(`Are you sure you want to delete this rejected remedial session log for ${session.subjectName || 'Subject'} (${session.className || 'Class'})?\n\nThis will remove the rejected record from the remedial hours log.`)) {
+            return;
+        }
+        try {
+            await apiService.deleteRemedialSession(session.id);
+            setRemedialSessions(prev => prev.filter(s => s.id !== session.id));
+            const instId = effectiveInstId || currentInstitution?.id || user?.institutionId || '';
+            if (instId) {
+                try {
+                    const cacheKey = `remedial_sessions_${instId}`;
+                    const cached = safeLocalStorage.getItem(cacheKey);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (Array.isArray(parsed)) {
+                            safeLocalStorage.setItem(cacheKey, JSON.stringify(parsed.filter((s: any) => s.id !== session.id)));
+                        }
+                    }
+                    const globalKey = 'eduai_remedial_sessions';
+                    const globalCached = safeLocalStorage.getItem(globalKey);
+                    if (globalCached) {
+                        const parsed = JSON.parse(globalCached);
+                        if (Array.isArray(parsed)) {
+                            safeLocalStorage.setItem(globalKey, JSON.stringify(parsed.filter((s: any) => s.id !== session.id)));
+                        }
+                    }
+                } catch (_) {}
+            }
+            props.onLogAction?.(`[DOS Action] Deleted rejected remedial session ${session.id} for ${session.subjectName || 'Subject'}`);
+            alert('Rejected remedial session log deleted successfully.');
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedId: session.id } }));
+            }
+        } catch (err: any) {
+            alert(err.message || 'Failed to delete rejected remedial session');
+        }
+    };
+
     const [myRequestsSubTab, setMyRequestsSubTab] = useState<'catalog' | 'pending' | 'allocations'>('catalog');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set());
@@ -3269,6 +3319,15 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                     <p className="text-[8px] text-rose-500 font-bold mt-0.5 max-w-[160px] truncate" title={s.dutyRejectionReason}>
                                                                         TOD Rejected: {s.dutyRejectionReason}
                                                                     </p>
+                                                                )}
+                                                                {isDos && (s.status?.toLowerCase().includes('reject') || (s as any).dutyRejected || (s as any).headteacherRejected) && (
+                                                                    <button
+                                                                        onClick={() => handleDeleteRejectedSession(s)}
+                                                                        className="mt-1.5 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded text-[8px] font-black uppercase tracking-wider border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1 ml-auto cursor-pointer"
+                                                                        title="Delete rejected remedial session (DOS action)"
+                                                                    >
+                                                                        <Trash2 className="w-2.5 h-2.5 text-rose-500" /> Delete Rejected Log
+                                                                    </button>
                                                                 )}
                                                             </div>
                                                         </div>

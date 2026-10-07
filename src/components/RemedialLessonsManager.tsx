@@ -5,7 +5,7 @@ import { isSuperAdminUser } from '../types';
 import { RemedialOpeningBalancesModal } from './RemedialOpeningBalancesModal';
 import { SchoolFloatWalletCard } from './Finance/SchoolFloatWalletCard';
 import { walletService } from '../services/walletService';
-import { apiService, safeLocalStorage } from '../services/apiService';
+import { apiService, safeLocalStorage, invalidateModuleCache } from '../services/apiService';
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { BuySMSModal } from './BuySMSModal';
 import { 
@@ -16,7 +16,7 @@ import {
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
     Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox,
     ChevronLeft, ChevronRight, XCircle, Wallet, MessageSquare, Phone, MessageCircle,
-    Shuffle
+    Shuffle, Square, CheckCheck
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher, extractGradeLevel, isSubjectEquivalent, isTeacherQualifiedForLesson } from '../utils/remedialSubstitutionUtils';
@@ -192,7 +192,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Pending Headteacher Approval' | 'Duty Rejected - Forwarded to Headteacher' | 'Headteacher Rejected' | 'Pending Operations Payout' | 'Cash Issued to DOS' | 'Approved' | 'Paid'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'In Progress' | 'Prefect Confirmed' | 'Pending Duty Approval' | 'Pending Headteacher Approval' | 'Duty Rejected - Forwarded to Headteacher' | 'Headteacher Rejected' | 'Pending Operations Payout' | 'Cash Issued to DOS' | 'Approved' | 'Paid' | 'Rejected'>('all');
     
     // Sessions Tab: Pagination & Super Admin Editing
     const [sessionsCurrentPage, setSessionsCurrentPage] = useState<number>(1);
@@ -252,6 +252,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [rejectHeadteacherSession, setRejectHeadteacherSession] = useState<RemedialSession | null>(null);
     const [headteacherRejectionReason, setHeadteacherRejectionReason] = useState('');
     const [isSubmittingHeadteacherReject, setIsSubmittingHeadteacherReject] = useState(false);
+
+    // Headteacher Bulk Authorization Selection State
+    const [selectedHeadteacherSessionIds, setSelectedHeadteacherSessionIds] = useState<Set<string>>(new Set());
+    const [isBulkAuthorizing, setIsBulkAuthorizing] = useState(false);
 
     const [selectedTimetableClass, setSelectedTimetableClass] = useState<string>('All');
     const [selectedTimetableStream, setSelectedTimetableStream] = useState<string>('All');
@@ -503,6 +507,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [dutyTeacherPickId, setDutyTeacherPickId] = useState('');
     const [dutyTeacherPickRate, setDutyTeacherPickRate] = useState('');
     const [dutyTeacherPickPayType, setDutyTeacherPickPayType] = useState<'hourly' | 'flat'>('hourly');
+    const [isSyncingDuty, setIsSyncingDuty] = useState(false);
 
     // Operations Manager Cash Handover State (Stage 4)
     const [isOpsCashModalOpen, setIsOpsCashModalOpen] = useState(false);
@@ -971,7 +976,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 typeof (apiService as any).fetchRemedialSubjects === 'function'
                     ? (apiService as any).fetchRemedialSubjects(institutionId)
                     : apiService.fetchModuleRecords<RemedialSubject>('school_remedial_subjects', institutionId).catch(() => []),
-                apiService.fetchModuleRecords<RemedialWeekendDuty>('school_remedial_duty_roster', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<RemedialWeekendDuty>('school_remedial_duty_roster', institutionId, undefined, { bypassCache: skipCache, forceRefresh: skipCache }).catch(() => []),
                 apiService.fetchRemedialOpeningBalances(institutionId).catch(() => []),
                 apiService.fetchModuleRecords<any>('subject_allocations', institutionId).catch(() => [])
             ]);
@@ -1056,7 +1061,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 } catch (_) { /* ignore */ }
             }
             setRemedialSubjects(remSubList);
-            if (dutyList.length > 0) {
+            if (dutyResult.status === 'fulfilled') {
                 setWeekendDutyRoster(dutyList);
                 safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(dutyList));
             } else if (institutionId) {
@@ -1153,6 +1158,141 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             loadData();
         }
     }, [institutionId]);
+
+    // Manual instant sync for Teachers on Duty (TOD) roster across devices
+    const handleManualSyncDutyRoster = async () => {
+        if (!institutionId || isSyncingDuty) return;
+        try {
+            setIsSyncingDuty(true);
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
+            const list = await apiService.fetchModuleRecords<RemedialWeekendDuty>(
+                'school_remedial_duty_roster',
+                institutionId,
+                undefined,
+                { bypassCache: true, forceRefresh: true }
+            );
+            if (Array.isArray(list)) {
+                setWeekendDutyRoster(list);
+                safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(list));
+            }
+        } catch (e) {
+            console.warn('[Remedial] Manual duty roster sync error:', e);
+        } finally {
+            setIsSyncingDuty(false);
+        }
+    };
+
+    // Realtime Cross-Device Synchronization for Teachers on Duty (TOD) Roster
+    useEffect(() => {
+        const targetInstId = institutionId || currentInstitution?.id;
+        if (!targetInstId) return;
+        const supabase = apiService.getSupabase();
+
+        let channel: any = null;
+        if (supabase) {
+            const imsRowId = `ims_school_remedial_duty_roster_${targetInstId}`;
+            channel = supabase
+                .channel(`remedial_duty_sync_${targetInstId}_${Date.now()}`)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'institution_module_states',
+                    filter: `id=eq.${imsRowId}`
+                }, (payload: any) => {
+                    try {
+                        const newRow = payload.new || payload.record;
+                        if (!newRow) return;
+                        const rawData = newRow.data || newRow.settings || newRow.state_data;
+                        let list: RemedialWeekendDuty[] = [];
+                        if (Array.isArray(rawData)) {
+                            list = rawData;
+                        } else if (rawData && Array.isArray(rawData.roster)) {
+                            list = rawData.roster;
+                        }
+                        if (list.length > 0 || newRow.updated_at) {
+                            setWeekendDutyRoster(list);
+                            safeLocalStorage.setItem(`remedial_duty_roster_${targetInstId}`, JSON.stringify(list));
+                        }
+                    } catch (_) {}
+                })
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'school_remedial_duty_roster',
+                    filter: `institution_id=eq.${targetInstId}`
+                }, () => {
+                    // Refetch latest duties across devices upon table mutation
+                    invalidateModuleCache('school_remedial_duty_roster');
+                    invalidateModuleCache('institution_module_states');
+                    apiService.fetchModuleRecords<RemedialWeekendDuty>(
+                        'school_remedial_duty_roster',
+                        targetInstId,
+                        undefined,
+                        { bypassCache: true, forceRefresh: true }
+                    ).then(list => {
+                        if (Array.isArray(list)) {
+                            setWeekendDutyRoster(list);
+                            safeLocalStorage.setItem(`remedial_duty_roster_${targetInstId}`, JSON.stringify(list));
+                        }
+                    }).catch(() => {});
+                })
+                .subscribe();
+        }
+
+        // Multi-tab / multi-window synchronizer via BroadcastChannel & CustomEvent
+        let bc: BroadcastChannel | null = null;
+        try {
+            if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+                bc = new BroadcastChannel('eduai_remedial_duty_sync');
+                bc.onmessage = (event) => {
+                    if (event.data?.type === 'DUTY_ROSTER_UPDATED' && event.data.institutionId === targetInstId) {
+                        if (Array.isArray(event.data.roster)) {
+                            setWeekendDutyRoster(event.data.roster);
+                            safeLocalStorage.setItem(`remedial_duty_roster_${targetInstId}`, JSON.stringify(event.data.roster));
+                        }
+                    }
+                };
+            }
+        } catch (_) {}
+
+        const handleLocalDutySync = (e: any) => {
+            if (e.detail?.institutionId === targetInstId && Array.isArray(e.detail.roster)) {
+                setWeekendDutyRoster(e.detail.roster);
+            }
+        };
+        window.addEventListener('eduai_remedial_duty_roster_updated', handleLocalDutySync);
+
+        return () => {
+            if (channel && supabase) {
+                try { supabase.removeChannel(channel); } catch (_) {}
+            }
+            if (bc) {
+                try { bc.close(); } catch (_) {}
+            }
+            window.removeEventListener('eduai_remedial_duty_roster_updated', handleLocalDutySync);
+        };
+    }, [institutionId, currentInstitution?.id]);
+
+    // Auto-refresh Teachers on Duty roster when switching to 'duty' tab
+    useEffect(() => {
+        if (!institutionId) return;
+        if (activeTab === 'duty') {
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
+            apiService.fetchModuleRecords<RemedialWeekendDuty>(
+                'school_remedial_duty_roster',
+                institutionId,
+                undefined,
+                { bypassCache: true, forceRefresh: true }
+            ).then(list => {
+                if (Array.isArray(list)) {
+                    setWeekendDutyRoster(list);
+                    safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(list));
+                }
+            }).catch(() => {});
+        }
+    }, [activeTab, institutionId]);
 
     // Enriched users with active teacherCodes mapped for instant reactivity (strictly scoped to tenant)
     const enrichedUsers = useMemo(() => {
@@ -1728,6 +1868,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     ].includes(userRole);
     const isTeacherUser = userRole === 'teacher';
 
+    // Permission check for DOS / Headteacher / Admin to manage and delete rejected logs
+    const canDeleteRejectedLogs = useMemo(() => {
+        const cleanRole = userRole.replace(/[\s_-]/g, '');
+        return isDosUser || isHeadteacherUser || isSuperAdmin || [
+            'dos', 'directorofstudies', 'academicsofficer', 'academicofficer', 'admin', 'superadmin', 'headteacher', 'principal', 'deputy'
+        ].includes(cleanRole);
+    }, [isDosUser, isHeadteacherUser, isSuperAdmin, userRole]);
+
     // Extracted Headteachers / Principals directory (strictly scoped to tenant)
     const headteachersList = useMemo(() => {
         return tenantUsers.filter(u => {
@@ -2074,7 +2222,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 (session.className || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (session.stream || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (session.prefectName || '').toLowerCase().includes(searchQuery.toLowerCase());
-            const matchesStatus = statusFilter === 'all' || session.status === statusFilter;
+            const matchesStatus = statusFilter === 'all' 
+                ? true 
+                : statusFilter === 'Rejected'
+                    ? (session.status === 'Headteacher Rejected' || session.status === 'Duty Rejected - Forwarded to Headteacher' || session.status?.toLowerCase().includes('reject') || !!(session as any).headteacherRejected || !!(session as any).dutyRejected)
+                    : session.status === statusFilter;
             return matchesSearch && matchesStatus;
         }).sort((a, b) => {
             const timeA = new Date(a.startTime || a.createdAt || 0).getTime();
@@ -2094,6 +2246,72 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const startIndex = (sessionsCurrentPage - 1) * sessionsPageSize;
         return filteredSessions.slice(startIndex, startIndex + sessionsPageSize);
     }, [filteredSessions, sessionsCurrentPage, sessionsPageSize]);
+
+    // Headteacher Pending Approval Sessions Memo (all pending sessions across the tenant)
+    const pendingHeadteacherSessions = useMemo(() => {
+        return sessions.filter(s => 
+            s.status === 'Pending Headteacher Approval' || 
+            s.status === 'Duty Rejected - Forwarded to Headteacher'
+        );
+    }, [sessions]);
+
+    // Rejected Remedial Sessions across the tenant (for DOS / Admin review and deletion)
+    const rejectedSessions = useMemo(() => {
+        return sessions.filter(s => 
+            s.status === 'Headteacher Rejected' || 
+            s.status === 'Duty Rejected - Forwarded to Headteacher' || 
+            s.status?.toLowerCase().includes('reject') ||
+            !!(s as any).headteacherRejected ||
+            !!(s as any).dutyRejected
+        );
+    }, [sessions]);
+
+    // Pending Headteacher sessions on the current paginated view
+    const pagePendingHeadteacherSessions = useMemo(() => {
+        return paginatedSessions.filter(s => 
+            s.status === 'Pending Headteacher Approval' || 
+            s.status === 'Duty Rejected - Forwarded to Headteacher'
+        );
+    }, [paginatedSessions]);
+
+    const isAllPageSelected = useMemo(() => {
+        if (pagePendingHeadteacherSessions.length === 0) return false;
+        return pagePendingHeadteacherSessions.every(s => selectedHeadteacherSessionIds.has(s.id));
+    }, [pagePendingHeadteacherSessions, selectedHeadteacherSessionIds]);
+
+    const toggleSelectAllPage = () => {
+        setSelectedHeadteacherSessionIds(prev => {
+            const next = new Set(prev);
+            if (isAllPageSelected) {
+                pagePendingHeadteacherSessions.forEach(s => next.delete(s.id));
+            } else {
+                pagePendingHeadteacherSessions.forEach(s => next.add(s.id));
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectSession = (sessionId: string) => {
+        setSelectedHeadteacherSessionIds(prev => {
+            const next = new Set(prev);
+            if (next.has(sessionId)) {
+                next.delete(sessionId);
+            } else {
+                next.add(sessionId);
+            }
+            return next;
+        });
+    };
+
+    const selectAllPendingHeadteacherSessions = () => {
+        const next = new Set<string>();
+        pendingHeadteacherSessions.forEach(s => next.add(s.id));
+        setSelectedHeadteacherSessionIds(next);
+    };
+
+    const clearHeadteacherSelection = () => {
+        setSelectedHeadteacherSessionIds(new Set());
+    };
 
     // Super Admin: Date formatting & duration calculation helpers
     const toDateTimeLocalString = (dateStr?: string): string => {
@@ -4245,6 +4463,77 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
+    // Stage 3: Headteacher / Principal Bulk Authorization
+    const handleBulkHeadteacherAuthorize = async (sessionIdsToAuthorize?: string[]) => {
+        const targetIds = sessionIdsToAuthorize && sessionIdsToAuthorize.length > 0
+            ? sessionIdsToAuthorize
+            : Array.from(selectedHeadteacherSessionIds);
+
+        if (targetIds.length === 0) {
+            alert('Please select at least one session to authorize.');
+            return;
+        }
+
+        const targetSessions = sessions.filter(s => targetIds.includes(s.id) && (
+            s.status === 'Pending Headteacher Approval' ||
+            s.status === 'Duty Rejected - Forwarded to Headteacher'
+        ));
+
+        if (targetSessions.length === 0) {
+            alert('No eligible sessions found to authorize.');
+            return;
+        }
+
+        const totalHours = targetSessions.reduce((acc, s) => acc + (Number(s.hours || (s as any).durationHours || 1) || 1), 0);
+        const overruleCount = targetSessions.filter(s => !!s.dutyRejected).length;
+
+        const confirmMessage = `Bulk Authorize ${targetSessions.length} remedial session(s)?\n\n` +
+            `• Total Hours: ${totalHours.toFixed(1)} hrs\n` +
+            (overruleCount > 0 ? `• Overruled TOD Rejections: ${overruleCount} session(s)\n` : '') +
+            `• Authorized by: ${currentUser?.name || 'Headteacher / Principal'}\n\n` +
+            `All approved sessions will be moved to 'Pending Operations Payout'.`;
+
+        if (!window.confirm(confirmMessage)) {
+            return;
+        }
+
+        try {
+            setIsBulkAuthorizing(true);
+            const nowIso = new Date().toISOString();
+            const approverName = currentUser?.name || 'Headteacher / Principal';
+            const updatedSessionsMap = new Map<string, RemedialSession>();
+
+            for (const session of targetSessions) {
+                const isOverrule = !!session.dutyRejected;
+                const updated: RemedialSession = {
+                    ...session,
+                    status: 'Pending Operations Payout',
+                    headteacherApproved: true,
+                    headteacherApprovedAt: nowIso,
+                    headteacherApprovedBy: approverName,
+                    headteacherNotes: isOverrule 
+                        ? `Bulk authorized by Headteacher (Overruled TOD rejection: "${session.dutyRejectionReason || 'Disputed'}").`
+                        : 'Bulk authorized by Headteacher'
+                };
+                await apiService.saveRemedialSession(updated);
+                updatedSessionsMap.set(session.id, updated);
+            }
+
+            // Optimistic update of local sessions state
+            setSessions(prev => prev.map(s => updatedSessionsMap.get(s.id) || s));
+            setSelectedHeadteacherSessionIds(new Set());
+
+            onLogAction?.(`[Stage 3] Headteacher bulk authorized ${targetSessions.length} session(s) (${totalHours.toFixed(1)} hrs total)`);
+            alert(`Successfully authorized ${targetSessions.length} session(s)!\nAll moved to 'Pending Operations Payout'.`);
+            loadData();
+        } catch (err: any) {
+            console.error('Failed to bulk authorize sessions:', err);
+            alert(err.message || 'Failed to complete bulk authorization');
+        } finally {
+            setIsBulkAuthorizing(false);
+        }
+    };
+
     // Discard / Delete Orphaned or Duplicate In-Progress Remedial Session
     const handleDeleteOrphanSession = async (session: RemedialSession) => {
         if (!window.confirm(`Are you sure you want to discard this duplicate or orphaned in-progress session for ${session.teacherName} (${session.subjectName})?`)) {
@@ -4274,6 +4563,85 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to clean up duplicate sessions');
+        }
+    };
+
+    // Delete Single Rejected Session Log (DOS / Headteacher / Admin)
+    const handleDeleteRejectedSession = async (session: RemedialSession) => {
+        if (!window.confirm(`Are you sure you want to permanently delete this rejected remedial session log for ${session.teacherName || 'Teacher'} (${session.subjectName || 'Subject'} • ${session.className || 'Class'})?\n\nThis will remove the rejected record from all remedial hours logs.`)) {
+            return;
+        }
+        try {
+            await apiService.deleteRemedialSession(session.id);
+            setSessions(prev => prev.filter(s => s.id !== session.id));
+            if (institutionId) {
+                try {
+                    const cacheKey = `remedial_sessions_${institutionId}`;
+                    const cached = safeLocalStorage.getItem(cacheKey);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (Array.isArray(parsed)) {
+                            safeLocalStorage.setItem(cacheKey, JSON.stringify(parsed.filter((s: any) => s.id !== session.id)));
+                        }
+                    }
+                    const globalKey = 'eduai_remedial_sessions';
+                    const globalCached = safeLocalStorage.getItem(globalKey);
+                    if (globalCached) {
+                        const parsed = JSON.parse(globalCached);
+                        if (Array.isArray(parsed)) {
+                            safeLocalStorage.setItem(globalKey, JSON.stringify(parsed.filter((s: any) => s.id !== session.id)));
+                        }
+                    }
+                } catch (_) {}
+            }
+            onLogAction?.(`[DOS Action] Permanently deleted rejected remedial session ${session.id} for ${session.teacherName || 'Teacher'}`);
+            alert('Rejected remedial session log deleted successfully.');
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated', { detail: { deletedId: session.id } }));
+            }
+            loadData(true);
+        } catch (err: any) {
+            alert(err.message || 'Failed to delete rejected session log');
+        }
+    };
+
+    // Bulk Delete / Purge All Rejected Remedial Sessions (DOS / Admin)
+    const handleBulkDeleteRejectedSessions = async () => {
+        const rejected = sessions.filter(s => 
+            s.status === 'Headteacher Rejected' || 
+            s.status === 'Duty Rejected - Forwarded to Headteacher' || 
+            s.status?.toLowerCase().includes('reject') ||
+            !!(s as any).headteacherRejected ||
+            !!(s as any).dutyRejected
+        );
+        if (rejected.length === 0) return;
+        if (!window.confirm(`Permanently delete all ${rejected.length} rejected remedial session log(s)?\n\nThis will purge all rejected records from the database and local cache. This action cannot be undone.`)) {
+            return;
+        }
+        try {
+            const idsToDelete = rejected.map(s => s.id);
+            await apiService.deleteRemedialSession(idsToDelete);
+            setSessions(prev => prev.filter(s => !idsToDelete.includes(s.id)));
+            if (institutionId) {
+                try {
+                    const cacheKey = `remedial_sessions_${institutionId}`;
+                    const cached = safeLocalStorage.getItem(cacheKey);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        if (Array.isArray(parsed)) {
+                            safeLocalStorage.setItem(cacheKey, JSON.stringify(parsed.filter((s: any) => !idsToDelete.includes(s.id))));
+                        }
+                    }
+                } catch (_) {}
+            }
+            onLogAction?.(`[DOS Action] Permanently purged ${idsToDelete.length} rejected remedial session logs`);
+            alert(`Purged ${idsToDelete.length} rejected remedial session log(s) successfully!`);
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('eduai_remedial_sessions_updated'));
+            }
+            loadData(true);
+        } catch (err: any) {
+            alert(err.message || 'Failed to purge rejected sessions');
         }
     };
 
@@ -4457,6 +4825,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             };
 
             await apiService.saveModuleRecord('school_remedial_duty_roster', dutyRecord);
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
             setWeekendDutyRoster(prev => {
                 const next = [dutyRecord, ...prev.filter(d => d.id !== dutyRecord.id)];
                 safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(next));
@@ -4526,7 +4896,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             alert(`Weekend Duty Teacher ${teacher?.name} appointed for ${dutyModalWeek}! 1 Saturday and 1 Sunday remedial lesson automatically allocated.`);
             setIsDutyModalOpen(false);
             setDutyModalTeacherId('');
-            loadData();
+            await loadData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to save weekend duty assignment');
         } finally {
@@ -4622,11 +4992,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
 
             alert(`Weekday Duty (${dutyModalWeekday}) saved! ${dutyTeacherList.length} teacher(s) appointed for ${dutyModalWeek}.`);
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
             setIsDutyModalOpen(false);
             setDutyTeacherList([]);
             setDutyTeacherPickId('');
             setDutyTeacherPickRate('');
-            loadData();
+            await loadData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to save weekday duty assignment');
         } finally {
@@ -4650,10 +5022,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
         try {
             await apiService.deleteRemedialDuty(duty.id);
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
             const updated = weekendDutyRoster.filter(d => d.id !== duty.id);
             setWeekendDutyRoster(updated);
             safeLocalStorage.setItem(`remedial_duty_roster_${institutionId}`, JSON.stringify(updated));
             onLogAction?.(`Removed ${duty.teacherName} from duty roster (${duty.weekLabel || 'duty'})`);
+            await loadData(true);
         } catch (err: any) {
             alert(err.message || 'Failed to remove duty assignment');
         }
@@ -9892,13 +10267,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'sessions' ? 'text-indigo-100' : 'text-slate-400'}`}>Session logs & QR verify</p>
                                 </div>
                             </div>
-                            {sessions.filter(s => s.status === 'Prefect Confirmed').length > 0 && (
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
-                                    activeTab === 'sessions' ? 'bg-white text-indigo-700' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
-                                }`}>
-                                    {sessions.filter(s => s.status === 'Prefect Confirmed').length}
-                                </span>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                                {sessions.filter(s => s.status === 'Prefect Confirmed').length > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                        activeTab === 'sessions' ? 'bg-white text-indigo-700' : 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                                    }`} title="Pending TOD Approvals">
+                                        {sessions.filter(s => s.status === 'Prefect Confirmed').length}
+                                    </span>
+                                )}
+                                {isHeadteacherUser && pendingHeadteacherSessions.length > 0 && (
+                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                        activeTab === 'sessions' ? 'bg-blue-300 text-blue-900 font-black' : 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300'
+                                    }`} title={`${pendingHeadteacherSessions.length} pending Headteacher approval`}>
+                                        {pendingHeadteacherSessions.length} HT
+                                    </span>
+                                )}
+                            </div>
                         </button>
 
                         <button 
@@ -10649,6 +11033,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={handleManualSyncDutyRoster}
+                                    disabled={isSyncingDuty}
+                                    className="flex-1 md:flex-none px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-black text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                                    title="Synchronize latest Teachers on Duty across devices"
+                                >
+                                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDuty ? 'animate-spin text-amber-500' : ''}`} /> {isSyncingDuty ? 'Syncing...' : 'Sync Roster'}
+                                </button>
                                 <button
                                     type="button"
                                     onClick={handlePrintDutyRoster}
@@ -14475,6 +14868,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <option value="Duty Rejected - Forwarded to Headteacher">Duty Rejected (Under Headteacher Review)</option>
                                 <option value="Pending Headteacher Approval">Pending Headteacher Approval (Stage 3)</option>
                                 <option value="Headteacher Rejected">Headteacher Rejected</option>
+                                <option value="Rejected">All Rejected Sessions (TOD &amp; Headteacher)</option>
                                 <option value="Pending Operations Payout">Pending Operations Payout (Stage 4)</option>
                                 <option value="Cash Issued to DOS">Cash Issued to DOS (Stage 5)</option>
                                 <option value="Prefect Confirmed">Prefect Confirmed</option>
@@ -14508,11 +14902,111 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </div>
                     )}
 
+                    {/* DOS / Admin Rejected Sessions Management Banner */}
+                    {canDeleteRejectedLogs && rejectedSessions.length > 0 && (
+                        <div className="p-4 sm:p-5 bg-rose-50/80 dark:bg-rose-950/40 border-2 border-rose-200 dark:border-rose-800 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-rose-600 text-white rounded-2xl shrink-0">
+                                    <Trash2 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-rose-900 dark:text-rose-200 flex items-center gap-2">
+                                        Rejected Remedial Session Logs ({rejectedSessions.length})
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] bg-rose-200 dark:bg-rose-900 text-rose-800 dark:text-rose-200 font-bold lowercase tracking-normal">dos control</span>
+                                    </h4>
+                                    <p className="text-[11px] text-rose-700 dark:text-rose-300 font-medium mt-0.5">
+                                        Found {rejectedSessions.length} rejected session log(s). You can delete rejected sessions individually in the table below or purge them all at once.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleBulkDeleteRejectedSessions}
+                                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" /> Purge All {rejectedSessions.length} Rejected Logs
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Headteacher Bulk Authorization Banner */}
+                    {isHeadteacherUser && pendingHeadteacherSessions.length > 0 && (
+                        <div className="p-4 sm:p-5 bg-blue-50 dark:bg-blue-950/40 border-2 border-blue-300 dark:border-blue-700 rounded-3xl shadow-sm">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-blue-600 text-white rounded-2xl shrink-0">
+                                        <Award className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-200">
+                                            {pendingHeadteacherSessions.length} Session{pendingHeadteacherSessions.length !== 1 ? 's' : ''} Awaiting Headteacher Authorization
+                                        </h4>
+                                        <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium mt-0.5">
+                                            {selectedHeadteacherSessionIds.size > 0
+                                                ? `${selectedHeadteacherSessionIds.size} selected — ready to bulk authorize`
+                                                : 'Use the checkboxes below to select sessions for bulk authorization'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    {selectedHeadteacherSessionIds.size > 0 ? (
+                                        <>
+                                            <button
+                                                onClick={clearHeadteacherSelection}
+                                                className="px-3 py-2 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all hover:bg-blue-50 dark:hover:bg-blue-900/40 flex items-center gap-1.5 cursor-pointer"
+                                            >
+                                                <X className="w-3 h-3" /> Clear ({selectedHeadteacherSessionIds.size})
+                                            </button>
+                                            <button
+                                                onClick={() => handleBulkHeadteacherAuthorize()}
+                                                disabled={isBulkAuthorizing}
+                                                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+                                            >
+                                                {isBulkAuthorizing ? (
+                                                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Authorizing…</>
+                                                ) : (
+                                                    <><CheckCheck className="w-3.5 h-3.5" /> Authorize {selectedHeadteacherSessionIds.size} Session{selectedHeadteacherSessionIds.size !== 1 ? 's' : ''}</>
+                                                )}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={toggleSelectAllPage}
+                                                className="px-3 py-2 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all hover:bg-blue-50 dark:hover:bg-blue-900/40 flex items-center gap-1.5 cursor-pointer"
+                                            >
+                                                <CheckSquare className="w-3 h-3" /> Select Page ({pagePendingHeadteacherSessions.length})
+                                            </button>
+                                            <button
+                                                onClick={selectAllPendingHeadteacherSessions}
+                                                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+                                            >
+                                                <CheckCheck className="w-3 h-3" /> Select All {pendingHeadteacherSessions.length}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
                                 <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                                     <tr>
+                                        {isHeadteacherUser && pagePendingHeadteacherSessions.length > 0 && (
+                                            <th className="pl-6 pr-2 py-4 w-10">
+                                                <button
+                                                    onClick={toggleSelectAllPage}
+                                                    title={isAllPageSelected ? 'Deselect page' : 'Select all HT-pending on this page'}
+                                                    className="flex items-center justify-center w-5 h-5 rounded border-2 transition-all cursor-pointer hover:scale-110 active:scale-95 border-blue-400 dark:border-blue-600 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                                                >
+                                                    {isAllPageSelected
+                                                        ? <CheckCheck className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                                        : <Square className="w-3 h-3 text-blue-400 dark:text-blue-600" />}
+                                                </button>
+                                            </th>
+                                        )}
                                         <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
                                         <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Class & Subject</th>
                                         <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Prefect validation</th>
@@ -14524,11 +15018,38 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <tbody>
                                     {filteredSessions.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No remedial hours logged.</td>
+                                            <td colSpan={isHeadteacherUser && pagePendingHeadteacherSessions.length > 0 ? 7 : 6} className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No remedial hours logged.</td>
                                         </tr>
                                     ) : (
-                                        paginatedSessions.map(session => (
-                                            <tr key={session.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                        paginatedSessions.map(session => {
+                                            const isHTSelectable = isHeadteacherUser && (
+                                                session.status === 'Pending Headteacher Approval' ||
+                                                session.status === 'Duty Rejected - Forwarded to Headteacher'
+                                            );
+                                            const isSelected = selectedHeadteacherSessionIds.has(session.id);
+                                            return (
+                                            <tr key={session.id} className={`border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors ${
+                                                isSelected ? 'bg-blue-50/60 dark:bg-blue-950/20' : ''
+                                            }`}>
+                                                {isHeadteacherUser && pagePendingHeadteacherSessions.length > 0 && (
+                                                    <td className="pl-6 pr-2 py-4 w-10 align-middle">
+                                                        {isHTSelectable && (
+                                                            <button
+                                                                onClick={() => toggleSelectSession(session.id)}
+                                                                title={isSelected ? 'Deselect session' : 'Select for bulk authorization'}
+                                                                className={`flex items-center justify-center w-5 h-5 rounded border-2 transition-all cursor-pointer hover:scale-110 active:scale-95 ${
+                                                                    isSelected
+                                                                        ? 'bg-blue-600 border-blue-600 dark:bg-blue-500 dark:border-blue-500'
+                                                                        : 'bg-transparent border-blue-400 dark:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                                                                }`}
+                                                            >
+                                                                {isSelected
+                                                                    ? <Check className="w-3 h-3 text-white" />
+                                                                    : <Square className="w-3 h-3 text-blue-400 dark:text-blue-600" />}
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                )}
                                                 <td className="p-6">
                                                     <p className="text-xs font-black text-slate-900 dark:text-white uppercase italic">{session.teacherName}</p>
                                                     <p className="text-[9px] font-mono text-slate-400 mt-0.5">ID: {session.teacherId.substring(0, 8)}</p>
@@ -14715,6 +15236,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             >
                                                                 <X className="w-3 h-3" /> Uphold Rejection
                                                             </button>
+                                                            {canDeleteRejectedLogs && (
+                                                                <button
+                                                                    onClick={() => handleDeleteRejectedSession(session)}
+                                                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-rose-200 dark:border-rose-900"
+                                                                    title="Delete this rejected session log permanently (DOS / Admin)"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3 text-rose-500" /> Delete Log
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     )}
                                                     {session.status === 'Pending Headteacher Approval' && (
@@ -14738,9 +15268,31 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         </div>
                                                     )}
                                                     {session.status === 'Headteacher Rejected' && (
-                                                        <span className="text-[9px] text-rose-600 font-bold uppercase tracking-widest flex items-center gap-1 justify-end">
-                                                            <X className="w-3.5 h-3.5" /> Rejection Confirmed
-                                                        </span>
+                                                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 justify-end">
+                                                            <span className="text-[9px] text-rose-600 font-bold uppercase tracking-widest flex items-center gap-1">
+                                                                <X className="w-3.5 h-3.5" /> Rejection Confirmed
+                                                            </span>
+                                                            {canDeleteRejectedLogs && (
+                                                                <button
+                                                                    onClick={() => handleDeleteRejectedSession(session)}
+                                                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-rose-200 dark:border-rose-900"
+                                                                    title="Delete this rejected remedial session log (DOS / Admin)"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3 text-rose-500" /> Delete Log
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                    {canDeleteRejectedLogs && session.status !== 'Headteacher Rejected' && session.status !== 'Duty Rejected - Forwarded to Headteacher' && (session.status?.toLowerCase().includes('reject') || (session as any).headteacherRejected || (session as any).dutyRejected) && (
+                                                        <div className="flex items-center gap-1.5 justify-end">
+                                                            <button
+                                                                onClick={() => handleDeleteRejectedSession(session)}
+                                                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-rose-200 dark:border-rose-900"
+                                                                title="Delete this rejected remedial session log (DOS / Admin)"
+                                                            >
+                                                                <Trash2 className="w-3 h-3 text-rose-500" /> Delete Log
+                                                            </button>
+                                                        </div>
                                                     )}
                                                     {session.status === 'Pending Operations Payout' && (
                                                         <button 
@@ -14803,7 +15355,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     )}
                                                 </td>
                                             </tr>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>

@@ -927,7 +927,17 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
         const myId = currentUser.id;
         const myNameNorm = (currentUser.name || '').trim().toLowerCase();
-        const allAllocs = [...(subjectAllocations || []), ...(allocations || [])];
+        let allAllocs = [...(subjectAllocations || []), ...(allocations || [])];
+        if (allAllocs.length === 0) {
+            try {
+                const saved = localStorage.getItem(`eduai_subject_allocations_${instId}`) ||
+                              localStorage.getItem('eduai_subject_allocations');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) allAllocs = parsed;
+                }
+            } catch (_) {}
+        }
         const map: Record<string, string[]> = {};
         allAllocs.forEach(a => {
             if (!a) return;
@@ -936,18 +946,26 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             const isMyAlloc = (myId && aTeacherId === myId) || (myNameNorm && aTeacherName === myNameNorm);
             if (!isMyAlloc) return;
             const subKey = (a.subjectName || a.subject || '').trim().toLowerCase();
-            const cls = (a.className || a.class || '').trim().toLowerCase();
-            if (!subKey || !cls) return;
+            const rawCls = (a.className || a.class || '').trim().toLowerCase();
+            const aStream = (a.stream || a.streamName || a.stream_name || a.classStream || '').trim().toLowerCase();
+            if (!subKey || !rawCls) return;
             if (!map[subKey]) map[subKey] = [];
-            if (!map[subKey].includes(cls)) map[subKey].push(cls);
+            if (!map[subKey].includes(rawCls)) map[subKey].push(rawCls);
+            if (aStream && !rawCls.includes(aStream)) {
+                const streamCls = `${rawCls} ${aStream}`.trim();
+                if (!map[subKey].includes(streamCls)) map[subKey].push(streamCls);
+            }
         });
         return map;
-    }, [currentUser, subjectAllocations, allocations]);
+    }, [currentUser, subjectAllocations, allocations, instId]);
 
     // Synchronized listener for real-time cross-module updates across Lessons & Allocation, Exam Papers & Grading
     useEffect(() => {
         const handleSync = (e?: any) => {
             setSyncedVersion(prev => prev + 1);
+            if (teacherForClassCacheRef.current) {
+                teacherForClassCacheRef.current.clear();
+            }
             try {
                 const savedEx = localStorage.getItem(`eduai_student_subject_exemptions_${instId}`);
                 if (savedEx) {
@@ -967,17 +985,31 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                                       localStorage.getItem('eduai_subject_allocations');
                 if (savedSubAlloc) {
                     const parsed = JSON.parse(savedSubAlloc);
-                    if (Array.isArray(parsed)) setSubjectAllocations(parsed);
+                    if (Array.isArray(parsed)) {
+                        setSubjectAllocations(parsed);
+                        teacherForClassCacheRef.current.clear();
+                    }
                 }
             } catch (e) {}
         };
         window.addEventListener('eduai_academics_synced', handleSync);
-        return () => window.removeEventListener('eduai_academics_synced', handleSync);
+        window.addEventListener('eduai_exam_units_synced', handleSync);
+        window.addEventListener('eduai_broadsheets_updated', handleSync);
+        window.addEventListener('eduai_subject_allocations_synced', handleSync);
+        window.addEventListener('storage', handleSync);
+        return () => {
+            window.removeEventListener('eduai_academics_synced', handleSync);
+            window.removeEventListener('eduai_exam_units_synced', handleSync);
+            window.removeEventListener('eduai_broadsheets_updated', handleSync);
+            window.removeEventListener('eduai_subject_allocations_synced', handleSync);
+            window.removeEventListener('storage', handleSync);
+        };
     }, [instId]);
 
     useEffect(() => {
-        if (currentInstitution?.id) {
-            apiService.fetchModuleRecords<any>('student_subject_exemptions', currentInstitution.id)
+        const targetInstId = currentInstitution?.id || instId;
+        if (targetInstId) {
+            apiService.fetchModuleRecords<any>('student_subject_exemptions', targetInstId)
                 .then(records => {
                     if (records && records.length > 0) {
                         const map: Record<string, boolean> = {};
@@ -989,14 +1021,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 })
                 .catch(() => { });
 
-            apiService.fetchModuleRecords<any>('class_subject_allocations', currentInstitution.id)
+            apiService.fetchModuleRecords<any>('class_subject_allocations', targetInstId)
                 .then(records => {
-                    const match = (records || []).find(r => r.id === `alloc_${currentInstitution.id}` || r.institutionId === currentInstitution.id);
+                    const match = (records || []).find(r => r.id === `alloc_${targetInstId}` || r.institutionId === targetInstId);
                     if (match && match.allocations) {
                         setClassAllocationsStore(prev => {
                             const merged = { ...match.allocations, ...prev };
                             try {
-                                localStorage.setItem(`eduai_class_subject_allocations_${currentInstitution.id}`, JSON.stringify(merged));
+                                localStorage.setItem(`eduai_class_subject_allocations_${targetInstId}`, JSON.stringify(merged));
                             } catch (e) { }
                             return merged;
                         });
@@ -1004,19 +1036,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 })
                 .catch(() => { });
 
-            apiService.fetchModuleRecords<any>('subject_allocations', currentInstitution.id)
+            apiService.fetchModuleRecords<any>('subject_allocations', targetInstId)
                 .then(records => {
                     if (records && Array.isArray(records) && records.length > 0) {
                         setSubjectAllocations(records);
+                        teacherForClassCacheRef.current.clear();
                         try {
-                            localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(records));
+                            localStorage.setItem(`eduai_subject_allocations_${targetInstId}`, JSON.stringify(records));
                             localStorage.setItem('eduai_subject_allocations', JSON.stringify(records));
                         } catch (e) {}
                     }
                 })
                 .catch(() => {});
         }
-    }, [currentInstitution]);
+    }, [currentInstitution?.id, instId]);
 
     // Authoritative resolver for registered subjects for any class stream
     const getRegisteredSubjectsForClass = useCallback((targetClass: string): { subject: string; paperName?: string; maxScore?: number }[] => {
@@ -3483,95 +3516,306 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         teacherForClassCacheRef.current.clear();
     }, [subjectAllocations, allocations, users]);
 
+    // Subject matching helper that handles aliases, code, suffixes, CBC naming, and common typos
+    const matchSubjectNames = useCallback((sub1: string, sub2: string, code1?: string, code2?: string): boolean => {
+        if (!sub1 || !sub2) return false;
+        const normalizeStr = (s: string) => {
+            return s.toLowerCase()
+                .replace(/\s*\([^)]*\)/g, '')
+                .replace(/\s*(paper\s*\d+|p\d+|main\s*paper)/gi, '')
+                .replace(/&/g, 'and')
+                .replace(/\bindeginous\b/g, 'indigenous')
+                .replace(/\bmathematik\b/g, 'mathematic')
+                .replace(/\bactivites\b/g, 'activities')
+                .replace(/\s+/g, ' ')
+                .trim();
+        };
+
+        const clean1 = normalizeStr(sub1);
+        const clean2 = normalizeStr(sub2);
+        if (clean1 === clean2) return true;
+
+        // Code match
+        if (code1 && code2 && code1.trim().toLowerCase() === code2.trim().toLowerCase()) return true;
+
+        // Normalized alnum
+        const norm1 = clean1.replace(/[^a-z0-9]/g, '');
+        const norm2 = clean2.replace(/[^a-z0-9]/g, '');
+        if (norm1 && norm2 && norm1 === norm2) return true;
+
+        // CBC / Common Aliases map
+        const aliases: Record<string, string[]> = {
+            'math': ['mathematics', 'maths', 'mathematics activities', 'math activities', 'mathematical activities', 'number work', 'numeracy'],
+            'mathematics': ['math', 'maths', 'mathematics activities', 'math activities', 'mathematical activities', 'number work', 'numeracy'],
+            'eng': ['english', 'english language activities', 'english activities', 'english language', 'language activities', 'literacy'],
+            'english': ['eng', 'english language activities', 'english activities', 'english language', 'language activities', 'literacy'],
+            'kisw': ['kiswahili', 'kiswahili language activities', 'kiswahili activities', 'swahili', 'lugha ya kiswahili', 'kusoma na kuandika'],
+            'kiswahili': ['kisw', 'kiswahili language activities', 'kiswahili activities', 'swahili', 'lugha ya kiswahili', 'kusoma na kuandika'],
+            'indigenous': ['indeginous', 'indigenous language', 'indeginous language', 'mother tongue', 'local language', 'indigenous language activities', 'indeginous language activities', 'insha', 'lugha ya kienyeji', 'indigenous languages'],
+            'indeginous': ['indigenous', 'indigenous language', 'indeginous language', 'mother tongue', 'local language', 'indigenous language activities', 'indeginous language activities', 'insha', 'lugha ya kienyeji', 'indigenous languages'],
+            'sci': ['science', 'integrated science', 'science activities', 'integrated science activities', 'general science'],
+            'integrated science': ['science', 'sci', 'integrated science activities', 'science activities'],
+            'cre': ['christian religious education', 'religious education', 'cre activities', 'religious education activities', 'c.r.e', 'christian religious activities'],
+            'christian religious education': ['cre', 'religious education', 'cre activities', 'religious education activities', 'c.r.e', 'christian religious activities'],
+            'ire': ['islamic religious education', 'religious education', 'ire activities', 'i.r.e', 'islamic religious activities'],
+            'islamic religious education': ['ire', 'religious education', 'ire activities', 'i.r.e', 'islamic religious activities'],
+            'hre': ['hindu religious education', 'religious education', 'hre activities', 'h.r.e', 'hindu religious activities'],
+            'pastoral': ['pastoral programme', 'pastoral program', 'pastoral instruction', 'ppi', 'p.p.i', 'pastoral programme of instruction', 'life skills', 'mentorship'],
+            'pastoral programme': ['pastoral', 'pastoral program', 'pastoral instruction', 'ppi', 'p.p.i', 'pastoral programme of instruction', 'life skills', 'mentorship'],
+            'env': ['environmental activities', 'environmental', 'environment', 'environmental studies', 'our environment'],
+            'environmental activities': ['env', 'environmental', 'environment', 'environmental studies', 'our environment'],
+            'agri': ['agriculture', 'agriculture and nutrition', 'agriculture activities', 'agriculture and nutrition activities', 'agric'],
+            'agriculture': ['agri', 'agriculture and nutrition', 'agriculture activities', 'agriculture and nutrition activities', 'agric'],
+            'social': ['social studies', 'social studies activities', 'sst'],
+            'social studies': ['social', 'social studies activities', 'sst'],
+            'art': ['art and craft', 'art and craft', 'creative arts', 'art craft', 'music', 'movement', 'creative activities'],
+            'creative arts': ['art and craft', 'creative arts', 'art', 'music', 'movement', 'movement and creative activities', 'creative activities', 'movement activities', 'physical education', 'pe'],
+            'movement and creative activities': ['creative arts', 'art and craft', 'art', 'music', 'movement', 'creative activities', 'movement activities', 'physical education', 'pe'],
+            'hygiene': ['hygiene and nutrition', 'hygiene activities', 'health practices', 'nutrition activities', 'health and nutrition'],
+            'hygiene and nutrition': ['hygiene', 'hygiene activities', 'health practices', 'nutrition activities', 'health and nutrition']
+        };
+
+        for (const [key, list] of Object.entries(aliases)) {
+            const group = [key, ...list];
+            if (group.some(g => norm1.includes(g.replace(/[^a-z0-9]/g, '')) || g.replace(/[^a-z0-9]/g, '').includes(norm1)) &&
+                group.some(g => norm2.includes(g.replace(/[^a-z0-9]/g, '')) || g.replace(/[^a-z0-9]/g, '').includes(norm2))) {
+                return true;
+            }
+        }
+
+        // Distinctive stem/root overlap check
+        const roots = ['indigenous', 'pastoral', 'creative', 'environment', 'hygiene', 'agricultur', 'religio', 'mathemat', 'kiswahili', 'english', 'scienc'];
+        for (const root of roots) {
+            if (clean1.includes(root) && clean2.includes(root)) return true;
+        }
+
+        // Substring match for longer names (e.g. "mathematics" in "mathematics activities")
+        if (clean1.length >= 4 && clean2.length >= 4) {
+            if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+        }
+
+        return false;
+    }, []);
+
     // Dynamic resolver to match the exact assigned teacher for a given subject in a specific class
     const getSubjectTeacherForClass = useCallback((subName: string, className: string, paperName?: string): string => {
         if (!subName) return 'Subject Teacher';
-        const cleanSub = subName.trim().toLowerCase();
-        const cleanClass = (className || '').trim().toLowerCase();
-        const cacheKey = `${cleanSub}|${cleanClass}|${paperName || ''}`;
+        const cleanSub = subName.trim();
+        const cleanClass = (className || '').trim();
+        const cacheKey = `${cleanSub.toLowerCase()}|${cleanClass.toLowerCase()}|${paperName || ''}`;
         const cached = teacherForClassCacheRef.current.get(cacheKey);
-        if (cached !== undefined) return cached;
+        if (cached !== undefined && cached !== 'Subject Teacher' && cached !== 'Unassigned') return cached;
+
+        const getCanonicalGrade = (str: string): string => {
+            if (!str) return '';
+            const clean = str.replace(/\b20\d{2}\b/g, '').replace(/[-_]/g, ' ').trim().toLowerCase();
+            const ecde = clean.match(/\b(pp\s*1|pp\s*2|playgroup|nursery|kindergarten|daycare|ecde)\b/i);
+            if (ecde) return ecde[1].replace(/\s+/g, '');
+            const m = clean.match(/\b(?:grade|class|std|standard)\s*(\d{1,2})\b/i) || clean.match(/^(\d{1,2})\b/);
+            if (m) return `grade${m[1]}`;
+            const formM = clean.match(/\b(?:form|year)\s*(\d{1,2})\b/i);
+            if (formM) return `form${formM[1]}`;
+            return clean.replace(/[^a-z0-9]/g, '');
+        };
+
+        const getCanonicalStream = (str: string): string => {
+            if (!str) return '';
+            const clean = str.replace(/\b20\d{2}\b/g, '').replace(/[-_]/g, ' ').trim().toLowerCase();
+            const parsed = extractClassAndStream(clean);
+            const rawStream = parsed.stream || (clean.match(/\b(north|south|east|west|central|red|blue|green|yellow|alpha|beta|stream\s*[a-z0-9]+|[a-d])\b/i) || [''])[0];
+            return (rawStream || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
 
         const { grade: targetGrade, stream: targetStream } = getStudentStreamAndGrade(className);
-        const targetGradeNorm = targetGrade.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const targetStreamNorm = targetStream.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const targetCanonicalGrade = getCanonicalGrade(targetGrade || className);
+        const targetCanonicalStream = getCanonicalStream(targetStream || className);
 
-        const allAllocations = [...(subjectAllocations || []), ...(allocations || [])];
+        // Resolve subject code or id from subjects list if available
+        const matchedSubjectObj = (subjects || []).find(s => s && matchSubjectNames(s.name, cleanSub, s.code));
+        const subCode = matchedSubjectObj?.code;
+        const subId = matchedSubjectObj?.id;
 
-        // Priority 1: Exact class & subject match from allocations
-        const exactAlloc = allAllocations.find(a => {
-            if (!a) return false;
-            const aSub = (a.subjectName || a.subject || '').trim().toLowerCase();
-            const aClass = (a.className || a.class || '').trim().toLowerCase();
-            if (aSub !== cleanSub) return false;
+        // Load allocations from all sources: state + props + all localStorage keys
+        const targetInstId = currentInstitution?.id || instId;
+        const allAllocationsMap = new Map<string, any>();
+        const addAllocList = (arr: any[]) => {
+            if (!Array.isArray(arr)) return;
+            arr.forEach((a, idx) => {
+                if (!a) return;
+                const k = a.id || `${a.className || a.class}_${a.subjectName || a.subject}_${a.teacherName || a.teacherId || idx}`;
+                allAllocationsMap.set(k, a);
+            });
+        };
 
-            if (aClass === cleanClass) return true;
-            const { grade: aGrade, stream: aStream } = getStudentStreamAndGrade(aClass);
-            const aGradeNorm = aGrade.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const aStreamNorm = aStream.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return targetGradeNorm && aGradeNorm === targetGradeNorm && (!targetStreamNorm || aStreamNorm === targetStreamNorm);
-        });
-
-        if (exactAlloc) {
-            const teacherName = exactAlloc.teacherName || exactAlloc.teacher?.name || exactAlloc.instructorName;
-            if (teacherName && teacherName.trim()) {
-                teacherForClassCacheRef.current.set(cacheKey, teacherName.trim());
-                return teacherName.trim();
-            }
-            if (exactAlloc.teacherId) {
-                const matchedUser = (users || []).find(u => u.id === exactAlloc.teacherId);
-                if (matchedUser?.name) {
-                    teacherForClassCacheRef.current.set(cacheKey, matchedUser.name);
-                    return matchedUser.name;
+        addAllocList(subjectAllocations);
+        addAllocList(allocations);
+        try {
+            const keysToCheck = [
+                `eduai_subject_allocations_${targetInstId}`,
+                `eduai_subject_allocations_${instId}`,
+                'eduai_subject_allocations',
+                `eduai_lessons_allocations_${targetInstId}`,
+                `eduai_lessons_allocations_${instId}`
+            ];
+            keysToCheck.forEach(k => {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed)) addAllocList(parsed);
+                    } catch (_) {}
                 }
+            });
+        } catch (_) {}
+        const allAllocations = Array.from(allAllocationsMap.values());
+
+        // Helper to check if allocation matches target subject
+        const allocMatchesSubject = (a: any): boolean => {
+            if (!a) return false;
+            const aSubName = a.subjectName || a.subject || a.name || '';
+            const aCode = a.subjectCode || a.code || '';
+            const aId = a.subjectId || a.id || '';
+            if (subId && aId && String(aId) === String(subId)) return true;
+            return matchSubjectNames(aSubName, cleanSub, aCode, subCode);
+        };
+
+        // Helper to extract valid teacher name from allocation
+        const getTeacherNameFromAlloc = (a: any): string | null => {
+            if (!a) return null;
+            const tName = (a.teacherName || a.teacher?.name || a.instructorName || a.teacher_name || a.instructor || '').trim();
+            if (tName && tName.toLowerCase() !== 'unassigned' && tName.toLowerCase() !== 'subject teacher') {
+                return tName;
+            }
+            const tId = a.teacherId || a.teacher_id || a.instructorId || a.userId || a.user_id;
+            if (tId) {
+                const matchedUser = (users || []).find(u => u && (u.id === tId || (u as any).userId === tId));
+                if (matchedUser?.name) return matchedUser.name.trim();
+            }
+            return null;
+        };
+
+        // Helper to check if allocation class matches target class/stream
+        // Returns 2 for exact stream match, 1 for base grade match, 0 for no match
+        const getClassMatchScore = (a: any): number => {
+            if (!a) return 0;
+            const rawAClass = (a.className || a.class || a.class_name || a.gradeLevel || '').trim();
+            const rawAStream = (a.stream || a.streamName || a.stream_name || a.classStream || '').trim();
+            const { grade: aGrade, stream: aStream } = getStudentStreamAndGrade(rawAClass);
+            const aCanonicalGrade = getCanonicalGrade(aGrade || rawAClass);
+            const aCanonicalStream = getCanonicalStream(rawAStream || aStream || rawAClass);
+
+            const normTarget = cleanClass.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const normA = `${rawAClass} ${rawAStream}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            // Exact alphanumeric string match
+            if (normTarget && normA && (normTarget === normA || normTarget.replace(/\d{4}$/, '') === normA.replace(/\d{4}$/, ''))) {
+                return 2;
+            }
+
+            // Grade match comparison
+            if (targetCanonicalGrade && aCanonicalGrade && targetCanonicalGrade === aCanonicalGrade) {
+                // Both specify streams and they match
+                if (targetCanonicalStream && aCanonicalStream && targetCanonicalStream === aCanonicalStream) {
+                    return 2;
+                }
+                // Target has stream and raw allocation string includes stream name
+                if (targetCanonicalStream && normA.includes(targetCanonicalStream)) {
+                    return 2;
+                }
+                // Base grade allocation without stream or applies to all
+                if (!aCanonicalStream || aCanonicalStream === 'all' || !targetCanonicalStream) {
+                    return 1;
+                }
+            }
+
+            return 0;
+        };
+
+        // Priority 1: Exact stream-specific allocation with assigned teacher
+        const streamMatches = allAllocations.filter(a => allocMatchesSubject(a) && getClassMatchScore(a) === 2);
+        for (const a of streamMatches) {
+            const tName = getTeacherNameFromAlloc(a);
+            if (tName) {
+                teacherForClassCacheRef.current.set(cacheKey, tName);
+                return tName;
             }
         }
 
-        // Priority 2: Allocation matching subject and base grade (if stream not specifically assigned)
-        const gradeAlloc = allAllocations.find(a => {
-            if (!a) return false;
-            const aSub = (a.subjectName || a.subject || '').trim().toLowerCase();
-            if (aSub !== cleanSub) return false;
-            const aClass = (a.className || a.class || '').trim().toLowerCase();
-            const { grade: aGrade } = getStudentStreamAndGrade(aClass);
-            return targetGradeNorm && aGrade.toLowerCase().replace(/[^a-z0-9]/g, '') === targetGradeNorm;
-        });
-
-        if (gradeAlloc) {
-            const teacherName = gradeAlloc.teacherName || gradeAlloc.teacher?.name || gradeAlloc.instructorName;
-            if (teacherName && teacherName.trim()) {
-                teacherForClassCacheRef.current.set(cacheKey, teacherName.trim());
-                return teacherName.trim();
-            }
-            if (gradeAlloc.teacherId) {
-                const matchedUser = (users || []).find(u => u.id === gradeAlloc.teacherId);
-                if (matchedUser?.name) {
-                    teacherForClassCacheRef.current.set(cacheKey, matchedUser.name);
-                    return matchedUser.name;
-                }
+        // Priority 2: Base grade allocation (applies across streams) with assigned teacher
+        const gradeMatches = allAllocations.filter(a => allocMatchesSubject(a) && getClassMatchScore(a) === 1);
+        for (const a of gradeMatches) {
+            const tName = getTeacherNameFromAlloc(a);
+            if (tName) {
+                teacherForClassCacheRef.current.set(cacheKey, tName);
+                return tName;
             }
         }
 
-        // Priority 3: Teacher from users array whose assigned subject / allocatedSubjects matches this subject
-        const matchedTeacher = (users || []).find(u => {
-            if (!u || (u.role !== 'teacher' && (u.role as string) !== 'instructor' && (u.role as string) !== 'lecturer')) return false;
-            const uSub = ((u as any).subject || '').trim().toLowerCase();
-            if (uSub === cleanSub) return true;
-            const allocatedSubs: string[] = (u as any).allocatedSubjects || (u as any).teachingSubjects || (u as any).subjects || [];
-            if (Array.isArray(allocatedSubs) && allocatedSubs.some(s => typeof s === 'string' && s.trim().toLowerCase() === cleanSub)) {
+        // Priority 3: Check registered teachers in users whose allocatedSubjects or teachingSubjects matches
+        const teacherUsers = (users || []).filter(u => {
+            if (!u) return false;
+            const r = String(u.role || '').toLowerCase();
+            return r === 'teacher' || r === 'instructor' || r === 'lecturer' || r === 'faculty' || r === 'staff' || r === 'academics' || r === 'educator';
+        });
+        
+        // Priority 3a: Teacher in users matching both subject and this class/stream
+        const matchingClassTeacher = teacherUsers.find(u => {
+            const uSubs: string[] = Array.isArray((u as any).allocatedSubjects) ? (u as any).allocatedSubjects
+                : Array.isArray((u as any).teachingSubjects) ? (u as any).teachingSubjects
+                : Array.isArray((u as any).subjects) ? (u as any).subjects
+                : (u as any).subject ? [(u as any).subject] : [];
+            const subMatch = uSubs.some(s => typeof s === 'string' && matchSubjectNames(s, cleanSub));
+            if (!subMatch) return false;
+
+            const uMeta = (u as any).metadata || {};
+            const uClasses: string[] = Array.isArray(uMeta.classes) ? uMeta.classes
+                : Array.isArray((u as any).classes) ? (u as any).classes
+                : Array.isArray((u as any).allocatedClasses) ? (u as any).allocatedClasses
+                : (u as any).studentClass ? [(u as any).studentClass] : [];
+
+            if (uClasses.some(c => {
+                const cStr = String(c).toLowerCase();
+                const cleanC = cleanClass.toLowerCase();
+                return cStr.includes(cleanC) || cleanC.includes(cStr) || (targetCanonicalGrade && cStr.includes(targetCanonicalGrade));
+            })) {
                 return true;
             }
             return false;
         });
 
-        if (matchedTeacher?.name) {
-            teacherForClassCacheRef.current.set(cacheKey, matchedTeacher.name);
-            return matchedTeacher.name;
+        if (matchingClassTeacher?.name) {
+            teacherForClassCacheRef.current.set(cacheKey, matchingClassTeacher.name);
+            return matchingClassTeacher.name;
         }
 
-        teacherForClassCacheRef.current.set(cacheKey, 'Subject Teacher');
+        // Priority 3b: Any teacher in users allocated to this subject
+        const matchingSubTeacher = teacherUsers.find(u => {
+            const uSub = ((u as any).subject || '').trim();
+            if (uSub && matchSubjectNames(uSub, cleanSub)) return true;
+            const uSubs: string[] = (u as any).allocatedSubjects || (u as any).teachingSubjects || (u as any).subjects || [];
+            return Array.isArray(uSubs) && uSubs.some(s => typeof s === 'string' && matchSubjectNames(s, cleanSub));
+        });
+
+        if (matchingSubTeacher?.name) {
+            teacherForClassCacheRef.current.set(cacheKey, matchingSubTeacher.name);
+            return matchingSubTeacher.name;
+        }
+
+        // Priority 3c: Check if a user is the assigned supervisor/class-teacher for this class
+        const classSupervisorUser = (users || []).find(u => {
+            if (!u) return false;
+            const sCls = String(u.supervisedClass || (u as any).supervised_class || (u as any).assignedClass || '').trim().toLowerCase();
+            return sCls && (sCls === cleanClass.toLowerCase() || (targetCanonicalGrade && sCls.includes(targetCanonicalGrade)));
+        });
+
+        if (classSupervisorUser?.name) {
+            teacherForClassCacheRef.current.set(cacheKey, classSupervisorUser.name);
+            return classSupervisorUser.name;
+        }
+
+        // If no match found yet, return 'Subject Teacher' without caching as permanent truth
         return 'Subject Teacher';
-    }, [subjectAllocations, allocations, users, getStudentStreamAndGrade]);
+    }, [subjectAllocations, allocations, users, subjects, getStudentStreamAndGrade, matchSubjectNames, instId, currentInstitution?.id]);
 
     const lastClassPaperRowsRef = useRef<any[]>([]);
 
@@ -4085,6 +4329,10 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                         if (currentInstitution?.id) {
                             await apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
                         }
+                        try {
+                            window.dispatchEvent(new CustomEvent('eduai_exam_units_synced', { detail: { examId: updatedExam.id, instId } }));
+                            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'exam_units', instId } }));
+                        } catch (_) {}
                         setIsEditingExam(false);
                         setIsAddExamModalOpen(false);
                         setWizardStep(1);
@@ -4132,6 +4380,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (currentInstitution?.id) {
                 await apiService.saveModuleRecord('exam_units', updatedExam).catch(() => { });
             }
+
+            try {
+                window.dispatchEvent(new CustomEvent('eduai_exam_units_synced', { detail: { examId: updatedExam.id, instId } }));
+                window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'exam_units', instId } }));
+            } catch (_) {}
 
             setIsEditingExam(false);
             setIsAddExamModalOpen(false);
@@ -4222,6 +4475,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             await apiService.saveModuleRecord('exam_units', newExam).catch(() => { });
             await apiService.saveModuleRecord('exam_broadsheets', { id: newExamId, examId: newExamId, rows: freshRows, institutionId: currentInstitution.id, institution_id: currentInstitution.id }).catch(() => { });
         }
+
+        try {
+            window.dispatchEvent(new CustomEvent('eduai_exam_units_synced', { detail: { examId: newExamId, instId } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'exam_units', instId } }));
+        } catch (_) {}
 
         setSaveToastMessage(`✨ Created "${newExam.name}" cleanly for ${targetClasses.length} registered classes!`);
         setTimeout(() => setSaveToastMessage(null), 4000);

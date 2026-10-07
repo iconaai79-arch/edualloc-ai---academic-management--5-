@@ -3033,7 +3033,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     onImportRooms={props.onImportRooms}
                                     smsConfig={props.smsConfig as any}
                                     themeColor={props.themeColor}
-                                    allocations={props.requests as any}
+                                    allocations={(props.allocations || props.requests) as any}
                                     timeOffRequests={props.timeOffRequests}
                                     lessonRatings={props.lessonRatings}
                                     assessments={props.assessments}

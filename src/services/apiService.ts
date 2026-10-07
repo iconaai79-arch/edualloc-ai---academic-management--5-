@@ -121,11 +121,11 @@ export const invalidateModuleCache = (module?: string) => {
         _imsSharedCache.clear();
         return;
     }
-    if (module === 'institution_module_states') {
+    if (module === 'institution_module_states' || module === 'school_remedial_duty_roster') {
         _imsSharedCache.clear();
     }
     for (const key of _moduleMemoryCache.keys()) {
-        if (key.startsWith(`${module}:`)) {
+        if (key.startsWith(`${module}:`) || (module === 'school_remedial_duty_roster' && key.startsWith('institution_module_states:'))) {
             _moduleMemoryCache.delete(key);
         }
     }
@@ -1513,15 +1513,19 @@ export const apiService = {
         }
     },
 
-    async getSharedInstitutionModuleStates(instId?: string): Promise<any[]> {
+    async getSharedInstitutionModuleStates(instId?: string, forceRefresh = false): Promise<any[]> {
         const key = instId || 'ALL';
         const now = Date.now();
-        const cached = _imsSharedCache.get(key);
-        if (cached && (now - cached.timestamp < 45000) && Array.isArray(cached.data) && cached.data.length > 0) {
-            return cached.data;
-        }
-        if (_imsSharedPromises.has(key)) {
-            return _imsSharedPromises.get(key)!;
+        if (!forceRefresh) {
+            const cached = _imsSharedCache.get(key);
+            if (cached && (now - cached.timestamp < 45000) && Array.isArray(cached.data) && cached.data.length > 0) {
+                return cached.data;
+            }
+            if (_imsSharedPromises.has(key)) {
+                return _imsSharedPromises.get(key)!;
+            }
+        } else {
+            _imsSharedCache.delete(key);
         }
         const promise = (async () => {
             let remoteRecords: any[] = [];
@@ -1589,17 +1593,22 @@ export const apiService = {
             order?: string; 
             limit?: number;
             offset?: number;
+            bypassCache?: boolean;
+            forceRefresh?: boolean;
         }
     ): Promise<T[]> {
         const cacheKey = `${module}:${institutionId || 'all'}:${countyId || 'none'}:${JSON.stringify(options || {})}`;
         const now = Date.now();
-        const cached = _moduleMemoryCache.get(cacheKey);
-        if (cached && (now - cached.timestamp) < cached.ttl) {
-            return cached.data as T[];
-        }
+        const shouldBypass = Boolean(options?.bypassCache || options?.forceRefresh);
+        if (!shouldBypass) {
+            const cached = _moduleMemoryCache.get(cacheKey);
+            if (cached && (now - cached.timestamp) < cached.ttl) {
+                return cached.data as T[];
+            }
 
-        if (_inFlightRequests.has(cacheKey)) {
-            return _inFlightRequests.get(cacheKey) as Promise<T[]>;
+            if (_inFlightRequests.has(cacheKey)) {
+                return _inFlightRequests.get(cacheKey) as Promise<T[]>;
+            }
         }
 
         const executeFetch = async (): Promise<T[]> => {
@@ -2228,11 +2237,37 @@ export const apiService = {
 
             if (module === 'school_remedial_duty_roster') {
                 const targetInstId = (institutionId && institutionId !== 'ALL') ? institutionId : ((ls.get('current_institution') as any)?.id || 'default_inst');
+                const shouldBypass = Boolean(options?.bypassCache || options?.forceRefresh);
                 let remoteDuty: any[] = [];
+                const deletedIdsSet = new Set<string>();
 
-                // 1. Try to fetch from shared institution_module_states
+                // Load tombstones from localStorage so deleted entries don't resurrect
                 try {
-                    const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId);
+                    const delKey = `eduai_deleted_duty_ids_${targetInstId}`;
+                    const savedDel = localStorage.getItem(delKey);
+                    if (savedDel) {
+                        const parsedDel = JSON.parse(savedDel);
+                        if (Array.isArray(parsedDel)) parsedDel.forEach((id: string) => deletedIdsSet.add(id));
+                    }
+                } catch (_) {}
+
+                // 1. Direct query from physical table in Supabase (primary real-time cross-device source)
+                if (_supabase) {
+                    try {
+                        let q = _supabase.from('school_remedial_duty_roster').select('*');
+                        if (targetInstId && targetInstId !== 'ALL') {
+                            q = q.eq('institution_id', targetInstId);
+                        }
+                        const { data: dbRows, error: dbErr } = await q;
+                        if (!dbErr && Array.isArray(dbRows) && dbRows.length > 0) {
+                            remoteDuty.push(...dbRows);
+                        }
+                    } catch (_) {}
+                }
+
+                // 2. Fetch from shared institution_module_states (synced aggregate container across devices)
+                try {
+                    const imsRows = await apiService.getSharedInstitutionModuleStates(institutionId, shouldBypass);
                     if (Array.isArray(imsRows) && imsRows.length > 0) {
                         const match = imsRows.find((r: any) => 
                             r.id === `ims_school_remedial_duty_roster_${targetInstId}` ||
@@ -2241,6 +2276,12 @@ export const apiService = {
                             r.moduleId === 'school_remedial_duty_roster' ||
                             r.module_id === 'school_remedial_duty_roster'
                         );
+                        // Extract any remote tombstones
+                        const remoteDel = match?.deleted_duty_ids || match?.deletedDutyIds || match?.data?.deletedDutyIds || match?.settings?.deletedDutyIds;
+                        if (Array.isArray(remoteDel)) {
+                            remoteDel.forEach((id: string) => deletedIdsSet.add(id));
+                        }
+
                         const storeData = match?.data || match?.settings || match?.stateData;
                         if (Array.isArray(storeData)) {
                             remoteDuty.push(...storeData);
@@ -2252,7 +2293,7 @@ export const apiService = {
                     }
                 } catch (_) {}
 
-                // 2. Also try fetching from physical DB table via proxy API if online
+                // 3. Try fetching from DB table via proxy API if online
                 if (typeof navigator === 'undefined' || navigator.onLine) {
                     try {
                         const token = await apiService.getAuthToken();
@@ -2269,7 +2310,7 @@ export const apiService = {
                     } catch (_) {}
                 }
 
-                // 3. Local storage fallback / merge
+                // 4. Local storage fallback / merge
                 let localDuty: any[] = [];
                 try {
                     const saved = localStorage.getItem(`remedial_duty_roster_${targetInstId}`);
@@ -2284,11 +2325,13 @@ export const apiService = {
                 }
 
                 const map = new Map<string, any>();
+                // Seed local items first (excluding deleted)
                 localDuty.forEach(d => {
-                    if (d && d.id) map.set(d.id, toCamelCase(d));
+                    if (d && d.id && !deletedIdsSet.has(d.id)) map.set(d.id, toCamelCase(d));
                 });
+                // Remote records take precedence for cross-device synchronization
                 remoteDuty.forEach(d => {
-                    if (d && d.id) {
+                    if (d && d.id && !deletedIdsSet.has(d.id)) {
                         const camelD = toCamelCase(d);
                         map.set(d.id, { ...map.get(d.id), ...camelD });
                     }
@@ -2298,6 +2341,9 @@ export const apiService = {
                 try {
                     localStorage.setItem(`remedial_duty_roster_${targetInstId}`, JSON.stringify(finalDuty));
                     ls.set('school_remedial_duty_roster', finalDuty);
+                    if (deletedIdsSet.size > 0) {
+                        localStorage.setItem(`eduai_deleted_duty_ids_${targetInstId}`, JSON.stringify(Array.from(deletedIdsSet)));
+                    }
                 } catch (_) {}
 
                 return finalDuty as T[];
@@ -4240,6 +4286,17 @@ export const apiService = {
 
         if (module === 'school_remedial_duty_roster') {
             const instId = (ls.get('current_institution') as any)?.id || 'default_inst';
+            const delKey = `eduai_deleted_duty_ids_${instId}`;
+            let deletedIds: string[] = [];
+            try {
+                const s = localStorage.getItem(delKey);
+                if (s) deletedIds = JSON.parse(s);
+            } catch (_) {}
+            deletedIds = Array.from(new Set([...deletedIds, ...Array.from(idsSet)]));
+            try {
+                localStorage.setItem(delKey, JSON.stringify(deletedIds));
+            } catch (_) {}
+
             let localDuty: any[] = [];
             try {
                 const saved = localStorage.getItem(`remedial_duty_roster_${instId}`);
@@ -4256,20 +4313,65 @@ export const apiService = {
                 ls.set('school_remedial_duty_roster', remaining);
             } catch (e) {}
 
+            // 1. Direct Supabase table deletion
+            if (_supabase) {
+                try {
+                    await _supabase.from('school_remedial_duty_roster').delete().in('id', Array.from(idsSet));
+                } catch (sbErr) {
+                    console.warn('[apiService] Direct table delete from school_remedial_duty_roster failed:', sbErr);
+                }
+            }
+
+            // 2. Persist updated remaining roster + tombstones to shared institution_module_states and await
             if (instId) {
-                apiService.saveModuleRecord('institution_module_states', {
-                    id: `ims_school_remedial_duty_roster_${instId}`,
-                    institution_id: instId,
-                    institutionId: instId,
-                    module_id: 'school_remedial_duty_roster',
-                    moduleId: 'school_remedial_duty_roster',
-                    moduleName: 'Remedial Duty Roster',
-                    status: 'active',
-                    data: remaining,
-                    settings: remaining,
-                    stateData: remaining,
-                    updated_at: new Date().toISOString()
-                }).catch(() => {});
+                try {
+                    await apiService.saveModuleRecord('institution_module_states', {
+                        id: `ims_school_remedial_duty_roster_${instId}`,
+                        institution_id: instId,
+                        institutionId: instId,
+                        module_id: 'school_remedial_duty_roster',
+                        moduleId: 'school_remedial_duty_roster',
+                        moduleName: 'Remedial Duty Roster',
+                        status: 'active',
+                        data: remaining,
+                        settings: remaining,
+                        stateData: remaining,
+                        deletedDutyIds: deletedIds,
+                        deleted_duty_ids: deletedIds,
+                        updated_at: new Date().toISOString()
+                    });
+                } catch (imsErr) {
+                    console.warn('[apiService] Updating institution_module_states for duty delete failed:', imsErr);
+                }
+            }
+
+            // 3. Fallback /api/delete call
+            if (typeof navigator === 'undefined' || navigator.onLine) {
+                try {
+                    const token = await apiService.getAuthToken();
+                    await fetch('/api/delete?module=school_remedial_duty_roster', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ ids: Array.from(idsSet) })
+                    });
+                } catch (_) {}
+            }
+
+            // 4. Invalidate caches and broadcast across tabs/windows
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
+            if (typeof window !== 'undefined') {
+                try {
+                    window.dispatchEvent(new CustomEvent('eduai_remedial_duty_roster_updated', { detail: { institutionId: instId, roster: remaining } }));
+                    if ('BroadcastChannel' in window) {
+                        const bc = new BroadcastChannel('eduai_remedial_duty_sync');
+                        bc.postMessage({ type: 'DUTY_ROSTER_UPDATED', institutionId: instId, roster: remaining });
+                        bc.close();
+                    }
+                } catch (_) {}
             }
             return;
         }
@@ -4631,51 +4733,142 @@ export const apiService = {
 
         if (module === 'school_remedial_duty_roster') {
             const instId = payload?.institution_id || payload?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || (ls.get('current_institution') as any)?.id || 'default_inst';
-            let allDuty: any[] = [];
+
+            // Build map of existing duties from local storage AND existing IMS state so other devices' items aren't overwritten
+            const dutyMap = new Map<string, any>();
             try {
                 const saved = localStorage.getItem(`remedial_duty_roster_${instId}`);
                 if (saved) {
                     const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed)) allDuty = parsed;
+                    if (Array.isArray(parsed)) parsed.forEach(d => d?.id && dutyMap.set(d.id, toCamelCase(d)));
                 }
             } catch (e) {}
 
-            if (Array.isArray(payload)) {
-                allDuty = payload;
-            } else if (Array.isArray(data)) {
-                allDuty = data;
-            } else if (payload && payload.id) {
-                const idx = allDuty.findIndex(d => d.id === payload.id);
-                if (idx >= 0) {
-                    allDuty[idx] = { ...allDuty[idx], ...payload };
-                } else {
-                    allDuty.unshift(payload);
+            const lsRecs = ls.get('school_remedial_duty_roster');
+            if (Array.isArray(lsRecs)) lsRecs.forEach(d => d?.id && dutyMap.set(d.id, toCamelCase(d)));
+
+            try {
+                const cachedIms = _imsSharedCache.get(instId) || _imsSharedCache.get('ALL');
+                if (cachedIms && Array.isArray(cachedIms.data)) {
+                    const match = cachedIms.data.find((r: any) =>
+                        r.id === `ims_school_remedial_duty_roster_${instId}` ||
+                        r.moduleId === 'school_remedial_duty_roster' ||
+                        r.module_id === 'school_remedial_duty_roster'
+                    );
+                    const storeData = match?.data || match?.settings || match?.stateData;
+                    if (Array.isArray(storeData)) {
+                        storeData.forEach(d => d?.id && dutyMap.set(d.id, toCamelCase(d)));
+                    }
                 }
+            } catch (_) {}
+
+            // Un-tombstone if re-adding
+            try {
+                const delKey = `eduai_deleted_duty_ids_${instId}`;
+                const s = localStorage.getItem(delKey);
+                if (s) {
+                    const parsed = JSON.parse(s);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const incomingIds = new Set<string>();
+                        if (Array.isArray(payload)) payload.forEach(p => p?.id && incomingIds.add(p.id));
+                        else if (Array.isArray(data)) data.forEach(p => p?.id && incomingIds.add(p.id));
+                        else if (payload?.id) incomingIds.add(payload.id);
+                        const filteredDel = parsed.filter(id => !incomingIds.has(id));
+                        localStorage.setItem(delKey, JSON.stringify(filteredDel));
+                    }
+                }
+            } catch (_) {}
+
+            const incomingItems: any[] = [];
+            if (Array.isArray(payload)) {
+                incomingItems.push(...payload);
+            } else if (Array.isArray(data)) {
+                incomingItems.push(...data);
+            } else if (payload && payload.id) {
+                incomingItems.push(payload);
             }
+
+            incomingItems.forEach(item => {
+                if (item && item.id) {
+                    const existing = dutyMap.get(item.id) || {};
+                    dutyMap.set(item.id, { ...existing, ...toCamelCase(item), institutionId: instId, institution_id: instId });
+                }
+            });
+
+            const allDuty = Array.from(dutyMap.values());
 
             try {
                 localStorage.setItem(`remedial_duty_roster_${instId}`, JSON.stringify(allDuty));
                 ls.set('school_remedial_duty_roster', allDuty);
             } catch (e) {}
 
-            if (instId) {
-                const stateData = {
-                    id: `ims_school_remedial_duty_roster_${instId}`,
-                    institution_id: instId,
-                    institutionId: instId,
-                    module_id: 'school_remedial_duty_roster',
-                    moduleId: 'school_remedial_duty_roster',
-                    moduleName: 'Remedial Duty Roster',
-                    status: 'active',
-                    data: allDuty,
-                    settings: allDuty,
-                    stateData: allDuty,
-                    updated_at: new Date().toISOString()
-                };
-                apiService.saveModuleRecord('institution_module_states', stateData).catch(err => {
-                    console.warn('[apiService] saveModuleRecord school_remedial_duty_roster error:', err);
-                });
+            // 1. Direct Supabase write to physical table 'school_remedial_duty_roster'
+            if (_supabase && incomingItems.length > 0) {
+                try {
+                    const snakeItems = incomingItems.map(item => {
+                        const s = toSnakeCase(item);
+                        if (!s.institution_id) s.institution_id = instId;
+                        if (!s.duty_type) s.duty_type = s.weekday_day ? 'weekday' : 'weekend';
+                        return s;
+                    });
+                    await _supabase.from('school_remedial_duty_roster').upsert(snakeItems);
+                } catch (sbErr) {
+                    console.warn('[apiService] Direct table write to school_remedial_duty_roster failed, continuing with state sync:', sbErr);
+                }
             }
+
+            // 2. Persist aggregate state to institution_module_states and await
+            if (instId) {
+                try {
+                    const stateData = {
+                        id: `ims_school_remedial_duty_roster_${instId}`,
+                        institution_id: instId,
+                        institutionId: instId,
+                        module_id: 'school_remedial_duty_roster',
+                        moduleId: 'school_remedial_duty_roster',
+                        moduleName: 'Remedial Duty Roster',
+                        status: 'active',
+                        data: allDuty,
+                        settings: allDuty,
+                        stateData: allDuty,
+                        updated_at: new Date().toISOString()
+                    };
+                    await apiService.saveModuleRecord('institution_module_states', stateData);
+                } catch (imsErr) {
+                    console.warn('[apiService] saveModuleRecord school_remedial_duty_roster ims error:', imsErr);
+                }
+            }
+
+            // 3. Also dispatch proxy API write if online
+            if (typeof navigator === 'undefined' || navigator.onLine) {
+                try {
+                    const token = await apiService.getAuthToken();
+                    await fetch('/api/records?module=school_remedial_duty_roster', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': token ? `Bearer ${token}` : '',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ data: payload })
+                    });
+                } catch (_) {}
+            }
+
+            // 4. Invalidate caches and broadcast across tabs/windows
+            invalidateModuleCache('school_remedial_duty_roster');
+            invalidateModuleCache('institution_module_states');
+            if (typeof window !== 'undefined') {
+                try {
+                    window.dispatchEvent(new CustomEvent('eduai_remedial_duty_roster_updated', { detail: { institutionId: instId, roster: allDuty } }));
+                    if ('BroadcastChannel' in window) {
+                        const bc = new BroadcastChannel('eduai_remedial_duty_sync');
+                        bc.postMessage({ type: 'DUTY_ROSTER_UPDATED', institutionId: instId, roster: allDuty });
+                        bc.close();
+                    }
+                } catch (_) {}
+            }
+
+            return toCamelCase(payload);
         }
 
         if (module === 'class_subject_allocations' || _unsupportedServerModules.has(module)) {

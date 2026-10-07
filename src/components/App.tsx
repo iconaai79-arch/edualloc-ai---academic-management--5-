@@ -6033,6 +6033,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         smsConfig: companyDetails.smsConfig,
         themeColor: activeBranding.primaryColor,
         examTimetableSettings: activeInstitution?.examTimetableSettings || INITIAL_EXAM_TIMETABLE_SETTINGS,
+        allocations,
         lessonRatings,
         schoolRegistry,
         companyDetails,
@@ -6051,7 +6052,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         onSaveAssessmentMarks: handleSaveAssessmentMarks,
         onAddIncident: async (d) => { await apiService.saveModuleRecord('discipline_incidents', { ...d, id: `disc_${Date.now()}`, institutionId: currentUser?.institutionId }); loadData(); },
         onExamTimetableGenerated: handleExamTimetableGenerated
-    }), [currentUser, activeInstitution, academicYears, semesters, academicLevels, departments, subjects, courses, users, rooms, assessments, assessmentMarks, incidents, activeAcademicYear, activeSemester, examTimetable, getSubjectById, getLecturerById, getRoomById, courseSizes, timetableSettings, buildings, activeLetterheadConfig, activeBranding, activeFooterImageUrl, companyDetails, lessonRatings, schoolRegistry, handleUpdateSubject, handleUpdateCourse, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleExamTimetableGenerated]);
+    }), [currentUser, activeInstitution, academicYears, semesters, academicLevels, departments, subjects, courses, users, rooms, assessments, assessmentMarks, incidents, activeAcademicYear, activeSemester, examTimetable, getSubjectById, getLecturerById, getRoomById, courseSizes, timetableSettings, buildings, activeLetterheadConfig, activeBranding, activeFooterImageUrl, companyDetails, allocations, lessonRatings, schoolRegistry, handleUpdateSubject, handleUpdateCourse, handleAddRoom, handleUpdateRoom, handleDeleteRoom, handleImportRooms, handleAddDepartment, handleUpdateDepartment, handleDeleteDepartment, handleImportDepartments, handleAddAssessment, handleDeleteAssessment, handleSaveAssessmentMarks, handleExamTimetableGenerated]);
 
     const lecturerProps = useMemo<Partial<LecturerProps>>(() => ({
         user: currentUser || undefined,
