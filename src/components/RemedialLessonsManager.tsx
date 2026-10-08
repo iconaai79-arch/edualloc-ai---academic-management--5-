@@ -526,6 +526,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [isCanvasDrawing, setIsCanvasDrawing] = useState(false);
     const [hasTeacherSigned, setHasTeacherSigned] = useState(false);
     const [viewingReceiptPayout, setViewingReceiptPayout] = useState<RemedialPayout | null>(null);
+
+    // Teacher Payouts Filter & Search State
+    const [payoutStageFilter, setPayoutStageFilter] = useState<'all' | 'approved' | 'pending_ops' | 'dos_custody' | 'paid'>('all');
+    const [payoutTeacherSearch, setPayoutTeacherSearch] = useState<string>('');
+    const [payoutTeacherIdFilter, setPayoutTeacherIdFilter] = useState<string>('all');
+    const [payoutLedgerStatusFilter, setPayoutLedgerStatusFilter] = useState<'all' | 'Paid' | 'Pending'>('all');
     
     // Remedial Timetable Workflow: DOS -> Headteacher Approval -> Dispersed to Teachers
     const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
@@ -8158,6 +8164,57 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         });
     }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
 
+    // Filtered collections for Teacher Payouts view
+    const filteredAccruedPayouts = useMemo(() => {
+        return accruedPayouts.filter(accrued => {
+            if (payoutTeacherIdFilter !== 'all' && accrued.teacherId !== payoutTeacherIdFilter) return false;
+            if (payoutTeacherSearch.trim()) {
+                const q = payoutTeacherSearch.toLowerCase().trim();
+                return accrued.teacherName.toLowerCase().includes(q);
+            }
+            return true;
+        });
+    }, [accruedPayouts, payoutTeacherIdFilter, payoutTeacherSearch]);
+
+    const filteredPendingOpsBatches = useMemo(() => {
+        return pendingOpsHandoverBatches.filter(batch => {
+            if (payoutTeacherIdFilter !== 'all' && batch.teacherId !== payoutTeacherIdFilter) return false;
+            if (payoutTeacherSearch.trim()) {
+                const q = payoutTeacherSearch.toLowerCase().trim();
+                return batch.teacherName.toLowerCase().includes(q);
+            }
+            return true;
+        });
+    }, [pendingOpsHandoverBatches, payoutTeacherIdFilter, payoutTeacherSearch]);
+
+    const filteredCashIssuedToDosBatches = useMemo(() => {
+        return cashIssuedToDosBatches.filter(batch => {
+            if (payoutTeacherIdFilter !== 'all' && batch.teacherId !== payoutTeacherIdFilter) return false;
+            if (payoutTeacherSearch.trim()) {
+                const q = payoutTeacherSearch.toLowerCase().trim();
+                return batch.teacherName.toLowerCase().includes(q);
+            }
+            return true;
+        });
+    }, [cashIssuedToDosBatches, payoutTeacherIdFilter, payoutTeacherSearch]);
+
+    const filteredLedgerPayouts = useMemo(() => {
+        return payouts.filter(p => {
+            if (payoutTeacherIdFilter !== 'all' && p.teacherId !== payoutTeacherIdFilter) return false;
+            if (payoutTeacherSearch.trim()) {
+                const q = payoutTeacherSearch.toLowerCase().trim();
+                const matchName = (p.teacherName || '').toLowerCase().includes(q);
+                const matchRef = (p.id || '').toLowerCase().includes(q) || (p.cashVoucherRef || '').toLowerCase().includes(q);
+                if (!matchName && !matchRef) return false;
+            }
+            if (payoutLedgerStatusFilter !== 'all') {
+                if (payoutLedgerStatusFilter === 'Paid' && p.status !== 'Paid') return false;
+                if (payoutLedgerStatusFilter === 'Pending' && p.status === 'Paid') return false;
+            }
+            return true;
+        });
+    }, [payouts, payoutTeacherIdFilter, payoutTeacherSearch, payoutLedgerStatusFilter]);
+
     // Issue Payout Voucher
     const handleIssuePayout = async (accrued: any) => {
         if (!window.confirm(`Issue payout voucher for ${accrued.teacherName} of KES ${accrued.totalAmount.toLocaleString()}?`)) return;
@@ -15120,7 +15177,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 <option value="Pending Operations Payout">Pending Operations Payout (Stage 4)</option>
                                 <option value="Cash Issued to DOS">Cash Issued to DOS (Stage 5)</option>
                                 <option value="Prefect Confirmed">Prefect Confirmed</option>
-                                <option value="Approved">Approved</option>
+                                <option value="Approved">Approved (Ready for Teacher Payout)</option>
                                 <option value="Paid">Paid</option>
                             </select>
                         </div>
@@ -15864,7 +15921,21 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             )}
 
             {/* TAB: PAYOUTS */}
-            {activeTab === 'payouts' && (
+            {activeTab === 'payouts' && (() => {
+                const totalAccruedKsh = filteredAccruedPayouts.reduce((sum, a) => sum + a.totalAmount, 0);
+                const totalOpsKsh = filteredPendingOpsBatches.reduce((sum, b) => sum + b.totalAmount, 0);
+                const totalDosKsh = filteredCashIssuedToDosBatches.reduce((sum, b) => sum + b.totalAmount, 0);
+                const totalPaidKsh = filteredLedgerPayouts.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.totalAmount, 0);
+
+                const hasActiveFilter = payoutStageFilter !== 'all' || Boolean(payoutTeacherSearch.trim()) || payoutTeacherIdFilter !== 'all';
+                const totalRecordsInFilter = (
+                    (payoutStageFilter === 'all' || payoutStageFilter === 'pending_ops' || payoutStageFilter === 'approved' ? filteredPendingOpsBatches.length : 0) +
+                    (payoutStageFilter === 'all' || payoutStageFilter === 'dos_custody' ? filteredCashIssuedToDosBatches.length : 0) +
+                    (payoutStageFilter === 'all' || payoutStageFilter === 'approved' ? filteredAccruedPayouts.length : 0) +
+                    (payoutStageFilter === 'all' || payoutStageFilter === 'paid' ? filteredLedgerPayouts.length : 0)
+                );
+
+                return (
                 <div className="space-y-8">
                     {/* School Pre-Funded Payout Float Wallet */}
                     {institutionId && (
@@ -15875,271 +15946,646 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         />
                     )}
 
-                    {/* STAGE 4: OPERATIONS MANAGER CASH HANDOVER TO DOS */}
-                    <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-purple-500/20 rounded-2xl text-purple-300">
-                                    <Banknote className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-purple-500/30 text-purple-200">Stage 4: Operations Payout</span>
-                                        <span className="text-xs text-purple-200 font-bold">Physical Cash Handover to DOS</span>
-                                    </div>
-                                    <h4 className="text-sm font-black uppercase tracking-wider mt-0.5">Approved Batches Ready for Cash Release to DOS</h4>
-                                </div>
+                    {/* PAYOUT WORKFLOW FILTER & SEARCH BAR */}
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 border border-slate-100 dark:border-slate-700 shadow-lg space-y-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            {/* Stage Filter Pills */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                                    <Filter className="w-3.5 h-3.5 text-indigo-500" /> Filter Stage:
+                                </span>
+
+                                {/* All Payouts Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => setPayoutStageFilter('all')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        payoutStageFilter === 'all'
+                                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md'
+                                            : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    <span>All Payouts</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                        payoutStageFilter === 'all'
+                                            ? 'bg-white/20 dark:bg-slate-900/20 text-white dark:text-slate-900'
+                                            : 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
+                                    }`}>
+                                        {accruedPayouts.length + pendingOpsHandoverBatches.length + cashIssuedToDosBatches.length + payouts.length}
+                                    </span>
+                                </button>
+
+                                {/* Approved Payouts Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => setPayoutStageFilter('approved')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        payoutStageFilter === 'approved'
+                                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500/30'
+                                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200/60 dark:border-emerald-800/40'
+                                    }`}
+                                    title="Approved lessons ready for payment voucher or instant wallet disbursal"
+                                >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Approved Payouts</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                        payoutStageFilter === 'approved' ? 'bg-white text-emerald-800' : 'bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200'
+                                    }`}>
+                                        {accruedPayouts.length}
+                                    </span>
+                                </button>
+
+                                {/* Stage 4: Operations Handover Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => setPayoutStageFilter('pending_ops')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        payoutStageFilter === 'pending_ops'
+                                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/25 ring-2 ring-purple-500/30'
+                                            : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 border border-purple-200/60 dark:border-purple-800/40'
+                                    }`}
+                                    title="Approved batches awaiting Operations cash release to DOS"
+                                >
+                                    <Banknote className="w-3.5 h-3.5" />
+                                    <span>Stage 4: Ops Handover</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                        payoutStageFilter === 'pending_ops' ? 'bg-white text-purple-800' : 'bg-purple-200/70 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
+                                    }`}>
+                                        {pendingOpsHandoverBatches.length}
+                                    </span>
+                                </button>
+
+                                {/* Stage 5: In DOS Custody / Pay Cash & Sign Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => setPayoutStageFilter('dos_custody')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        payoutStageFilter === 'dos_custody'
+                                            ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-md shadow-cyan-500/25 ring-2 ring-cyan-500/30'
+                                            : 'bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 border border-cyan-200/60 dark:border-cyan-800/40'
+                                    }`}
+                                    title="Physical cash in DOS custody waiting for teacher on-screen signature"
+                                >
+                                    <PenTool className="w-3.5 h-3.5" />
+                                    <span>Stage 5: DOS Pay & Sign</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                        payoutStageFilter === 'dos_custody' ? 'bg-white text-cyan-800' : 'bg-cyan-200/70 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-200'
+                                    }`}>
+                                        {cashIssuedToDosBatches.length}
+                                    </span>
+                                </button>
+
+                                {/* Paid / Receipts Pill */}
+                                <button
+                                    type="button"
+                                    onClick={() => setPayoutStageFilter('paid')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                                        payoutStageFilter === 'paid'
+                                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-500/30'
+                                            : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 border border-blue-200/60 dark:border-blue-800/40'
+                                    }`}
+                                    title="Settled payment vouchers and official receipts"
+                                >
+                                    <Receipt className="w-3.5 h-3.5" />
+                                    <span>Paid Receipts</span>
+                                    <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
+                                        payoutStageFilter === 'paid' ? 'bg-white text-blue-800' : 'bg-blue-200/70 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                                    }`}>
+                                        {payouts.filter(p => p.status === 'Paid').length}
+                                    </span>
+                                </button>
                             </div>
-                            <div className="text-right">
-                                <span className="text-xs text-purple-200 font-medium">Pending Handover</span>
-                                <p className="text-lg font-black font-mono text-purple-300">
-                                    KES {pendingOpsHandoverBatches.reduce((sum, b) => sum + b.totalAmount, 0).toLocaleString()}
+
+                            {/* Teacher Search & Select Controls */}
+                            <div className="flex items-center gap-2.5 flex-1 lg:max-w-md">
+                                <div className="relative flex-1">
+                                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                    <input
+                                        type="text"
+                                        value={payoutTeacherSearch}
+                                        onChange={e => setPayoutTeacherSearch(e.target.value)}
+                                        placeholder="Search teacher or voucher..."
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs font-bold outline-none dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    {payoutTeacherSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setPayoutTeacherSearch('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white p-0.5 cursor-pointer"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <select
+                                    value={payoutTeacherIdFilter}
+                                    onChange={e => setPayoutTeacherIdFilter(e.target.value)}
+                                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer max-w-[150px] truncate"
+                                    title="Filter by Teacher"
+                                >
+                                    <option value="all">All Teachers</option>
+                                    {teachersList.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+
+                                {hasActiveFilter && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPayoutStageFilter('all');
+                                            setPayoutTeacherSearch('');
+                                            setPayoutTeacherIdFilter('all');
+                                            setPayoutLedgerStatusFilter('all');
+                                        }}
+                                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer shrink-0"
+                                        title="Reset all filters"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Quick Payout Stage Metrics Banner */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                            <div 
+                                onClick={() => setPayoutStageFilter('approved')}
+                                className={`p-3 rounded-2xl cursor-pointer transition-all border ${
+                                    payoutStageFilter === 'approved' 
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 shadow-xs' 
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 hover:border-emerald-200'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                    <span>Approved Payouts</span>
+                                    <Check className="w-3 h-3" />
+                                </div>
+                                <p className="text-base font-black font-mono text-slate-900 dark:text-white mt-1">
+                                    KES {totalAccruedKsh.toLocaleString()}
                                 </p>
+                                <span className="text-[10px] text-slate-400 font-bold">{filteredAccruedPayouts.length} teacher{filteredAccruedPayouts.length !== 1 ? 's' : ''} ready</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setPayoutStageFilter('pending_ops')}
+                                className={`p-3 rounded-2xl cursor-pointer transition-all border ${
+                                    payoutStageFilter === 'pending_ops' 
+                                        ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-700 shadow-xs' 
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 hover:border-purple-200'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                                    <span>Stage 4 Handover</span>
+                                    <Banknote className="w-3 h-3" />
+                                </div>
+                                <p className="text-base font-black font-mono text-slate-900 dark:text-white mt-1">
+                                    KES {totalOpsKsh.toLocaleString()}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-bold">{filteredPendingOpsBatches.length} batch{filteredPendingOpsBatches.length !== 1 ? 'es' : ''} pending</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setPayoutStageFilter('dos_custody')}
+                                className={`p-3 rounded-2xl cursor-pointer transition-all border ${
+                                    payoutStageFilter === 'dos_custody' 
+                                        ? 'bg-cyan-50 dark:bg-cyan-950/40 border-cyan-300 dark:border-cyan-700 shadow-xs' 
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 hover:border-cyan-200'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                                    <span>In DOS Custody</span>
+                                    <PenTool className="w-3 h-3" />
+                                </div>
+                                <p className="text-base font-black font-mono text-slate-900 dark:text-white mt-1">
+                                    KES {totalDosKsh.toLocaleString()}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-bold">{filteredCashIssuedToDosBatches.length} batch{filteredCashIssuedToDosBatches.length !== 1 ? 'es' : ''} awaiting sign</span>
+                            </div>
+
+                            <div 
+                                onClick={() => setPayoutStageFilter('paid')}
+                                className={`p-3 rounded-2xl cursor-pointer transition-all border ${
+                                    payoutStageFilter === 'paid' 
+                                        ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 shadow-xs' 
+                                        : 'bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-slate-800 hover:border-blue-200'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                                    <span>Settled Receipts</span>
+                                    <Receipt className="w-3 h-3" />
+                                </div>
+                                <p className="text-base font-black font-mono text-slate-900 dark:text-white mt-1">
+                                    KES {totalPaidKsh.toLocaleString()}
+                                </p>
+                                <span className="text-[10px] text-slate-400 font-bold">{filteredLedgerPayouts.filter(p => p.status === 'Paid').length} paid voucher{filteredLedgerPayouts.filter(p => p.status === 'Paid').length !== 1 ? 's' : ''}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-slate-100 dark:border-slate-700">
-                                <tr>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Authorized Hours</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Applicable Rate</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash to Disburse</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Operations Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pendingOpsHandoverBatches.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
-                                            No sessions waiting for Operations Cash Handover to DOS.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    pendingOpsHandoverBatches.map(batch => (
-                                        <tr key={batch.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{batch.teacherName}</td>
-                                            <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{batch.totalHours} hrs ({batch.sessionIds.length} lessons)</td>
-                                            <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {batch.rate.toLocaleString()}/hr</td>
-                                            <td className="p-6 text-sm font-black text-purple-600 dark:text-purple-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
-                                            <td className="p-6 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button 
-                                                        onClick={() => handleDisburseToTeacherWallet(batch)}
-                                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                                                        title="Instant transfer from school float into teacher e-wallet"
-                                                    >
-                                                        <Wallet className="w-3.5 h-3.5" /> Disburse to E-Wallet
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => {
-                                                            setOpsDisburseBatch(batch);
-                                                            setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
-                                                            setIsOpsCashModalOpen(true);
-                                                        }}
-                                                        className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                                                    >
-                                                        <Banknote className="w-3.5 h-3.5" /> Cash Handover
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    {/* Filter Active Notice when Filter is Narrowed */}
+                    {hasActiveFilter && (
+                        <div className="flex items-center justify-between p-3.5 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 rounded-2xl text-xs text-indigo-900 dark:text-indigo-200 font-bold">
+                            <div className="flex items-center gap-2">
+                                <Filter className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                <span>
+                                    Filtered by: <strong>{payoutStageFilter === 'all' ? 'All Stages' : payoutStageFilter === 'approved' ? 'Approved Payouts' : payoutStageFilter === 'pending_ops' ? 'Stage 4: Operations Handover' : payoutStageFilter === 'dos_custody' ? 'Stage 5: DOS Pay & Sign' : 'Paid Receipts'}</strong>
+                                    {payoutTeacherSearch.trim() && <> • Search: "<strong>{payoutTeacherSearch.trim()}</strong>"</>}
+                                    {payoutTeacherIdFilter !== 'all' && <> • Instructor: <strong>{teachersList.find(t => t.id === payoutTeacherIdFilter)?.name || payoutTeacherIdFilter}</strong></>}
+                                    {' '}— Found <strong>{totalRecordsInFilter}</strong> matching record{totalRecordsInFilter !== 1 ? 's' : ''}.
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPayoutStageFilter('all');
+                                    setPayoutTeacherSearch('');
+                                    setPayoutTeacherIdFilter('all');
+                                    setPayoutLedgerStatusFilter('all');
+                                }}
+                                className="text-indigo-600 dark:text-indigo-400 hover:underline uppercase text-[10px] font-black cursor-pointer shrink-0 ml-2"
+                            >
+                                Clear Filter
+                            </button>
+                        </div>
+                    )}
 
-                    {/* STAGE 5: DOS CASH PAYMENT TO TEACHER & ON-SCREEN SIGNATURE */}
-                    <div className="bg-gradient-to-r from-cyan-900 via-teal-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-cyan-500/20 rounded-2xl text-cyan-300">
-                                    <PenTool className="w-6 h-6" />
-                                </div>
+                    {/* EMPTY STATE IF FILTER RESULTS IN ZERO RECORDS */}
+                    {hasActiveFilter && totalRecordsInFilter === 0 && (
+                        <div className="bg-white dark:bg-slate-800 p-12 rounded-3xl border border-slate-100 dark:border-slate-700 text-center space-y-3 shadow-sm">
+                            <div className="p-3 bg-slate-100 dark:bg-slate-700/60 rounded-2xl w-fit mx-auto text-slate-400">
+                                <Filter className="w-6 h-6" />
+                            </div>
+                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                                No Payout Records Found
+                            </h4>
+                            <p className="text-xs text-slate-400 max-w-md mx-auto">
+                                No payout records match the stage filter "{payoutStageFilter}" {payoutTeacherSearch.trim() ? `and search term "${payoutTeacherSearch.trim()}"` : ''}.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPayoutStageFilter('all');
+                                    setPayoutTeacherSearch('');
+                                    setPayoutTeacherIdFilter('all');
+                                    setPayoutLedgerStatusFilter('all');
+                                }}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+                            >
+                                Reset All Filters
+                            </button>
+                        </div>
+                    )}
+
+                    {/* GENERAL UNPAID APPROVED HOURS (RENDER FIRST IF 'approved' OR IN 'all') */}
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'approved') && (
+                        <div className="space-y-4">
+                            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-cyan-500/30 text-cyan-200">Stage 5: DOS Disbursal</span>
-                                        <span className="text-xs text-cyan-200 font-bold">Physical Cash Handover &amp; On-Screen Signature</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                            Approved Payouts
+                                        </span>
+                                        <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">Ready for Disbursement</span>
                                     </div>
-                                    <h4 className="text-sm font-black uppercase tracking-wider mt-0.5">Cash in DOS Custody - Waiting for Teacher Signature</h4>
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mt-1">
+                                        Unpaid Approved Hours (Weekly / Monthly Calculations)
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Below are verified and authorized remedial teaching hours per teacher waiting for payment voucher issuance or instant school-float e-wallet transfer.
+                                    </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <span className="text-xs text-slate-400 font-medium">Total Approved Payable</span>
+                                    <p className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
+                                        KES {totalAccruedKsh.toLocaleString()}
+                                    </p>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <span className="text-xs text-cyan-200 font-medium">In DOS Custody</span>
-                                <p className="text-lg font-black font-mono text-cyan-300">
-                                    KES {cashIssuedToDosBatches.reduce((sum, b) => sum + b.totalAmount, 0).toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-cyan-50/50 dark:bg-cyan-950/20 border-b border-slate-100 dark:border-slate-700">
-                                <tr>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hours</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voucher Ref &amp; Custody</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Physical Cash Amount</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">DOS Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {cashIssuedToDosBatches.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
-                                            No cash batches currently in DOS custody waiting for teacher pickup.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    cashIssuedToDosBatches.map(batch => (
-                                        <tr key={batch.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{batch.teacherName}</td>
-                                            <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{batch.totalHours} hrs ({batch.sessionIds.length} lessons)</td>
-                                            <td className="p-6 text-xs">
-                                                <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">#{batch.cashVoucherRef || 'VOUCHER-N/A'}</span>
-                                                <p className="text-[10px] text-slate-400">Disbursed by: {batch.operationsManagerName || 'Operations'}</p>
-                                            </td>
-                                            <td className="p-6 text-sm font-black text-cyan-600 dark:text-cyan-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
-                                            <td className="p-6 text-right">
-                                                <button 
-                                                    onClick={() => {
-                                                        setDosPayTeacherData(batch);
-                                                        setIsDosPayModalOpen(true);
-                                                    }}
-                                                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 ml-auto"
-                                                >
-                                                    <PenTool className="w-3.5 h-3.5" /> Pay Cash &amp; Sign
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* GENERAL UNPAID APPROVED HOURS */}
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2">Unpaid Approved Hours (Weekly/Monthly calculations)</h4>
-                        <p className="text-xs text-slate-500">Below are the accumulated approved remedial hours per teacher waiting for payment voucher issuance.</p>
-                    </div>
-
-                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                                <tr>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Accrued Hours</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rate / hr</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Payout</th>
-                                    <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {accruedPayouts.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No accrued unpaid hours. All teachers have been paid or hours are unapproved.</td>
-                                    </tr>
-                                ) : (
-                                    accruedPayouts.map(accrued => (
-                                        <tr key={accrued.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{accrued.teacherName}</td>
-                                            <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{accrued.totalHours} hrs</td>
-                                            <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {accrued.rate.toLocaleString()}</td>
-                                            <td className="p-6 text-sm font-black text-indigo-650 font-mono">KES {accrued.totalAmount.toLocaleString()}</td>
-                                            <td className="p-6 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button 
-                                                        onClick={() => handleDisburseToTeacherWallet({
-                                                            teacherId: accrued.teacherId,
-                                                            teacherName: accrued.teacherName,
-                                                            totalAmount: accrued.totalAmount,
-                                                            totalHours: accrued.totalHours,
-                                                            sessionIds: accrued.sessionIds || []
-                                                        })}
-                                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
-                                                        title="Instant transfer from school float into teacher e-wallet"
-                                                    >
-                                                        <Wallet className="w-3.5 h-3.5" /> Disburse to E-Wallet
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleIssuePayout(accrued)}
-                                                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all cursor-pointer"
-                                                    >
-                                                        Cash Voucher
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm mt-8">
-                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider mb-4">Payout Vouchers &amp; Official Receipts Ledger</h4>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
-                                    <tr>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voucher ID</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Signature &amp; Proof</th>
-                                        <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Receipt Voucher</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {payouts.length === 0 ? (
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead className="bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-slate-100 dark:border-slate-700">
                                         <tr>
-                                            <td colSpan={6} className="p-6 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">No payouts recorded.</td>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Accrued Hours</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rate / hr</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Payout</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
                                         </tr>
-                                    ) : (
-                                        payouts.map(p => (
-                                            <tr key={p.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50">
-                                                <td className="p-4 font-mono text-xs font-black text-purple-650">#{p.id ? p.id.split('_')[1] || p.id : 'N/A'}</td>
-                                                <td className="p-4 text-xs font-black text-slate-900 dark:text-white uppercase">{p.teacherName}</td>
-                                                <td className="p-4 text-xs font-black text-indigo-650 font-mono">KES {p.totalAmount.toLocaleString()}</td>
-                                                <td className="p-4">
-                                                    <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${p.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                        {p.status}
-                                                    </span>
-                                                </td>
-                                                <td className="p-4">
-                                                    {p.teacherSignatureDataUrl ? (
-                                                        <div className="flex items-center gap-2">
-                                                            <img src={p.teacherSignatureDataUrl} alt="Signature" className="h-6 w-auto border border-slate-200 dark:border-slate-700 rounded bg-white px-1" />
-                                                            <span className="text-[9px] font-bold text-emerald-600 uppercase">Signed On-Screen</span>
-                                                        </div>
-                                                    ) : p.anonymousSignature ? (
-                                                        <span className="font-mono text-xs font-black text-slate-900 dark:text-white">{p.anonymousSignature}</span>
-                                                    ) : (
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase italic">Awaiting Signature</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    <button 
-                                                        onClick={() => setViewingReceiptPayout(p)}
-                                                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ml-auto transition-colors"
-                                                    >
-                                                        <Receipt className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> View Receipt
-                                                    </button>
+                                    </thead>
+                                    <tbody>
+                                        {filteredAccruedPayouts.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="p-12 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                    {hasActiveFilter ? 'No approved payout records match the current filter.' : 'No accrued unpaid hours. All teachers have been paid or hours are unapproved.'}
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
+                                        ) : (
+                                            filteredAccruedPayouts.map(accrued => (
+                                                <tr key={accrued.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{accrued.teacherName}</td>
+                                                    <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{accrued.totalHours} hrs</td>
+                                                    <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {accrued.rate.toLocaleString()}</td>
+                                                    <td className="p-6 text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">KES {accrued.totalAmount.toLocaleString()}</td>
+                                                    <td className="p-6 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button 
+                                                                onClick={() => handleDisburseToTeacherWallet({
+                                                                    teacherId: accrued.teacherId,
+                                                                    teacherName: accrued.teacherName,
+                                                                    totalAmount: accrued.totalAmount,
+                                                                    totalHours: accrued.totalHours,
+                                                                    sessionIds: accrued.sessionIds || []
+                                                                })}
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                                title="Instant transfer from school float into teacher e-wallet"
+                                                            >
+                                                                <Wallet className="w-3.5 h-3.5" /> Disburse to E-Wallet
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleIssuePayout(accrued)}
+                                                                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all cursor-pointer"
+                                                            >
+                                                                Cash Voucher
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* STAGE 4: OPERATIONS MANAGER CASH HANDOVER TO DOS */}
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'pending_ops' || (payoutStageFilter === 'approved' && filteredPendingOpsBatches.length > 0)) && (
+                        <div className="space-y-4">
+                            <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-purple-500/20 rounded-2xl text-purple-300">
+                                            <Banknote className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-purple-500/30 text-purple-200">Stage 4: Operations Payout</span>
+                                                <span className="text-xs text-purple-200 font-bold">Physical Cash Handover to DOS</span>
+                                            </div>
+                                            <h4 className="text-sm font-black uppercase tracking-wider mt-0.5">Approved Batches Ready for Cash Release to DOS</h4>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-xs text-purple-200 font-medium">Pending Handover</span>
+                                        <p className="text-lg font-black font-mono text-purple-300">
+                                            KES {totalOpsKsh.toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead className="bg-purple-50/50 dark:bg-purple-950/20 border-b border-slate-100 dark:border-slate-700">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Authorized Hours</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Applicable Rate</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cash to Disburse</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Operations Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredPendingOpsBatches.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                    No sessions waiting for Operations Cash Handover to DOS.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredPendingOpsBatches.map(batch => (
+                                                <tr key={batch.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{batch.teacherName}</td>
+                                                    <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{batch.totalHours} hrs ({batch.sessionIds.length} lessons)</td>
+                                                    <td className="p-6 text-xs font-bold text-slate-400 font-mono">KES {batch.rate.toLocaleString()}/hr</td>
+                                                    <td className="p-6 text-sm font-black text-purple-600 dark:text-purple-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
+                                                    <td className="p-6 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button 
+                                                                onClick={() => handleDisburseToTeacherWallet(batch)}
+                                                                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                                title="Instant transfer from school float into teacher e-wallet"
+                                                            >
+                                                                <Wallet className="w-3.5 h-3.5" /> Disburse to E-Wallet
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setOpsDisburseBatch(batch);
+                                                                    setOpsCashVoucherRef(`CSH-${Date.now().toString().slice(-6)}`);
+                                                                    setIsOpsCashModalOpen(true);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                            >
+                                                                <Banknote className="w-3.5 h-3.5" /> Cash Handover
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STAGE 5: DOS CASH PAYMENT TO TEACHER & ON-SCREEN SIGNATURE */}
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'dos_custody') && (
+                        <div className="space-y-4">
+                            <div className="bg-gradient-to-r from-cyan-900 via-teal-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-cyan-500/20 rounded-2xl text-cyan-300">
+                                            <PenTool className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-cyan-500/30 text-cyan-200">Stage 5: DOS Disbursal</span>
+                                                <span className="text-xs text-cyan-200 font-bold">Physical Cash Handover &amp; On-Screen Signature</span>
+                                            </div>
+                                            <h4 className="text-sm font-black uppercase tracking-wider mt-0.5">Cash in DOS Custody - Waiting for Teacher Signature</h4>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-xs text-cyan-200 font-medium">In DOS Custody</span>
+                                        <p className="text-lg font-black font-mono text-cyan-300">
+                                            KES {totalDosKsh.toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead className="bg-cyan-50/50 dark:bg-cyan-950/20 border-b border-slate-100 dark:border-slate-700">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hours</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voucher Ref &amp; Custody</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Physical Cash Amount</th>
+                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">DOS Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredCashIssuedToDosBatches.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                    No cash batches currently in DOS custody waiting for teacher pickup.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredCashIssuedToDosBatches.map(batch => (
+                                                <tr key={batch.teacherId} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
+                                                    <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic text-xs">{batch.teacherName}</td>
+                                                    <td className="p-6 text-xs font-black text-slate-950 dark:text-slate-100">{batch.totalHours} hrs ({batch.sessionIds.length} lessons)</td>
+                                                    <td className="p-6 text-xs">
+                                                        <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">#{batch.cashVoucherRef || 'VOUCHER-N/A'}</span>
+                                                        <p className="text-[10px] text-slate-400">Disbursed by: {batch.operationsManagerName || 'Operations'}</p>
+                                                    </td>
+                                                    <td className="p-6 text-sm font-black text-cyan-600 dark:text-cyan-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
+                                                    <td className="p-6 text-right">
+                                                        <button 
+                                                            onClick={() => {
+                                                                setDosPayTeacherData(batch);
+                                                                setIsDosPayModalOpen(true);
+                                                            }}
+                                                            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 ml-auto cursor-pointer"
+                                                        >
+                                                            <PenTool className="w-3.5 h-3.5" /> Pay Cash &amp; Sign
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* PAYOUT VOUCHERS & OFFICIAL RECEIPTS LEDGER */}
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'paid') && (
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm mt-8 space-y-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                        Payout Vouchers &amp; Official Receipts Ledger
+                                    </h4>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Official historical record of teacher payout vouchers, digital signatures and cash receipts.
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayoutLedgerStatusFilter('all')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            payoutLedgerStatusFilter === 'all'
+                                                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        All ({payouts.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayoutLedgerStatusFilter('Paid')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            payoutLedgerStatusFilter === 'Paid'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/40'
+                                        }`}
+                                    >
+                                        Paid ({payouts.filter(p => p.status === 'Paid').length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPayoutLedgerStatusFilter('Pending')}
+                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            payoutLedgerStatusFilter === 'Pending'
+                                                ? 'bg-amber-600 text-white shadow-xs'
+                                                : 'text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-950/40'
+                                        }`}
+                                    >
+                                        Pending / Signing ({payouts.filter(p => p.status !== 'Paid').length})
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
+                                        <tr>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Voucher ID</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Teacher</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Amount</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Signature &amp; Proof</th>
+                                            <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Receipt Voucher</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredLedgerPayouts.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="p-6 text-center text-slate-400 font-bold text-xs uppercase tracking-wider">
+                                                    {hasActiveFilter ? 'No vouchers match the current filter.' : 'No payouts recorded.'}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredLedgerPayouts.map(p => (
+                                                <tr key={p.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50">
+                                                    <td className="p-4 font-mono text-xs font-black text-purple-650">#{p.id ? p.id.split('_')[1] || p.id : 'N/A'}</td>
+                                                    <td className="p-4 text-xs font-black text-slate-900 dark:text-white uppercase">{p.teacherName}</td>
+                                                    <td className="p-4 text-xs font-black text-indigo-650 font-mono">KES {p.totalAmount.toLocaleString()}</td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${p.status === 'Paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                            {p.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {p.teacherSignatureDataUrl ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <img src={p.teacherSignatureDataUrl} alt="Signature" className="h-6 w-auto border border-slate-200 dark:border-slate-700 rounded bg-white px-1" />
+                                                                <span className="text-[9px] font-bold text-emerald-600 uppercase">Signed On-Screen</span>
+                                                            </div>
+                                                        ) : p.anonymousSignature ? (
+                                                            <span className="font-mono text-xs font-black text-slate-900 dark:text-white">{p.anonymousSignature}</span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 font-bold uppercase italic">Awaiting Signature</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <button 
+                                                            onClick={() => setViewingReceiptPayout(p)}
+                                                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ml-auto transition-colors cursor-pointer"
+                                                        >
+                                                            <Receipt className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> View Receipt
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div>
-            )}
+                );
+            })()}
 
             {/* TAB: BILLING */}
             {activeTab === 'billing' && (
@@ -18229,7 +18675,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedReportType === 'payout_ledger' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
                                 <div>
                                     <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
                                         Start Date
@@ -18285,6 +18731,25 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         ))}
                                     </select>
                                 </div>
+
+                                {selectedReportType === 'payout_ledger' && (
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                            Payout Status
+                                        </label>
+                                        <select
+                                            value={reportStatusFilter}
+                                            onChange={e => setReportStatusFilter(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                                        >
+                                            <option value="all">All Statuses</option>
+                                            <option value="Approved">Approved (Ready for Payout)</option>
+                                            <option value="Paid">Paid Payouts</option>
+                                            <option value="Pending Verification">Pending Verification</option>
+                                            <option value="Rejected">Rejected</option>
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                         )}
 
