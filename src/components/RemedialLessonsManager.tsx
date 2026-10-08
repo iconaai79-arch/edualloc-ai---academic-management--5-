@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import type { User, Course, Subject, RemedialSession, RemedialRateSetting, RemedialPayout, Invoice, RemedialAllocation, RemedialSubject, StudentEnrollment, RemedialTimetableApproval, RemedialWeekendDuty, RemedialTeacherOpeningBalance, TeacherDayPreference } from '../types';
 import { isSuperAdminUser } from '../types';
 import { RemedialOpeningBalancesModal } from './RemedialOpeningBalancesModal';
+import { DuplicateRemedialSessionsModal } from './DuplicateRemedialSessionsModal';
+import { detectDuplicateRemedialSessions } from '../utils/remedialDuplicateUtils';
 import { SchoolFloatWalletCard } from './Finance/SchoolFloatWalletCard';
 import { walletService } from '../services/walletService';
 import { apiService, safeLocalStorage, invalidateModuleCache } from '../services/apiService';
@@ -197,6 +199,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Sessions Tab: Pagination & Super Admin Editing
     const [sessionsCurrentPage, setSessionsCurrentPage] = useState<number>(1);
     const [sessionsPageSize, setSessionsPageSize] = useState<number>(20);
+    const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState<boolean>(false);
     const [superAdminEditingSession, setSuperAdminEditingSession] = useState<RemedialSession | null>(null);
     const [editStartTime, setEditStartTime] = useState<string>('');
     const [editEndTime, setEditEndTime] = useState<string>('');
@@ -2473,6 +2476,20 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             );
         });
     }, [sessions]);
+
+    // Full duplicate detection across all remedial sessions (double submissions, ghost in-progress, time overlaps)
+    const duplicateDetectionResult = useMemo(() => {
+        return detectDuplicateRemedialSessions(sessions || []);
+    }, [sessions]);
+    const duplicateSessionsCount = duplicateDetectionResult.totalDuplicatesCount;
+    const duplicateSessionIdsSet = useMemo(() => {
+        return new Set(duplicateDetectionResult.duplicateSessionIds);
+    }, [duplicateDetectionResult.duplicateSessionIds]);
+
+    const handleDuplicateSessionsRemoved = (deletedIds: string[]) => {
+        setSessions(prev => prev.filter(s => !deletedIds.includes(s.id)));
+        loadData(true);
+    };
 
     // Helper to calculate end time by adding minutes safely
     const addMinutesToTime = (timeStr: string, minutes: number = 60): string => {
@@ -15063,7 +15080,30 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             />
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                onClick={() => {
+                                    if (duplicateSessionsCount === 0) {
+                                        alert(`✅ Great news! No duplicate remedial session logs found.\n\nAll ${sessions.length} logged sessions have unique teachers, subjects, classes, and time slots.`);
+                                    } else {
+                                        setIsDuplicateModalOpen(true);
+                                    }
+                                }}
+                                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 shrink-0 ${
+                                    duplicateSessionsCount > 0
+                                        ? 'bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white shadow-amber-500/20'
+                                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                                }`}
+                                title="Check and remove duplicate remedial session logs"
+                            >
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>Check Duplicates</span>
+                                {duplicateSessionsCount > 0 && (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-white text-rose-700 shadow-xs">
+                                        {duplicateSessionsCount}
+                                    </span>
+                                )}
+                            </button>
                             <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Filter</label>
                             <select 
                                 value={statusFilter}
@@ -15086,27 +15126,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </div>
                     </div>
 
-                    {duplicateInprogressSessions.length > 0 && (
-                        <div className="p-4 sm:p-5 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-800 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
+                    {duplicateSessionsCount > 0 && (
+                        <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border-2 border-amber-300 dark:border-amber-700/80 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-amber-500 text-white rounded-2xl shrink-0">
+                                <div className="p-2.5 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl shrink-0 shadow-md">
                                     <AlertTriangle className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
-                                        Duplicate Ghost Sessions Detected ({duplicateInprogressSessions.length})
+                                    <h4 className="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                                        Duplicate Remedial Session Logs Detected ({duplicateSessionsCount})
+                                        <span className="px-2 py-0.5 rounded-full text-[9px] bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 font-bold lowercase tracking-normal">
+                                            {duplicateDetectionResult.clusters.length} cluster{duplicateDetectionResult.clusters.length !== 1 ? 's' : ''}
+                                        </span>
                                     </h4>
-                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
-                                        Found {duplicateInprogressSessions.length} orphaned "In Progress" session(s) where the teacher has already finished and submitted the lesson for the same day.
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 font-medium mt-0.5">
+                                        Found {duplicateSessionsCount} redundant or duplicate session log(s). Review each cluster to purge redundant entries while safely keeping verified records.
                                     </p>
                                 </div>
                             </div>
-                            <button
-                                onClick={handleBulkCleanOrphanSessions}
-                                className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
-                            >
-                                <Trash2 className="w-3.5 h-3.5" /> Clean Up {duplicateInprogressSessions.length} Duplicates Now
-                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                    onClick={() => setIsDuplicateModalOpen(true)}
+                                    className="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-rose-600 hover:from-amber-700 hover:to-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> Review &amp; Remove Duplicates ({duplicateSessionsCount})
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -15263,7 +15308,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     <p className="text-[9px] font-mono text-slate-400 mt-0.5">ID: {session.teacherId.substring(0, 8)}</p>
                                                 </td>
                                                 <td className="p-6">
-                                                    <p className="text-xs font-black text-indigo-650 uppercase">{session.subjectName}</p>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <p className="text-xs font-black text-indigo-650 uppercase">{session.subjectName}</p>
+                                                        {duplicateSessionIdsSet.has(session.id) && (
+                                                            <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 text-[8px] font-black uppercase tracking-wider border border-rose-200 dark:border-rose-900">
+                                                                Duplicate
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase">{session.className}</span>
                                                         {session.stream && (
@@ -15499,6 +15551,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 title="Delete this rejected remedial session log (DOS / Admin)"
                                                             >
                                                                 <Trash2 className="w-3 h-3 text-rose-500" /> Delete Log
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {duplicateSessionIdsSet.has(session.id) && (
+                                                        <div className="flex items-center gap-1.5 justify-end">
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!window.confirm(`Permanently delete duplicate session log for ${session.teacherName || 'Teacher'} (${session.subjectName || 'Subject'} • ${session.className || 'Class'})?`)) return;
+                                                                    try {
+                                                                        await apiService.deleteRemedialSession(session.id, institutionId);
+                                                                        handleDuplicateSessionsRemoved([session.id]);
+                                                                        alert('Duplicate remedial session log deleted.');
+                                                                    } catch (err: any) {
+                                                                        alert(err.message || 'Failed to delete duplicate session');
+                                                                    }
+                                                                }}
+                                                                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-rose-200 dark:border-rose-900"
+                                                                title="Delete this duplicate remedial session log"
+                                                            >
+                                                                <Trash2 className="w-3 h-3 text-rose-500" /> Delete Duplicate
                                                             </button>
                                                         </div>
                                                     )}
@@ -22257,6 +22329,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             onBalancesUpdated={(updated) => setOpeningBalances(updated)}
             currentTerm="Term 1"
             currentYear={new Date().getFullYear().toString()}
+        />
+
+        {/* Duplicate Remedial Sessions Review & Purge Modal */}
+        <DuplicateRemedialSessionsModal
+            isOpen={isDuplicateModalOpen}
+            onClose={() => setIsDuplicateModalOpen(false)}
+            sessions={sessions}
+            institutionId={institutionId || ''}
+            onSessionsRemoved={handleDuplicateSessionsRemoved}
+            onLogAction={onLogAction}
         />
 
         {/* Live In-App PDF Preview Modal */}

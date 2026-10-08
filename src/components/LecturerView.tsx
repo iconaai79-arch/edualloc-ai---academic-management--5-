@@ -13,12 +13,14 @@ import {
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
     Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
     SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle,
-    ChevronLeft, ChevronRight, Search, Filter, Trash2
+    ChevronLeft, ChevronRight, Search, Filter, Trash2, Copy, Layers
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
     isConfirmationExpired, getNextOccurrenceDate 
 } from '../utils/remedialSubstitutionUtils';
+import { detectDuplicateRemedialSessions } from '../utils/remedialDuplicateUtils';
+import { DuplicateRemedialSessionsModal } from './DuplicateRemedialSessionsModal';
 import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
 import { calculateRemedialSessionDuration, timeToMinutes } from '../utils/timeUtils';
 
@@ -249,6 +251,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [remedialDateFilter, setRemedialDateFilter] = useState<'all' | 'today' | 'this_week' | 'this_month'>('all');
     const [remedialCurrentPage, setRemedialCurrentPage] = useState(1);
     const remedialPageSize = 5;
+    const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
 
     // Live Hardware Camera States for Prefect Scanner
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -927,6 +930,20 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         const start = (remedialCurrentPage - 1) * remedialPageSize;
         return filteredAndSortedRemedialSessions.slice(start, start + remedialPageSize);
     }, [filteredAndSortedRemedialSessions, remedialCurrentPage, remedialPageSize]);
+
+    // Check for duplicate remedial sessions across teacher's logs
+    const duplicateDetectionResult = useMemo(() => {
+        return detectDuplicateRemedialSessions(remedialSessions || []);
+    }, [remedialSessions]);
+    const duplicateSessionsCount = duplicateDetectionResult.totalDuplicatesCount;
+    const duplicateSessionIdsSet = useMemo(() => {
+        return new Set(duplicateDetectionResult.duplicateSessionIds);
+    }, [duplicateDetectionResult.duplicateSessionIds]);
+
+    const handleDuplicateSessionsRemoved = (deletedIds: string[]) => {
+        setRemedialSessions(prev => prev.filter(s => !deletedIds.includes(s.id)));
+        loadRemedialData(true);
+    };
 
     // Class supervisor & leave out rights check (shared permissions)
     const canAccessLeaveOutAndSupervisor = useMemo(() => {
@@ -3191,13 +3208,55 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     {filteredAndSortedRemedialSessions.length}
                                                 </span>
                                             </div>
-                                            {remedialSessions.some(s => s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && (
-                                                <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">
-                                                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                                    Lesson In Progress
-                                                </span>
-                                            )}
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                {remedialSessions.some(s => s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && (
+                                                    <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">
+                                                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                                        Lesson In Progress
+                                                    </span>
+                                                )}
+                                                <button
+                                                    onClick={() => {
+                                                        if (duplicateSessionsCount === 0) {
+                                                            alert(`✅ Great news! No duplicate remedial logs found.\n\nAll ${remedialSessions.length} recorded session logs have unique classes, subjects, and time slots.`);
+                                                        } else {
+                                                            setIsDuplicateModalOpen(true);
+                                                        }
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95 ${
+                                                        duplicateSessionsCount > 0
+                                                            ? 'bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white shadow-amber-500/20'
+                                                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600'
+                                                    }`}
+                                                    title="Scan for duplicate remedial session logs"
+                                                >
+                                                    <Copy className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                                    <span>Check Duplicates</span>
+                                                    {duplicateSessionsCount > 0 && (
+                                                        <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-white text-rose-700 shadow-xs">
+                                                            {duplicateSessionsCount}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
+
+                                        {duplicateSessionsCount > 0 && (
+                                            <div className="p-3 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border border-amber-300 dark:border-amber-700/80 rounded-2xl flex items-center justify-between gap-3 text-xs animate-fade-in">
+                                                <div className="flex items-center gap-2">
+                                                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                    <span className="text-amber-800 dark:text-amber-200 font-bold text-[11px]">
+                                                        {duplicateSessionsCount} duplicate remedial session log(s) detected across {duplicateDetectionResult.clusters.length} group(s).
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setIsDuplicateModalOpen(true)}
+                                                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 transition-colors cursor-pointer shadow-xs"
+                                                >
+                                                    Remove Duplicates
+                                                </button>
+                                            </div>
+                                        )}
 
                                         {/* Filters & Search Bar */}
                                         <div className="space-y-2 pt-1">
@@ -3304,6 +3363,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                             Live
                                                                         </span>
                                                                     )}
+                                                                    {duplicateSessionIdsSet.has(s.id) && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
+                                                                            Duplicate
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                                 <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">
                                                                     {(s.className || courses?.find(c => c.id === s.courseId)?.name || 'Class')}
@@ -3340,7 +3404,23 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                         TOD Rejected: {s.dutyRejectionReason}
                                                                     </p>
                                                                 )}
-                                                                {isDos && (s.status?.toLowerCase().includes('reject') || (s as any).dutyRejected || (s as any).headteacherRejected) && (
+                                                                {duplicateSessionIdsSet.has(s.id) && (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (!window.confirm(`Delete duplicate remedial session log for ${s.subjectName || 'Subject'} (${s.className || 'Class'})?`)) return;
+                                                                            const instId = effectiveInstId || currentInstitution?.id || user?.institutionId || '';
+                                                                            apiService.deleteRemedialSession(s.id, instId).then(() => {
+                                                                                setRemedialSessions(prev => prev.filter(x => x.id !== s.id));
+                                                                                loadRemedialData(true);
+                                                                            }).catch(err => alert(err.message || 'Failed to delete duplicate session'));
+                                                                        }}
+                                                                        className="mt-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded text-[8px] font-black uppercase tracking-wider border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1 ml-auto cursor-pointer"
+                                                                        title="Delete duplicate remedial session log"
+                                                                    >
+                                                                        <Trash2 className="w-2.5 h-2.5 text-rose-500" /> Delete Duplicate
+                                                                    </button>
+                                                                )}
+                                                                {isDos && !duplicateSessionIdsSet.has(s.id) && (s.status?.toLowerCase().includes('reject') || (s as any).dutyRejected || (s as any).headteacherRejected) && (
                                                                     <button
                                                                         onClick={() => handleDeleteRejectedSession(s)}
                                                                         className="mt-1.5 px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 rounded text-[8px] font-black uppercase tracking-wider border border-rose-200 dark:border-rose-900 transition-colors flex items-center gap-1 ml-auto cursor-pointer"
@@ -3882,6 +3962,16 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     </div>
                 </div>
             )}
+
+            {/* Duplicate Remedial Sessions Review & Purge Modal */}
+            <DuplicateRemedialSessionsModal
+                isOpen={isDuplicateModalOpen}
+                onClose={() => setIsDuplicateModalOpen(false)}
+                sessions={remedialSessions}
+                institutionId={effectiveInstId || currentInstitution?.id || user?.institutionId || ''}
+                onSessionsRemoved={handleDuplicateSessionsRemoved}
+                onLogAction={props.onLogAction}
+            />
 
             <style>{`
         .btn-primary { background: var(--color-primary); color: white; padding: 0.5rem 1rem; border-radius: 0.75rem; border: none; transition: all 0.2s; }
