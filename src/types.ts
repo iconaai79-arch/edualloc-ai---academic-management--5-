@@ -6662,6 +6662,10 @@ export interface RemedialSession {
     operationsDisbursedAt?: string;
     cashDisbursedToDosAt?: string;
     cashVoucherRef?: string;
+    dosRecipientSignature?: string; // Digital signature (base64 PNG) of DOS confirming receipt of physical cash
+    dosRecipientName?: string;
+    dosRecipientId?: string;
+    dosReceivedAt?: string;
 
     // Stage 5: DOS Cash Payment to Teacher with On-Screen Signature
     paidByDosName?: string;
@@ -6911,6 +6915,10 @@ export interface RemedialPayout {
     operationsManagerName?: string;
     operationsDisbursedAt?: string;
     cashVoucherRef?: string;
+    dosRecipientSignature?: string; // Digital signature (base64 PNG) of DOS confirming receipt of physical cash
+    dosRecipientName?: string;
+    dosRecipientId?: string;
+    dosReceivedAt?: string;
     dosDisbursedBy?: string;
     paidByDosName?: string;
     dosDisbursedAt?: string;

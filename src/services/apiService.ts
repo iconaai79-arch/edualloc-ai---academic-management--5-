@@ -7976,6 +7976,10 @@ export const apiService = {
                     operationsDisbursedAt: r.operationsDisbursedAt || r.operations_disbursed_at || meta.operationsDisbursedAt || meta.operations_disbursed_at || '',
                     cashDisbursedToDosAt: r.cashDisbursedToDosAt || r.cash_disbursed_to_dos_at || meta.cashDisbursedToDosAt || meta.cash_disbursed_to_dos_at || '',
                     cashVoucherRef: r.cashVoucherRef || r.cash_voucher_ref || meta.cashVoucherRef || meta.cash_voucher_ref || '',
+                    dosRecipientSignature: r.dosRecipientSignature || r.dos_recipient_signature || meta.dosRecipientSignature || meta.dos_recipient_signature || '',
+                    dosRecipientName: r.dosRecipientName || r.dos_recipient_name || meta.dosRecipientName || meta.dos_recipient_name || '',
+                    dosRecipientId: r.dosRecipientId || r.dos_recipient_id || meta.dosRecipientId || meta.dos_recipient_id || '',
+                    dosReceivedAt: r.dosReceivedAt || r.dos_received_at || meta.dosReceivedAt || meta.dos_received_at || '',
                     paidByDosName: r.paidByDosName || r.paid_by_dos_name || meta.paidByDosName || meta.paid_by_dos_name || '',
                     paidByDosId: r.paidByDosId || r.paid_by_dos_id || meta.paidByDosId || meta.paid_by_dos_id || '',
                     paidAt: r.paidAt || r.paid_at || meta.paidAt || meta.paid_at || '',
@@ -8072,6 +8076,10 @@ export const apiService = {
             headteacherRejectedAt: payload.headteacherRejectedAt,
             cashDisbursedToDosAt: payload.cashDisbursedToDosAt,
             cashVoucherRef: payload.cashVoucherRef,
+            dosRecipientSignature: payload.dosRecipientSignature || payload.dos_recipient_signature,
+            dosRecipientName: payload.dosRecipientName || payload.dos_recipient_name,
+            dosRecipientId: payload.dosRecipientId || payload.dos_recipient_id,
+            dosReceivedAt: payload.dosReceivedAt || payload.dos_received_at,
             teacherSignatureDataUrl: payload.teacherSignatureDataUrl,
             paymentMethod: payload.paymentMethod
         };
@@ -8102,6 +8110,14 @@ export const apiService = {
         delete payload.headteacherRejectedAt;
         delete payload.cashDisbursedToDosAt;
         delete payload.cashVoucherRef;
+        delete payload.dosRecipientSignature;
+        delete payload.dos_recipient_signature;
+        delete payload.dosRecipientName;
+        delete payload.dos_recipient_name;
+        delete payload.dosRecipientId;
+        delete payload.dos_recipient_id;
+        delete payload.dosReceivedAt;
+        delete payload.dos_received_at;
         delete payload.teacherSignatureDataUrl;
         delete payload.paymentMethod;
 
@@ -8348,8 +8364,47 @@ export const apiService = {
             } catch (_) {}
         }
     },
-    async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { return apiService.fetchModuleRecords('school_remedial_payouts', instId); },
-    async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { await apiService.saveModuleRecord('school_remedial_payouts', data); },
+    async fetchRemedialPayouts(instId?: string): Promise<RemedialPayout[]> { 
+        const records = await apiService.fetchModuleRecords('school_remedial_payouts', instId);
+        return (records || []).map((r: any) => {
+            const meta = (typeof r.metadata === 'object' && r.metadata !== null) ? r.metadata : {};
+            return {
+                ...r,
+                teacherSignatureDataUrl: r.teacherSignatureDataUrl || r.teacher_signature_data_url || meta.teacherSignatureDataUrl || meta.teacher_signature_data_url || '',
+                dosRecipientSignature: r.dosRecipientSignature || r.dos_recipient_signature || meta.dosRecipientSignature || meta.dos_recipient_signature || '',
+                dosRecipientName: r.dosRecipientName || r.dos_recipient_name || meta.dosRecipientName || meta.dos_recipient_name || '',
+                dosRecipientId: r.dosRecipientId || r.dos_recipient_id || meta.dosRecipientId || meta.dos_recipient_id || '',
+                dosReceivedAt: r.dosReceivedAt || r.dos_received_at || meta.dosReceivedAt || meta.dos_received_at || '',
+                cashVoucherRef: r.cashVoucherRef || r.cash_voucher_ref || meta.cashVoucherRef || meta.cash_voucher_ref || '',
+                operationsManagerName: r.operationsManagerName || r.operations_manager_name || meta.operationsManagerName || meta.operations_manager_name || '',
+                paidByDosName: r.paidByDosName || r.paid_by_dos_name || meta.paidByDosName || meta.paid_by_dos_name || '',
+                paidByDosId: r.paidByDosId || r.paid_by_dos_id || meta.paidByDosId || meta.paid_by_dos_id || '',
+                paidAt: r.paidAt || r.paid_at || meta.paidAt || meta.paid_at || '',
+                metadata: meta
+            };
+        });
+    },
+    async saveRemedialPayout(data: Partial<RemedialPayout>): Promise<void> { 
+        const payload: any = { ...data };
+        const metaFields: Record<string, any> = {
+            teacherSignatureDataUrl: payload.teacherSignatureDataUrl || payload.teacher_signature_data_url,
+            dosRecipientSignature: payload.dosRecipientSignature || payload.dos_recipient_signature,
+            dosRecipientName: payload.dosRecipientName || payload.dos_recipient_name,
+            dosRecipientId: payload.dosRecipientId || payload.dos_recipient_id,
+            dosReceivedAt: payload.dosReceivedAt || payload.dos_received_at,
+            cashVoucherRef: payload.cashVoucherRef || payload.cash_voucher_ref,
+            operationsManagerName: payload.operationsManagerName || payload.operations_manager_name,
+            paidByDosName: payload.paidByDosName || payload.paid_by_dos_name,
+            paidByDosId: payload.paidByDosId || payload.paid_by_dos_id,
+            paidAt: payload.paidAt || payload.paid_at,
+        };
+        const existingMeta = typeof payload.metadata === 'object' && payload.metadata !== null ? payload.metadata : {};
+        const cleanMeta = Object.fromEntries(Object.entries(metaFields).filter(([_, v]) => v !== undefined && v !== null));
+        if (Object.keys(cleanMeta).length > 0 || Object.keys(existingMeta).length > 0) {
+            payload.metadata = { ...existingMeta, ...cleanMeta };
+        }
+        await apiService.saveModuleRecord('school_remedial_payouts', payload); 
+    },
     async fetchRemedialOpeningBalances(instId?: string): Promise<RemedialTeacherOpeningBalance[]> {
         return apiService.fetchModuleRecords('school_remedial_opening_balances', instId);
     },

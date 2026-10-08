@@ -512,15 +512,32 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [dutyTeacherPickPayType, setDutyTeacherPickPayType] = useState<'hourly' | 'flat'>('hourly');
     const [isSyncingDuty, setIsSyncingDuty] = useState(false);
 
-    // Operations Manager Cash Handover State (Stage 4)
+    // Operations / Bursar Cash Handover State (Stage 4)
     const [isOpsCashModalOpen, setIsOpsCashModalOpen] = useState(false);
     const [opsCashVoucherRef, setOpsCashVoucherRef] = useState('');
     const [opsDisburseBatch, setOpsDisburseBatch] = useState<{ teacherId: string; teacherName: string; totalAmount: number; totalHours: number; sessionIds: string[] } | null>(null);
     const [isDisbursingOpsCash, setIsDisbursingOpsCash] = useState(false);
+    const opsDosCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+    const [isOpsDosDrawing, setIsOpsDosDrawing] = useState(false);
+    const [hasOpsDosSigned, setHasOpsDosSigned] = useState(false);
+    const [opsDosRecipientId, setOpsDosRecipientId] = useState<string>('');
+    const [opsDosCustomName, setOpsDosCustomName] = useState<string>('');
 
     // DOS Cash Payment with On-Screen Signature State (Stage 5)
     const [isDosPayModalOpen, setIsDosPayModalOpen] = useState(false);
-    const [dosPayTeacherData, setDosPayTeacherData] = useState<{ teacherId: string; teacherName: string; totalAmount: number; totalHours: number; rate: number; sessionIds: string[]; cashVoucherRef?: string; operationsManagerName?: string } | null>(null);
+    const [dosPayTeacherData, setDosPayTeacherData] = useState<{ 
+        teacherId: string; 
+        teacherName: string; 
+        totalAmount: number; 
+        totalHours: number; 
+        rate: number; 
+        sessionIds: string[]; 
+        cashVoucherRef?: string; 
+        operationsManagerName?: string;
+        dosRecipientSignature?: string;
+        dosRecipientName?: string;
+        dosReceivedAt?: string;
+    } | null>(null);
     const [isSubmittingDosPayment, setIsSubmittingDosPayment] = useState(false);
     const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
     const [isCanvasDrawing, setIsCanvasDrawing] = useState(false);
@@ -1909,6 +1926,18 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         'dos', 'director_of_studies', 'academic_officer', 'deputy', 'deputy_principal', 'deputy_headteacher', 'admin', 'super_admin'
     ].includes(userRole);
     const isTeacherUser = userRole === 'teacher';
+    const isBursarUser = Boolean(
+        [
+            'finance_officer', 'finance', 'cashier', 'treasurer', 'bursar', 'accountant', 'accounts'
+        ].includes(userRole) ||
+        (currentUser?.department || '').toLowerCase().includes('bursar') ||
+        (currentUser?.department || '').toLowerCase().includes('finance') ||
+        (currentUser?.department || '').toLowerCase().includes('account') ||
+        (currentUser?.designation || '').toLowerCase().includes('bursar') ||
+        (currentUser?.designation || '').toLowerCase().includes('finance') ||
+        (currentUser?.designation || '').toLowerCase().includes('cashier') ||
+        (currentUser?.designation || '').toLowerCase().includes('accountant')
+    );
 
     // Permission check for DOS / Headteacher / Admin to manage and delete rejected logs
     const canDeleteRejectedLogs = useMemo(() => {
@@ -1923,6 +1952,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         return tenantUsers.filter(u => {
             const r = (u.role || '').toLowerCase();
             return ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'admin', 'super_admin'].includes(r);
+        });
+    }, [tenantUsers]);
+
+    // Extracted Director of Studies (DOS) directory (strictly scoped to tenant)
+    const dosUsersList = useMemo(() => {
+        return tenantUsers.filter(u => {
+            const r = (u.role || '').toLowerCase();
+            const des = (u.designation || '').toLowerCase();
+            const dept = (u.department || '').toLowerCase();
+            return (
+                ['dos', 'director_of_studies', 'academic_officer', 'deputy', 'deputy_principal'].includes(r) ||
+                des.includes('director of studies') ||
+                des.includes('dos') ||
+                dept.includes('director of studies') ||
+                dept.includes('dos')
+            );
         });
     }, [tenantUsers]);
 
@@ -2258,6 +2303,15 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Filtered Sessions for Sessions Tab - Sorted Newest to Oldest
     const filteredSessions = useMemo(() => {
         return (sessions || []).filter(session => {
+            // Restriction: Bursar / Finance Officer can ONLY see sessions authorized & approved by the Headteacher
+            if (isBursarUser && !isSuperAdmin) {
+                const isApprovedByHeadteacher = session.headteacherApproved === true || 
+                    session.status === 'Pending Operations Payout' || 
+                    session.status === 'Cash Issued to DOS' || 
+                    session.status === 'Paid';
+                if (!isApprovedByHeadteacher) return false;
+            }
+
             const matchesSearch = !searchQuery || 
                 (session.teacherName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (session.subjectName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -2275,7 +2329,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const timeB = new Date(b.startTime || b.createdAt || 0).getTime();
             return timeB - timeA; // newest to oldest
         });
-    }, [sessions, searchQuery, statusFilter]);
+    }, [sessions, searchQuery, statusFilter, isBursarUser, isSuperAdmin]);
 
     // Sessions Tab: Pagination helpers
     const totalSessionsPages = Math.max(1, Math.ceil(filteredSessions.length / sessionsPageSize));
@@ -4701,19 +4755,74 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         }
     };
 
-    // Stage 4: Operations Manager Cash Handover to DOS
+    // HTML5 Canvas On-Screen Signature Handlers for Stage 4 DOS Handover Receipt Confirmation
+    const handleOpsDosCanvasStart = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = opsDosCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        ctx.beginPath();
+        ctx.moveTo(clientX - rect.left, clientY - rect.top);
+        setIsOpsDosDrawing(true);
+    };
+
+    const handleOpsDosCanvasDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isOpsDosDrawing) return;
+        const canvas = opsDosCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+        ctx.lineTo(clientX - rect.left, clientY - rect.top);
+        ctx.strokeStyle = '#312e81'; // Deep indigo
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        setHasOpsDosSigned(true);
+    };
+
+    const handleOpsDosCanvasStop = () => {
+        setIsOpsDosDrawing(false);
+    };
+
+    const handleClearOpsDosSignature = () => {
+        const canvas = opsDosCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setHasOpsDosSigned(false);
+    };
+
+    // Stage 4: Operations Manager / Bursar Cash Handover to DOS (with DOS digital receipt signature)
     const handleConfirmOperationsCashHandover = async () => {
         if (!opsDisburseBatch) return;
         if (!opsCashVoucherRef.trim()) {
             alert('Please enter an Official Cash Voucher / Folio Reference Number for the physical cash handed to DOS.');
             return;
         }
+        if (!hasOpsDosSigned || !opsDosCanvasRef.current) {
+            alert('The Director of Studies (DOS) must sign on the signature canvas to confirm receipt of payment from the Bursar / Operations.');
+            return;
+        }
 
         try {
             setIsDisbursingOpsCash(true);
             const now = new Date().toISOString();
-            const opsManagerName = currentUser?.name || 'Operations Manager';
+            const opsManagerName = currentUser?.name || 'Bursar / Operations Officer';
             const voucherRef = opsCashVoucherRef.trim();
+            const dosSignatureDataUrl = opsDosCanvasRef.current.toDataURL('image/png');
+
+            // Resolve DOS recipient details
+            const targetDosUser = tenantUsers.find(u => u.id === opsDosRecipientId);
+            const dosName = targetDosUser?.name || opsDosCustomName.trim() || 'Director of Studies (DOS)';
+            const dosId = targetDosUser?.id || '';
 
             for (const sessId of opsDisburseBatch.sessionIds) {
                 const sess = sessions.find(s => s.id === sessId);
@@ -4724,17 +4833,23 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         operationsDisbursed: true,
                         operationsDisbursedAt: now,
                         operationsDisbursedBy: opsManagerName,
-                        cashVoucherRef: voucherRef
+                        cashVoucherRef: voucherRef,
+                        dosRecipientSignature: dosSignatureDataUrl,
+                        dosRecipientName: dosName,
+                        dosRecipientId: dosId,
+                        dosReceivedAt: now
                     };
                     await apiService.saveRemedialSession(updated);
                 }
             }
 
-            onLogAction?.(`[Stage 4] Operations Manager released cash KES ${opsDisburseBatch.totalAmount.toLocaleString()} to DOS (Voucher #${voucherRef}) for ${opsDisburseBatch.teacherName}`);
-            alert(`Cash successfully recorded as issued to DOS! Voucher Ref: #${voucherRef}. The DOS can now distribute cash to ${opsDisburseBatch.teacherName} and collect on-screen signature.`);
+            onLogAction?.(`[Stage 4] Bursar/Operations released cash KES ${opsDisburseBatch.totalAmount.toLocaleString()} to DOS ${dosName} (Voucher #${voucherRef}) confirmed by DOS on-screen signature for ${opsDisburseBatch.teacherName}`);
+            alert(`Cash disbursement successfully confirmed!\n\nVoucher Ref: #${voucherRef}\nDOS (${dosName}) signed receipt of payment.\nThe DOS can now distribute cash to ${opsDisburseBatch.teacherName} and collect teacher sign-off.`);
             setIsOpsCashModalOpen(false);
             setOpsDisburseBatch(null);
             setOpsCashVoucherRef('');
+            setHasOpsDosSigned(false);
+            setOpsDosCustomName('');
             loadData();
         } catch (err: any) {
             alert(err.message || 'Failed to record cash disbursement to DOS');
@@ -4800,7 +4915,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             setIsSubmittingDosPayment(true);
             const signatureDataUrl = canvasRef.current.toDataURL('image/png');
             const payoutId = `pay_${Date.now()}`;
-            const dosName = currentUser?.name || 'Director of Studies';
+            const dosName = currentUser?.name || dosPayTeacherData.dosRecipientName || 'Director of Studies';
             const now = new Date().toISOString();
 
             const newPayout: RemedialPayout = {
@@ -4815,6 +4930,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 institutionId,
                 cashVoucherRef: dosPayTeacherData.cashVoucherRef,
                 operationsManagerName: dosPayTeacherData.operationsManagerName,
+                dosRecipientSignature: dosPayTeacherData.dosRecipientSignature,
+                dosRecipientName: dosPayTeacherData.dosRecipientName || dosName,
+                dosReceivedAt: dosPayTeacherData.dosReceivedAt,
                 paidByDosName: dosName,
                 paidAt: now,
                 teacherSignatureDataUrl: signatureDataUrl,
@@ -4833,7 +4951,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         payoutId: payoutId,
                         paidByDosName: dosName,
                         paidAt: now,
-                        teacherSignatureDataUrl: signatureDataUrl
+                        teacherSignatureDataUrl: signatureDataUrl,
+                        dosRecipientSignature: dosPayTeacherData.dosRecipientSignature || sess.dosRecipientSignature,
+                        dosRecipientName: dosPayTeacherData.dosRecipientName || sess.dosRecipientName || dosName,
+                        dosReceivedAt: dosPayTeacherData.dosReceivedAt || sess.dosReceivedAt
                     };
                     await apiService.saveRemedialSession(updated);
                 }
@@ -8122,7 +8243,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
     const cashIssuedToDosBatches = useMemo(() => {
         const dosSessions = sessions.filter(s => s.status === 'Cash Issued to DOS');
-        const grouped: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[]; cashVoucherRef?: string; operationsManagerName?: string }> = {};
+        const grouped: Record<string, { 
+            teacherName: string; 
+            totalHours: number; 
+            totalAmount: number; 
+            sessionIds: string[]; 
+            cashVoucherRef?: string; 
+            operationsManagerName?: string;
+            dosRecipientSignature?: string;
+            dosRecipientName?: string;
+            dosReceivedAt?: string;
+        }> = {};
         dosSessions.forEach(s => {
             if (!grouped[s.teacherId]) {
                 grouped[s.teacherId] = {
@@ -8131,7 +8262,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     totalAmount: 0,
                     sessionIds: [],
                     cashVoucherRef: s.cashVoucherRef,
-                    operationsManagerName: s.operationsDisbursedBy
+                    operationsManagerName: s.operationsDisbursedBy,
+                    dosRecipientSignature: s.dosRecipientSignature,
+                    dosRecipientName: s.dosRecipientName,
+                    dosReceivedAt: s.dosReceivedAt
                 };
             }
             const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
@@ -8142,6 +8276,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             grouped[s.teacherId].sessionIds.push(s.id);
             if (s.cashVoucherRef) grouped[s.teacherId].cashVoucherRef = s.cashVoucherRef;
             if (s.operationsDisbursedBy) grouped[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
+            if (s.dosRecipientSignature) grouped[s.teacherId].dosRecipientSignature = s.dosRecipientSignature;
+            if (s.dosRecipientName) grouped[s.teacherId].dosRecipientName = s.dosRecipientName;
+            if (s.dosReceivedAt) grouped[s.teacherId].dosReceivedAt = s.dosReceivedAt;
         });
         return Object.entries(grouped).map(([teacherId, data]) => {
             const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
@@ -8159,7 +8296,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 openingBalanceAmount: openBalAmount,
                 totalAmount: totalWithOpenBal,
                 cashVoucherRef: data.cashVoucherRef,
-                operationsManagerName: data.operationsManagerName
+                operationsManagerName: data.operationsManagerName,
+                dosRecipientSignature: data.dosRecipientSignature,
+                dosRecipientName: data.dosRecipientName,
+                dosReceivedAt: data.dosReceivedAt
             };
         });
     }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
@@ -8309,6 +8449,16 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         );
 
         const filtered = (sessions || []).filter(s => {
+            // Restriction: Bursar can ONLY see sessions approved by Headteacher
+            if (isBursarUser && !isSuperAdmin) {
+                const isApprovedByHeadteacher = s.headteacherApproved === true || 
+                    s.status === 'Approved' ||
+                    s.status === 'Pending Operations Payout' || 
+                    s.status === 'Cash Issued to DOS' || 
+                    s.status === 'Paid';
+                if (!isApprovedByHeadteacher) return false;
+            }
+
             const sDate = s.date || s.startTime?.split('T')[0] || '';
             const matchStart = !reportStartDate || !sDate || sDate >= reportStartDate;
             const matchEnd = !reportEndDate || !sDate || sDate <= reportEndDate;
@@ -8487,7 +8637,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 status: finalStatus
             };
         });
-    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster, computeSessionPayout, openingBalances]);
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster, computeSessionPayout, openingBalances, isBursarUser, isSuperAdmin]);
 
     // 2. Report: Prefect QR Audit Trail Data
     const reportPrefectAuditData = useMemo(() => {
@@ -15167,21 +15317,54 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 onChange={e => setStatusFilter(e.target.value as any)}
                                 className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none dark:text-white"
                             >
-                                <option value="all">All Sessions</option>
-                                <option value="In Progress">In Progress</option>
-                                <option value="Pending Duty Approval">Pending Duty Approval (Stage 2)</option>
-                                <option value="Duty Rejected - Forwarded to Headteacher">Duty Rejected (Under Headteacher Review)</option>
-                                <option value="Pending Headteacher Approval">Pending Headteacher Approval (Stage 3)</option>
-                                <option value="Headteacher Rejected">Headteacher Rejected</option>
-                                <option value="Rejected">All Rejected Sessions (TOD &amp; Headteacher)</option>
-                                <option value="Pending Operations Payout">Pending Operations Payout (Stage 4)</option>
-                                <option value="Cash Issued to DOS">Cash Issued to DOS (Stage 5)</option>
-                                <option value="Prefect Confirmed">Prefect Confirmed</option>
-                                <option value="Approved">Approved (Ready for Teacher Payout)</option>
-                                <option value="Paid">Paid</option>
+                                {isBursarUser && !isSuperAdmin ? (
+                                    <>
+                                        <option value="all">All Approved Payouts (Headteacher Approved)</option>
+                                        <option value="Pending Operations Payout">Pending Operations Payout (Stage 4)</option>
+                                        <option value="Cash Issued to DOS">Cash Issued to DOS (Stage 5)</option>
+                                        <option value="Approved">Approved (Ready for Teacher Payout)</option>
+                                        <option value="Paid">Paid</option>
+                                    </>
+                                ) : (
+                                    <>
+                                        <option value="all">All Sessions</option>
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Pending Duty Approval">Pending Duty Approval (Stage 2)</option>
+                                        <option value="Duty Rejected - Forwarded to Headteacher">Duty Rejected (Under Headteacher Review)</option>
+                                        <option value="Pending Headteacher Approval">Pending Headteacher Approval (Stage 3)</option>
+                                        <option value="Headteacher Rejected">Headteacher Rejected</option>
+                                        <option value="Rejected">All Rejected Sessions (TOD &amp; Headteacher)</option>
+                                        <option value="Pending Operations Payout">Pending Operations Payout (Stage 4)</option>
+                                        <option value="Cash Issued to DOS">Cash Issued to DOS (Stage 5)</option>
+                                        <option value="Prefect Confirmed">Prefect Confirmed</option>
+                                        <option value="Approved">Approved (Ready for Teacher Payout)</option>
+                                        <option value="Paid">Paid</option>
+                                    </>
+                                )}
                             </select>
                         </div>
                     </div>
+
+                    {isBursarUser && !isSuperAdmin && (
+                        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-3xl p-4 flex items-center justify-between gap-3 text-emerald-800 dark:text-emerald-200 shadow-sm animate-fade-in">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl shrink-0">
+                                    <ShieldCheck className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <p className="font-black uppercase tracking-wider text-xs text-emerald-800 dark:text-emerald-200">
+                                        Bursar / Finance Officer Payout View
+                                    </p>
+                                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5 font-medium">
+                                        Displaying strictly sessions and payout claims approved by the Headteacher for disbursement. Unapproved and pending academic reviews are hidden.
+                                    </p>
+                                </div>
+                            </div>
+                            <span className="px-3 py-1 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider rounded-full shrink-0 shadow-xs">
+                                Headteacher Approved Only
+                            </span>
+                        </div>
+                    )}
 
                     {duplicateSessionsCount > 0 && (
                         <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border-2 border-amber-300 dark:border-amber-700/80 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fade-in">
@@ -16454,6 +16637,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     <td className="p-6 text-xs">
                                                         <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">#{batch.cashVoucherRef || 'VOUCHER-N/A'}</span>
                                                         <p className="text-[10px] text-slate-400">Disbursed by: {batch.operationsManagerName || 'Operations'}</p>
+                                                        {batch.dosRecipientName && (
+                                                            <div className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-0.5">
+                                                                <Check className="w-3 h-3 text-emerald-500" />
+                                                                <span>DOS Custody: {batch.dosRecipientName}</span>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     <td className="p-6 text-sm font-black text-cyan-600 dark:text-cyan-400 font-mono">KES {batch.totalAmount.toLocaleString()}</td>
                                                     <td className="p-6 text-right">
@@ -16556,16 +16745,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         </span>
                                                     </td>
                                                     <td className="p-4">
-                                                        {p.teacherSignatureDataUrl ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <img src={p.teacherSignatureDataUrl} alt="Signature" className="h-6 w-auto border border-slate-200 dark:border-slate-700 rounded bg-white px-1" />
-                                                                <span className="text-[9px] font-bold text-emerald-600 uppercase">Signed On-Screen</span>
-                                                            </div>
-                                                        ) : p.anonymousSignature ? (
-                                                            <span className="font-mono text-xs font-black text-slate-900 dark:text-white">{p.anonymousSignature}</span>
-                                                        ) : (
-                                                            <span className="text-[10px] text-slate-400 font-bold uppercase italic">Awaiting Signature</span>
-                                                        )}
+                                                        <div className="space-y-1">
+                                                            {p.teacherSignatureDataUrl ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <img src={p.teacherSignatureDataUrl} alt="Signature" className="h-6 w-auto border border-slate-200 dark:border-slate-700 rounded bg-white px-1" />
+                                                                    <span className="text-[9px] font-bold text-emerald-600 uppercase">Teacher Signed</span>
+                                                                </div>
+                                                            ) : p.anonymousSignature ? (
+                                                                <span className="font-mono text-xs font-black text-slate-900 dark:text-white">{p.anonymousSignature}</span>
+                                                            ) : (
+                                                                <span className="text-[10px] text-slate-400 font-bold uppercase italic">Awaiting Signature</span>
+                                                            )}
+                                                            {p.dosRecipientSignature && (
+                                                                <div className="flex items-center gap-1 text-[8px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                                                    <Check className="w-2.5 h-2.5 text-emerald-500" />
+                                                                    <span>DOS Confirmed Receipt</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <button 
@@ -22029,8 +22226,45 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </div>
                         </div>
 
+                        {/* DOS Recipient Selection */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                Director of Studies (DOS) Receiving Cash *
+                            </label>
+                            {dosUsersList.length > 0 ? (
+                                <select
+                                    value={opsDosRecipientId}
+                                    onChange={e => {
+                                        setOpsDosRecipientId(e.target.value);
+                                        const selected = dosUsersList.find(u => u.id === e.target.value);
+                                        if (selected) setOpsDosCustomName(selected.name);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-purple-500 dark:text-white"
+                                >
+                                    <option value="">-- Select Director of Studies (DOS) --</option>
+                                    {dosUsersList.map(dos => (
+                                        <option key={dos.id} value={dos.id}>
+                                            {dos.name} {dos.designation ? `(${dos.designation})` : '(Director of Studies)'}
+                                        </option>
+                                    ))}
+                                    <option value="custom">Other / Enter Name Manually...</option>
+                                </select>
+                            ) : null}
+
+                            {(dosUsersList.length === 0 || opsDosRecipientId === 'custom' || !opsDosRecipientId) && (
+                                <input
+                                    type="text"
+                                    value={opsDosCustomName}
+                                    onChange={e => setOpsDosCustomName(e.target.value)}
+                                    placeholder="Enter DOS Name (e.g. Mr. John Doe - Director of Studies)"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs font-bold outline-none focus:border-purple-500 dark:text-white mt-1.5"
+                                />
+                            )}
+                        </div>
+
+                        {/* Voucher Ref */}
                         <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
                                 Official Cash Voucher / Folio Reference Number *
                             </label>
                             <input
@@ -22045,12 +22279,55 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             </p>
                         </div>
 
+                        {/* DOS On-Screen Digital Signature Pad */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 font-bold">
+                                    DOS On-Screen Signature (Confirming Receipt of Cash) *
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={handleClearOpsDosSignature}
+                                    className="text-[10px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                                >
+                                    <RotateCcw className="w-3 h-3" /> Clear Signature
+                                </button>
+                            </div>
+
+                            <div className="relative border-2 border-dashed border-indigo-300 dark:border-indigo-600 rounded-2xl overflow-hidden bg-white shadow-inner">
+                                <canvas
+                                    ref={opsDosCanvasRef}
+                                    width={460}
+                                    height={140}
+                                    onMouseDown={handleOpsDosCanvasStart}
+                                    onMouseMove={handleOpsDosCanvasDraw}
+                                    onMouseUp={handleOpsDosCanvasStop}
+                                    onMouseLeave={handleOpsDosCanvasStop}
+                                    onTouchStart={handleOpsDosCanvasStart}
+                                    onTouchMove={handleOpsDosCanvasDraw}
+                                    onTouchEnd={handleOpsDosCanvasStop}
+                                    className="w-full h-36 cursor-crosshair touch-none bg-white block"
+                                />
+                                {!hasOpsDosSigned && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                            <PenTool className="w-4 h-4 opacity-50 text-indigo-500" /> Director of Studies: Draw Signature Here to Confirm Receipt
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[10px] text-indigo-600 dark:text-indigo-400 italic">
+                                The Director of Studies (DOS) signs above to confirm physical receipt of cash payout from Bursar / Operations.
+                            </p>
+                        </div>
+
                         <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
                             <p className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                                <ShieldCheck className="w-4 h-4 text-purple-600" /> Custody Transfer Notice
+                                <ShieldCheck className="w-4 h-4 text-purple-600" /> Custody Transfer Chain
                             </p>
                             <p>
-                                Submitting this form records that physical cash of <strong>KES {opsDisburseBatch.totalAmount.toLocaleString()}</strong> has been handed to the Director of Studies (DOS). The DOS will distribute the cash to the teacher and collect an on-screen signature.
+                                Submitting this form records that physical cash of <strong>KES {opsDisburseBatch.totalAmount.toLocaleString()}</strong> has been officially handed to and signed for by the Director of Studies (DOS). The DOS will then distribute cash to the teacher and collect teacher sign-off.
                             </p>
                         </div>
                     </div>
@@ -22067,7 +22344,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         </button>
                         <button
                             type="button"
-                            disabled={isDisbursingOpsCash}
+                            disabled={isDisbursingOpsCash || !opsCashVoucherRef.trim() || !hasOpsDosSigned}
                             onClick={handleConfirmOperationsCashHandover}
                             className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2 cursor-pointer"
                         >
@@ -22079,7 +22356,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                             ) : (
                                 <>
                                     <Banknote className="w-4 h-4" />
-                                    <span>Confirm Handover to DOS</span>
+                                    <span>Confirm Handover &amp; Sign</span>
                                 </>
                             )}
                         </button>
@@ -22299,37 +22576,75 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Disbursed By (DOS)</td>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Handover to DOS</td>
+                                        <td className="p-3 font-bold text-indigo-700 dark:text-indigo-300">
+                                            {viewingReceiptPayout.dosRecipientName || viewingReceiptPayout.paidByDosName || 'Director of Studies'}
+                                            {viewingReceiptPayout.dosReceivedAt ? ` (${new Date(viewingReceiptPayout.dosReceivedAt).toLocaleDateString()})` : ''}
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 bg-slate-50 dark:bg-slate-900/60 font-black uppercase text-[10px] text-slate-400">Disbursed To Teacher</td>
                                         <td className="p-3 font-bold">{viewingReceiptPayout.paidByDosName || 'Director of Studies'}</td>
                                     </tr>
                                 </tbody>
                             </table>
                         </div>
 
-                        {/* Signatures Chain */}
-                        <div className="grid grid-cols-2 gap-4 pt-2">
-                            <div className="p-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
-                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                                    Disbursed by (DOS / Operations):
+                        {/* Signatures Chain: Operations -> DOS Custody -> Teacher Payee */}
+                        <div className={`grid ${viewingReceiptPayout.dosRecipientSignature ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2'} gap-3 pt-2`}>
+                            {/* 1. Operations / Bursar Disbursal */}
+                            <div className="p-3.5 border border-purple-200 dark:border-purple-800/80 rounded-2xl space-y-1.5 bg-purple-50/40 dark:bg-purple-950/20">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                                    1. Bursar / Operations:
                                 </p>
                                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                    {viewingReceiptPayout.paidByDosName || 'Director of Studies'}
+                                    {viewingReceiptPayout.operationsManagerName || 'Bursar / Operations'}
                                 </p>
-                                <p className="text-[9px] text-slate-400 font-mono">
-                                    Ref: #{viewingReceiptPayout.cashVoucherRef || 'VOUCHER'}
+                                <p className="text-[9px] text-slate-500 font-mono font-bold">
+                                    Folio: #{viewingReceiptPayout.cashVoucherRef || 'VOUCHER'}
                                 </p>
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300">
+                                    Cash Disbursed
+                                </span>
                             </div>
 
-                            <div className="p-3.5 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
-                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                                    Teacher Physical Signature:
+                            {/* 2. DOS Receipt Signature */}
+                            <div className="p-3.5 border border-indigo-200 dark:border-indigo-800/80 rounded-2xl space-y-1.5 bg-indigo-50/40 dark:bg-indigo-950/20">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                    2. DOS Receipt Signature:
+                                </p>
+                                {viewingReceiptPayout.dosRecipientSignature ? (
+                                    <div className="bg-white rounded-lg p-1 border border-indigo-100 dark:border-slate-700 inline-block shadow-xs">
+                                        <img
+                                            src={viewingReceiptPayout.dosRecipientSignature}
+                                            alt="DOS Receipt Signature"
+                                            className="h-10 w-auto object-contain"
+                                        />
+                                    </div>
+                                ) : (
+                                    <p className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">
+                                        Confirmed by DOS
+                                    </p>
+                                )}
+                                <p className="text-[9px] font-bold text-slate-700 dark:text-slate-300">
+                                    {viewingReceiptPayout.dosRecipientName || viewingReceiptPayout.paidByDosName || 'Director of Studies (DOS)'}
+                                </p>
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-300">
+                                    Cash Received
+                                </span>
+                            </div>
+
+                            {/* 3. Teacher Signature */}
+                            <div className="p-3.5 border border-emerald-200 dark:border-emerald-800/80 rounded-2xl space-y-1.5 bg-emerald-50/40 dark:bg-emerald-950/20">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                    3. Teacher Payee Signature:
                                 </p>
                                 {viewingReceiptPayout.teacherSignatureDataUrl ? (
-                                    <div className="bg-white rounded-lg p-1 border border-slate-200 dark:border-slate-700 inline-block">
+                                    <div className="bg-white rounded-lg p-1 border border-emerald-100 dark:border-slate-700 inline-block shadow-xs">
                                         <img
                                             src={viewingReceiptPayout.teacherSignatureDataUrl}
                                             alt="Teacher Signature"
-                                            className="h-12 w-auto object-contain"
+                                            className="h-10 w-auto object-contain"
                                         />
                                     </div>
                                 ) : (
@@ -22337,6 +22652,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                         {viewingReceiptPayout.anonymousSignature || 'Signed in Cash Ledger'}
                                     </p>
                                 )}
+                                <p className="text-[9px] font-bold text-slate-700 dark:text-slate-300">
+                                    {viewingReceiptPayout.teacherName}
+                                </p>
+                                <span className="inline-block px-2 py-0.5 rounded-full text-[8px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                                    Final Payee Receipt
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -22354,13 +22675,19 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <head>
                                                 <title>Cash Voucher Receipt - ${viewingReceiptPayout.teacherName}</title>
                                                 <style>
-                                                    body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #0f172a; }
-                                                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                                                    th, td { border: 1px solid #cbd5e1; padding: 10px; font-size: 12px; }
+                                                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 30px; color: #0f172a; max-width: 850px; margin: 0 auto; }
+                                                    table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px; }
+                                                    th, td { border: 1px solid #cbd5e1; padding: 8px 12px; font-size: 12px; }
                                                     td:first-child { background: #f8fafc; font-weight: bold; width: 35%; }
-                                                    .letterhead { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #0f172a; padding-bottom: 15px; }
-                                                    .signatures { display: flex; justify-content: space-between; margin-top: 30px; }
-                                                    .sig-box { border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px; width: 45%; }
+                                                    .letterhead { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 15px; }
+                                                    .grid { display: flex !important; flex-direction: row !important; gap: 12px !important; margin-top: 15px !important; }
+                                                    .grid > div { flex: 1 !important; border: 1px solid #cbd5e1 !important; border-radius: 10px !important; padding: 12px !important; background: #fafbfc !important; }
+                                                    img { max-height: 44px !important; width: auto !important; object-fit: contain !important; display: block; margin: 4px 0; }
+                                                    @media print {
+                                                        body { padding: 10px; max-width: 100%; }
+                                                        .grid { display: flex !important; flex-direction: row !important; gap: 12px !important; }
+                                                        .grid > div { flex: 1 !important; page-break-inside: avoid; }
+                                                    }
                                                 </style>
                                             </head>
                                             <body>
