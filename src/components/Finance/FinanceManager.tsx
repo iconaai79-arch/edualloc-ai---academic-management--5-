@@ -1487,7 +1487,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const branchMatches = matchesSelectedBranch(inv);
             return !invNo?.startsWith('REMEDIAL-') && branchMatches;
         });
-        if (!isDrivingSchool) return baseInvoices;
+        if (!isDrivingSchool) {
+            return baseInvoices.map((inv: any) => ({
+                ...inv,
+                totalAmount: parseMoneyAmount(inv.totalAmount ?? inv.total_amount ?? inv.amount ?? 0)
+            }));
+        }
         return dsInvoices.map((dsInv: any) => ({
             id: dsInv.id,
             invoiceNumber: dsInv.invoiceNumber || dsInv.invoice_number || dsInv.id,
@@ -1498,10 +1503,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             items: (dsInv.items || []).map((it: any) => ({
                 description: it.name || it.voteName || 'Fee Item',
                 quantity: 1,
-                unitPrice: it.amount || 0,
-                amount: it.amount || 0
+                unitPrice: parseMoneyAmount(it.unitPrice ?? it.amount ?? 0),
+                amount: parseMoneyAmount(it.amount ?? it.unitPrice ?? 0)
             })),
-            totalAmount: dsInv.totalAmount || 0,
+            totalAmount: parseMoneyAmount(dsInv.totalAmount ?? dsInv.total_amount ?? dsInv.amount ?? 0),
             status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
             studentId: dsInv.studentId
         }));
@@ -1519,13 +1524,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             }
             return branchMatches;
         });
-        if (!isDrivingSchool) return baseReceipts;
+        if (!isDrivingSchool) {
+            return baseReceipts.map((r: any) => ({
+                ...r,
+                amountPaid: parseMoneyAmount(r.amountPaid ?? r.amount_paid ?? r.amount ?? 0)
+            }));
+        }
         return dsPayments.map((dsPay: any) => ({
             id: dsPay.id,
             receiptNumber: dsPay.receiptNumber || dsPay.receipt_number || dsPay.id,
             institutionId: dsPay.institutionId,
             paymentDate: dsPay.paymentDate || new Date().toISOString(),
-            amountPaid: dsPay.amount || 0,
+            amountPaid: parseMoneyAmount(dsPay.amountPaid ?? dsPay.amount_paid ?? dsPay.amount ?? 0),
             paidFor: `Payment for DS Invoice ${dsPay.invoiceNumber || dsPay.invoiceId}`,
             paymentMethod: dsPay.paymentMethod || 'Cash',
             relatedTransactionId: dsPay.transactionReference || '',
@@ -1656,7 +1666,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         // 3. Process each student's invoices using FIFO allocation
         studentInvoicesMap.forEach((invoices, sKey) => {
             const matchedReceipts = studentReceiptsMap.get(sKey) || [];
-            const totalStudentPaid = matchedReceipts.reduce((sum: number, r: any) => sum + Number(r.amountPaid || r.amount_paid || r.amount || 0), 0);
+            const totalStudentPaid = matchedReceipts.reduce((sum: number, r: any) => sum + parseMoneyAmount(r.amountPaid || r.amount_paid || r.amount || 0), 0);
 
             // Sort invoices chronologically
             const sortedInvoices = [...invoices].sort((a: any, b: any) => {
@@ -1669,7 +1679,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
             // Pass 1: Explicit direct links or invoice-stored paidAmount first
             sortedInvoices.forEach(inv => {
-                const directAmt = directPaidMap.get(inv.id) || Number(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
+                const directAmt = directPaidMap.get(inv.id) || parseMoneyAmount(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
                 if (directAmt > 0) {
                     resultMap.set(inv.id, directAmt);
                     remainingPaidPool = Math.max(0, remainingPaidPool - directAmt);
@@ -1679,7 +1689,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             // Pass 2: Allocate unassigned student payment pool across remaining invoices
             sortedInvoices.forEach(inv => {
                 if (resultMap.has(inv.id)) return; // Already directly assigned
-                const invTotal = Number(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                const invTotal = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                 if (remainingPaidPool > 0) {
                     const allocated = Math.min(invTotal, remainingPaidPool);
                     resultMap.set(inv.id, allocated);
@@ -1692,14 +1702,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         // 4. Process unassigned invoices
         unassignedInvoices.forEach((inv: any) => {
-            const directAmt = directPaidMap.get(inv.id) || Number(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
+            const directAmt = directPaidMap.get(inv.id) || parseMoneyAmount(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
             resultMap.set(inv.id, directAmt);
         });
 
         // Fallback safety for any remaining mappedInvoices
         (mappedInvoices || []).forEach((inv: any) => {
             if (!resultMap.has(inv.id)) {
-                const directAmt = directPaidMap.get(inv.id) || Number(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
+                const directAmt = directPaidMap.get(inv.id) || parseMoneyAmount(inv.paidAmount || (inv as any).paid_amount || (inv as any).amountPaid || (inv as any).amount_paid || 0);
                 resultMap.set(inv.id, directAmt);
             }
         });
@@ -1723,7 +1733,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 if (!relevantInstIds.has(eInstId) && !relevantInstIds.has(cleanId(eInstId))) return false;
             }
             return matchesSelectedBranch(exp);
-        });
+        }).map((exp: any) => ({
+            ...exp,
+            amount: parseMoneyAmount(exp.amount ?? exp.total_amount ?? 0)
+        }));
     }, [props.expenses, props.institution?.id, branches, cleanId, matchesSelectedBranch]);
 
     const mappedFeeStructures = useMemo(() => {
@@ -11138,10 +11151,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 <div className="min-h-[600px] w-full">
 
                 {activeTab === 'home' && (() => {
-                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
-                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
-                    const totalExpenses = mappedExpenses.reduce((s: number, e: any) => s + (e.amount || 0), 0);
-                    const outstanding = totalBilled - totalCollected;
+                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
+                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
+                    const totalExpenses = mappedExpenses.reduce((s: number, e: any) => s + parseMoneyAmount(e.amount || (e as any).total_amount || 0), 0);
+                    const outstanding = Math.max(0, totalBilled - totalCollected);
                     const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
                     const netCashFlow = totalCollected - totalExpenses;
                     const pendingInvoices = mappedInvoices.filter((i: any) => i.status === 'pending' || i.status === 'overdue').length;
@@ -11203,8 +11216,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             return raw.includes(`-${mNum}-`) || raw.includes(`/${mNum}/`) || raw.includes(label.toLowerCase());
                         });
 
-                        const collected = monthReceipts.reduce((s, r) => s + (r.amountPaid || 0), 0);
-                        const billed = monthInvoices.reduce((s, inv) => s + (inv.totalAmount || 0), 0);
+                        const collected = monthReceipts.reduce((s, r) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
+                        const billed = monthInvoices.reduce((s, inv) => s + parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0), 0);
                         return { label, collected, billed, monthIdx };
                     });
 
@@ -20425,10 +20438,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 )}
 
                 {activeTab === 'reports' && (() => {
-                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + (i.totalAmount || 0), 0);
-                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + (r.amountPaid || 0), 0);
-                    const totalExpenses = (props.expenses || []).reduce((s, e) => s + (e.amount || 0), 0);
-                    const outstanding = totalBilled - totalCollected;
+                    const totalBilled = mappedInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
+                    const totalCollected = mappedReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
+                    const totalExpenses = (props.expenses || []).reduce((s, e) => s + parseMoneyAmount(e.amount || (e as any).total_amount || 0), 0);
+                    const outstanding = Math.max(0, totalBilled - totalCollected);
                     const collectionRate = totalBilled > 0 ? (totalCollected / totalBilled) * 100 : 0;
 
                     const reportSubTabs = [
@@ -20532,7 +20545,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         };
                                     }
                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                    const invAmt = inv.totalAmount || 0;
+                                    const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
                                     const bal = Math.max(0, invAmt - paid);
 
                                     classMap[cls].billed += invAmt;
@@ -20575,7 +20588,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                     // Status filter
                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                    const bal = (inv.totalAmount || 0) - paid;
+                                    const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                                    const bal = invAmt - paid;
                                     if (collectionStatusFilter === 'cleared' && bal > 0) return false;
                                     if (collectionStatusFilter === 'pending' && (bal <= 0 || inv.status === 'overdue')) return false;
                                     if (collectionStatusFilter === 'overdue' && inv.status !== 'overdue') return false;
@@ -20584,10 +20598,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 });
 
                                 // Dynamic stats for current filter selection
-                                const activeBilled = filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.totalAmount || 0), 0);
+                                const activeBilled = filteredInvoices.reduce((sum: number, inv: any) => sum + parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0), 0);
                                 const activeCollected = filteredInvoices.reduce((sum: number, inv: any) => {
                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                    return sum + Math.min(inv.totalAmount || 0, paid);
+                                    const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                                    return sum + Math.min(invAmt, paid);
                                 }, 0);
                                 const activeOutstanding = Math.max(0, activeBilled - activeCollected);
                                 const activeCollectionRate = activeBilled > 0 ? (activeCollected / activeBilled) * 100 : 0;
@@ -21004,7 +21019,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     return false;
                                                                 }) || (props.students || []).find((s: any) => s.id === inv.studentId);
                                                                 const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                                                const bal = (inv.totalAmount || 0) - paid;
+                                                                const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                                                                const bal = invAmt - paid;
                                                                 const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
                                                                 const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                 return [
@@ -21012,7 +21028,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     sAdm,
                                                                     cls,
                                                                     inv.invoiceNumber || inv.id?.slice(-8),
-                                                                    inv.totalAmount || 0,
+                                                                    invAmt,
                                                                     paid,
                                                                     bal,
                                                                     bal <= 0 ? 'Cleared' : inv.status === 'overdue' ? 'Overdue' : 'Pending'
@@ -21051,14 +21067,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         return false;
                                                                     }) || (props.students || []).find((s: any) => s.id === inv.studentId);
                                                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                                                    const bal = (inv.totalAmount || 0) - paid;
+                                                                    const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                                                                    const bal = invAmt - paid;
                                                                     const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
                                                                     const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                     return {
                                                                         name: student?.name || (inv as any).studentName || (inv as any).student_name || '—',
                                                                         adm: sAdm,
                                                                         cls: cls,
-                                                                        inv: inv.totalAmount || 0,
+                                                                        inv: invAmt,
                                                                         pd: paid,
                                                                         bal: bal
                                                                     };
@@ -21096,14 +21113,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         return false;
                                                                     }) || (props.students || []).find((s: any) => s.id === inv.studentId);
                                                                     const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                                                    const bal = (inv.totalAmount || 0) - paid;
+                                                                    const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                                                                    const bal = invAmt - paid;
                                                                     const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
                                                                     const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                     return {
                                                                         name: student?.name || (inv as any).studentName || (inv as any).student_name || '—',
                                                                         adm: sAdm,
                                                                         cls: cls,
-                                                                        inv: inv.totalAmount || 0,
+                                                                        inv: invAmt,
                                                                         pd: paid,
                                                                         bal: bal
                                                                     };
@@ -21185,7 +21203,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 const cls = (student ? ((student as any).className || studentClassGroup(student)) : null) || (inv.studentClass || inv.className || inv.gradeLevel || '—');
                                                                 const sAdm = (student ? getStudentAdmNumber(student) : '') || inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || (inv as any).admNo || (inv as any).adm_no || (inv as any).metadata?.admissionNumber || (inv as any).metadata?.admNo || '—';
                                                                 const paid = invoicePaidAmountMap.get(inv.id) || 0;
-                                                                const bal = (inv.totalAmount || 0) - paid;
+                                                                const invAmt = parseMoneyAmount(inv.totalAmount || (inv as any).total_amount || (inv as any).amount || 0);
+                                                                const bal = invAmt - paid;
                                                                 const isCleared = bal <= 0;
 
                                                                 return (
@@ -21203,7 +21222,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                             {inv.invoiceNumber || inv.id?.slice(-8)}
                                                                         </td>
                                                                         <td className="py-3 px-4 font-black text-slate-900 dark:text-white text-right">
-                                                                            KSh {(inv.totalAmount || 0).toLocaleString()}
+                                                                            KSh {invAmt.toLocaleString()}
                                                                         </td>
                                                                         <td className="py-3 px-4 font-black text-emerald-600 text-right">
                                                                             KSh {paid.toLocaleString()}
