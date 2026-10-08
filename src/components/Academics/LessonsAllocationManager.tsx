@@ -1013,6 +1013,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});
         }
 
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_subject_allocations_synced', { detail: { instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId: currentInstitution?.id } }));
+        }
+
         setSaveToast(`Updated allocation for ${targetRecord?.subjectName || subjectNameOverride} (${targetRecord?.className || classNameOverride})`);
         setTimeout(() => setSaveToast(null), 3000);
     };
@@ -1041,9 +1046,20 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
         }
 
         setAllocations(updatedAllocations);
+        try {
+            if (currentInstitution?.id) {
+                localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(updatedAllocations));
+                localStorage.setItem('eduai_subject_allocations', JSON.stringify(updatedAllocations));
+            }
+        } catch (e) {}
         const targetRecord = updatedAllocations.find(a => a.id === allocId || (a.className === classNameOverride && a.subjectName === subjectNameOverride));
         if (targetRecord && currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', targetRecord).catch(() => {});
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_subject_allocations_synced', { detail: { instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId: currentInstitution?.id } }));
         }
     };
 
@@ -1067,7 +1083,14 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
         setAllocations(prev => {
             const filtered = prev.filter(a => !((a?.className || '').toLowerCase().trim() === targetClassStream.toLowerCase().trim() && (a?.subjectName || '').toLowerCase().trim() === modalSubjectName.toLowerCase().trim()));
-            return [newRecord, ...filtered];
+            const next = [newRecord, ...filtered];
+            try {
+                if (currentInstitution?.id) {
+                    localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(next));
+                    localStorage.setItem('eduai_subject_allocations', JSON.stringify(next));
+                }
+            } catch (e) {}
+            return next;
         });
 
         updateRemovedKeys(prev => {
@@ -1078,6 +1101,11 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
 
         if (currentInstitution?.id) {
             await apiService.saveModuleRecord('subject_allocations', newRecord).catch(() => {});
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_subject_allocations_synced', { detail: { instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId: currentInstitution?.id } }));
         }
 
         setSelectedClass(modalClassName);
@@ -1102,11 +1130,25 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
             return next;
         });
 
-        setAllocations(prev => prev.filter(a => a.id !== alloc.id && !(a.className === alloc.className && a.subjectName === alloc.subjectName)));
+        setAllocations(prev => {
+            const next = prev.filter(a => a.id !== alloc.id && !(a.className === alloc.className && a.subjectName === alloc.subjectName));
+            try {
+                if (currentInstitution?.id) {
+                    localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(next));
+                    localStorage.setItem('eduai_subject_allocations', JSON.stringify(next));
+                }
+            } catch (e) {}
+            return next;
+        });
 
         // Delete from DB subject_allocations table if record exists
         if (currentInstitution?.id && alloc.id && alloc.id.length > 3) {
             await apiService.deleteModuleRecord('subject_allocations', alloc.id).catch(() => {});
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_subject_allocations_synced', { detail: { instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId: currentInstitution?.id } }));
         }
 
         // Unassign class stream from subject's targetClasses / assignedClasses
@@ -1337,25 +1379,51 @@ export const LessonsAllocationManager: React.FC<LessonsAllocationManagerProps> =
                     status: defaultTeacher ? ('allocated' as const) : ('unassigned' as const)
                 };
             });
-            setAllocations(prev => [...createdAllocs, ...prev.filter(a => (a?.className || '').toLowerCase().trim() !== tgtClean)]);
-            if (currentInstitution?.id) {
-                for (const a of createdAllocs) {
-                    await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
-                }
-            }
-        } else {
-            const copiedAllocs: SubjectAllocationRecord[] = baseAllocations.map(ba => ({
-                ...ba,
-                id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${(ba.subjectName || 'subj').replace(/\s+/g, '_')}_${Date.now()}`,
-                className: activeTargetClassName
-            }));
-            setAllocations(prev => [...copiedAllocs, ...prev.filter(a => (a?.className || '').toLowerCase().trim() !== tgtClean)]);
-            if (currentInstitution?.id) {
-                for (const a of copiedAllocs) {
-                    await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
-                }
+            setAllocations(prev => {
+                const next = [...createdAllocs, ...prev.filter(a => (a?.className || '').toLowerCase().trim() !== tgtClean)];
+                try {
+                    if (currentInstitution?.id) {
+                        localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(next));
+                        localStorage.setItem('eduai_subject_allocations', JSON.stringify(next));
+                    }
+                } catch (e) {}
+                return next;
+            });
+        if (currentInstitution?.id) {
+            for (const a of createdAllocs) {
+                await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
             }
         }
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_subject_allocations_synced', { detail: { instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId: currentInstitution?.id } }));
+        }
+    } else {
+        const copiedAllocs: SubjectAllocationRecord[] = baseAllocations.map(ba => ({
+            ...ba,
+            id: `alloc_${activeTargetClassName.replace(/\s+/g, '_')}_${(ba.subjectName || 'subj').replace(/\s+/g, '_')}_${Date.now()}`,
+            className: activeTargetClassName
+        }));
+        setAllocations(prev => {
+            const next = [...copiedAllocs, ...prev.filter(a => (a?.className || '').toLowerCase().trim() !== tgtClean)];
+            try {
+                if (currentInstitution?.id) {
+                    localStorage.setItem(`eduai_subject_allocations_${currentInstitution.id}`, JSON.stringify(next));
+                    localStorage.setItem('eduai_subject_allocations', JSON.stringify(next));
+                }
+            } catch (e) {}
+            return next;
+        });
+        if (currentInstitution?.id) {
+            for (const a of copiedAllocs) {
+                await apiService.saveModuleRecord('subject_allocations', a).catch(() => {});
+            }
+        }
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('eduai_subject_allocations_synced', { detail: { instId: currentInstitution?.id } }));
+            window.dispatchEvent(new CustomEvent('eduai_academics_synced', { detail: { type: 'allocations', instId: currentInstitution?.id } }));
+        }
+    }
         setSaveToast(`Copied allocations from ${selectedClass} into stream ${selectedStream}`);
         setTimeout(() => setSaveToast(null), 3000);
     };

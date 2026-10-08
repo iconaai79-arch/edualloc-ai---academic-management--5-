@@ -910,7 +910,11 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
     useEffect(() => {
         if (allocations && Array.isArray(allocations) && allocations.length > 0) {
-            setSubjectAllocations(allocations);
+            setSubjectAllocations(prev => {
+                const hasRealRecords = Array.isArray(prev) && prev.some(p => p && (p.className || p.class) && (p.subjectName || p.subject));
+                if (hasRealRecords) return prev;
+                return allocations;
+            });
         }
     }, [allocations]);
 
@@ -941,8 +945,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const map: Record<string, string[]> = {};
         allAllocs.forEach(a => {
             if (!a) return;
-            const aTeacherId = a.teacherId || a.teacher_id || '';
-            const aTeacherName = (a.teacherName || a.teacher?.name || a.instructorName || '').trim().toLowerCase();
+            const aTeacherId = a.teacherId || a.teacher_id || a.lecturerId || a.lecturer_id || '';
+            const aTeacherName = (a.teacherName || a.teacher?.name || a.instructorName || a.lecturerName || '').trim().toLowerCase();
             const isMyAlloc = (myId && aTeacherId === myId) || (myNameNorm && aTeacherName === myNameNorm);
             if (!isMyAlloc) return;
             const subKey = (a.subjectName || a.subject || '').trim().toLowerCase();
@@ -3514,7 +3518,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
     const teacherForClassCacheRef = useRef<Map<string, string>>(new Map());
     useEffect(() => {
         teacherForClassCacheRef.current.clear();
-    }, [subjectAllocations, allocations, users]);
+    }, [subjectAllocations, allocations, users, courses, subjects]);
 
     // Subject matching helper that handles aliases, code, suffixes, CBC naming, and common typos
     const matchSubjectNames = useCallback((sub1: string, sub2: string, code1?: string, code2?: string): boolean => {
@@ -3527,6 +3531,9 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 .replace(/\bindeginous\b/g, 'indigenous')
                 .replace(/\bmathematik\b/g, 'mathematic')
                 .replace(/\bactivites\b/g, 'activities')
+                .replace(/\bpre\s*-\s*technical\b/g, 'pre-technical')
+                .replace(/\bpretechnical\b/g, 'pre-technical')
+                .replace(/\bpre\s*tech\b/g, 'pre-tech')
                 .replace(/\s+/g, ' ')
                 .trim();
         };
@@ -3565,12 +3572,20 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             'env': ['environmental activities', 'environmental', 'environment', 'environmental studies', 'our environment'],
             'environmental activities': ['env', 'environmental', 'environment', 'environmental studies', 'our environment'],
             'agri': ['agriculture', 'agriculture and nutrition', 'agriculture activities', 'agriculture and nutrition activities', 'agric'],
-            'agriculture': ['agri', 'agriculture and nutrition', 'agriculture activities', 'agriculture and nutrition activities', 'agric'],
+            'agriculture': ['agri', 'agriculture and nutrition', 'agriculture activities', 'agriculture and nutrition activities', 'agric', 'nutrition', 'home science'],
+            'agriculture and nutrition': ['agriculture', 'agri', 'agric', 'agriculture activities', 'nutrition', 'home science', 'agriculture and nutrition activities'],
             'social': ['social studies', 'social studies activities', 'sst'],
             'social studies': ['social', 'social studies activities', 'sst'],
             'art': ['art and craft', 'art and craft', 'creative arts', 'art craft', 'music', 'movement', 'creative activities'],
-            'creative arts': ['art and craft', 'creative arts', 'art', 'music', 'movement', 'movement and creative activities', 'creative activities', 'movement activities', 'physical education', 'pe'],
-            'movement and creative activities': ['creative arts', 'art and craft', 'art', 'music', 'movement', 'creative activities', 'movement activities', 'physical education', 'pe'],
+            'creative arts': ['art and craft', 'creative arts', 'art', 'music', 'movement', 'movement and creative activities', 'creative activities', 'movement activities', 'physical education', 'pe', 'sports', 'creative arts and sports', 'psychomotor and creative activities', 'psychomotor activities', 'psychomotor'],
+            'creative arts and sports': ['creative arts', 'art and craft', 'art', 'music', 'movement', 'movement and creative activities', 'creative activities', 'movement activities', 'physical education', 'physical education and sports', 'physical education & sports', 'pe', 'p.e', 'sports', 'psychomotor and creative activities', 'psychomotor activities', 'psychomotor'],
+            'psychomotor and creative activities': ['psychomotor', 'psychomotor activities', 'creative arts', 'creative arts and sports', 'art and craft', 'art', 'movement and creative activities', 'physical education', 'pe', 'sports'],
+            'sports': ['creative arts and sports', 'creative arts', 'physical education', 'physical education and sports', 'pe', 'p.e'],
+            'physical education': ['sports', 'physical education and sports', 'pe', 'p.e', 'creative arts and sports', 'creative arts'],
+            'pre-technical': ['pre-technical and computer studies', 'pre-technical & computer studies', 'pre technical', 'pre-technical studies', 'pre technical studies', 'pre tech', 'pre-tech', 'computer studies', 'computer science'],
+            'pre-technical and computer studies': ['pre-technical', 'pre technical', 'pre-technical studies', 'pre technical studies', 'computer studies', 'computer science', 'pre tech', 'pre-tech', 'pre-technical & computer studies', 'pre technical & computer studies', 'business studies'],
+            'pre-technical studies': ['pre-technical', 'pre technical', 'pre-technical and computer studies', 'pre-technical & computer studies', 'computer studies', 'pre tech', 'pre-tech'],
+            'computer studies': ['pre-technical and computer studies', 'pre-technical & computer studies', 'pre-technical studies', 'computer science', 'ict', 'information technology', 'pre tech', 'pre-tech'],
             'hygiene': ['hygiene and nutrition', 'hygiene activities', 'health practices', 'nutrition activities', 'health and nutrition'],
             'hygiene and nutrition': ['hygiene', 'hygiene activities', 'health practices', 'nutrition activities', 'health and nutrition']
         };
@@ -3584,7 +3599,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         }
 
         // Distinctive stem/root overlap check
-        const roots = ['indigenous', 'pastoral', 'creative', 'environment', 'hygiene', 'agricultur', 'religio', 'mathemat', 'kiswahili', 'english', 'scienc'];
+        const roots = ['indigenous', 'pastoral', 'creative', 'environment', 'hygiene', 'agricultur', 'religio', 'mathemat', 'kiswahili', 'english', 'scienc', 'pre-tech', 'pretech', 'comput', 'psychomotor', 'sport', 'physic'];
         for (const root of roots) {
             if (clean1.includes(root) && clean2.includes(root)) return true;
         }
@@ -3629,9 +3644,14 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
         const { grade: targetGrade, stream: targetStream } = getStudentStreamAndGrade(className);
         const targetCanonicalGrade = getCanonicalGrade(targetGrade || className);
         const targetCanonicalStream = getCanonicalStream(targetStream || className);
+        const cleanClassNoYear = cleanClass.replace(/\b20\d{2}\b/g, '').replace(/\s+/g, ' ').trim();
+        const normTarget = cleanClassNoYear.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         // Resolve subject code or id from subjects list if available
-        const matchedSubjectObj = (subjects || []).find(s => s && matchSubjectNames(s.name, cleanSub, s.code));
+        const matchedSubjectObj = (subjects || []).find(s => s && (
+            (s.id && String(s.id) === cleanSub) ||
+            matchSubjectNames(s.name, cleanSub, s.code)
+        ));
         const subCode = matchedSubjectObj?.code;
         const subId = matchedSubjectObj?.id;
 
@@ -3642,13 +3662,15 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             if (!Array.isArray(arr)) return;
             arr.forEach((a, idx) => {
                 if (!a) return;
-                const k = a.id || `${a.className || a.class}_${a.subjectName || a.subject}_${a.teacherName || a.teacherId || idx}`;
+                const k = a.id || `${a.className || a.class}_${a.subjectName || a.subject || a.subjectId}_${a.teacherName || a.teacherId || a.lecturerId || idx}`;
                 allAllocationsMap.set(k, a);
             });
         };
 
+        // Primary: Subject allocations from state
         addAllocList(subjectAllocations);
-        addAllocList(allocations);
+
+        // Fallback: Read from localStorage to ensure latest sync
         try {
             const keysToCheck = [
                 `eduai_subject_allocations_${targetInstId}`,
@@ -3667,60 +3689,122 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 }
             });
         } catch (_) {}
+
+        // Timetable allocations prop
+        addAllocList(allocations);
+
+        // Also check institution classSubjectAllocations if stored as object mapping
+        try {
+            const classAllocRaw = localStorage.getItem(`eduai_class_subject_allocations_${targetInstId}`) ||
+                                  localStorage.getItem(`eduai_class_subject_allocations_${instId}`) ||
+                                  localStorage.getItem('eduai_class_subject_allocations');
+            const classAllocObj = (classAllocRaw ? JSON.parse(classAllocRaw) : null) || 
+                                  (currentInstitution as any)?.classSubjectAllocations || 
+                                  (currentInstitution as any)?.class_subject_allocations;
+            if (classAllocObj && typeof classAllocObj === 'object') {
+                Object.entries(classAllocObj).forEach(([clsKey, val]: [string, any]) => {
+                    if (val && typeof val === 'object' && !Array.isArray(val)) {
+                        Object.entries(val).forEach(([sKey, tVal]: [string, any]) => {
+                            if (tVal && typeof tVal === 'string') {
+                                allAllocationsMap.set(`class_alloc_${clsKey}_${sKey}`, {
+                                    className: clsKey,
+                                    subjectName: sKey,
+                                    teacherId: tVal,
+                                    teacherName: tVal
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (_) {}
+
         const allAllocations = Array.from(allAllocationsMap.values());
 
         // Helper to check if allocation matches target subject
         const allocMatchesSubject = (a: any): boolean => {
             if (!a) return false;
-            const aSubName = a.subjectName || a.subject || a.name || '';
+            const aSubName = a.subjectName || a.subject || a.name || a.subject_name || a.unitName || '';
             const aCode = a.subjectCode || a.code || '';
-            const aId = a.subjectId || a.id || '';
+            const aId = a.subjectId || a.subject_id || a.id || '';
+
             if (subId && aId && String(aId) === String(subId)) return true;
-            return matchSubjectNames(aSubName, cleanSub, aCode, subCode);
+            if (aSubName && matchSubjectNames(aSubName, cleanSub, aCode, subCode)) return true;
+
+            if (a.subjectId || a.subject_id) {
+                const targetSubId = String(a.subjectId || a.subject_id);
+                const foundSub = (subjects || []).find(s => s && String(s.id) === targetSubId);
+                if (foundSub && matchSubjectNames(foundSub.name, cleanSub, foundSub.code, subCode)) return true;
+            }
+
+            return false;
         };
 
         // Helper to extract valid teacher name from allocation
         const getTeacherNameFromAlloc = (a: any): string | null => {
             if (!a) return null;
-            const tName = (a.teacherName || a.teacher?.name || a.instructorName || a.teacher_name || a.instructor || '').trim();
-            if (tName && tName.toLowerCase() !== 'unassigned' && tName.toLowerCase() !== 'subject teacher') {
-                return tName;
+            const rawName = (
+                a.teacherName ||
+                a.teacher_name ||
+                a.lecturerName ||
+                a.lecturer_name ||
+                a.instructorName ||
+                (typeof a.teacher === 'string' ? a.teacher : a.teacher?.name) ||
+                (typeof a.lecturer === 'string' ? a.lecturer : a.lecturer?.name) ||
+                (typeof a.instructor === 'string' ? a.instructor : a.instructor?.name) ||
+                ''
+            ).trim();
+
+            if (rawName && rawName.toLowerCase() !== 'unassigned' && rawName.toLowerCase() !== 'subject teacher') {
+                if (rawName.includes('-') || rawName.startsWith('usr_') || rawName.startsWith('user_')) {
+                    const matchedUser = (users || []).find(u => u && (u.id === rawName || (u as any).userId === rawName));
+                    if (matchedUser?.name) return matchedUser.name.trim();
+                }
+                return rawName;
             }
-            const tId = a.teacherId || a.teacher_id || a.instructorId || a.userId || a.user_id;
+
+            const tId = a.teacherId || a.teacher_id || a.lecturerId || a.lecturer_id || a.instructorId || a.instructor_id || a.userId || a.user_id || a.staffId || a.staff_id;
             if (tId) {
-                const matchedUser = (users || []).find(u => u && (u.id === tId || (u as any).userId === tId));
+                const matchedUser = (users || []).find(u => u && (
+                    u.id === tId ||
+                    (u as any).userId === tId ||
+                    (u as any).staffId === tId ||
+                    (u as any).staff_id === tId
+                ));
                 if (matchedUser?.name) return matchedUser.name.trim();
+                if ((matchedUser as any)?.fullName) return (matchedUser as any).fullName.trim();
+                if ((matchedUser as any)?.displayName) return (matchedUser as any).displayName.trim();
             }
             return null;
         };
 
         // Helper to check if allocation class matches target class/stream
-        // Returns 2 for exact stream match, 1 for base grade match, 0 for no match
+        // Returns 3 for exact stream match, 1 for base grade match, 0 for no match
         const getClassMatchScore = (a: any): number => {
             if (!a) return 0;
-            const rawAClass = (a.className || a.class || a.class_name || a.gradeLevel || '').trim();
+            const rawAClass = (a.className || a.class || a.class_name || a.gradeLevel || a.targetClass || '').trim();
             const rawAStream = (a.stream || a.streamName || a.stream_name || a.classStream || '').trim();
+
+            const normA = `${rawAClass} ${rawAStream}`.replace(/\b20\d{2}\b/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            // Exact alphanumeric string match
+            if (normTarget && normA && normTarget === normA) {
+                return 3;
+            }
+
+            // Grade match comparison
             const { grade: aGrade, stream: aStream } = getStudentStreamAndGrade(rawAClass);
             const aCanonicalGrade = getCanonicalGrade(aGrade || rawAClass);
             const aCanonicalStream = getCanonicalStream(rawAStream || aStream || rawAClass);
 
-            const normTarget = cleanClass.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const normA = `${rawAClass} ${rawAStream}`.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            // Exact alphanumeric string match
-            if (normTarget && normA && (normTarget === normA || normTarget.replace(/\d{4}$/, '') === normA.replace(/\d{4}$/, ''))) {
-                return 2;
-            }
-
-            // Grade match comparison
             if (targetCanonicalGrade && aCanonicalGrade && targetCanonicalGrade === aCanonicalGrade) {
                 // Both specify streams and they match
                 if (targetCanonicalStream && aCanonicalStream && targetCanonicalStream === aCanonicalStream) {
-                    return 2;
+                    return 3;
                 }
                 // Target has stream and raw allocation string includes stream name
                 if (targetCanonicalStream && normA.includes(targetCanonicalStream)) {
-                    return 2;
+                    return 3;
                 }
                 // Base grade allocation without stream or applies to all
                 if (!aCanonicalStream || aCanonicalStream === 'all' || !targetCanonicalStream) {
@@ -3728,11 +3812,52 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 }
             }
 
+            // Check via courseLevelIds if present (from Timetable AllocationRequest)
+            const levelIds = Array.isArray(a.courseLevelIds) ? a.courseLevelIds
+                : Array.isArray(a.preferences?.courseLevelIds) ? a.preferences.courseLevelIds
+                : [];
+            if (levelIds.length > 0 && Array.isArray(courses)) {
+                for (const lvlId of levelIds) {
+                    for (const course of courses) {
+                        const lvl = (course.levels || []).find(l => l && l.id === lvlId);
+                        if (lvl) {
+                            const lvlName = lvl.name || '';
+                            const courseName = course.name || '';
+                            const combinedLvl = `${courseName} ${lvlName}`.replace(/\b20\d{2}\b/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                            const lvlGrade = getCanonicalGrade(`${courseName} ${lvlName}`);
+                            const lvlStream = getCanonicalStream(lvlName || combinedLvl);
+
+                            if (normTarget && combinedLvl && normTarget === combinedLvl) return 3;
+                            if (targetCanonicalGrade && lvlGrade && targetCanonicalGrade === lvlGrade) {
+                                if (targetCanonicalStream && lvlStream && targetCanonicalStream === lvlStream) return 3;
+                                if (targetCanonicalStream && combinedLvl.includes(targetCanonicalStream)) return 3;
+                                if (!lvlStream || !targetCanonicalStream) return 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check preferences.courseLevelSelections (e.g. { "Grade 8 GREEN": ["Mathematics"] })
+            const selections = a.preferences?.courseLevelSelections;
+            if (selections && typeof selections === 'object') {
+                for (const clsKey of Object.keys(selections)) {
+                    const normKey = clsKey.replace(/\b20\d{2}\b/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    if (normTarget && normKey && normTarget === normKey) return 3;
+                    const keyGrade = getCanonicalGrade(clsKey);
+                    const keyStream = getCanonicalStream(clsKey);
+                    if (targetCanonicalGrade && keyGrade && targetCanonicalGrade === keyGrade) {
+                        if (targetCanonicalStream && keyStream && targetCanonicalStream === keyStream) return 3;
+                        if (!keyStream || !targetCanonicalStream) return 1;
+                    }
+                }
+            }
+
             return 0;
         };
 
-        // Priority 1: Exact stream-specific allocation with assigned teacher
-        const streamMatches = allAllocations.filter(a => allocMatchesSubject(a) && getClassMatchScore(a) === 2);
+        // Priority 1: Exact stream-specific allocation with assigned teacher (score >= 2)
+        const streamMatches = allAllocations.filter(a => allocMatchesSubject(a) && getClassMatchScore(a) >= 2);
         for (const a of streamMatches) {
             const tName = getTeacherNameFromAlloc(a);
             if (tName) {
@@ -3741,7 +3866,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
             }
         }
 
-        // Priority 2: Base grade allocation (applies across streams) with assigned teacher
+        // Priority 2: Base grade allocation (applies across streams) with assigned teacher (score 1)
         const gradeMatches = allAllocations.filter(a => allocMatchesSubject(a) && getClassMatchScore(a) === 1);
         for (const a of gradeMatches) {
             const tName = getTeacherNameFromAlloc(a);
@@ -3774,8 +3899,8 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
                 : (u as any).studentClass ? [(u as any).studentClass] : [];
 
             if (uClasses.some(c => {
-                const cStr = String(c).toLowerCase();
-                const cleanC = cleanClass.toLowerCase();
+                const cStr = String(c).toLowerCase().replace(/\b20\d{2}\b/g, '');
+                const cleanC = cleanClassNoYear.toLowerCase();
                 return cStr.includes(cleanC) || cleanC.includes(cStr) || (targetCanonicalGrade && cStr.includes(targetCanonicalGrade));
             })) {
                 return true;
@@ -3815,7 +3940,7 @@ export const ExamUnitsManager: React.FC<ExamUnitsManagerProps> = ({
 
         // If no match found yet, return 'Subject Teacher' without caching as permanent truth
         return 'Subject Teacher';
-    }, [subjectAllocations, allocations, users, subjects, getStudentStreamAndGrade, matchSubjectNames, instId, currentInstitution?.id]);
+    }, [subjectAllocations, allocations, users, subjects, courses, getStudentStreamAndGrade, matchSubjectNames, instId, currentInstitution?.id]);
 
     const lastClassPaperRowsRef = useRef<any[]>([]);
 
