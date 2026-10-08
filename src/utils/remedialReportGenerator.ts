@@ -229,6 +229,7 @@ export const generateTeacherPayoutLedgerPdf = async ({
     const totalHours = payoutsData.reduce((acc, p) => acc + (p.totalHours || 0), 0);
     const totalGrossEarned = payoutsData.reduce((acc, p) => acc + (p.earnedAmount ?? p.totalAmount ?? 0), 0);
     const totalOpeningBal = payoutsData.reduce((acc, p) => acc + (p.openingBalanceAmount || 0), 0);
+    const totalPaidToDate = payoutsData.reduce((acc, p) => acc + (p.paidAmount || 0), 0);
     const totalNetPayable = payoutsData.reduce((acc, p) => acc + (p.netPayable ?? p.totalAmount ?? 0), 0);
 
     // Render Stat Boxes
@@ -261,10 +262,12 @@ export const generateTeacherPayoutLedgerPdf = async ({
     const tableRows = payoutsData.map((item, idx) => {
         const earned = item.earnedAmount ?? item.totalAmount ?? 0;
         const openBal = item.openingBalanceAmount || 0;
+        const paid = item.paidAmount || 0;
         const net = item.netPayable ?? item.totalAmount ?? Math.max(0, earned + openBal);
         const openBalStr = openBal > 0 
             ? `+${Math.round(openBal).toLocaleString()}` 
             : (openBal < 0 ? `-${Math.round(Math.abs(openBal)).toLocaleString()}` : '-');
+        const paidStr = paid > 0 ? `KES ${Math.round(paid).toLocaleString()}` : '-';
 
         return [
             (idx + 1).toString(),
@@ -277,6 +280,7 @@ export const generateTeacherPayoutLedgerPdf = async ({
                 : `KES ${item.hourlyRate?.toLocaleString() || 1000} / ${item.weekendRate?.toLocaleString() || 1500}`,
             `KES ${Math.round(earned).toLocaleString()}`,
             openBalStr,
+            paidStr,
             `KES ${Math.round(net).toLocaleString()}`,
             item.status || 'Pending Approval'
         ];
@@ -294,13 +298,14 @@ export const generateTeacherPayoutLedgerPdf = async ({
         totalOpeningBal !== 0 
             ? (totalOpeningBal > 0 ? `+${Math.round(totalOpeningBal).toLocaleString()}` : `-${Math.round(Math.abs(totalOpeningBal)).toLocaleString()}`)
             : '-',
+        totalPaidToDate > 0 ? `KES ${Math.round(totalPaidToDate).toLocaleString()}` : '-',
         `KES ${Math.round(totalNetPayable).toLocaleString()}`,
         ''
     ]);
 
     autoTable(doc, {
         startY: currentY,
-        head: [['#', 'Teacher / Instructor', 'Weekday', 'Weekend', 'Total Hrs', 'Tariff Rate', 'Gross Earned', 'Open Bal / Adv', 'Net Payable', 'Disbursement Status']],
+        head: [['#', 'Teacher / Instructor', 'Weekday', 'Weekend', 'Total Hrs', 'Tariff Rate', 'Gross Earned', 'Open Bal / Adv', 'Paid to Date', 'Net Payable', 'Disbursement Status']],
         body: tableRows,
         margin: { left: margin, right: margin },
         theme: 'striped',
@@ -315,16 +320,17 @@ export const generateTeacherPayoutLedgerPdf = async ({
             textColor: [30, 41, 59]
         },
         columnStyles: {
-            0: { cellWidth: 7, halign: 'center' },
-            1: { cellWidth: 36, fontStyle: 'bold' },
-            2: { cellWidth: 15, halign: 'center' },
-            3: { cellWidth: 15, halign: 'center' },
-            4: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-            5: { cellWidth: 23, halign: 'center', fontSize: 6.5 },
-            6: { cellWidth: 19, halign: 'right' },
-            7: { cellWidth: 18, halign: 'right' },
-            8: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
-            9: { cellWidth: 14, halign: 'center', fontSize: 6.5 }
+            0: { cellWidth: 6, halign: 'center' },
+            1: { cellWidth: 32, fontStyle: 'bold' },
+            2: { cellWidth: 14, halign: 'center' },
+            3: { cellWidth: 14, halign: 'center' },
+            4: { cellWidth: 14, halign: 'center', fontStyle: 'bold' },
+            5: { cellWidth: 20, halign: 'center', fontSize: 6.5 },
+            6: { cellWidth: 18, halign: 'right' },
+            7: { cellWidth: 16, halign: 'right' },
+            8: { cellWidth: 18, halign: 'right' },
+            9: { cellWidth: 19, halign: 'right', fontStyle: 'bold' },
+            10: { cellWidth: 14, halign: 'center', fontSize: 6.5 }
         },
         didParseCell: (data) => {
             // Highlight Grand Total row

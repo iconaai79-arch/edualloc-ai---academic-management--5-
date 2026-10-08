@@ -8161,13 +8161,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [weekendDutyRoster, weekdayDutyFlatRate, weekendHourlyRate, weekdayHourlyRate, hourlyRate]);
 
     // Calculate accrued unpaid earnings per teacher (distinguishing weekday vs weekend rates)
-    const accruedPayouts = useMemo(() => {
+    // Deduplicates active opening balances across stages so an instructor's balance is only attributed once
+    const { accruedPayouts, pendingOpsHandoverBatches, cashIssuedToDosBatches } = useMemo(() => {
+        // Stage 3: Direct Unpaid Approved Sessions
         const unpaidApproved = sessions.filter(s => s.status === 'Approved');
-        const grouped: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
-
+        const grouped3: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
         unpaidApproved.forEach(s => {
-            if (!grouped[s.teacherId]) {
-                grouped[s.teacherId] = {
+            if (!grouped3[s.teacherId]) {
+                grouped3[s.teacherId] = {
                     teacherName: s.teacherName || 'Unknown Teacher',
                     totalHours: 0,
                     totalAmount: 0,
@@ -8177,37 +8178,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
             const sHours = Number(rawHours) || 1;
             const sessionAmount = Number(computeSessionPayout(s)) || 0;
-            grouped[s.teacherId].totalHours = Number((grouped[s.teacherId].totalHours + sHours).toFixed(2));
-            grouped[s.teacherId].totalAmount = Number((grouped[s.teacherId].totalAmount + sessionAmount).toFixed(2));
-            grouped[s.teacherId].sessionIds.push(s.id);
+            grouped3[s.teacherId].totalHours = Number((grouped3[s.teacherId].totalHours + sHours).toFixed(2));
+            grouped3[s.teacherId].totalAmount = Number((grouped3[s.teacherId].totalAmount + sessionAmount).toFixed(2));
+            grouped3[s.teacherId].sessionIds.push(s.id);
         });
 
-        return Object.entries(grouped).map(([teacherId, data]) => {
-            const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
-            const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
-            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
-            const earnedAmount = Number(data.totalAmount) || 0;
-            const totalWithOpenBal = Math.max(0, earnedAmount + openBalAmount);
-            return {
-                teacherId,
-                teacherName: data.teacherName,
-                totalHours: data.totalHours,
-                sessionIds: data.sessionIds,
-                rate: Math.round(earnedAmount / (data.totalHours || 1)),
-                earnedAmount,
-                openingBalanceAmount: openBalAmount,
-                totalAmount: totalWithOpenBal
-            };
-        });
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
-
-    // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (Pending Operations Payout)
-    const pendingOpsHandoverBatches = useMemo(() => {
+        // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (Pending Operations Payout)
         const opsSessions = sessions.filter(s => s.status === 'Pending Operations Payout');
-        const grouped: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
+        const grouped4: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
         opsSessions.forEach(s => {
-            if (!grouped[s.teacherId]) {
-                grouped[s.teacherId] = {
+            if (!grouped4[s.teacherId]) {
+                grouped4[s.teacherId] = {
                     teacherName: s.teacherName || 'Unknown Teacher',
                     totalHours: 0,
                     totalAmount: 0,
@@ -8217,33 +8198,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
             const sHours = Number(rawHours) || 1;
             const sessionAmount = Number(computeSessionPayout(s)) || 0;
-            grouped[s.teacherId].totalHours = Number((grouped[s.teacherId].totalHours + sHours).toFixed(2));
-            grouped[s.teacherId].totalAmount = Number((grouped[s.teacherId].totalAmount + sessionAmount).toFixed(2));
-            grouped[s.teacherId].sessionIds.push(s.id);
+            grouped4[s.teacherId].totalHours = Number((grouped4[s.teacherId].totalHours + sHours).toFixed(2));
+            grouped4[s.teacherId].totalAmount = Number((grouped4[s.teacherId].totalAmount + sessionAmount).toFixed(2));
+            grouped4[s.teacherId].sessionIds.push(s.id);
         });
-        return Object.entries(grouped).map(([teacherId, data]) => {
-            const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
-            const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
-            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
-            const earnedAmount = Number(data.totalAmount) || 0;
-            const totalWithOpenBal = Math.max(0, earnedAmount + openBalAmount);
-            return {
-                teacherId,
-                teacherName: data.teacherName,
-                totalHours: data.totalHours,
-                sessionIds: data.sessionIds,
-                rate: Math.round(earnedAmount / (data.totalHours || 1)),
-                earnedAmount,
-                openingBalanceAmount: openBalAmount,
-                totalAmount: totalWithOpenBal
-            };
-        });
-    }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
 
-    // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
-    const cashIssuedToDosBatches = useMemo(() => {
+        // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
         const dosSessions = sessions.filter(s => s.status === 'Cash Issued to DOS');
-        const grouped: Record<string, { 
+        const grouped5: Record<string, { 
             teacherName: string; 
             totalHours: number; 
             totalAmount: number; 
@@ -8255,8 +8217,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             dosReceivedAt?: string;
         }> = {};
         dosSessions.forEach(s => {
-            if (!grouped[s.teacherId]) {
-                grouped[s.teacherId] = {
+            if (!grouped5[s.teacherId]) {
+                grouped5[s.teacherId] = {
                     teacherName: s.teacherName || 'Unknown Teacher',
                     totalHours: 0,
                     totalAmount: 0,
@@ -8271,21 +8233,76 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
             const sHours = Number(rawHours) || 1;
             const sessionAmount = Number(computeSessionPayout(s)) || 0;
-            grouped[s.teacherId].totalHours = Number((grouped[s.teacherId].totalHours + sHours).toFixed(2));
-            grouped[s.teacherId].totalAmount = Number((grouped[s.teacherId].totalAmount + sessionAmount).toFixed(2));
-            grouped[s.teacherId].sessionIds.push(s.id);
-            if (s.cashVoucherRef) grouped[s.teacherId].cashVoucherRef = s.cashVoucherRef;
-            if (s.operationsDisbursedBy) grouped[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
-            if (s.dosRecipientSignature) grouped[s.teacherId].dosRecipientSignature = s.dosRecipientSignature;
-            if (s.dosRecipientName) grouped[s.teacherId].dosRecipientName = s.dosRecipientName;
-            if (s.dosReceivedAt) grouped[s.teacherId].dosReceivedAt = s.dosReceivedAt;
+            grouped5[s.teacherId].totalHours = Number((grouped5[s.teacherId].totalHours + sHours).toFixed(2));
+            grouped5[s.teacherId].totalAmount = Number((grouped5[s.teacherId].totalAmount + sessionAmount).toFixed(2));
+            grouped5[s.teacherId].sessionIds.push(s.id);
+            if (s.cashVoucherRef) grouped5[s.teacherId].cashVoucherRef = s.cashVoucherRef;
+            if (s.operationsDisbursedBy) grouped5[s.teacherId].operationsManagerName = s.operationsDisbursedBy;
+            if (s.dosRecipientSignature) grouped5[s.teacherId].dosRecipientSignature = s.dosRecipientSignature;
+            if (s.dosRecipientName) grouped5[s.teacherId].dosRecipientName = s.dosRecipientName;
+            if (s.dosReceivedAt) grouped5[s.teacherId].dosReceivedAt = s.dosReceivedAt;
         });
-        return Object.entries(grouped).map(([teacherId, data]) => {
-            const openBal = openingBalances.find(b => b.teacherId === teacherId && b.status !== 'cleared');
-            const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
-            const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
+
+        // Track opening balances per teacher so they are applied once without duplication across stages
+        const remainingOpenBals: Record<string, number> = {};
+        openingBalances.forEach(b => {
+            if (b.status !== 'cleared') {
+                const rawOpenBal = Number(b.amount) || 0;
+                remainingOpenBals[b.teacherId] = (b.balanceType === 'payable' ? rawOpenBal : -rawOpenBal);
+            }
+        });
+
+        const allocateBalance = (teacherId: string, earnedAmount: number) => {
+            const currentBal = remainingOpenBals[teacherId] ?? 0;
+            if (currentBal === 0) return 0;
+            if (currentBal > 0) {
+                // Payable credit: allocate all to this batch
+                remainingOpenBals[teacherId] = 0;
+                return currentBal;
+            } else {
+                // Advance / deduction: deduct up to earned amount
+                const deduct = Math.min(earnedAmount, Math.abs(currentBal));
+                remainingOpenBals[teacherId] = currentBal + deduct;
+                return -deduct;
+            }
+        };
+
+        const stage3 = Object.entries(grouped3).map(([teacherId, data]) => {
             const earnedAmount = Number(data.totalAmount) || 0;
-            const totalWithOpenBal = Math.max(0, earnedAmount + openBalAmount);
+            const openBalAmount = allocateBalance(teacherId, earnedAmount);
+            const totalWithOpenBal = Math.max(0, Number((earnedAmount + openBalAmount).toFixed(2)));
+            return {
+                teacherId,
+                teacherName: data.teacherName,
+                totalHours: data.totalHours,
+                sessionIds: data.sessionIds,
+                rate: Math.round(earnedAmount / (data.totalHours || 1)),
+                earnedAmount,
+                openingBalanceAmount: openBalAmount,
+                totalAmount: totalWithOpenBal
+            };
+        });
+
+        const stage4 = Object.entries(grouped4).map(([teacherId, data]) => {
+            const earnedAmount = Number(data.totalAmount) || 0;
+            const openBalAmount = allocateBalance(teacherId, earnedAmount);
+            const totalWithOpenBal = Math.max(0, Number((earnedAmount + openBalAmount).toFixed(2)));
+            return {
+                teacherId,
+                teacherName: data.teacherName,
+                totalHours: data.totalHours,
+                sessionIds: data.sessionIds,
+                rate: Math.round(earnedAmount / (data.totalHours || 1)),
+                earnedAmount,
+                openingBalanceAmount: openBalAmount,
+                totalAmount: totalWithOpenBal
+            };
+        });
+
+        const stage5 = Object.entries(grouped5).map(([teacherId, data]) => {
+            const earnedAmount = Number(data.totalAmount) || 0;
+            const openBalAmount = allocateBalance(teacherId, earnedAmount);
+            const totalWithOpenBal = Math.max(0, Number((earnedAmount + openBalAmount).toFixed(2)));
             return {
                 teacherId,
                 teacherName: data.teacherName,
@@ -8302,6 +8319,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 dosReceivedAt: data.dosReceivedAt
             };
         });
+
+        return {
+            accruedPayouts: stage3,
+            pendingOpsHandoverBatches: stage4,
+            cashIssuedToDosBatches: stage5
+        };
     }, [sessions, hourlyRate, weekdayHourlyRate, weekendHourlyRate, computeSessionPayout, openingBalances]);
 
     // Filtered collections for Teacher Payouts view
@@ -8606,7 +8629,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 ? Math.round(data.earnedAmount / data.totalHours)
                 : data.hourlyRate;
 
-            const netPayable = Math.max(0, Number((data.earnedAmount + data.openingBalanceAmount).toFixed(2)));
+            // In reports: If filtering specifically for 'Paid', payable/settled amount is data.paidAmount
+            // Otherwise, outstanding net payable liability is pendingAmount + openingBalanceAmount
+            const netPayable = reportStatusFilter === 'Paid'
+                ? data.paidAmount
+                : Math.max(0, Number((data.pendingAmount + data.openingBalanceAmount).toFixed(2)));
 
             let finalStatus = 'Pending Verification';
             const teacherSessions = filtered.filter(s => (s.teacherId || 'unknown') === data.teacherId);
@@ -8793,6 +8820,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const totalSessionsCount = (sessions || []).filter(s => !isRejectedSession(s)).length;
         const totalAccruedLiability = reportPayoutsData.reduce((acc, p) => acc + (p.netPayable ?? p.totalAmount ?? 0), 0);
         const totalGrossEarned = reportPayoutsData.reduce((acc, p) => acc + (p.earnedAmount ?? p.totalAmount ?? 0), 0);
+        const totalPaidToDate = reportPayoutsData.reduce((acc, p) => acc + (p.paidAmount || 0), 0);
         const totalBilled = reportBillingData.reduce((acc, b) => acc + (b.termFee || 0), 0);
         const totalCollected = reportBillingData.reduce((acc, b) => acc + (b.paidAmount || 0), 0);
         const totalArrears = reportBillingData.reduce((acc, b) => acc + (b.balance || 0), 0);
@@ -8804,6 +8832,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             verificationRate: totalSessionsCount > 0 ? Math.round((verifiedCount / totalSessionsCount) * 100) : 100,
             totalAccruedLiability,
             totalGrossEarned,
+            totalPaidToDate,
             totalBilled,
             totalCollected,
             totalArrears
@@ -8970,6 +8999,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                         'Weekend Tariff (KES)': p.weekendRate,
                         'Gross Earned (KES)': p.earnedAmount,
                         'Opening Bal / Advance (KES)': p.openingBalanceAmount,
+                        'Paid to Date (KES)': p.paidAmount || 0,
                         'Net Payable (KES)': p.netPayable,
                         'Status': p.status,
                         'Sessions Count': p.sessionCount
@@ -10792,11 +10822,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'payouts' ? 'text-indigo-100' : 'text-slate-400'}`}>Accrued pay & sign off</p>
                                 </div>
                             </div>
-                            {accruedPayouts.length > 0 && (
+                            {(accruedPayouts.length + pendingOpsHandoverBatches.length + cashIssuedToDosBatches.length) > 0 && (
                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
                                     activeTab === 'payouts' ? 'bg-white text-indigo-700' : 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400'
                                 }`}>
-                                    {accruedPayouts.length}
+                                    {accruedPayouts.length + pendingOpsHandoverBatches.length + cashIssuedToDosBatches.length}
                                 </span>
                             )}
                         </button>
@@ -16109,12 +16139,26 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const totalOpsKsh = filteredPendingOpsBatches.reduce((sum, b) => sum + b.totalAmount, 0);
                 const totalDosKsh = filteredCashIssuedToDosBatches.reduce((sum, b) => sum + b.totalAmount, 0);
                 const totalPaidKsh = filteredLedgerPayouts.filter(p => p.status === 'Paid').reduce((sum, p) => sum + p.totalAmount, 0);
+                const totalApprovedKsh = totalAccruedKsh + totalOpsKsh + totalDosKsh;
+
+                const approvedTeachersSet = new Set([
+                    ...filteredAccruedPayouts.map(a => a.teacherId),
+                    ...filteredPendingOpsBatches.map(b => b.teacherId),
+                    ...filteredCashIssuedToDosBatches.map(c => c.teacherId)
+                ]);
+                const totalApprovedTeachersCount = approvedTeachersSet.size;
+
+                const allApprovedBatchesCount = new Set([
+                    ...accruedPayouts.map(a => a.teacherId),
+                    ...pendingOpsHandoverBatches.map(b => b.teacherId),
+                    ...cashIssuedToDosBatches.map(c => c.teacherId)
+                ]).size;
 
                 const hasActiveFilter = payoutStageFilter !== 'all' || Boolean(payoutTeacherSearch.trim()) || payoutTeacherIdFilter !== 'all';
                 const totalRecordsInFilter = (
-                    (payoutStageFilter === 'all' || payoutStageFilter === 'pending_ops' || payoutStageFilter === 'approved' ? filteredPendingOpsBatches.length : 0) +
-                    (payoutStageFilter === 'all' || payoutStageFilter === 'dos_custody' ? filteredCashIssuedToDosBatches.length : 0) +
                     (payoutStageFilter === 'all' || payoutStageFilter === 'approved' ? filteredAccruedPayouts.length : 0) +
+                    (payoutStageFilter === 'all' || payoutStageFilter === 'pending_ops' || payoutStageFilter === 'approved' ? filteredPendingOpsBatches.length : 0) +
+                    (payoutStageFilter === 'all' || payoutStageFilter === 'dos_custody' || payoutStageFilter === 'approved' ? filteredCashIssuedToDosBatches.length : 0) +
                     (payoutStageFilter === 'all' || payoutStageFilter === 'paid' ? filteredLedgerPayouts.length : 0)
                 );
 
@@ -16167,14 +16211,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500/30'
                                             : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200/60 dark:border-emerald-800/40'
                                     }`}
-                                    title="Approved lessons ready for payment voucher or instant wallet disbursal"
+                                    title="All Headteacher-approved lessons ready for voucher generation, operations handover or DOS custody"
                                 >
                                     <Check className="w-3.5 h-3.5" />
                                     <span>Approved Payouts</span>
                                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
                                         payoutStageFilter === 'approved' ? 'bg-white text-emerald-800' : 'bg-emerald-200/70 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200'
                                     }`}>
-                                        {accruedPayouts.length}
+                                        {allApprovedBatchesCount}
                                     </span>
                                 </button>
 
@@ -16302,13 +16346,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 }`}
                             >
                                 <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                                    <span>Approved Payouts</span>
+                                    <span>Approved Total Payout</span>
                                     <Check className="w-3 h-3" />
                                 </div>
                                 <p className="text-base font-black font-mono text-slate-900 dark:text-white mt-1">
-                                    KES {totalAccruedKsh.toLocaleString()}
+                                    KES {totalApprovedKsh.toLocaleString()}
                                 </p>
-                                <span className="text-[10px] text-slate-400 font-bold">{filteredAccruedPayouts.length} teacher{filteredAccruedPayouts.length !== 1 ? 's' : ''} ready</span>
+                                <span className="text-[10px] text-slate-400 font-bold">{totalApprovedTeachersCount} instructor{totalApprovedTeachersCount !== 1 ? 's' : ''} approved</span>
                             </div>
 
                             <div 
@@ -16440,7 +16484,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     </p>
                                 </div>
                                 <div className="text-right shrink-0">
-                                    <span className="text-xs text-slate-400 font-medium">Total Approved Payable</span>
+                                    <span className="text-xs text-slate-400 font-medium">Direct Approved Payable</span>
                                     <p className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
                                         KES {totalAccruedKsh.toLocaleString()}
                                     </p>
@@ -16586,7 +16630,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     )}
 
                     {/* STAGE 5: DOS CASH PAYMENT TO TEACHER & ON-SCREEN SIGNATURE */}
-                    {(payoutStageFilter === 'all' || payoutStageFilter === 'dos_custody') && (
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'dos_custody' || (payoutStageFilter === 'approved' && filteredCashIssuedToDosBatches.length > 0)) && (
                         <div className="space-y-4">
                             <div className="bg-gradient-to-r from-cyan-900 via-teal-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -18661,7 +18705,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 KES {Math.round(reportKpis.totalAccruedLiability).toLocaleString()}
                             </h4>
                             <p className="text-[10px] text-slate-500 font-medium">
-                                For {reportPayoutsData.length} instructors
+                                {reportKpis.totalPaidToDate > 0
+                                    ? `KES ${Math.round(reportKpis.totalPaidToDate).toLocaleString()} paid · KES ${Math.round(reportKpis.totalGrossEarned).toLocaleString()} gross`
+                                    : `For ${reportPayoutsData.length} instructor${reportPayoutsData.length !== 1 ? 's' : ''}`
+                                }
                             </p>
                         </div>
 
@@ -18872,81 +18919,140 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedReportType === 'payout_ledger' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                        Start Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={reportStartDate}
-                                        onChange={e => setReportStartDate(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                        End Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={reportEndDate}
-                                        onChange={e => setReportEndDate(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                        Filter Teacher
-                                    </label>
-                                    <select
-                                        value={reportTeacherFilter}
-                                        onChange={e => setReportTeacherFilter(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                            <div className="space-y-4">
+                                {/* Quick Date Range Presets */}
+                                <div className="flex items-center gap-2 flex-wrap pb-1 border-b border-slate-100 dark:border-slate-800">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+                                        <Calendar className="w-3 h-3 text-indigo-500" /> Date Preset:
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setReportStartDate('');
+                                            setReportEndDate('');
+                                        }}
+                                        className={`px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            !reportStartDate && !reportEndDate
+                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                        }`}
                                     >
-                                        <option value="All">All Instructors</option>
-                                        {teachersList.map(t => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                        Filter Class
-                                    </label>
-                                    <select
-                                        value={reportClassFilter}
-                                        onChange={e => setReportClassFilter(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                                        All Time
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const now = new Date();
+                                            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                                            setReportStartDate(firstDay);
+                                            setReportEndDate(now.toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
                                     >
-                                        <option value="All">All Classes / Grades</option>
-                                        {combinedCourses.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
+                                        This Month
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date();
+                                            d.setDate(d.getDate() - 30);
+                                            setReportStartDate(d.toISOString().split('T')[0]);
+                                            setReportEndDate(new Date().toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                    >
+                                        Last 30 Days
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date();
+                                            d.setDate(d.getDate() - 90);
+                                            setReportStartDate(d.toISOString().split('T')[0]);
+                                            setReportEndDate(new Date().toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                    >
+                                        Last 90 Days / Term
+                                    </button>
                                 </div>
 
-                                {selectedReportType === 'payout_ledger' && (
+                                <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedReportType === 'payout_ledger' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
                                     <div>
                                         <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                                            Payout Status
+                                            Start Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={reportStartDate}
+                                            onChange={e => setReportStartDate(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                            End Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={reportEndDate}
+                                            onChange={e => setReportEndDate(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white font-mono"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                            Filter Teacher
                                         </label>
                                         <select
-                                            value={reportStatusFilter}
-                                            onChange={e => setReportStatusFilter(e.target.value)}
+                                            value={reportTeacherFilter}
+                                            onChange={e => setReportTeacherFilter(e.target.value)}
                                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
                                         >
-                                            <option value="all">All Statuses</option>
-                                            <option value="Approved">Approved (Ready for Payout)</option>
-                                            <option value="Paid">Paid Payouts</option>
-                                            <option value="Pending Verification">Pending Verification</option>
-                                            <option value="Rejected">Rejected</option>
+                                            <option value="All">All Instructors</option>
+                                            {teachersList.map(t => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
                                         </select>
                                     </div>
-                                )}
+
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                            Filter Class
+                                        </label>
+                                        <select
+                                            value={reportClassFilter}
+                                            onChange={e => setReportClassFilter(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                                        >
+                                            <option value="All">All Classes / Grades</option>
+                                            {combinedCourses.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {selectedReportType === 'payout_ledger' && (
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                                                Payout Status
+                                            </label>
+                                            <select
+                                                value={reportStatusFilter}
+                                                onChange={e => setReportStatusFilter(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none dark:text-white cursor-pointer"
+                                            >
+                                                <option value="all">All Statuses</option>
+                                                <option value="Approved">Approved (Ready for Payout)</option>
+                                                <option value="Paid">Paid Payouts</option>
+                                                <option value="Pending Verification">Pending Verification</option>
+                                                <option value="Rejected">Rejected</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -19319,6 +19425,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <th className="py-3 px-4 text-center">Tariff Rates (KES)</th>
                                             <th className="py-3 px-4 text-right">Gross Earned</th>
                                             <th className="py-3 px-4 text-right">Open Bal / Adv</th>
+                                            <th className="py-3 px-4 text-right">Paid to Date</th>
                                             <th className="py-3 px-4 text-right">Net Payable</th>
                                             <th className="py-3 px-4 text-center">Status</th>
                                         </tr>
@@ -19326,7 +19433,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {reportPayoutsData.length === 0 ? (
                                             <tr>
-                                                <td colSpan={9} className="py-8 text-center text-slate-400 font-bold">
+                                                <td colSpan={10} className="py-8 text-center text-slate-400 font-bold">
                                                     No remedial sessions recorded within the selected period or filters.
                                                 </td>
                                             </tr>
@@ -19358,6 +19465,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         ) : (
                                                             <span className="text-slate-400">-</span>
                                                         )}
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-right font-mono text-[11px] text-blue-600 dark:text-blue-400 font-bold">
+                                                        {(p.paidAmount || 0) > 0 ? `KES ${Math.round(p.paidAmount || 0).toLocaleString()}` : <span className="text-slate-400 font-normal">-</span>}
                                                     </td>
                                                     <td className="py-3.5 px-4 text-right font-mono font-black text-slate-900 dark:text-white">
                                                         KES {Math.round(p.netPayable ?? p.totalAmount).toLocaleString()}
@@ -19404,6 +19514,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                         if (totalOb === 0) return '-';
                                                         return totalOb > 0 ? `+${Math.round(totalOb).toLocaleString()}` : `-${Math.round(Math.abs(totalOb)).toLocaleString()}`;
                                                     })()}
+                                                </td>
+                                                <td className="py-3 px-4 text-right font-mono text-[11px] text-blue-600 dark:text-blue-400 font-bold">
+                                                    KES {Math.round(reportPayoutsData.reduce((acc, p) => acc + (p.paidAmount || 0), 0)).toLocaleString()}
                                                 </td>
                                                 <td className="py-3 px-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
                                                     KES {Math.round(reportPayoutsData.reduce((acc, p) => acc + (p.netPayable ?? p.totalAmount ?? 0), 0)).toLocaleString()}
