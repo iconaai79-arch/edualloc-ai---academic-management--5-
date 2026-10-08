@@ -23,6 +23,7 @@ import { calculateDistance, PROXIMITY_THRESHOLD_METERS } from '../utils/location
 import { MyTasks } from './MyTasks';
 import { AttendanceTakerModal } from './AttendanceTakerModal';
 import { CheckCircle2, ArrowRight, Clock, AlertTriangle, Play, Calendar, UserPlus, GraduationCap } from 'lucide-react';
+import { isRemedialSessionStale } from '../utils/timeUtils';
 
 
 interface LecturerDashboardProps {
@@ -427,7 +428,7 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
 
     const activeRemedialSession = useMemo(() => {
         return (remedialSessions || []).find(s => 
-            s && (s.status === 'In Progress' || (typeof s.status === 'string' && s.status.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress'))
+            s && (s.status === 'In Progress' || (typeof s.status === 'string' && s.status.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress')) && !isRemedialSessionStale(s)
         );
     }, [remedialSessions]);
 

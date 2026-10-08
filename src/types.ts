@@ -6628,6 +6628,9 @@ export interface RemedialSession {
     day_of_week?: string;
     isDutyLesson?: boolean;
     is_duty_lesson?: boolean;
+    autoConcluded?: boolean;
+    autoConcludedAt?: string;
+    autoConcludedReason?: string;
     qrToken?: string;
     verifiedAt?: string;
     status: RemedialSessionStatus;

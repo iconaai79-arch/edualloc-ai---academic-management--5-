@@ -4,7 +4,7 @@ import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtil
 import { isPlaceholderEmail } from '../utils/academicUtils';
 import { localDb } from './localDb';
 import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
-import { calculateRemedialSessionDuration } from '../utils/timeUtils';
+import { calculateRemedialSessionDuration, isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
     Priority, Department, Subject, Course, CompanyDetails, Room,
@@ -7988,14 +7988,38 @@ export const apiService = {
                 };
             });
 
+        // Automatically conclude stale unended "In Progress" sessions (> 2.5h or from a past date)
+        const staleSessions: RemedialSession[] = [];
+        const processedSessions = mappedSessions.map(session => {
+            if (isRemedialSessionStale(session)) {
+                const autoConcluded = buildAutoConcludedSession(session);
+                staleSessions.push(autoConcluded);
+                return autoConcluded;
+            }
+            return session;
+        });
+
+        // Asynchronously sync auto-concluded sessions to database in background
+        if (staleSessions.length > 0) {
+            setTimeout(async () => {
+                for (const s of staleSessions) {
+                    try {
+                        await apiService.saveRemedialSession(s);
+                    } catch (err) {
+                        console.warn('Failed to background sync auto-concluded remedial session', s.id, err);
+                    }
+                }
+            }, 50);
+        }
+
         // Always update cache with tombstone-cleared list
         if (targetInst && targetInst !== 'default_inst') {
             try {
-                safeLocalStorage.setItem(`remedial_sessions_${targetInst}`, JSON.stringify(mappedSessions));
+                safeLocalStorage.setItem(`remedial_sessions_${targetInst}`, JSON.stringify(processedSessions));
             } catch (_) {}
         }
 
-        return mappedSessions;
+        return processedSessions;
     },
     async saveRemedialSession(data: Partial<RemedialSession>): Promise<void> { 
         const payload: any = { ...data };

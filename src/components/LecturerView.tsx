@@ -22,7 +22,7 @@ import {
 import { detectDuplicateRemedialSessions } from '../utils/remedialDuplicateUtils';
 import { DuplicateRemedialSessionsModal } from './DuplicateRemedialSessionsModal';
 import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
-import { calculateRemedialSessionDuration, timeToMinutes } from '../utils/timeUtils';
+import { calculateRemedialSessionDuration, timeToMinutes, isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -1201,17 +1201,24 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 apiService.fetchRemedialAllocations(instId).catch(() => []),
                 apiService.fetchRemedialRateSettings(instId).catch(() => [])
             ]);
-            const userTeacherSessions = (sessList || []).filter((s: RemedialSession) => 
-                s && (s.teacherId === user?.id || (s as any).teacher_id === user?.id || String(s.teacherId || '') === String(user?.id || ''))
-            );
+            const userTeacherSessions = (sessList || [])
+                .filter((s: RemedialSession) => 
+                    s && (s.teacherId === user?.id || (s as any).teacher_id === user?.id || String(s.teacherId || '') === String(user?.id || ''))
+                )
+                .map((s: RemedialSession) => {
+                    if (isRemedialSessionStale(s)) {
+                        return buildAutoConcludedSession(s);
+                    }
+                    return s;
+                });
 
             setRemedialSessions(prev => {
-                // Preserve locally active in-progress session if server response does not yet reflect it
+                // Preserve locally active in-progress session if server response does not yet reflect it, UNLESS it is stale
                 const isProg = (st?: string) => st === 'In Progress' || (typeof st === 'string' && st.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress');
                 const localActive = (prev || []).find(s => 
-                    s && isProg(s.status) && (s.teacherId === user?.id || (s as any).teacher_id === user?.id || !s.teacherId)
+                    s && isProg(s.status) && !isRemedialSessionStale(s) && (s.teacherId === user?.id || (s as any).teacher_id === user?.id || !s.teacherId)
                 );
-                const hasServerActive = userTeacherSessions.some(s => s && isProg(s.status));
+                const hasServerActive = userTeacherSessions.some(s => s && isProg(s.status) && !isRemedialSessionStale(s));
                 const list = (localActive && !hasServerActive)
                     ? [localActive, ...userTeacherSessions.filter(s => s.id !== localActive.id)]
                     : userTeacherSessions;
@@ -2085,7 +2092,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                     {((activeTab === 'remedials') || (activeTab === 'my_timetable' && timetableSubTab === 'remedials')) && (() => {
                         const activeSession = remedialSessions.find(s => 
-                            s && (s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress')
+                            s && (s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && !isRemedialSessionStale(s)
                         );
 
                         // Today's Day Name
@@ -2188,8 +2195,29 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                             // Prevent duplicate session start if teacher already has an active session in progress
                             const isProgStatus = (st?: string) => st === 'In Progress' || (typeof st === 'string' && st.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress');
+
+                            // Auto-conclude any stale unended sessions for this teacher before starting new session
+                            const staleSessions = remedialSessions.filter(s => 
+                                (s.teacherId === user?.id || (s as any).teacher_id === user?.id) && isProgStatus(s.status) && isRemedialSessionStale(s)
+                            );
+                            if (staleSessions.length > 0) {
+                                for (const stale of staleSessions) {
+                                    try {
+                                        const concluded = buildAutoConcludedSession(stale);
+                                        await apiService.saveRemedialSession(concluded);
+                                        props.onLogAction?.(`Auto-concluded stale remedial lesson: ${stale.subjectName} (${stale.className}) at timetable duration before starting new lesson`);
+                                    } catch (err) {
+                                        console.warn('Failed to auto-conclude stale session', stale.id, err);
+                                    }
+                                }
+                                setRemedialSessions(prev => (prev || []).map(s => {
+                                    const match = staleSessions.find(st => st.id === s.id);
+                                    return match ? buildAutoConcludedSession(match) : s;
+                                }));
+                            }
+
                             const existingActiveSession = remedialSessions.find(s => 
-                                (s.teacherId === user?.id || (s as any).teacher_id === user?.id) && isProgStatus(s.status)
+                                (s.teacherId === user?.id || (s as any).teacher_id === user?.id) && isProgStatus(s.status) && !isRemedialSessionStale(s)
                             );
                             if (existingActiveSession) {
                                 isStartingRemedialRef.current = false;
@@ -3209,7 +3237,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2 flex-wrap">
-                                                {remedialSessions.some(s => s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && (
+                                                {remedialSessions.some(s => (s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && !isRemedialSessionStale(s)) && (
                                                     <span className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-full text-[10px] font-black uppercase tracking-wider animate-pulse">
                                                         <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                                                         Lesson In Progress
@@ -3343,7 +3371,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                 </div>
                                             ) : (
                                                 paginatedRemedialSessions.map(s => {
-                                                    const isProgress = s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress';
+                                                    const isProgress = (s.status === 'In Progress' || s.status?.toLowerCase().replace(/[\s_-]+/g, '') === 'inprogress') && !isRemedialSessionStale(s);
                                                     return (
                                                         <div 
                                                             key={s.id} 
@@ -3361,6 +3389,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                     {isProgress && (
                                                                         <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500 text-white animate-pulse">
                                                                             Live
+                                                                        </span>
+                                                                    )}
+                                                                    {s.autoConcluded && (
+                                                                        <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800" title="Auto-concluded at timetable duration (teacher did not manually end session)">
+                                                                            ⚡ Auto-Concluded
                                                                         </span>
                                                                     )}
                                                                     {duplicateSessionIdsSet.has(s.id) && (

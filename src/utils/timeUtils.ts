@@ -332,3 +332,109 @@ export const calculateRemedialSessionDuration = (
   };
 };
 
+/**
+ * Determines whether an "In Progress" remedial session is stale/unended.
+ * Criteria:
+ * 1. Status is 'In Progress' (or 'inprogress')
+ * 2. EITHER:
+ *    - The session started on a calendar day prior to today (past date).
+ *    - OR if started today:
+ *      - If scheduledEndTime exists: current time is >= 20 minutes past scheduledEndTime.
+ *      - If no scheduledEndTime: elapsed time from startTime is >= max(scheduledDurationMinutes + 20, 150) minutes (>= 2.5 hours).
+ */
+export const isRemedialSessionStale = (
+  session: {
+    status?: string;
+    startTime?: string | Date;
+    scheduledStartTime?: string;
+    scheduledEndTime?: string;
+    scheduledDurationMinutes?: number;
+    createdAt?: string;
+  } | null | undefined,
+  now: Date = new Date()
+): boolean => {
+  if (!session || !session.status) return false;
+  const sLower = String(session.status).toLowerCase().replace(/[\s_-]+/g, '');
+  if (sLower !== 'inprogress') return false;
+
+  const rawStart = session.startTime || session.createdAt;
+  if (!rawStart) return false;
+  const startDate = new Date(rawStart);
+  if (isNaN(startDate.getTime())) return false;
+
+  // 1. Cross-day check: Started on a calendar day before today
+  const isPastDay = startDate.toDateString() !== now.toDateString() && startDate.getTime() < now.getTime();
+  if (isPastDay) return true;
+
+  // 2. Same-day check with scheduled end time
+  if (session.scheduledEndTime) {
+    const endMinutes = timeToMinutes(session.scheduledEndTime);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    // 20-minute grace window past scheduled end
+    if (nowMinutes >= endMinutes + 20) {
+      return true;
+    }
+  }
+
+  // 3. Fallback elapsed time check (default 150 mins / 2.5 hours or scheduled duration + 20m)
+  const scheduledMins = session.scheduledDurationMinutes || 60;
+  const thresholdMins = Math.max(scheduledMins + 20, 150);
+  const elapsedMinutes = (now.getTime() - startDate.getTime()) / 60000;
+  return elapsedMinutes >= thresholdMins;
+};
+
+/**
+ * Automatically produces the updated session payload to cleanly conclude a stale/unended session.
+ * Credits scheduled duration (capped at timetable, e.g. 1.0 hr) and moves it to 'Pending Duty Approval'.
+ */
+export const buildAutoConcludedSession = <T extends Record<string, any>>(
+  session: T,
+  now: Date = new Date()
+): T => {
+  const startDate = new Date(session.startTime || session.createdAt || now);
+  const schedStart = session.scheduledStartTime;
+  const schedEnd = session.scheduledEndTime;
+  const schedDuration = session.scheduledDurationMinutes || (schedStart && schedEnd ? Math.max(1, timeToMinutes(schedEnd) - timeToMinutes(schedStart)) : 60);
+
+  // Calculate synthetic end time based on scheduled end or start + duration
+  let syntheticEnd: Date;
+  if (schedEnd && !isNaN(startDate.getTime())) {
+    const endMins = timeToMinutes(schedEnd);
+    syntheticEnd = new Date(startDate);
+    syntheticEnd.setHours(Math.floor(endMins / 60), endMins % 60, 0, 0);
+    if (syntheticEnd.getTime() <= startDate.getTime()) {
+      syntheticEnd = new Date(startDate.getTime() + schedDuration * 60000);
+    }
+  } else if (!isNaN(startDate.getTime())) {
+    syntheticEnd = new Date(startDate.getTime() + schedDuration * 60000);
+  } else {
+    syntheticEnd = now;
+  }
+
+  const calc = calculateRemedialSessionDuration(startDate, syntheticEnd, {
+    startTime: schedStart,
+    endTime: schedEnd,
+    durationMinutes: schedDuration
+  });
+
+  return {
+    ...session,
+    endTime: syntheticEnd.toISOString(),
+    hours: calc.hours,
+    durationHours: calc.hours,
+    duration_hours: calc.hours,
+    durationMinutes: calc.durationMinutes,
+    scheduledStartTime: schedStart,
+    scheduledEndTime: schedEnd,
+    scheduledDurationMinutes: calc.scheduledMinutes,
+    earlyLoginMinutesOmitted: calc.earlyMinutesOmitted,
+    cappedAtTimetable: true,
+    loggedOutEarly: false,
+    status: 'Pending Duty Approval',
+    autoConcluded: true,
+    autoConcludedAt: now.toISOString(),
+    autoConcludedReason: 'Auto-concluded at timetable duration: teacher did not manually end session'
+  };
+};
+
+

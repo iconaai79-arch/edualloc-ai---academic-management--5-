@@ -23,6 +23,7 @@ import {
 import { jsPDF } from 'jspdf';
 import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, isAcademicTeacher, extractGradeLevel, isSubjectEquivalent, isTeacherQualifiedForLesson } from '../utils/remedialSubstitutionUtils';
 import { isGradeMatching } from './Academics/LessonsAllocationManager';
+import { isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import {
     generateTeacherPayoutLedgerPdf,
@@ -963,7 +964,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const cachedSessions = safeLocalStorage.getItem(`remedial_sessions_${institutionId}`);
                 if (cachedSessions) {
                     const parsed = JSON.parse(cachedSessions);
-                    if (Array.isArray(parsed) && parsed.length > 0) setSessions(parsed);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setSessions(parsed.map((s: RemedialSession) => isRemedialSessionStale(s) ? buildAutoConcludedSession(s) : s));
+                    }
                 }
                 const cachedSubs = safeLocalStorage.getItem(`remedial_subjects_${institutionId}`);
                 if (cachedSubs) {
@@ -4641,6 +4644,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             alert(err.message || 'Failed to complete bulk authorization');
         } finally {
             setIsBulkAuthorizing(false);
+        }
+    };
+
+    // Administrative Force-Conclude In-Progress Remedial Session (with full timetable credit)
+    const handleForceConcludeSession = async (session: RemedialSession) => {
+        const mins = session.scheduledDurationMinutes || 60;
+        const hours = (mins / 60).toFixed(1);
+        if (!window.confirm(`Force conclude remedial session for ${session.teacherName} (${session.subjectName})?\n\n• Credit Duration: ${hours} hrs (${mins} mins)\n• New Status: Pending Duty Approval\n\nThis unblocks the teacher and submits verified hours for Teacher on Duty approval.`)) {
+            return;
+        }
+        try {
+            const concluded = buildAutoConcludedSession(session);
+            await apiService.saveRemedialSession(concluded);
+            onLogAction?.(`Admin force-concluded in-progress remedial session ${session.id} for ${session.teacherName} with ${hours}h credited`);
+            alert(`Session successfully concluded! Credited ${hours} hrs and submitted for Teacher on Duty approval.`);
+            loadData(true);
+        } catch (err: any) {
+            alert(err.message || 'Failed to conclude session');
         }
     };
 
@@ -15632,6 +15653,11 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                 )}
                                                             </div>
                                                             <div className="flex flex-wrap gap-1 mt-1">
+                                                                {session.autoConcluded ? (
+                                                                    <span className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-[8px] font-black uppercase text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800" title="Auto-concluded at timetable duration: teacher did not manually end session">
+                                                                        ⚡ Auto-Concluded
+                                                                    </span>
+                                                                ) : null}
                                                                 {session.earlyLoginMinutesOmitted && session.earlyLoginMinutesOmitted > 0 ? (
                                                                     <span className="inline-block px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-[8px] font-black uppercase text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800" title={`Logged in early; ${session.earlyLoginMinutesOmitted} min(s) omitted before timetable start`}>
                                                                         {session.earlyLoginMinutesOmitted}m early omitted
@@ -15709,7 +15735,14 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                 </td>
                                                 <td className="p-6 text-right">
                                                     {session.status === 'In Progress' && (
-                                                        <div className="flex items-center justify-end">
+                                                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                                            <button 
+                                                                onClick={() => handleForceConcludeSession(session)}
+                                                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-indigo-200 dark:border-indigo-800"
+                                                                title="Conclude unended session with full timetable credit and submit for duty approval"
+                                                            >
+                                                                <CheckCircle2 className="w-3 h-3 text-indigo-500" /> Conclude (Credit)
+                                                            </button>
                                                             <button 
                                                                 onClick={() => handleDeleteOrphanSession(session)}
                                                                 className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer border border-rose-200 dark:border-rose-900"
