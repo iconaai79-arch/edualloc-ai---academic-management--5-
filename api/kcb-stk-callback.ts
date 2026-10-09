@@ -1488,7 +1488,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     reconciled_at: isReconciledNow ? new Date().toISOString() : null,
                                     reconciled_by: isReconciledNow ? 'KCB STK Callback' : null,
                                     created_at: transaction.created_at || new Date().toISOString(),
-                                    payload: body
+                                    payload: {
+                                        ...body,
+                                        phoneNumber: transaction.phone_number || metadata.payerPhoneNumber || metadata.phone || '',
+                                        customerMobileNumber: transaction.phone_number || metadata.payerPhoneNumber || metadata.phone || '',
+                                        payerPhoneNumber: transaction.phone_number || metadata.payerPhoneNumber || metadata.phone || '',
+                                        admissionNumber: metadata.admissionNumber || metadata.admission_number || metadata.admNo || transaction.customer_reference || '',
+                                        studentAdm: metadata.admissionNumber || metadata.admission_number || metadata.admNo || transaction.customer_reference || ''
+                                    }
                                 });
                                 if (bankTxnErr) console.error('[KCB STK Callback] Failed to write to bank_transactions:', bankTxnErr);
                             } catch (bankErr) {

@@ -1300,7 +1300,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     reconciled_at: isReconciledNow ? new Date().toISOString() : null,
                     reconciled_by: isReconciledNow ? 'Coop B2B API' : null,
                     created_at: new Date().toISOString(),
-                    payload: body
+                    payload: {
+                        ...body,
+                        phoneNumber: bodyRequest.MobileNumber || bodyRequest.PhoneNumber || '',
+                        customerMobileNumber: bodyRequest.MobileNumber || bodyRequest.PhoneNumber || '',
+                        customerReference: bodyRequest.AccountReference || bodyRequest.DocumentReferenceNumber || '',
+                        admissionNumber: bodyRequest.AccountReference || bodyRequest.DocumentReferenceNumber || ''
+                    }
                 });
                 if (bankTxnErr) console.error('[Coop B2B Advice] Failed to write to bank_transactions:', bankTxnErr);
             } catch (bankErr) {

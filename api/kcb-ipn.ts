@@ -1078,6 +1078,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             customerReference: customerReference || "",
             transactionAmount: transactionAmount || "",
             customerMobileNumber: customerMobileNumber || "",
+            phoneNumber: customerMobileNumber || phone || "",
+            payerPhoneNumber: customerMobileNumber || phone || "",
+            admissionNumber: parsedAdmissionNumber || customerReference || "",
+            studentAdm: parsedAdmissionNumber || customerReference || "",
             transactionReference: transactionReference || transactionID || "",
             organizationShortCode: organizationShortCode || "",
             creditAccountIdentifier: creditAccountIdentifier || ""
