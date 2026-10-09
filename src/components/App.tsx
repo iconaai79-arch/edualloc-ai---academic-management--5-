@@ -7409,6 +7409,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         currentInstitution={activeInstitution}
                         smsConfig={activeInstitution?.smsConfig || companyDetails?.smsConfig}
                         onSendSms={async (r: any, m: any, c?: any, u?: number, i?: string) => apiService.sendSms(r, m, c, u, i)}
+                        studentEnrollments={studentEnrollments}
                     />
                 </div>
             </Suspense>

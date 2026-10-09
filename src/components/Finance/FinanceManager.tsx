@@ -1050,6 +1050,35 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         return map;
     }, [mergedStudents]);
 
+    const commsUsers = useMemo(() => {
+        const userMap = new Map<string, any>();
+        (props.users || []).forEach((u: any) => {
+            if (u && (u.id || u.phoneNumber)) {
+                userMap.set(String(u.id || u.phoneNumber), u);
+            }
+        });
+        const studentSource = (mergedStudents && mergedStudents.length > 0) ? mergedStudents : (props.students || []);
+        studentSource.forEach((s: any) => {
+            if (s && (s.id || s.phoneNumber || s.parentPhone || s.parent_phone)) {
+                const key = String(s.id || s.admissionNumber || s.admNo || s.phoneNumber || s.parentPhone);
+                const existing = userMap.get(key) || userMap.get(String(s.id));
+                const studentRole = s.role || 'student';
+                const studentPhone = s.phoneNumber || s.parentPhone || s.parent_phone || s.guardianPhone || s.phone || s.metadata?.parentPhone || s.metadata?.guardianPhone || '';
+                const studentClass = s.className || s.studentClass || studentClassGroup(s) || s.gradeLevel || '';
+                userMap.set(key, {
+                    ...existing,
+                    ...s,
+                    role: studentRole,
+                    phoneNumber: s.phoneNumber || existing?.phoneNumber || studentPhone,
+                    parentPhone: s.parentPhone || s.parent_phone || existing?.parentPhone || studentPhone,
+                    studentClass: studentClass || existing?.studentClass,
+                    className: studentClass || existing?.className
+                });
+            }
+        });
+        return Array.from(userMap.values());
+    }, [props.users, mergedStudents, props.students, studentClassGroup]);
+
     const mergedInvoices = useMemo(() => {
         const activeInstId = props.institution?.id || '';
         const activeInstClean = cleanId(activeInstId);
@@ -11444,7 +11473,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 <div className="animate-in fade-in duration-300">
                                     <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400 font-medium">Loading Communications...</div>}>
                                         <CommunicationsManager
-                                            users={props.users || []}
+                                            users={commsUsers}
+                                            students={mergedStudents && mergedStudents.length > 0 ? mergedStudents : props.students}
+                                            studentEnrollments={props.studentEnrollments || enrollments}
                                             departments={[]}
                                             courses={props.courses || []}
                                             institutions={[props.institution]}

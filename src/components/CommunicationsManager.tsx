@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { BuySMSModal } from './BuySMSModal';
 import { PlusIcon } from './icons/PlusIcon';
 
@@ -7,6 +7,14 @@ import { RETAIL_SUBTYPES } from '../constants';
 import { apiService } from '../services/apiService';
 import { whatsappService, WhatsAppStatusResponse } from '../services/whatsappService';
 import { supabase } from '../lib/supabase';
+import {
+    resolveRealStudentClass,
+    resolveRealStudentStream,
+    normalizeClassName,
+    normalizeStreamName,
+    naturalClassSort,
+    extractClassAndStream
+} from '../utils/academicUtils';
 
 interface CommunicationsManagerProps {
     users: User[];
@@ -23,6 +31,8 @@ interface CommunicationsManagerProps {
     moduleContext?: 'school' | 'carwash' | 'property' | 'agrovet' | 'cooperative' | 'church' | 'auto_marketplace';
     companyDetails?: any;
     transactions?: MpesaTransaction[];
+    studentEnrollments?: any[];
+    students?: User[];
 }
 
 const calculateSmsParts = (msg: string) => {
@@ -51,7 +61,24 @@ const calculateSmsParts = (msg: string) => {
 };
 
 
-export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ users, departments, courses, institutions, onSendSms, currentUser, smsBalance, currentInstitution, mpesaConfig, smsConfig, onRefreshData, moduleContext = 'school', companyDetails, transactions }) => {
+export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ 
+    users, 
+    departments, 
+    courses, 
+    institutions, 
+    onSendSms, 
+    currentUser, 
+    smsBalance, 
+    currentInstitution, 
+    mpesaConfig, 
+    smsConfig, 
+    onRefreshData, 
+    moduleContext = 'school', 
+    companyDetails, 
+    transactions,
+    studentEnrollments,
+    students
+}) => {
     const isRetailAgency = useMemo(() => {
         if (currentInstitution?.institutionType === 'Church') return false;
         if (moduleContext === 'auto_marketplace') return true;
@@ -62,8 +89,12 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
     const isChurch = useMemo(() => currentInstitution?.institutionType === 'Church', [currentInstitution]);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [selectedTransactionForReceipt, setSelectedTransactionForReceipt] = useState<MpesaTransaction | null>(null);
-    const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, department, course, institution
+    const [recipientTarget, setRecipientTarget] = useState('individual'); // individual, all_staff, all_students, grade, department, course, institution
     const [selectedId, setSelectedId] = useState(''); // Holds user ID, dept ID, course ID, or institution ID
+    const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
+    const [selectedStream, setSelectedStream] = useState<string>('all');
+    const [phoneTarget, setPhoneTarget] = useState<'parents_and_students' | 'parents_only' | 'students_only'>('parents_and_students');
+    const [isRecipientPreviewOpen, setIsRecipientPreviewOpen] = useState(false);
     const [selectedInstitutionRoleFilter, setSelectedInstitutionRoleFilter] = useState<'all' | 'admins'>('all');
     const [message, setMessage] = useState('');
     const [status, setStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
@@ -224,6 +255,152 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         }
     }, [activeTab, currentInstitution]);
 
+    const allStudentsList = useMemo(() => {
+        const list: User[] = [];
+        const seenIds = new Set<string>();
+
+        // 1. Prioritize explicit students prop if passed
+        if (students && Array.isArray(students)) {
+            students.forEach(s => {
+                if (s && s.id && !seenIds.has(s.id)) {
+                    seenIds.add(s.id);
+                    list.push(s);
+                }
+            });
+        }
+
+        // 2. Scan users prop for students
+        (users || []).forEach(u => {
+            if (u && u.id && !seenIds.has(u.id)) {
+                const r = String(u.role || '').toLowerCase();
+                const isStudent = r === 'student' || r === 'member' || r === 'church_member' || 
+                    (!['admin', 'staff', 'teacher', 'hod', 'dos', 'principal', 'head_teacher', 'accountant', 'finance_officer', 'bursar', 'driver', 'cook', 'security', 'cleaner', 'support_staff'].includes(r) && (u.studentClass || u.className || u.admissionNumber || (u as any).admission_number));
+                if (isStudent) {
+                    seenIds.add(u.id);
+                    list.push(u);
+                }
+            }
+        });
+
+        return list;
+    }, [students, users]);
+
+    const getStudentGrade = useCallback((s: any): string => {
+        if (!s) return '';
+        const res = resolveRealStudentClass(s, studentEnrollments || [], courses || [], '');
+        if (res && res !== 'Unclassified' && res !== '—') return res;
+
+        const direct = s.studentClass || s.className || s.class_name || s.gradeLevel || s.grade_level || s.grade || s.form;
+        if (direct) {
+            const parsed = extractClassAndStream(direct);
+            if (parsed.className && parsed.className !== 'Unclassified' && parsed.className !== '—') {
+                return parsed.className;
+            }
+        }
+
+        const meta = s.metadata?.className || s.metadata?.studentClass || s.metadata?.gradeLevel || s.metadata?.grade || s.metadata?.form;
+        if (meta) {
+            const parsed = extractClassAndStream(meta);
+            if (parsed.className && parsed.className !== 'Unclassified' && parsed.className !== '—') {
+                return parsed.className;
+            }
+        }
+
+        return '';
+    }, [studentEnrollments, courses]);
+
+    const distinctGradeOptions = useMemo(() => {
+        const gradeMap = new Map<string, { grade: string; studentCount: number; streams: Set<string> }>();
+
+        // 1. Scan students list
+        allStudentsList.forEach(s => {
+            const rawG = getStudentGrade(s);
+            if (rawG && rawG !== 'Unclassified' && rawG !== '—') {
+                const norm = normalizeClassName(rawG);
+                if (norm && norm !== 'Unclassified') {
+                    if (!gradeMap.has(norm)) {
+                        gradeMap.set(norm, { grade: norm, studentCount: 0, streams: new Set() });
+                    }
+                    const item = gradeMap.get(norm)!;
+                    item.studentCount++;
+                    const st = resolveRealStudentStream(s, studentEnrollments || [], courses || []);
+                    if (st && st !== '—' && st.trim()) item.streams.add(st.trim());
+                }
+            }
+        });
+
+        // 2. Scan enrollments
+        (studentEnrollments || []).forEach(e => {
+            const c = e.className || e.class_name || e.gradeLevel || e.grade_level || e.grade || e.metadata?.className || e.metadata?.gradeLevel;
+            if (c) {
+                const norm = normalizeClassName(c);
+                if (norm && norm !== 'Unclassified' && norm !== '—' && !gradeMap.has(norm)) {
+                    gradeMap.set(norm, { grade: norm, studentCount: 0, streams: new Set() });
+                }
+            }
+        });
+
+        // 3. Scan courses
+        (courses || []).forEach(co => {
+            const c = co.name || co.title || co.code;
+            const parsed = extractClassAndStream(c);
+            if (parsed.className) {
+                const norm = normalizeClassName(parsed.className);
+                if (norm && norm !== 'Unclassified' && norm !== '—' && !gradeMap.has(norm)) {
+                    gradeMap.set(norm, { grade: norm, studentCount: 0, streams: new Set() });
+                }
+            }
+        });
+
+        const sortedKeys = naturalClassSort(Array.from(gradeMap.keys()));
+        return sortedKeys.map(k => gradeMap.get(k)!).filter(Boolean);
+    }, [allStudentsList, getStudentGrade, studentEnrollments, courses]);
+
+    const availableStreamsForSelectedGrades = useMemo(() => {
+        const streamSet = new Set<string>();
+        const targetGrades = selectedGrades.length > 0
+            ? new Set(selectedGrades.map(g => normalizeClassName(g).toLowerCase()))
+            : null;
+
+        distinctGradeOptions.forEach(opt => {
+            if (!targetGrades || targetGrades.has(normalizeClassName(opt.grade).toLowerCase())) {
+                opt.streams.forEach(st => streamSet.add(st));
+            }
+        });
+
+        allStudentsList.forEach(s => {
+            const sg = getStudentGrade(s);
+            if (sg) {
+                const normG = normalizeClassName(sg).toLowerCase();
+                if (!targetGrades || targetGrades.has(normG)) {
+                    const st = resolveRealStudentStream(s, studentEnrollments || [], courses || []);
+                    if (st && st !== '—' && st.trim()) streamSet.add(st.trim());
+                }
+            }
+        });
+
+        return Array.from(streamSet).sort();
+    }, [distinctGradeOptions, selectedGrades, allStudentsList, getStudentGrade, studentEnrollments, courses]);
+
+    const resolveUserPhone = useCallback((u: any): string => {
+        if (!u) return '';
+        const isStudent = u.role === 'student' || u.role === 'member' || u.role === 'church_member';
+
+        if (phoneTarget === 'parents_only') {
+            return u.parentPhone || u.parent_phone || u.guardianPhone || u.metadata?.parentPhone || u.metadata?.guardianPhone || (isStudent ? '' : (u.phoneNumber || u.phone || ''));
+        }
+        if (phoneTarget === 'students_only') {
+            return u.phoneNumber || u.phone || '';
+        }
+
+        // Default: parents_and_students (parents prioritized for students, fallback to personal)
+        if (isStudent) {
+            return u.parentPhone || u.parent_phone || u.guardianPhone || u.parentPhone2 || u.guardianPhone2 || 
+                   u.metadata?.parentPhone || u.metadata?.guardianPhone || u.phoneNumber || u.phone || '';
+        }
+        return u.phoneNumber || u.phone || '';
+    }, [phoneTarget]);
+
     const filteredUsersForIndividualSelection = useMemo(() => {
         if (!searchTerm) return [];
         let availableUsers = users;
@@ -231,16 +408,28 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             availableUsers = availableUsers.filter(u => u.institutionId === currentInstitution.id);
         }
 
+        // Include students if provided
+        const combined = new Map<string, any>();
+        availableUsers.forEach(u => combined.set(u.id, u));
+        allStudentsList.forEach(s => {
+            if (!combined.has(s.id)) combined.set(s.id, s);
+        });
+        const pool = Array.from(combined.values());
+
         // Filter for HOD
         if (currentUser && (currentUser.role === 'hod' || currentUser.role === 'dos') && currentUser.departmentId) {
-            availableUsers = availableUsers.filter(u => u.departmentId === currentUser.departmentId || (u.role === 'student' && courses.some(c => c.id === u.courseId && c.departmentId === currentUser.departmentId)));
+            return pool.filter(u => u.departmentId === currentUser.departmentId || (u.role === 'student' && courses.some(c => c.id === u.courseId && c.departmentId === currentUser.departmentId)));
         }
 
-        return availableUsers.filter(u =>
-            u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            u.staffId?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).slice(0, 100); // Limit to 100 results for performance
-    }, [users, searchTerm, currentUser, courses, isSuperAdminView, currentInstitution]);
+        const lowerSearch = searchTerm.toLowerCase();
+        return pool.filter(u => {
+            const name = (u.name || '').toLowerCase();
+            const staffId = (u.staffId || '').toLowerCase();
+            const adm = String(u.admissionNumber || u.admission_number || u.admNo || u.metadata?.admissionNumber || '').toLowerCase();
+            const grade = getStudentGrade(u).toLowerCase();
+            return name.includes(lowerSearch) || staffId.includes(lowerSearch) || adm.includes(lowerSearch) || grade.includes(lowerSearch);
+        }).slice(0, 100);
+    }, [users, allStudentsList, searchTerm, currentUser, courses, isSuperAdminView, currentInstitution, getStudentGrade]);
 
     const smsTransactions = useMemo(() => {
         if (!transactions) return [];
@@ -322,8 +511,37 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             }
             case 'all_staff':
                 return (moduleContext === 'school' || isChurch) ? baseUsers.filter(u => u.role !== 'student' && u.role !== 'member' && u.role !== 'church_member') : baseUsers.filter(u => String(u.role) !== 'customer' && String(u.role) !== 'lead');
-            case 'all_students':
-                return baseUsers.filter(u => u.role === 'student' || u.role === 'member' || u.role === 'church_member');
+            case 'all_students': {
+                const map = new Map<string, User>();
+                baseUsers.filter(u => u.role === 'student' || u.role === 'member' || u.role === 'church_member').forEach(u => map.set(u.id, u));
+                allStudentsList.forEach(s => map.set(s.id, s));
+                return Array.from(map.values());
+            }
+            case 'grade': {
+                if (selectedGrades.length === 0 && !selectedId) return [];
+
+                const targetGrades = selectedGrades.length > 0
+                    ? new Set(selectedGrades.map(g => normalizeClassName(g).toLowerCase()))
+                    : new Set([normalizeClassName(selectedId).toLowerCase()]);
+
+                const isAllSelected = targetGrades.has('all') || targetGrades.has('all grades');
+
+                return allStudentsList.filter(s => {
+                    const studentGrade = getStudentGrade(s);
+                    if (!studentGrade) return false;
+                    const normG = normalizeClassName(studentGrade).toLowerCase();
+                    if (!isAllSelected && !targetGrades.has(normG)) return false;
+
+                    // Stream filter
+                    if (selectedStream && selectedStream !== 'all') {
+                        const sStream = resolveRealStudentStream(s, studentEnrollments || [], courses || []);
+                        if (normalizeStreamName(sStream).toLowerCase() !== normalizeStreamName(selectedStream).toLowerCase()) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            }
             case 'all_customers':
                 return baseUsers.filter(u => String(u.role) === 'customer' || (isChurch && u.role === 'visitor'));
             case 'department': {
@@ -383,19 +601,23 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
             default:
                 return [];
         }
-    }, [recipientTarget, selectedId, selectedInstitutionRoleFilter, users, courses, currentUser, leadModelFilter, isSuperAdminView, currentInstitution, moduleContext, isChurch]);
+    }, [recipientTarget, selectedId, selectedGrades, selectedStream, allStudentsList, getStudentGrade, studentEnrollments, selectedInstitutionRoleFilter, users, courses, currentUser, leadModelFilter, isSuperAdminView, currentInstitution, moduleContext, isChurch]);
 
     const validRecipients = useMemo(() => {
         const unique = new Map<string, User>();
         recipientList.forEach(u => {
-            if (u.phoneNumber && u.phoneNumber.trim() !== '') {
+            const resolvedPhone = resolveUserPhone(u);
+            if (resolvedPhone && resolvedPhone.trim() !== '') {
                 // Deduplicate by ID if available, otherwise by Phone Number
-                const key = u.id || u.phoneNumber.trim();
-                unique.set(key, u);
+                const key = u.id || resolvedPhone.trim();
+                unique.set(key, {
+                    ...u,
+                    phoneNumber: resolvedPhone.trim()
+                });
             }
         });
         return Array.from(unique.values());
-    }, [recipientList]);
+    }, [recipientList, resolveUserPhone]);
 
     const handleSend = async () => {
         if (validRecipients.length === 0) {
@@ -572,6 +794,42 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
         setRecipientTarget(e.target.value);
         setSelectedId('');
         setSearchTerm('');
+        setSelectedGrades([]);
+        setSelectedStream('all');
+        setIsRecipientPreviewOpen(false);
+    };
+
+    const handleToggleGrade = (grade: string) => {
+        setSelectedGrades(prev => {
+            if (prev.includes(grade)) {
+                return prev.filter(g => g !== grade);
+            } else {
+                return [...prev, grade];
+            }
+        });
+        setSelectedId('');
+    };
+
+    const handleSelectAllGrades = () => {
+        setSelectedGrades(distinctGradeOptions.map(opt => opt.grade));
+        setSelectedId('');
+    };
+
+    const handleClearAllGrades = () => {
+        setSelectedGrades([]);
+        setSelectedId('');
+    };
+
+    const handleGradeDropdownChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (val === 'all') {
+            handleSelectAllGrades();
+        } else if (val) {
+            setSelectedGrades([val]);
+            setSelectedId(val);
+        } else {
+            handleClearAllGrades();
+        }
     };
 
     const renderSecondarySelector = () => {
@@ -581,7 +839,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                     <>
                         <input
                             type="text"
-                            placeholder={isChurch ? "Search for member/worker by name..." : "Search for user by name or ID..."}
+                            placeholder={isChurch ? "Search for member/worker by name..." : "Search for user by name, ID, admission no or grade..."}
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="form-input mt-1"
@@ -594,13 +852,256 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                             aria-label="Select individual recipient"
                         >
                             <option value="" disabled>Select a user ({filteredUsersForIndividualSelection.length} found)</option>
-                             {filteredUsersForIndividualSelection.map(user => (
-                                <option key={user.id} value={user.id}>
-                                    {user.name} ({isChurch && (user.role === 'student' || user.role === 'member' || user.role === 'church_member') ? 'Member' : user.role}) - {user.phoneNumber || 'No phone'}
-                                </option>
-                            ))}
+                             {filteredUsersForIndividualSelection.map(user => {
+                                const sGrade = getStudentGrade(user);
+                                const isStud = user.role === 'student' || user.role === 'member' || user.role === 'church_member';
+                                const roleLabel = isChurch && isStud ? 'Member' : (isStud && sGrade ? `${sGrade} Student` : user.role);
+                                const phone = resolveUserPhone(user) || user.phoneNumber || 'No phone';
+                                return (
+                                    <option key={user.id} value={user.id}>
+                                        {user.name} ({roleLabel}) - {phone}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </>
+                );
+            case 'grade':
+                return (
+                    <div className="space-y-3 mt-2 p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm animate-in fade-in duration-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <label className="block text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                    <span>🏫</span>
+                                    <span>{isChurch ? 'Select Age Group / Class' : 'Select Academic Grade / Class'}</span>
+                                </label>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Pick one or multiple classes to message students and guardians.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                                <button
+                                    type="button"
+                                    onClick={handleSelectAllGrades}
+                                    className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 dark:text-indigo-400 transition-all cursor-pointer shadow-xs active:scale-95"
+                                >
+                                    Select All
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearAllGrades}
+                                    className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-400 transition-all cursor-pointer shadow-xs active:scale-95"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Quick Dropdown Picker */}
+                        <div>
+                            <select
+                                value={selectedGrades.length === 1 ? selectedGrades[0] : (selectedGrades.length === distinctGradeOptions.length && distinctGradeOptions.length > 0 ? 'all' : '')}
+                                onChange={handleGradeDropdownChange}
+                                className="form-select w-full text-xs font-semibold"
+                                aria-label="Select Grade / Class dropdown"
+                            >
+                                <option value="" disabled>Choose a grade (or select chips below)...</option>
+                                <option value="all">
+                                    ⭐ All Grades ({distinctGradeOptions.length} classes • {allStudentsList.length} total students)
+                                </option>
+                                {distinctGradeOptions.map(opt => (
+                                    <option key={opt.grade} value={opt.grade}>
+                                        {opt.grade} ({opt.studentCount} student{opt.studentCount === 1 ? '' : 's'})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Interactive Multi-Select Badges / Chips */}
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5 flex items-center justify-between">
+                                <span>Filter by Specific Grades (Click to toggle)</span>
+                                <span className="text-indigo-600 dark:text-indigo-400 lowercase font-bold">{selectedGrades.length} selected</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+                                {distinctGradeOptions.length > 0 ? (
+                                    distinctGradeOptions.map(opt => {
+                                        const isSelected = selectedGrades.includes(opt.grade);
+                                        return (
+                                            <button
+                                                key={opt.grade}
+                                                type="button"
+                                                onClick={() => handleToggleGrade(opt.grade)}
+                                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border active:scale-95 cursor-pointer ${
+                                                    isSelected
+                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-600/20'
+                                                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500'
+                                                }`}
+                                            >
+                                                <span>{isSelected ? '✓' : '+'}</span>
+                                                <span>{opt.grade}</span>
+                                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
+                                                    isSelected 
+                                                        ? 'bg-white/20 text-white' 
+                                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                }`}>
+                                                    {opt.studentCount}
+                                                </span>
+                                            </button>
+                                        );
+                                    })
+                                ) : (
+                                    <div className="p-3 text-xs text-slate-400 italic bg-white dark:bg-slate-800/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 w-full text-center">
+                                        No grades detected from enrolled students or courses. You can still message students via "All Students" or "By Course".
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Stream Filter (if streams exist) */}
+                        {availableStreamsForSelectedGrades.length > 0 && (
+                            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                                    Stream / Arm Filter (Optional)
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedStream('all')}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                                            selectedStream === 'all'
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                                        }`}
+                                    >
+                                        All Streams
+                                    </button>
+                                    {availableStreamsForSelectedGrades.map(st => (
+                                        <button
+                                            key={st}
+                                            type="button"
+                                            onClick={() => setSelectedStream(st)}
+                                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                                                selectedStream === st
+                                                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                                            }`}
+                                        >
+                                            Stream {st}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Contact Target Selector (Parents & Students vs Parents Only vs Students Only) */}
+                        <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Contact Target
+                            </span>
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[10px] font-bold">
+                                <button
+                                    type="button"
+                                    onClick={() => setPhoneTarget('parents_and_students')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                        phoneTarget === 'parents_and_students'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                                    }`}
+                                    title="Sends to Parent/Guardian phone first, or Student phone if no parent phone"
+                                >
+                                    👨‍👩‍👦 Parents & Students
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPhoneTarget('parents_only')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                        phoneTarget === 'parents_only'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                                    }`}
+                                    title="Only sends to Parent/Guardian phone numbers"
+                                >
+                                    👨‍👩‍👦 Parents Only
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPhoneTarget('students_only')}
+                                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                                        phoneTarget === 'students_only'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-800'
+                                    }`}
+                                    title="Only sends to Student personal numbers"
+                                >
+                                    🎓 Students Only
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Summary & Live Preview Toggle */}
+                        <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-800/70 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                            <span className="font-semibold flex items-center gap-1.5 truncate">
+                                <span>🎯</span>
+                                <span className="truncate">
+                                    {selectedGrades.length === 0
+                                        ? 'No grade selected (click chips above or choose from dropdown)'
+                                        : `${selectedGrades.length} Grade${selectedGrades.length === 1 ? '' : 's'}: ${selectedGrades.join(', ')}`}
+                                    {selectedStream !== 'all' && ` • Stream ${selectedStream}`}
+                                </span>
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="font-black text-indigo-600 dark:text-indigo-400">
+                                    {validRecipients.length} Recipient{validRecipients.length === 1 ? '' : 's'}
+                                </span>
+                                {validRecipients.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsRecipientPreviewOpen(!isRecipientPreviewOpen)}
+                                        className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer"
+                                    >
+                                        {isRecipientPreviewOpen ? 'Hide' : 'Preview'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Live Recipient Preview Drawer */}
+                        {isRecipientPreviewOpen && validRecipients.length > 0 && (
+                            <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/60 p-2 text-xs divide-y divide-slate-100 dark:divide-slate-800 animate-in fade-in duration-200">
+                                <div className="py-1 px-2 font-black text-[10px] uppercase tracking-wider text-slate-400 grid grid-cols-12 gap-2">
+                                    <span className="col-span-5">Student / Recipient</span>
+                                    <span className="col-span-3">Grade / Stream</span>
+                                    <span className="col-span-4 text-right">Phone Number</span>
+                                </div>
+                                {validRecipients.slice(0, 100).map(u => {
+                                    const sGrade = getStudentGrade(u);
+                                    const sStream = resolveRealStudentStream(u, studentEnrollments || [], courses || []);
+                                    return (
+                                        <div key={u.id || u.phoneNumber} className="py-1.5 px-2 grid grid-cols-12 gap-2 items-center hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-lg">
+                                            <span className="col-span-5 font-bold text-slate-800 dark:text-slate-200 truncate">
+                                                {u.name}
+                                                {(u.admissionNumber || (u as any).admission_number) && (
+                                                    <span className="ml-1 text-[10px] text-slate-400 font-normal">({u.admissionNumber || (u as any).admission_number})</span>
+                                                )}
+                                            </span>
+                                            <span className="col-span-3 text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                                                {sGrade || '—'}{sStream && sStream !== '—' ? ` (${sStream})` : ''}
+                                            </span>
+                                            <span className="col-span-4 text-right font-mono text-[11px] text-emerald-600 dark:text-emerald-400 truncate font-semibold">
+                                                {u.phoneNumber || '—'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                                {validRecipients.length > 100 && (
+                                    <div className="py-1.5 text-center text-[10px] text-slate-400 italic">
+                                        Showing first 100 of {validRecipients.length} recipients...
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 );
             case 'department':
                 return (
@@ -1240,6 +1741,7 @@ export const CommunicationsManager: React.FC<CommunicationsManagerProps> = ({ us
                                         ) : (
                                             <>
                                                 <option value="all_students">{isChurch ? 'All Congregation Members' : 'All Students'}</option>
+                                                <option value="grade">{isChurch ? 'By Age Group / Class' : 'By Grade / Class'}</option>
                                                 <option value="department">{isChurch ? 'By Ministry/Committee' : 'By Department'}</option>
                                                 <option value="course">{isChurch ? 'By Program/Group' : 'By Course'}</option>
                                                 {isChurch && <option value="all_customers">All Visitors & Guests</option>}
