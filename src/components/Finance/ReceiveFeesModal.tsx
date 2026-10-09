@@ -23,6 +23,7 @@ import { apiService } from '../../services/apiService';
 import { whatsappService } from '../../services/whatsappService';
 import { resolveRealStudentAdmNo } from '../../utils/academicUtils';
 import { extractParentPhoneNumber } from '../../utils/stringUtils';
+import { buildCustomPaymentNotification } from '../../utils/paymentNotificationHelper';
 
 export interface VoteHeadAllocationItem {
     voteHead: string;
@@ -61,6 +62,9 @@ export interface BankAccountOption {
     accountNumber: string;
     bankName: string;
     type: 'BANK' | 'MPESA' | 'CASH';
+    paymentNotificationTemplate?: string;
+    paymentInstructions?: string;
+    enableCustomNotification?: boolean;
 }
 
 export interface ReceiveFeesModalProps {
@@ -72,6 +76,7 @@ export interface ReceiveFeesModalProps {
     invoices?: Invoice[];
     receipts?: Receipt[];
     enrollments?: any[];
+    studentFinanceData?: any[];
     userName?: string;
     currentUser?: any;
     onReceiptCreated?: (newReceipt: any) => void;
@@ -100,6 +105,7 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
     invoices = [],
     receipts = [],
     enrollments = [],
+    studentFinanceData = [],
     userName = 'Finance Officer',
     currentUser,
     onReceiptCreated,
@@ -234,7 +240,10 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                         bankName: bank,
                         accountName: name,
                         accountNumber: num || 'N/A',
-                        type
+                        type,
+                        paymentNotificationTemplate: acc.paymentNotificationTemplate || acc.payment_notification_template,
+                        paymentInstructions: acc.paymentInstructions || acc.payment_instructions,
+                        enableCustomNotification: acc.enableCustomNotification !== undefined ? acc.enableCustomNotification : acc.enable_custom_notification
                     });
                 };
 
@@ -1351,8 +1360,35 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                         const parentPhone = extractParentPhoneNumber(student, enrollments);
                         if (parentPhone) {
                             const cleanPhone = String(parentPhone).trim();
-                            const shortName = (student.name || 'Student').split(' ')[0];
-                            const smsMsg = `Dear Parent/Guardian, received KES ${Number(item.rawAmount).toLocaleString()} for ${shortName} (${sAdm}). Receipt: ${receiptNumber}. Date: ${item.rawDate}. Thank you, ${institution?.name || 'School'}.`;
+                            const selectedAccount = bankAccounts.find(b => b.id === selectedBankAccountId);
+                            const studentEnrollment = (enrollments || []).find((e: any) => 
+                                e.userId === student.id || e.user_id === student.id || e.studentId === student.id || e.student_id === student.id
+                            );
+                            const finData = (studentFinanceData || []).find((f: any) => f.id === student.id);
+                            const totalCharged = finData?.totals?.invoiced ?? (invoices || [])
+                                .filter((inv: any) => inv.studentId === student.id || inv.student_id === student.id || inv.userId === student.id)
+                                .reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.amount || 0), 0);
+                            const totalAdjusted = finData?.totals?.totalAdjusted ?? 0;
+                            const currentBalance = finData?.totals?.balance !== undefined
+                                ? Math.max(0, Number(finData.totals.balance) - Number(item.rawAmount))
+                                : Math.max(0, Number(totalCharged) - Number(item.rawAmount));
+
+                            const smsMsg = buildCustomPaymentNotification({
+                                account: selectedAccount,
+                                student: {
+                                    ...student,
+                                    admissionNumber: sAdm
+                                },
+                                enrollment: studentEnrollment,
+                                paymentAmount: Number(item.rawAmount),
+                                totalCharged: totalCharged,
+                                totalAdjusted: totalAdjusted,
+                                currentBalance: currentBalance,
+                                paymentDate: item.rawDate || new Date(),
+                                institutionName: institution?.name || 'School',
+                                receiptNumber: receiptNumber
+                            });
+
                             apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId, undefined, true).catch(err => {
                                 console.warn('[ReceiveFeesModal] SMS notification error:', err);
                             });
@@ -1493,8 +1529,35 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                 const parentPhone = extractParentPhoneNumber(manualSelectedStudent, enrollments);
                 if (parentPhone) {
                     const cleanPhone = String(parentPhone).trim();
-                    const shortName = manualSelectedStudent.name.split(' ')[0];
-                    const smsMsg = `Dear Parent/Guardian, received KES ${Number(manualAmount).toLocaleString()} for ${shortName} (${sAdm}). Receipt: ${receiptNumber}. Date: ${manualDate}. Thank you, ${institution?.name || 'School'}.`;
+                    const selectedAccount = bankAccounts.find(b => b.id === selectedBankAccountId);
+                    const manualEnrollment = (enrollments || []).find((e: any) => 
+                        e.userId === manualSelectedStudent.id || e.user_id === manualSelectedStudent.id || 
+                        e.studentId === manualSelectedStudent.id || e.student_id === manualSelectedStudent.id
+                    );
+                    const finData = (studentFinanceData || []).find((f: any) => f.id === manualSelectedStudent.id);
+                    const totalCharged = finData?.totals?.invoiced ?? (invoices || [])
+                        .filter((inv: any) => inv.studentId === manualSelectedStudent.id || inv.student_id === manualSelectedStudent.id || inv.userId === manualSelectedStudent.id)
+                        .reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.amount || 0), 0);
+                    const totalAdjusted = finData?.totals?.totalAdjusted ?? 0;
+                    const currentBalance = finData?.totals?.balance !== undefined
+                        ? Math.max(0, Number(finData.totals.balance) - Number(manualAmount))
+                        : Math.max(0, Number(totalCharged) - Number(manualAmount));
+
+                    const smsMsg = buildCustomPaymentNotification({
+                        account: selectedAccount,
+                        student: {
+                            ...manualSelectedStudent,
+                            admissionNumber: sAdm
+                        },
+                        enrollment: manualEnrollment,
+                        paymentAmount: Number(manualAmount),
+                        totalCharged: totalCharged,
+                        totalAdjusted: totalAdjusted,
+                        currentBalance: currentBalance,
+                        paymentDate: manualDate || new Date(),
+                        institutionName: institution?.name || 'School',
+                        receiptNumber: receiptNumber
+                    });
                     try {
                         const smsRes = await apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId, undefined, true);
                         if (smsRes && smsRes.success === false) {

@@ -50,6 +50,7 @@ import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { generateKenyanStampSvgString } from '../../utils/stampGenerator';
 import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
 import { extractParentPhoneNumber } from '../../utils/stringUtils';
+import { DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE, DEFAULT_SAMPLE_PAYMENT_INSTRUCTIONS, previewCustomPaymentNotification, buildCustomPaymentNotification } from '../../utils/paymentNotificationHelper';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -2838,6 +2839,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [newCurrency, setNewCurrency] = useState('KES');
     const [newIntegrationService, setNewIntegrationService] = useState('None');
     const [newIntegrationStatus, setNewIntegrationStatus] = useState('Not Configured');
+    const [newPaymentNotificationTemplate, setNewPaymentNotificationTemplate] = useState('');
+    const [newPaymentInstructions, setNewPaymentInstructions] = useState('');
+    const [newEnableCustomNotification, setNewEnableCustomNotification] = useState(true);
     const [editingBankAccountId, setEditingBankAccountId] = useState<string | null>(null);
 
     const [schoolGrants, setSchoolGrants] = useState<any[]>([]);
@@ -2916,6 +2920,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 status: accountData.status || 'Active',
                 integrationService: accountData.integrationService || 'None',
                 integrationStatus: accountData.integrationStatus || 'Not Configured',
+                paymentNotificationTemplate: accountData.paymentNotificationTemplate ?? newPaymentNotificationTemplate,
+                paymentInstructions: accountData.paymentInstructions ?? newPaymentInstructions,
+                enableCustomNotification: accountData.enableCustomNotification ?? newEnableCustomNotification,
                 createdAt: new Date().toISOString()
             };
             await apiService.saveModuleRecord('school_bank_accounts', payload);
@@ -2929,6 +2936,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             setNewCurrency('KES');
             setNewIntegrationService('None');
             setNewIntegrationStatus('Not Configured');
+            setNewPaymentNotificationTemplate('');
+            setNewPaymentInstructions('');
+            setNewEnableCustomNotification(true);
             setEditingBankAccountId(null);
         } catch (err: any) {
             console.error('Failed to save bank account:', err);
@@ -5816,10 +5826,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const bStudent = mergedStudents.find((s: any) => s.id === rec.studentId);
                         if (!bStudent) continue;
                         const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
-                        const bSms = `[${bulkSchool}] KSh ${rec.amountPaid.toLocaleString()} received. Receipt: ${rec.receiptNumber}. Download: ${bLink}`;
                         if (excelImportSendSms) {
                             const bPhone = extractParentPhoneNumber(bStudent, mergedEnrollments);
                             if (bPhone) {
+                                const bAccount = bankAccounts.find((b: any) => b.id === (rec as any).bankAccountId) || bankAccounts[0];
+                                const bEnrollment = (mergedEnrollments || []).find((e: any) => 
+                                    e.userId === bStudent.id || e.user_id === bStudent.id || e.studentId === bStudent.id || e.student_id === bStudent.id
+                                );
+                                const bFinData = (studentFinanceData || []).find((f: any) => f.id === bStudent.id);
+                                const totalCharged = bFinData?.totals?.invoiced ?? 0;
+                                const currentBalance = bFinData?.totals?.balance !== undefined 
+                                    ? Math.max(0, Number(bFinData.totals.balance) - Number(rec.amountPaid || 0)) 
+                                    : undefined;
+
+                                const bSms = buildCustomPaymentNotification({
+                                    account: bAccount,
+                                    student: bStudent,
+                                    enrollment: bEnrollment,
+                                    paymentAmount: Number(rec.amountPaid || 0),
+                                    totalCharged: totalCharged,
+                                    totalAdjusted: 0,
+                                    currentBalance: currentBalance,
+                                    paymentDate: rec.paymentDate || new Date(),
+                                    institutionName: bulkSchool,
+                                    receiptNumber: rec.receiptNumber
+                                });
                                 apiService.sendSms(bPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id, undefined, true).catch(() => {});
                             }
                         }
@@ -8457,6 +8488,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         apiService.runMigration(`
             ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_service TEXT DEFAULT 'None';
             ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS integration_status TEXT DEFAULT 'Not Configured';
+            ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS payment_notification_template TEXT;
+            ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS payment_instructions TEXT;
+            ALTER TABLE public.school_bank_accounts ADD COLUMN IF NOT EXISTS enable_custom_notification BOOLEAN DEFAULT TRUE;
 
             CREATE TABLE IF NOT EXISTS public.inter_bank_transfers (
                 id TEXT PRIMARY KEY,
@@ -18607,6 +18641,120 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </select>
                                                     </div>
                                                 </div>
+                                                {/* Custom Payment Notification & Receipt SMS Configuration */}
+                                                <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <label className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
+                                                                <span>📱 Custom Payment Notification</span>
+                                                            </label>
+                                                            <p className="text-[9px] text-slate-400">Send custom receipt notification SMS when funds are credited to this account</p>
+                                                        </div>
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input 
+                                                                type="checkbox"
+                                                                checked={newEnableCustomNotification}
+                                                                onChange={e => setNewEnableCustomNotification(e.target.checked)}
+                                                                className="sr-only peer"
+                                                            />
+                                                            <div className="w-8 h-4 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                                                        </label>
+                                                    </div>
+
+                                                    {newEnableCustomNotification && (
+                                                        <div className="space-y-3 animate-in fade-in duration-200">
+                                                            {/* Account Payment Instructions */}
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center justify-between">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
+                                                                        Deposit Instructions & Paybill ({'{payment_instructions}'})
+                                                                    </label>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setNewPaymentInstructions(DEFAULT_SAMPLE_PAYMENT_INSTRUCTIONS)}
+                                                                        className="text-[8px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 underline"
+                                                                    >
+                                                                        Insert Sample Instructions
+                                                                    </button>
+                                                                </div>
+                                                                <textarea
+                                                                    rows={3}
+                                                                    placeholder="e.g. Fees should be paid by Bankers cheque or direct deposit to KCB A/C 1107881838 or Mpesa paybill 522533 Account no. 7789000#admno.For those paying via bank transfer please send the message/proof of pay to 0729328079(patrick)"
+                                                                    value={newPaymentInstructions}
+                                                                    onChange={e => setNewPaymentInstructions(e.target.value)}
+                                                                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-medium text-slate-800 dark:text-slate-200 text-xs leading-relaxed resize-none focus:border-indigo-500"
+                                                                />
+                                                            </div>
+
+                                                            {/* Custom SMS Template */}
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center justify-between">
+                                                                    <label className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-1">
+                                                                        Notification SMS Template
+                                                                    </label>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setNewPaymentNotificationTemplate(DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE)}
+                                                                        className="text-[8px] font-extrabold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 underline"
+                                                                    >
+                                                                        Reset to Sample Template
+                                                                    </button>
+                                                                </div>
+                                                                <textarea
+                                                                    rows={8}
+                                                                    placeholder={DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE}
+                                                                    value={newPaymentNotificationTemplate}
+                                                                    onChange={e => setNewPaymentNotificationTemplate(e.target.value)}
+                                                                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-mono text-slate-800 dark:text-slate-200 text-[11px] leading-relaxed resize-none focus:border-indigo-500"
+                                                                />
+                                                                
+                                                                {/* Variable Token Chips */}
+                                                                <div className="pt-1">
+                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-1">Click to append variable tags:</p>
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {[
+                                                                            '{student_name}', '{adm_no}', '{class_name}', '{term}', '{academic_year}',
+                                                                            '{charged}', '{adjusted}', '{paid}', '{balance}', '{timestamp}',
+                                                                            '{payment_instructions}', '{bank_name}', '{account_number}'
+                                                                        ].map(token => (
+                                                                            <button
+                                                                                key={token}
+                                                                                type="button"
+                                                                                onClick={() => setNewPaymentNotificationTemplate(prev => (prev ? `${prev} ${token}` : token))}
+                                                                                className="px-1.5 py-0.5 bg-slate-200 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-300 rounded text-[9px] font-mono transition-colors"
+                                                                            >
+                                                                                {token}
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Live SMS Preview */}
+                                                            <div className="p-3 bg-indigo-50/60 dark:bg-slate-900/90 border border-indigo-100 dark:border-indigo-950 rounded-2xl space-y-1.5">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[9px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                                                                        <span>💬 Live SMS Preview</span>
+                                                                    </span>
+                                                                    <span className="text-[8px] font-extrabold text-slate-400 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                                                                        Kenyan Standard
+                                                                    </span>
+                                                                </div>
+                                                                <div className="p-2.5 bg-white dark:bg-slate-950 border border-indigo-100 dark:border-slate-800 rounded-xl">
+                                                                    <pre className="font-mono text-[10px] text-slate-700 dark:text-slate-200 whitespace-pre-wrap leading-relaxed select-text">
+                                                                        {previewCustomPaymentNotification(
+                                                                            newPaymentNotificationTemplate || DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE,
+                                                                            newPaymentInstructions || DEFAULT_SAMPLE_PAYMENT_INSTRUCTIONS,
+                                                                            { bankName: newBankName || 'KCB Bank', accountNumber: newAccountNumber || '1107881838', accountName: newAccountName },
+                                                                            props.institution?.name || 'School'
+                                                                        )}
+                                                                    </pre>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 <div className="flex gap-2 pt-2">
                                                     {editingBankAccountId ? (
                                                         <>
@@ -18620,13 +18768,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     setNewCurrency('KES');
                                                                     setNewIntegrationService('None');
                                                                     setNewIntegrationStatus('Not Configured');
+                                                                    setNewPaymentNotificationTemplate('');
+                                                                    setNewPaymentInstructions('');
+                                                                    setNewEnableCustomNotification(true);
                                                                 }}
                                                                 className="flex-1 py-2.5 bg-slate-200 dark:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300"
                                                             >
                                                                 Cancel
                                                             </button>
                                                             <button 
-                                                                onClick={() => handleSaveBankAccount({ id: editingBankAccountId, bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency, integrationService: newIntegrationService, integrationStatus: newIntegrationStatus })}
+                                                                onClick={() => handleSaveBankAccount({ 
+                                                                    id: editingBankAccountId, 
+                                                                    bankName: newBankName, 
+                                                                    accountName: newAccountName, 
+                                                                    accountNumber: newAccountNumber, 
+                                                                    branchName: newBranchName, 
+                                                                    currency: newCurrency, 
+                                                                    integrationService: newIntegrationService, 
+                                                                    integrationStatus: newIntegrationStatus,
+                                                                    paymentNotificationTemplate: newPaymentNotificationTemplate,
+                                                                    paymentInstructions: newPaymentInstructions,
+                                                                    enableCustomNotification: newEnableCustomNotification
+                                                                })}
                                                                 className="flex-1 py-2.5 bg-indigo-650 text-white rounded-xl text-[10px] font-black uppercase tracking-wider"
                                                             >
                                                                 Save
@@ -18634,7 +18797,18 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         </>
                                                     ) : (
                                                         <button 
-                                                            onClick={() => handleSaveBankAccount({ bankName: newBankName, accountName: newAccountName, accountNumber: newAccountNumber, branchName: newBranchName, currency: newCurrency, integrationService: newIntegrationService, integrationStatus: newIntegrationStatus })}
+                                                            onClick={() => handleSaveBankAccount({ 
+                                                                bankName: newBankName, 
+                                                                accountName: newAccountName, 
+                                                                accountNumber: newAccountNumber, 
+                                                                branchName: newBranchName, 
+                                                                currency: newCurrency, 
+                                                                integrationService: newIntegrationService, 
+                                                                integrationStatus: newIntegrationStatus,
+                                                                paymentNotificationTemplate: newPaymentNotificationTemplate,
+                                                                paymentInstructions: newPaymentInstructions,
+                                                                enableCustomNotification: newEnableCustomNotification
+                                                            })}
                                                             className="w-full py-2.5 bg-slate-900 hover:bg-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
                                                         >
                                                             Register Account
@@ -18656,6 +18830,11 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                     {ba.integrationStatus === 'Connected' ? '🟢 Connected' : '🔴 Disconnected'}
                                                                 </span>
                                                             )}
+                                                            {(ba.enableCustomNotification !== false && (ba.paymentNotificationTemplate || ba.payment_notification_template || ba.paymentInstructions || ba.payment_instructions)) ? (
+                                                                <span className="px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                                                                    📱 Custom SMS
+                                                                </span>
+                                                            ) : null}
                                                         </div>
                                                         <p className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 tracking-wider mt-0.5">{ba.accountNumber}</p>
                                                         <p className="text-[9px] text-slate-400 font-semibold">
@@ -18678,6 +18857,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 setNewCurrency(ba.currency || 'KES');
                                                                 setNewIntegrationService(ba.integrationService || 'None');
                                                                 setNewIntegrationStatus(ba.integrationStatus || 'Not Configured');
+                                                                setNewPaymentNotificationTemplate(ba.paymentNotificationTemplate || ba.payment_notification_template || '');
+                                                                setNewPaymentInstructions(ba.paymentInstructions || ba.payment_instructions || '');
+                                                                setNewEnableCustomNotification(ba.enableCustomNotification !== undefined ? ba.enableCustomNotification : (ba.enable_custom_notification !== false));
                                                             }}
                                                             className="p-1 bg-slate-100 hover:bg-indigo-55/60 dark:bg-slate-800 dark:hover:bg-indigo-500/20 text-slate-500 hover:text-indigo-600 rounded"
                                                         >
@@ -25652,6 +25834,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 invoices={mergedInvoices.length > 0 ? mergedInvoices : (props.invoices || [])}
                 receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
                 enrollments={mergedEnrollments.length > 0 ? mergedEnrollments : enrollments}
+                studentFinanceData={studentFinanceData}
                 userName={props.currentUser?.name || props.currentUser?.email || 'Finance Officer'}
                 currentUser={props.currentUser}
                 onReceiptCreated={(r: any) => {

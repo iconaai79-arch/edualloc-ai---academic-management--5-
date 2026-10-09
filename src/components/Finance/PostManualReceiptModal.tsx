@@ -4,6 +4,7 @@ import { XIcon } from '../icons';
 import { apiService } from '../../services/apiService';
 import { resolveRealStudentAdmNo, isPlaceholderEmail, isSyntheticAdmNo } from '../../utils/academicUtils';
 import { extractParentPhoneNumber } from '../../utils/stringUtils';
+import { buildCustomPaymentNotification } from '../../utils/paymentNotificationHelper';
 
 const parseMoneyAmount = (amt: any): number => {
     if (amt === null || amt === undefined) return 0;
@@ -155,7 +156,10 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                     id: ba.id || key,
                     bankName: bName,
                     accountNumber: accNo,
-                    accountName: accName
+                    accountName: accName,
+                    paymentNotificationTemplate: ba.paymentNotificationTemplate || ba.payment_notification_template,
+                    paymentInstructions: ba.paymentInstructions || ba.payment_instructions,
+                    enableCustomNotification: ba.enableCustomNotification !== undefined ? ba.enableCustomNotification : ba.enable_custom_notification
                 });
             }
         });
@@ -605,7 +609,32 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                 const sAdm = resolveRealStudentAdmNo(notifyStudent, undefined, enrollments);
                 const sAdmDisplay = sAdm && sAdm !== 'N/A' ? ` (${sAdm})` : '';
                 const receiptLink = `${window.location.origin}/?receipt=${receiptNumber}`;
-                const smsText = `[${notifySchool}] KSh ${amountNum.toLocaleString()} received for ${notifyStudent?.name?.split(' ')[0] || 'student'}${sAdmDisplay}. Receipt: ${receiptNumber}. Download: ${receiptLink}`;
+
+                const selectedAccount = activeBankAccounts.find((b: any) => b.id === manualPayBankAccountId);
+                const studentData = (studentFinanceData || []).find((s: any) => s.id === manualPayStudentId);
+                const studentEnr = (enrollments || []).find((e: any) => 
+                    e.userId === manualPayStudentId || e.user_id === manualPayStudentId || 
+                    e.studentId === manualPayStudentId || e.student_id === manualPayStudentId
+                );
+
+                const totalCharged = studentData?.totals?.invoiced ?? studentPendingInvoices.reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || 0), 0);
+                const currentBalance = Math.max(0, (studentData?.totals?.balance ?? totalCharged) - amountNum);
+
+                const smsText = buildCustomPaymentNotification({
+                    account: selectedAccount,
+                    student: {
+                        ...(notifyStudent || {}),
+                        admissionNumber: sAdm
+                    },
+                    enrollment: studentEnr,
+                    paymentAmount: amountNum,
+                    totalCharged: totalCharged,
+                    totalAdjusted: 0,
+                    currentBalance: currentBalance,
+                    paymentDate: manualPayDate || new Date(),
+                    institutionName: notifySchool,
+                    receiptNumber: receiptNumber
+                });
                 const emailHtml = `<p>Dear ${notifyStudent?.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${amountNum.toLocaleString()}</strong> has been received.</p><p><b>Receipt No:</b> ${receiptNumber}<br/><b>Method:</b> ${manualPayMethod}<br/><b>Ref:</b> ${manualPayReference || 'N/A'}<br/><b>Date:</b> ${manualPayDate}</p><p>Download receipt: <a href="${receiptLink}">${receiptLink}</a></p><p>Thank you,<br/>${notifySchool} Accounts Office</p>`;
 
                 if (sendSmsNotification) {
