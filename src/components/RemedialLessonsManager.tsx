@@ -8184,28 +8184,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     // Calculate accrued unpaid earnings per teacher (distinguishing weekday vs weekend rates)
     // Deduplicates active opening balances across stages so an instructor's balance is only attributed once
     const { accruedPayouts, pendingOpsHandoverBatches, cashIssuedToDosBatches } = useMemo(() => {
-        // Stage 3: Direct Unpaid Approved Sessions
-        const unpaidApproved = sessions.filter(s => s.status === 'Approved');
-        const grouped3: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
-        unpaidApproved.forEach(s => {
-            if (!grouped3[s.teacherId]) {
-                grouped3[s.teacherId] = {
-                    teacherName: s.teacherName || 'Unknown Teacher',
-                    totalHours: 0,
-                    totalAmount: 0,
-                    sessionIds: []
-                };
-            }
-            const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
-            const sHours = Number(rawHours) || 1;
-            const sessionAmount = Number(computeSessionPayout(s)) || 0;
-            grouped3[s.teacherId].totalHours = Number((grouped3[s.teacherId].totalHours + sHours).toFixed(2));
-            grouped3[s.teacherId].totalAmount = Number((grouped3[s.teacherId].totalAmount + sessionAmount).toFixed(2));
-            grouped3[s.teacherId].sessionIds.push(s.id);
-        });
-
-        // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (Pending Operations Payout)
-        const opsSessions = sessions.filter(s => s.status === 'Pending Operations Payout');
+        // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (All approved & authorized sessions ready for payout)
+        // Unifies 'Pending Operations Payout' and 'Approved' sessions so Stage 4 matches the Report liability exactly
+        const opsSessions = sessions.filter(s => 
+            (s.status === 'Pending Operations Payout' || s.status === 'Approved') &&
+            s.status !== 'Cash Issued to DOS' &&
+            s.status !== 'Paid'
+        );
         const grouped4: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
         opsSessions.forEach(s => {
             if (!grouped4[s.teacherId]) {
@@ -8223,6 +8208,10 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             grouped4[s.teacherId].totalAmount = Number((grouped4[s.teacherId].totalAmount + sessionAmount).toFixed(2));
             grouped4[s.teacherId].sessionIds.push(s.id);
         });
+
+        // Stage 3: Direct Unpaid Approved Sessions (kept empty since all approved sessions are unified into Stage 4)
+        const unpaidApproved: RemedialSession[] = [];
+        const grouped3: Record<string, { teacherName: string; totalHours: number; totalAmount: number; sessionIds: string[] }> = {};
 
         // Stage 5: Batches where cash has been issued to DOS, awaiting physical cash handover to teacher & on-screen signature
         const dosSessions = sessions.filter(s => s.status === 'Cash Issued to DOS');
@@ -15877,7 +15866,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                             </button>
                                                         </div>
                                                     )}
-                                                    {session.status === 'Pending Operations Payout' && (
+                                                    {(session.status === 'Pending Operations Payout' || session.status === 'Approved') && (
                                                         <button 
                                                             onClick={() => {
                                                                 const sHours = Number(session.hours || session.durationHours || session.duration_hours || 1) || 1;
@@ -16499,7 +16488,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     )}
 
                     {/* GENERAL UNPAID APPROVED HOURS (RENDER FIRST IF 'approved' OR IN 'all') */}
-                    {(payoutStageFilter === 'all' || payoutStageFilter === 'approved') && (
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'approved') && filteredAccruedPayouts.length > 0 && (
                         <div className="space-y-4">
                             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                                 <div>
@@ -16582,7 +16571,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     )}
 
                     {/* STAGE 4: OPERATIONS MANAGER CASH HANDOVER TO DOS */}
-                    {(payoutStageFilter === 'all' || payoutStageFilter === 'pending_ops' || (payoutStageFilter === 'approved' && filteredPendingOpsBatches.length > 0)) && (
+                    {(payoutStageFilter === 'all' || payoutStageFilter === 'pending_ops' || payoutStageFilter === 'approved') && (
                         <div className="space-y-4">
                             <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 rounded-3xl p-6 text-white shadow-xl">
                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -16648,8 +16637,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                                     setIsOpsCashModalOpen(true);
                                                                 }}
                                                                 className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                                                                title="Physical cash handover to Director of Studies (DOS)"
                                                             >
                                                                 <Banknote className="w-3.5 h-3.5" /> Cash Handover
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleIssuePayout({
+                                                                    teacherId: batch.teacherId,
+                                                                    teacherName: batch.teacherName,
+                                                                    totalAmount: batch.totalAmount,
+                                                                    totalHours: batch.totalHours,
+                                                                    sessionIds: batch.sessionIds || []
+                                                                })}
+                                                                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm transition-all cursor-pointer"
+                                                                title="Issue direct payment voucher directly to teacher without DOS custody"
+                                                            >
+                                                                Direct Voucher
                                                             </button>
                                                         </div>
                                                     </td>
