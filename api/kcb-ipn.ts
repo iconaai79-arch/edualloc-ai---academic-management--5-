@@ -42,6 +42,408 @@ const fetchWithTimeout = async (url: string, options: any, timeout = 10000) => {
     }
 };
 
+// --- Custom Payment Notification & SMS Helper ---
+const DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE = `Dear parent,
+Student: {adm_no} - {student_name}
+Class: {class_name}
+Term: {academic_year} - {term}
+Charged: {charged}
+Adjusted: {adjusted}
+Paid: {paid}
+Bal: {balance} as at {timestamp}
+
+{payment_instructions}`;
+
+const formatPaymentNotificationTimestamp = (dateInput?: string | Date): string => {
+    const d = dateInput ? new Date(dateInput) : new Date();
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()] || 'Jan';
+    const year = String(d.getFullYear()).slice(-2);
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+};
+
+const formatCurrencyAmount = (val: number | string | undefined | null): string => {
+    const num = Number(val) || 0;
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const buildCustomPaymentNotification = (params: {
+    account?: any;
+    student?: any;
+    enrollment?: any;
+    paymentAmount: number;
+    totalCharged?: number;
+    totalAdjusted?: number;
+    currentBalance?: number;
+    paymentDate?: string | Date;
+    institutionName?: string;
+    academicTerm?: string;
+    academicYear?: string;
+    receiptNumber?: string;
+}): string => {
+    const {
+        account,
+        student,
+        enrollment,
+        paymentAmount,
+        totalCharged,
+        totalAdjusted = 0,
+        currentBalance,
+        paymentDate,
+        institutionName = 'School',
+        academicTerm,
+        academicYear,
+        receiptNumber = ''
+    } = params;
+
+    const studentName = student?.name || 'Student';
+    const admNo = String(student?.admissionNumber || student?.admission_number || student?.admNo || student?.id || '').trim();
+
+    let className = enrollment?.className || enrollment?.class_name || student?.className || student?.grade || student?.class || '';
+    if (enrollment?.stream && !className.includes(enrollment.stream)) {
+        className = `${className} - ${enrollment.stream}`;
+    }
+    if (!className) className = 'Student';
+
+    const now = new Date();
+    const currentYear = academicYear || String(now.getFullYear());
+    let termText = academicTerm || '';
+    if (!termText) {
+        const month = now.getMonth() + 1;
+        if (month <= 4) termText = 'Term I';
+        else if (month <= 8) termText = 'Term II';
+        else termText = 'Term III';
+    }
+
+    const paidFormatted = formatCurrencyAmount(paymentAmount);
+    const chargedFormatted = formatCurrencyAmount(totalCharged ?? (Number(currentBalance || 0) + Number(paymentAmount)));
+    const adjustedFormatted = formatCurrencyAmount(totalAdjusted);
+    const balanceFormatted = formatCurrencyAmount(currentBalance ?? 0);
+    const timestampFormatted = formatPaymentNotificationTimestamp(paymentDate);
+
+    let instructions = account?.payment_instructions || account?.paymentInstructions || '';
+    instructions = typeof instructions === 'string' ? instructions.trim() : '';
+    if (!instructions && account?.account_number) {
+        instructions = `Fees should be paid to ${account.bank_name || account.bankName || 'Bank'} A/C ${account.account_number || account.accountNumber}${account.account_name || account.accountName ? ` (${account.account_name || account.accountName})` : ''}. Thank you.`;
+    }
+
+    const isCustomEnabled = account?.enable_custom_notification !== false && account?.enableCustomNotification !== false;
+    const rawTemplate = account?.payment_notification_template || account?.paymentNotificationTemplate;
+    let template = (isCustomEnabled && rawTemplate && typeof rawTemplate === 'string' && rawTemplate.trim())
+        ? rawTemplate.trim()
+        : DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE;
+
+    let message = template
+        .replace(/\{student_name\}/gi, studentName)
+        .replace(/\{adm_no\}/gi, admNo)
+        .replace(/\{student\}/gi, admNo ? `${admNo} - ${studentName}` : studentName)
+        .replace(/\{class_name\}/gi, className)
+        .replace(/\{class\}/gi, className)
+        .replace(/\{term\}/gi, termText)
+        .replace(/\{academic_year\}/gi, currentYear)
+        .replace(/\{year\}/gi, currentYear)
+        .replace(/\{term_display\}/gi, `${currentYear} - ${termText}`)
+        .replace(/\{charged\}/gi, chargedFormatted)
+        .replace(/\{total_charged\}/gi, chargedFormatted)
+        .replace(/\{billed\}/gi, chargedFormatted)
+        .replace(/\{adjusted\}/gi, adjustedFormatted)
+        .replace(/\{adjustments\}/gi, adjustedFormatted)
+        .replace(/\{paid\}/gi, paidFormatted)
+        .replace(/\{amount_paid\}/gi, paidFormatted)
+        .replace(/\{amount\}/gi, paidFormatted)
+        .replace(/\{balance\}/gi, balanceFormatted)
+        .replace(/\{bal\}/gi, balanceFormatted)
+        .replace(/\{timestamp\}/gi, timestampFormatted)
+        .replace(/\{date_time\}/gi, timestampFormatted)
+        .replace(/\{balance_timestamp\}/gi, `${balanceFormatted} as at ${timestampFormatted}`)
+        .replace(/\{receipt_number\}/gi, receiptNumber)
+        .replace(/\{receipt_no\}/gi, receiptNumber)
+        .replace(/\{payment_instructions\}/gi, instructions)
+        .replace(/\{account_instructions\}/gi, instructions)
+        .replace(/\{instructions\}/gi, instructions)
+        .replace(/\{bank_name\}/gi, account?.bank_name || account?.bankName || '')
+        .replace(/\{account_number\}/gi, account?.account_number || account?.accountNumber || '')
+        .replace(/\{account_name\}/gi, account?.account_name || account?.accountName || '')
+        .replace(/\{school_name\}/gi, institutionName);
+
+    if (!template.includes('{payment_instructions}') && !template.includes('{instructions}') && instructions) {
+        message = `${message}\n\n${instructions}`;
+    }
+
+    return message.trim();
+};
+
+const buildCandidateSmsGateways = (instConfig: any, sysConfig: any): any[] => {
+    const list: any[] = [];
+    const seen = new Set<string>();
+
+    const push = (cfg: any, label: string) => {
+        if (!cfg || typeof cfg !== 'object') return;
+        const prov = (cfg.provider || 'Zettatel').trim();
+        const key = cfg.apiKey || cfg.api_key || cfg.username || cfg.userId || cfg.user_id || cfg.accountId || cfg.account_id || cfg.partnerID || '';
+        const secret = cfg.apiSecret || cfg.api_secret || cfg.password || cfg.authToken || cfg.auth_token || cfg.token || cfg.apikey || '';
+        if (!key && !secret && !cfg.baseUrl && !cfg.api_url) return;
+
+        const hash = `${prov.toLowerCase()}:${key}:${secret.substring(0, 4)}:${cfg.baseUrl || cfg.api_url || ''}`;
+        if (seen.has(hash)) return;
+        seen.add(hash);
+        list.push({ ...cfg, provider: prov, _source: label });
+    };
+
+    if (instConfig) {
+        push(instConfig, 'Institution Config');
+        if (instConfig.sematimeConfig) push({ ...instConfig.sematimeConfig, provider: 'Sematime' }, 'Inst Sematime');
+        if (instConfig.zettatelConfig) push({ ...instConfig.zettatelConfig, provider: 'Zettatel' }, 'Inst Zettatel');
+        if (instConfig.advantaConfig) push({ ...instConfig.advantaConfig, provider: 'Advanta' }, 'Inst Advanta');
+    }
+
+    if (sysConfig) {
+        push(sysConfig, 'System Global Config');
+        if (sysConfig.sematimeConfig) push({ ...sysConfig.sematimeConfig, provider: 'Sematime' }, 'System Sematime');
+        if (sysConfig.zettatelConfig) push({ ...sysConfig.zettatelConfig, provider: 'Zettatel' }, 'System Zettatel');
+        if (sysConfig.advantaConfig) push({ ...sysConfig.advantaConfig, provider: 'Advanta' }, 'System Advanta');
+    }
+
+    if (process.env.SEMATIME_ACCOUNT_ID && (process.env.SEMATIME_AUTH_TOKEN || process.env.SEMATIME_API_KEY)) {
+        push({
+            provider: 'Sematime',
+            accountId: process.env.SEMATIME_ACCOUNT_ID,
+            authToken: process.env.SEMATIME_AUTH_TOKEN || process.env.SEMATIME_API_KEY,
+            fromNumber: process.env.SEMATIME_SENDER_ID || 'EDUAI'
+        }, 'Env Sematime');
+    }
+
+    if (process.env.ZETTATEL_USERID && process.env.ZETTATEL_PASSWORD) {
+        push({
+            provider: 'Zettatel',
+            userId: process.env.ZETTATEL_USERID,
+            password: process.env.ZETTATEL_PASSWORD,
+            fromNumber: process.env.ZETTATEL_SENDER_ID || 'EDUAI'
+        }, 'Env Zettatel');
+    }
+
+    if (process.env.AFRICASTALKING_API_KEY) {
+        push({
+            provider: 'AfricasTalking',
+            username: process.env.AFRICASTALKING_USERNAME || 'sandbox',
+            apiKey: process.env.AFRICASTALKING_API_KEY,
+            fromNumber: process.env.AFRICASTALKING_SENDER_ID || ''
+        }, 'Env AfricaTalking');
+    }
+
+    return list;
+};
+
+const dispatchSmsNotificationWithCascade = async (
+    candidates: any[],
+    recipientPhone: string,
+    messageText: string
+): Promise<{ success: boolean; provider: string; rawResponse?: any; error?: string }> => {
+    const cleanPhone = normalizePhone(recipientPhone);
+    if (!cleanPhone || cleanPhone.length < 9) {
+        return { success: false, provider: 'none', error: `Invalid phone number: ${recipientPhone}` };
+    }
+
+    let lastError = '';
+    let lastResponse: any = null;
+
+    for (const candidate of candidates) {
+        const prov = (candidate.provider || 'Zettatel').trim();
+
+        try {
+            if (prov.toLowerCase() === 'sematime') {
+                const accId = String(
+                    candidate.accountId || candidate.account_id || candidate.userId || candidate.user_id ||
+                    candidate.apiKey || candidate.api_key || candidate.username || ''
+                ).trim();
+                const authToken = String(
+                    candidate.authToken || candidate.auth_token || candidate.apiSecret || candidate.api_secret ||
+                    candidate.password || candidate.token || ''
+                ).trim();
+
+                if (!accId || !authToken) {
+                    lastError = 'Sematime missing accountId or authToken';
+                    continue;
+                }
+
+                let semaUrl = (candidate.baseUrl || candidate.api_url || '').trim();
+                if (!semaUrl || !semaUrl.includes('/messages/single')) {
+                    const domain = (semaUrl.includes('api.sematime.com') || semaUrl.includes('apis.sematime.com'))
+                        ? semaUrl.replace(/\/+$/, '')
+                        : 'https://apis.sematime.com/v1';
+                    const cleanDomain = domain.includes('/v1') ? domain : `${domain}/v1`;
+                    semaUrl = `${cleanDomain}/${accId}/messages/single`;
+                }
+
+                const semaPayload: any = {
+                    text: messageText,
+                    recipients: cleanPhone
+                };
+
+                const customSender = (candidate.fromNumber || candidate.senderId || candidate.senderid || '').trim();
+                if (customSender && customSender !== 'EDUAI' && customSender !== 'SEMATIME' && customSender.toUpperCase() !== 'DEFAULT') {
+                    semaPayload.senderId = customSender;
+                }
+
+                const semaHeaders: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'AuthToken': authToken
+                };
+
+                let sRes = await fetchWithTimeout(semaUrl, {
+                    method: 'POST',
+                    headers: semaHeaders,
+                    body: JSON.stringify(semaPayload)
+                }, 12000);
+
+                let resRaw = await sRes.text();
+                let resData: any;
+                try { resData = JSON.parse(resRaw); } catch { resData = { raw: resRaw }; }
+
+                // Auto-retry without senderId if rejected
+                if ((!sRes.ok || (resData && (resData.response === 'error' || resData.status === 'error' || resData.error || resData.errorMessage))) && semaPayload.senderId) {
+                    delete semaPayload.senderId;
+                    sRes = await fetchWithTimeout(semaUrl, {
+                        method: 'POST',
+                        headers: semaHeaders,
+                        body: JSON.stringify(semaPayload)
+                    }, 12000);
+                    resRaw = await sRes.text();
+                    try { resData = JSON.parse(resRaw); } catch { resData = { raw: resRaw }; }
+                }
+
+                // Alternate domain retry if 404 or 5xx
+                if (!sRes.ok && (sRes.status >= 500 || sRes.status === 404)) {
+                    const altUrl = semaUrl.includes('apis.sematime.com')
+                        ? semaUrl.replace('apis.sematime.com', 'api.sematime.com')
+                        : semaUrl.replace('api.sematime.com', 'apis.sematime.com');
+                    if (altUrl !== semaUrl) {
+                        sRes = await fetchWithTimeout(altUrl, {
+                            method: 'POST',
+                            headers: semaHeaders,
+                            body: JSON.stringify(semaPayload)
+                        }, 12000);
+                        resRaw = await sRes.text();
+                        try { resData = JSON.parse(resRaw); } catch { resData = { raw: resRaw }; }
+                    }
+                }
+
+                const isErr = !sRes.ok || (resData && (resData.response === 'error' || resData.status === 'error' || resData.error || resData.errorMessage));
+                if (!isErr) {
+                    return { success: true, provider: 'Sematime', rawResponse: resData };
+                } else {
+                    lastError = `Sematime error (${sRes.status}): ${resRaw.substring(0, 150)}`;
+                    lastResponse = resData;
+                }
+            } else if (prov === 'AfricasTalking' || prov === "Africa's Talking") {
+                const username = candidate.username || candidate.userId || 'sandbox';
+                const apiKey = candidate.apiKey || candidate.apiSecret || candidate.authToken || '';
+                if (!apiKey) {
+                    lastError = "Africa's Talking missing apiKey";
+                    continue;
+                }
+
+                const atUrl = username === 'sandbox'
+                    ? 'https://api.sandbox.africastalking.com/version1/messaging'
+                    : 'https://api.africastalking.com/version1/messaging';
+
+                const bodyParams = new URLSearchParams();
+                bodyParams.append('username', username);
+                bodyParams.append('to', `+${cleanPhone}`);
+                bodyParams.append('message', messageText);
+                if (candidate.fromNumber) bodyParams.append('from', candidate.fromNumber);
+
+                const atRes = await fetchWithTimeout(atUrl, {
+                    method: 'POST',
+                    headers: {
+                        'apiKey': apiKey,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: bodyParams.toString()
+                }, 12000);
+
+                const atRaw = await atRes.text();
+                let atData: any;
+                try { atData = JSON.parse(atRaw); } catch { atData = { raw: atRaw }; }
+
+                const isErr = !atRes.ok || (atData && atData.SMSMessageData && atData.SMSMessageData.Recipients && atData.SMSMessageData.Recipients.some((r: any) => r.status && r.status.toLowerCase().includes('failed')));
+                if (!isErr) {
+                    return { success: true, provider: "Africa's Talking", rawResponse: atData };
+                } else {
+                    lastError = `Africa's Talking error: ${atRaw.substring(0, 150)}`;
+                    lastResponse = atData;
+                }
+            } else if (prov === 'Advanta' || prov === 'TextSMS') {
+                const partnerID = candidate.apiKey || candidate.partnerId || candidate.userId || '';
+                const apikey = candidate.apiSecret || candidate.apiKey || candidate.password || '';
+                const shortcode = candidate.fromNumber || candidate.senderid || 'TextSMS';
+                const advUrl = candidate.baseUrl || candidate.api_url || 'https://quicksms.advantasms.com/api/services/sendsms/';
+
+                const advRes = await fetchWithTimeout(advUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        partnerID,
+                        apikey,
+                        mobile: cleanPhone,
+                        message: messageText,
+                        shortcode
+                    })
+                }, 12000);
+
+                const advRaw = await advRes.text();
+                const isErr = !advRes.ok || advRaw.toLowerCase().includes('error') || advRaw.toLowerCase().includes('invalid');
+                if (!isErr) {
+                    return { success: true, provider: 'Advanta', rawResponse: advRaw };
+                } else {
+                    lastError = `Advanta error: ${advRaw.substring(0, 150)}`;
+                    lastResponse = advRaw;
+                }
+            } else {
+                // Zettatel / ABMIS / HTTP GET Gateway
+                const baseUrl = candidate.baseUrl || candidate.api_url || (prov === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
+                const smsParams = new URLSearchParams({
+                    userid: candidate.apiKey || candidate.api_key || candidate.username || candidate.userId,
+                    password: candidate.apiSecret || candidate.api_secret || candidate.password,
+                    mobile: cleanPhone,
+                    msg: messageText,
+                    senderid: candidate.fromNumber || prov,
+                    msgType: 'text',
+                    output: 'json'
+                });
+
+                const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
+                const zRes = await fetchWithTimeout(finalUrl, { method: 'GET' }, 12000);
+                const zRaw = await zRes.text();
+                const isErr = !zRes.ok || zRaw.toLowerCase().includes('failed') || zRaw.toLowerCase().includes('error');
+                if (!isErr) {
+                    return { success: true, provider: prov, rawResponse: zRaw };
+                } else {
+                    lastError = `${prov} error: ${zRaw.substring(0, 150)}`;
+                    lastResponse = zRaw;
+                }
+            }
+        } catch (gatewayErr: any) {
+            lastError = `${prov} exception: ${gatewayErr?.message || gatewayErr}`;
+            console.warn(`[IPN SMS Cascade] ${prov} failed:`, lastError);
+        }
+    }
+
+    return {
+        success: false,
+        provider: candidates[0]?.provider || 'unknown',
+        error: lastError || 'All SMS gateways failed',
+        rawResponse: lastResponse
+    };
+};
+
 // Case-insensitive, source-flexible param resolver
 const getParam = (body: any, query: any, key: string): string => {
     const keysToTry = [
@@ -874,6 +1276,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 2. If no transaction, check if customerReference or businessKey corresponds to invoice or institution (C2B Paybill fallback)
         let inst: any = null;
         let invoice: any = null;
+        let matchUser: any = null;
+        let matchEnrollment: any = null;
+
         if (!transaction && amount > 0) {
             // Check if customerReference or narration is an invoice number or admission number
             const referenceCode = (customerReference || narration || '').trim();
@@ -962,7 +1367,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                // Fallback 3: Try matching student admission number in users table (supports extracted ADM like "201" from "8145955-201")
+                // Fallback 3: Try matching student admission number in users table or student_enrollments table
                 if (!invoice) {
                     const admFilters = [
                         `admission_number.eq.${referenceCode}`,
@@ -972,11 +1377,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         admFilters.push(`admission_number.eq.${parsedAdmissionNumber}`);
                         admFilters.push(`metadata->>admissionNumber.eq.${parsedAdmissionNumber}`);
                     }
-                    const { data: matchUser } = await supabase
+                    const { data: userFound } = await supabase
                         .from('users')
-                        .select('id, institution_id, name, parent_name, parent_phone, phone')
+                        .select('id, institution_id, name, parent_name, parent_phone, phone, admission_number')
                         .or(admFilters.join(','))
                         .maybeSingle();
+                    if (userFound) {
+                        matchUser = userFound;
+                    }
+
+                    // Fallback to student_enrollments table
+                    if (!matchUser) {
+                        const enrAdm = (parsedAdmissionNumber || referenceCode || '').trim();
+                        if (enrAdm) {
+                            const { data: enrFound } = await supabase
+                                .from('student_enrollments')
+                                .select('*')
+                                .or(`admission_number.eq.${enrAdm},metadata->>admissionNumber.eq.${enrAdm},metadata->>admNo.eq.${enrAdm}`)
+                                .maybeSingle();
+                            if (enrFound) {
+                                matchEnrollment = enrFound;
+                                matchUser = {
+                                    id: enrFound.student_id || enrFound.user_id || enrFound.id,
+                                    institution_id: enrFound.institution_id,
+                                    name: enrFound.student_name || enrFound.name,
+                                    parent_name: enrFound.parent_name || enrFound.metadata?.parentName,
+                                    parent_phone: enrFound.parent_phone || enrFound.metadata?.parentPhone,
+                                    phone: enrFound.phone || enrFound.metadata?.phone,
+                                    admission_number: enrFound.admission_number || enrAdm,
+                                    class_name: enrFound.class_name || enrFound.grade
+                                };
+                            }
+                        }
+                    }
+
                     if (matchUser) {
                         const { data: instData } = await supabase
                             .from('institutions')
@@ -990,12 +1424,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
 
                         if (inst) {
-                            // Find oldest pending standard invoice, driving school invoice, or property management invoice for this user
+                            // Find pending or partially paid invoice for this student
                             const { data: oldestStd } = await supabase
                                 .from('invoices')
                                 .select('*')
                                 .eq('student_id', matchUser.id)
-                                .eq('status', 'pending')
+                                .in('status', ['pending', 'partial', 'unpaid', 'issued'])
                                 .order('due_date', { ascending: true })
                                 .limit(1)
                                 .maybeSingle();
@@ -1006,7 +1440,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     .from('ds_invoices')
                                     .select('*')
                                     .eq('student_id', matchUser.id)
-                                    .eq('status', 'Pending')
+                                    .in('status', ['Pending', 'Partially Paid', 'Unpaid'])
                                     .order('due_date', { ascending: true })
                                     .limit(1)
                                     .maybeSingle();
@@ -1024,7 +1458,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             .from('pm_invoices')
                                             .select('*')
                                             .eq('tenant_id', pmTenant.id)
-                                            .eq('status', 'Pending')
+                                            .in('status', ['Pending', 'Unpaid'])
                                             .order('due_date', { ascending: true })
                                             .limit(1)
                                             .maybeSingle();
@@ -1087,6 +1521,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const isCar = invoice.balance_amount !== undefined;
                     txnMetadata.type = invoice.invoiceType || (isCar ? 'car_invoice' : 'invoice');
                     txnMetadata.invoiceId = invoice.id;
+                    if (invoice.student_id) txnMetadata.studentId = invoice.student_id;
+                    if (matchUser?.admission_number || parsedAdmissionNumber) {
+                        txnMetadata.admissionNumber = matchUser?.admission_number || parsedAdmissionNumber;
+                    }
+                    if (matchUser?.name) txnMetadata.studentName = matchUser.name;
+                    if (matchUser?.parent_phone) txnMetadata.parentPhone = matchUser.parent_phone;
+                    if (matchUser?.class_name) txnMetadata.className = matchUser.class_name;
+                } else if (matchUser || matchEnrollment) {
+                    // School fees payment for matched student without pre-existing invoice
+                    txnMetadata.type = 'invoice';
+                    txnMetadata.studentId = matchUser?.id || matchEnrollment?.student_id || matchEnrollment?.user_id || matchEnrollment?.id;
+                    txnMetadata.admissionNumber = matchUser?.admission_number || matchEnrollment?.admission_number || parsedAdmissionNumber || referenceCode;
+                    txnMetadata.studentName = matchUser?.name || matchEnrollment?.student_name || matchEnrollment?.name;
+                    txnMetadata.className = matchEnrollment?.class_name || matchEnrollment?.grade || matchUser?.class_name;
+                    txnMetadata.parentPhone = matchUser?.parent_phone || matchEnrollment?.parent_phone || matchEnrollment?.metadata?.parentPhone;
                 } else {
                     // Bank feed payment with no matched invoice — do NOT assume SMS top-up.
                     // Classifying as 'bank_feed' ensures reconciliation only marks the transaction
@@ -1433,16 +1882,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         payment_method: 'KCB IPN',
                         related_transaction_id: transaction.id
                     });
-                } else if (type === 'invoice' && metadata.invoiceId) {
-                    await supabase.from('invoices').update({ status: 'paid' }).eq('id', metadata.invoiceId);
+                } else if (type === 'invoice' || type === 'fee_payment' || metadata.studentId) {
+                    const invId = metadata.invoiceId;
+                    let invoiceObj: any = null;
+                    if (invId) {
+                        const { data: invFound } = await supabase.from('invoices').select('*').eq('id', invId).maybeSingle();
+                        invoiceObj = invFound;
+                    }
 
+                    if (invoiceObj) {
+                        const existingPaid = Number(invoiceObj.paid_amount || invoiceObj.paidAmount || 0);
+                        const invTotal = Number(invoiceObj.total_amount || invoiceObj.amount || 0);
+                        const newPaid = existingPaid + amt;
+                        const newStatus = (newPaid >= invTotal && invTotal > 0) ? 'paid' : (newPaid > 0 ? 'partial' : 'pending');
+                        await supabase.from('invoices').update({
+                            paid_amount: newPaid,
+                            status: newStatus,
+                            updated_at: new Date().toISOString()
+                        }).eq('id', invoiceObj.id);
+                    }
+
+                    const receiptNum = transactionID || `${receiptPrefix}INV-${Date.now().toString().slice(-6)}`;
+                    const receiptId = `rec_inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
                     await supabase.from('receipts').insert({
-                        id: `rec_inv_${Date.now()}`,
-                        receipt_number: transactionID || `${receiptPrefix}INV-${Date.now().toString().slice(-6)}`,
+                        id: receiptId,
+                        receipt_number: receiptNum,
                         institution_id: instId || 'SYSTEM',
-                        invoice_id: metadata.invoiceId,
+                        invoice_id: invoiceObj?.id || metadata.invoiceId || null,
+                        student_id: metadata.studentId || invoiceObj?.student_id || null,
                         amount_paid: amt,
-                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_date: (timestamp ? timestamp.split('T')[0] : null) || new Date().toISOString().split('T')[0],
                         payment_method: 'KCB IPN',
                         related_transaction_id: transaction.id
                     });
@@ -1451,7 +1920,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         await supabase.from('app_notifications').insert({
                             id: `ntf_inv_${Date.now()}`,
                             user_id: metadata.requesterId,
-                            message: `Invoice payment successful via KCB! Ref: ${transactionID}.`,
+                            message: `Invoice payment of KES ${amt} successful via KCB! Ref: ${transactionID}.`,
                             type: 'success',
                             is_read: false,
                             timestamp: new Date().toISOString()
@@ -1741,7 +2210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                const shouldMarkReconciled = type !== 'bank_feed';
+                const shouldMarkReconciled = type !== 'bank_feed' || Boolean(metadata.studentId);
 
                 if (shouldMarkReconciled) {
                     // Mark transaction as reconciled (setting reconciled: true in metadata)
@@ -1786,11 +2255,179 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     console.error('[KCB IPN] Exception writing to bank_transactions:', bankErr);
                 }
 
-                // --- Send SMS Notification with updated balance ---
-                const smsConfig = settings.sms_config || settings.smsConfig;
+                // --- Dispatch SMS Notification with updated balance ---
+                const instSmsConfig = inst?.sms_config || inst?.smsConfig;
+                const sysSmsConfig = settings.sms_config || settings.smsConfig;
                 const payerPhone = metadata.payerPhoneNumber || transaction.phone_number || phone;
+                const isFinancePayment = type === 'invoice' || type === 'fee_payment' || Boolean(metadata.studentId) || Boolean(metadata.invoiceId);
 
-                if (smsConfig && payerPhone) {
+                if (isFinancePayment) {
+                    try {
+                        const targetInstId = instId || resolvedInstitutionId;
+                        
+                        // 1. Resolve school bank account
+                        let receivingBankAccount: any = null;
+                        const accFilters: string[] = [];
+                        if (creditAccountIdentifier) accFilters.push(`account_number.eq.${creditAccountIdentifier}`);
+                        if (tillNumber) accFilters.push(`account_number.eq.${tillNumber}`);
+                        if (organizationShortCode) accFilters.push(`account_number.eq.${organizationShortCode}`);
+
+                        if (accFilters.length > 0 && targetInstId) {
+                            const { data: matchedAcc } = await supabase
+                                .from('school_bank_accounts')
+                                .select('*')
+                                .eq('institution_id', targetInstId)
+                                .or(accFilters.join(','))
+                                .maybeSingle();
+                            receivingBankAccount = matchedAcc;
+                        }
+
+                        if (!receivingBankAccount && targetInstId) {
+                            const { data: primaryAcc } = await supabase
+                                .from('school_bank_accounts')
+                                .select('*')
+                                .eq('institution_id', targetInstId)
+                                .order('created_at', { ascending: true })
+                                .limit(1)
+                                .maybeSingle();
+                            receivingBankAccount = primaryAcc;
+                        }
+
+                        // 2. Resolve Student Details
+                        const studentId = metadata.studentId || (invoice ? invoice.student_id : null);
+                        let studentUser: any = null;
+                        let studentEnrollment: any = null;
+
+                        if (studentId) {
+                            const { data: u } = await supabase.from('users').select('*').eq('id', studentId).maybeSingle();
+                            studentUser = u;
+                            const { data: enr } = await supabase.from('student_enrollments').select('*').or(`user_id.eq.${studentId},student_id.eq.${studentId},id.eq.${studentId}`).maybeSingle();
+                            studentEnrollment = enr;
+                        }
+
+                        const admLookup = metadata.admissionNumber || parsedAdmissionNumber || referenceCode;
+                        if (admLookup) {
+                            if (!studentEnrollment) {
+                                const { data: enrByAdm } = await supabase.from('student_enrollments').select('*').or(`admission_number.eq.${admLookup},metadata->>admissionNumber.eq.${admLookup},metadata->>admNo.eq.${admLookup}`).maybeSingle();
+                                if (enrByAdm) studentEnrollment = enrByAdm;
+                            }
+                            if (!studentUser) {
+                                const { data: userByAdm } = await supabase.from('users').select('*').or(`admission_number.eq.${admLookup},metadata->>admissionNumber.eq.${admLookup},metadata->>admNo.eq.${admLookup}`).maybeSingle();
+                                if (userByAdm) studentUser = userByAdm;
+                            }
+                        }
+
+                        if (!studentUser && studentEnrollment) {
+                            const linkedUid = studentEnrollment.student_id || studentEnrollment.user_id || studentEnrollment.id;
+                            if (linkedUid) {
+                                const { data: linkedUser } = await supabase.from('users').select('*').eq('id', linkedUid).maybeSingle();
+                                if (linkedUser) studentUser = linkedUser;
+                            }
+                        }
+
+                        const studentName = studentUser?.name || studentUser?.fullName || studentEnrollment?.student_name || studentEnrollment?.name || metadata.studentName || 'Student';
+                        const studentAdm = studentUser?.admission_number || studentEnrollment?.admission_number || metadata.admissionNumber || parsedAdmissionNumber || referenceCode || '';
+                        const resolvedStudentId = studentId || studentUser?.id || studentEnrollment?.student_id || studentEnrollment?.user_id;
+
+                        // 3. Compute student fee totals & balance
+                        let totalCharged = 0;
+                        let totalPaid = 0;
+                        if (resolvedStudentId && targetInstId) {
+                            const { data: invRows } = await supabase
+                                .from('invoices')
+                                .select('total_amount, amount')
+                                .eq('institution_id', targetInstId)
+                                .eq('student_id', resolvedStudentId);
+                            totalCharged = (invRows || []).reduce((sum: number, i: any) => sum + Number(i.total_amount || i.amount || 0), 0);
+
+                            const { data: recRows } = await supabase
+                                .from('receipts')
+                                .select('amount_paid')
+                                .eq('institution_id', targetInstId)
+                                .eq('student_id', resolvedStudentId);
+                            totalPaid = (recRows || []).reduce((sum: number, r: any) => sum + Number(r.amount_paid || 0), 0);
+                        }
+                        const currentBalance = Math.max(0, totalCharged - totalPaid);
+
+                        // 4. Resolve parent phone
+                        const targetParentPhone = 
+                            studentUser?.parent_phone || 
+                            studentUser?.parentPhone ||
+                            studentEnrollment?.parent_phone || 
+                            studentEnrollment?.parentPhone ||
+                            studentEnrollment?.metadata?.parentPhone || 
+                            studentEnrollment?.metadata?.parent_phone ||
+                            metadata.parentPhone || 
+                            metadata.parent_phone ||
+                            payerPhone || 
+                            transaction.phone_number || 
+                            phone || 
+                            studentUser?.phone;
+
+                        // 5. Compose personalized Finance SMS message
+                        const financeSms = buildCustomPaymentNotification({
+                            account: receivingBankAccount,
+                            student: {
+                                name: studentName,
+                                admissionNumber: studentAdm
+                            },
+                            enrollment: studentEnrollment || {
+                                className: metadata.className || studentUser?.grade || studentUser?.class
+                            },
+                            paymentAmount: amt,
+                            totalCharged: totalCharged,
+                            totalAdjusted: 0,
+                            currentBalance: currentBalance,
+                            paymentDate: timestamp || new Date(),
+                            institutionName: inst?.name || 'School',
+                            receiptNumber: transactionID || transaction.id
+                        });
+
+                        // 6. Multi-gateway cascading dispatch
+                        const candidateGateways = buildCandidateSmsGateways(instSmsConfig, sysSmsConfig);
+
+                        if (targetParentPhone && candidateGateways.length > 0) {
+                            console.log(`[KCB IPN - Finance SMS] Dispatching to ${targetParentPhone} for student ${studentName} (${studentAdm}). Available gateways: ${candidateGateways.map(c => c.provider).join(', ')}`);
+                            const dispatchRes = await dispatchSmsNotificationWithCascade(candidateGateways, targetParentPhone, financeSms);
+
+                            if (dispatchRes.success) {
+                                console.log(`[KCB IPN - Finance SMS] Delivered successfully to ${targetParentPhone} via ${dispatchRes.provider}`);
+                                if (targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL') {
+                                    await supabase.rpc('decrement_sms_balance', { inst_id: targetInstId, amount: 1 });
+                                }
+                                try {
+                                    await supabase.from('sms_logs').insert({
+                                        id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                                        institution_id: targetInstId || 'SYSTEM',
+                                        sender_id: null,
+                                        recipient: normalizePhone(targetParentPhone),
+                                        message: financeSms,
+                                        units: 1,
+                                        status: 'sent',
+                                        provider: dispatchRes.provider,
+                                        gateway_response: {
+                                            via: 'KCB IPN Finance Notification',
+                                            receiptNumber: transactionID || transaction.id,
+                                            amount: amt,
+                                            raw: dispatchRes.rawResponse
+                                        }
+                                    });
+                                } catch (logErr) {
+                                    console.warn('[KCB IPN] SMS Log insert failed:', logErr);
+                                }
+                            } else {
+                                console.error(`[KCB IPN - Finance SMS] Failed to dispatch SMS to ${targetParentPhone}:`, dispatchRes.error);
+                            }
+                        } else if (!targetParentPhone) {
+                            console.warn(`[KCB IPN - Finance SMS] No valid parent phone number resolved for student ${studentName}`);
+                        } else {
+                            console.warn(`[KCB IPN - Finance SMS] No active SMS gateways configured for institution or system.`);
+                        }
+                    } catch (finSmsErr) {
+                        console.error('[KCB IPN] Finance payment SMS dispatch exception:', finSmsErr);
+                    }
+                } else if (payerPhone) {
+                    // Non-finance payments (SMS topup, subscription, etc.)
                     let smsMessage = '';
                     if (type === 'sms' || type === 'sms_topup') {
                         smsMessage = `Payment successful via KCB! ${unitsToCredit.toLocaleString()} SMS units added. New Balance: ${newBalance.toLocaleString()} units. Ref: ${transactionID}. Thank you for choosing Eduai Automation.`;
@@ -1799,24 +2436,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     try {
-                        const provider = smsConfig.provider || 'Zettatel';
-                        const normalizedPayerPhone = normalizePhone(payerPhone);
-
-                        const baseUrl = smsConfig.baseUrl || smsConfig.api_url || (provider === 'Zettatel' ? 'https://sms.zettatel.com/smsapi/send' : 'https://sms.abmis.co.ke/SMSApi/send');
-                        
-                        const smsParams = new URLSearchParams({
-                            userid: smsConfig.apiKey || smsConfig.api_key || smsConfig.username || smsConfig.userId,
-                            password: smsConfig.apiSecret || smsConfig.api_secret || smsConfig.password,
-                            mobile: normalizedPayerPhone,
-                            msg: smsMessage,
-                            senderid: smsConfig.fromNumber || provider,
-                            msgType: 'text',
-                            output: 'json'
-                        });
-
-                        const finalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${smsParams.toString()}`;
-                        await fetchWithTimeout(finalUrl, { method: 'GET' }, 15000);
-                        console.log(`[KCB IPN] SMS Notification dispatched to ${normalizedPayerPhone}`);
+                        const candidateGateways = buildCandidateSmsGateways(instSmsConfig, sysSmsConfig);
+                        if (candidateGateways.length > 0) {
+                            await dispatchSmsNotificationWithCascade(candidateGateways, payerPhone, smsMessage);
+                        }
                     } catch (smsErr) {
                         console.error('[KCB IPN] Failed to send SMS confirmation:', smsErr);
                     }

@@ -7,6 +7,7 @@ import {
 } from '../../services/bankFeedsService';
 import { apiService } from '../../services/apiService';
 import { supabase } from '../../lib/supabase';
+import { buildCustomPaymentNotification } from '../../utils/paymentNotificationHelper';
 import {
     ArrowPathIcon,
     BuildingLibraryIcon,
@@ -850,6 +851,72 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         return transactions.filter(t => t.status === 'UNMATCHED_SUSPENSE').length;
     }, [transactions]);
 
+    // ── Helper to Dispatch Parent Payment Notification SMS ──
+    const sendPaymentNotificationSms = async (params: {
+        student: any;
+        amount: number;
+        receiptNumber: string;
+        paymentDate: string;
+    }) => {
+        const { student, amount, receiptNumber, paymentDate } = params;
+        if (!student || !institution) return;
+
+        const rawPhone = student.parentPhone || student.parent_phone || student.phone || student.guardianPhone || student.motherPhone || student.fatherPhone;
+        if (!rawPhone) return;
+
+        let cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
+        if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
+        else if (cleanPhone.length === 9) cleanPhone = '254' + cleanPhone;
+
+        if (cleanPhone.length < 9) return;
+
+        try {
+            // Fetch receiving school bank account
+            let receivingAccount: any = null;
+            try {
+                const accs = await apiService.fetchModuleRecords<any>('school_bank_accounts', institution.id).catch(() => []);
+                receivingAccount = accs?.find((a: any) => a.is_default || a.isDefault) || accs?.[0] || null;
+            } catch {}
+
+            // Calculate student balance
+            let totalCharged = 0;
+            let totalPaid = 0;
+            try {
+                const studentInvoices = await apiService.fetchModuleRecords<any>('invoices', institution.id, undefined, { filter: `student_id.eq.${student.id}` }).catch(() => []);
+                totalCharged = (studentInvoices || []).reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.total_amount || inv.amount || 0), 0);
+
+                const studentReceipts = await apiService.fetchModuleRecords<any>('receipts', institution.id, undefined, { filter: `student_id.eq.${student.id}` }).catch(() => []);
+                totalPaid = (studentReceipts || []).reduce((sum: number, rec: any) => sum + Number(rec.amountPaid || rec.amount_paid || 0), 0);
+            } catch {}
+
+            const currentBalance = Math.max(0, totalCharged - totalPaid);
+
+            const smsMsg = buildCustomPaymentNotification({
+                account: receivingAccount,
+                student: {
+                    name: student.name || student.fullName,
+                    admissionNumber: student.admissionNumber || student.admission_number || student.admNo
+                },
+                enrollment: {
+                    className: student.className || student.grade || student.class || ''
+                },
+                paymentAmount: amount,
+                totalCharged: totalCharged,
+                totalAdjusted: 0,
+                currentBalance: currentBalance,
+                paymentDate: paymentDate || new Date(),
+                institutionName: institution?.name || 'School',
+                receiptNumber: receiptNumber
+            });
+
+            const smsCfg = institution?.smsConfig || institution?.sms_config;
+            await apiService.sendSms(cleanPhone, smsMsg, smsCfg, 1, institution.id, undefined, true);
+            console.log(`[BankFeedsManager] Dispatched parent SMS payment notification to ${cleanPhone}`);
+        } catch (err) {
+            console.warn('[BankFeedsManager] Failed to dispatch payment notification SMS:', err);
+        }
+    };
+
     // ── Simulate Incoming Inflow ──
     const handleTriggerWebhookSimulation = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -908,6 +975,19 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                         relatedTransactionId: newTxn.transactionReference,
                         remarks: `Automated Ingestion Feed: ${newTxn.transactionReference}`
                     });
+
+                    // Trigger finance SMS notification to parent
+                    if (newTxn.matchedStudentId) {
+                        const matchedStudentObj = students.find(s => s.id === newTxn.matchedStudentId);
+                        if (matchedStudentObj) {
+                            sendPaymentNotificationSms({
+                                student: matchedStudentObj,
+                                amount: newTxn.amount,
+                                receiptNumber: newTxn.generatedReceiptNumber || 'RCPT',
+                                paymentDate: newTxn.transactionDate
+                            });
+                        }
+                    }
                 }
 
                 if (onLogAction) {
@@ -982,6 +1062,14 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     remarks: `Manual reconciliation for ${suspenseTargetTxn.transactionReference}`
                 });
             }
+
+            // Trigger finance SMS notification to parent
+            sendPaymentNotificationSms({
+                student: targetStudent,
+                amount: suspenseTargetTxn.amount,
+                receiptNumber,
+                paymentDate: new Date().toISOString().split('T')[0]
+            });
 
             if (onLogAction) {
                 onLogAction(`Manually resolved suspense payment ${suspenseTargetTxn.transactionReference} for student ${targetStudent.name}`);
