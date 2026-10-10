@@ -12917,6 +12917,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         students={mergedStudents.length > 0 ? mergedStudents : (props.students || [])}
                         receipts={mergedReceipts.length > 0 ? mergedReceipts : (props.receipts || [])}
                         expenses={mappedExpenses}
+                        companyDetails={props.companyDetails}
                         onReceiptCreated={(newRec) => {
                             setAllBranchReceipts((prev: any[]) => [newRec, ...prev]);
                             if ((props as any).onReceiptCreated) (props as any).onReceiptCreated(newRec);

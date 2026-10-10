@@ -3007,6 +3007,32 @@ export const apiService = {
                 item.id = `${prefix}${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             }
 
+            if (module === 'users' || module === 'students' || module === 'teachers') {
+                if (!isUpdate) {
+                    if (!item.email || typeof item.email !== 'string' || !item.email.trim() || item.email.toLowerCase() === 'null' || item.email.toLowerCase() === 'undefined') {
+                        const rawId = item.id || `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        const cleanId = String(rawId).replace(/^u_/, '').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
+                        const role = String(item.role || (module === 'students' ? 'student' : (module === 'teachers' ? 'teacher' : 'user'))).toLowerCase().replace(/[^a-zA-Z0-9_]/g, '');
+                        const phone = item.phone_number || item.phoneNumber || item.phone;
+                        const adm = item.admission_number || item.admissionNumber || item.admissionNo || item.metadata?.admissionNumber;
+                        const stf = item.staff_id || item.staffId;
+                        if (role === 'student' && adm) {
+                            item.email = `student_${String(adm).replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${cleanId.slice(-4)}@eduai.local`;
+                        } else if ((role === 'teacher' || role === 'lecturer' || role === 'staff') && stf) {
+                            item.email = `staff_${String(stf).replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase()}_${cleanId.slice(-4)}@eduai.local`;
+                        } else if (role === 'parent' && phone) {
+                            item.email = `parent_${String(phone).replace(/[^0-9]/g, '') || cleanId}@eduai.local`;
+                        } else {
+                            item.email = `${role}_${cleanId}@eduai.local`;
+                        }
+                    }
+                } else {
+                    if (item.email === null || item.email === '' || item.email === 'null' || item.email === 'undefined') {
+                        delete item.email;
+                    }
+                }
+            }
+
             if (module === 'users') {
                 const meta = typeof item.metadata === 'object' && item.metadata !== null ? { ...item.metadata } : {};
                 const tCode = item.teacherCode || item.teacher_code || item.code;

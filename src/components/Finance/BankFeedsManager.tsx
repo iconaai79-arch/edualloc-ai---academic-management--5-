@@ -34,6 +34,9 @@ interface BankFeedsManagerProps {
     students: any[];
     receipts: any[];
     expenses: any[];
+    companyDetails?: any;
+    pmSettings?: any;
+    tenants?: any[];
     onReceiptCreated?: (newReceipt: any) => void;
     onLogAction?: (msg: string) => void;
 }
@@ -43,6 +46,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     students,
     receipts,
     expenses,
+    companyDetails,
+    pmSettings: propsPmSettings,
+    tenants: propsTenants,
     onReceiptCreated,
     onLogAction
 }) => {
@@ -51,6 +57,23 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const [showDemoPreview, setShowDemoPreview] = useState<boolean>(false);
     const [lastSyncedAt, setLastSyncedAt] = useState<string>(new Date().toISOString());
+    const [pmSettings, setPmSettings] = useState<any>(propsPmSettings || null);
+    const [pmTenants, setPmTenants] = useState<any[]>(propsTenants || []);
+
+    useEffect(() => {
+        if (!institution?.id) return;
+        apiService.fetchModuleRecords('pm_settings', institution.id).then(records => {
+            if (records && records.length > 0) {
+                setPmSettings(records[0]);
+            }
+        }).catch(() => {});
+
+        apiService.fetchModuleRecords('pm_tenants', institution.id).then(records => {
+            if (records && records.length > 0) {
+                setPmTenants(records);
+            }
+        }).catch(() => {});
+    }, [institution?.id]);
 
     // Search and filtering
     const [searchQuery, setSearchQuery] = useState('');
@@ -908,7 +931,38 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             }
         }
 
-        // 5. Unmatched
+        // 5. Fallback: Tenant matching (for Property Management & rent collections)
+        if (pmTenants.length > 0) {
+            const tenantMatch = pmTenants.find(t => {
+                const tIdNum = String(t.idNumber || t.id_number || '').toLowerCase().trim();
+                const tPhone = String(t.phoneNumber || t.phone_number || t.phone || '').replace(/\D/g, '').slice(-9);
+                const tName = String(t.name || '').toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+                if (admsToTest.some(adm => (tIdNum && tIdNum === adm) || (tIdNum && adm.includes(tIdNum)))) return true;
+                if (cleanPhoneDigits && tPhone === cleanPhoneDigits) return true;
+                if (rawPayerName && rawPayerName.length >= 5) {
+                    const cleanPayer = rawPayerName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+                    const tokens = cleanPayer.split(/\s+/).filter(tok => tok.length >= 2);
+                    if (tokens.length >= 2 && tokens.every(tok => tName.includes(tok))) return true;
+                }
+                return false;
+            });
+
+            if (tenantMatch) {
+                return {
+                    status: 'MATCHED_AND_RECEIPTED' as const,
+                    matchedStudentId: tenantMatch.id,
+                    matchedStudentName: tenantMatch.name,
+                    matchedStudentAdm: tenantMatch.idNumber || tenantMatch.id_number || tenantMatch.phoneNumber || 'TENANT',
+                    matchedStudent: { ...tenantMatch, isTenant: true },
+                    generatedReceiptId: undefined,
+                    generatedReceiptNumber: undefined,
+                    confidence: 'EXACT_ADM' as const
+                };
+            }
+        }
+
+        // 6. Unmatched
         return {
             status: 'UNMATCHED_SUSPENSE' as const,
             matchedStudentId: undefined,
@@ -919,7 +973,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             generatedReceiptNumber: undefined,
             confidence: 'NONE' as const
         };
-    }, [receipts, students, parseAdmissionNumberFromRef]);
+    }, [receipts, students, pmTenants, parseAdmissionNumberFromRef]);
 
     // ── Helper to Dispatch Parent Payment Notification SMS ──
     const sendPaymentNotificationSms = useCallback(async (params: {
@@ -1034,10 +1088,61 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 realRef = txn.transactionReference && txn.transactionReference !== '-' ? txn.transactionReference : txn.id;
             }
 
-            const cleanDisplayRef = realRef.replace(/^txn_/i, '');
-            const rawRef = cleanDisplayRef || txn.transactionReference || txn.id;
-            const safeRef = (cleanDisplayRef.replace(/[^A-Za-z0-9]/g, '').slice(-4) || 'FEED').toUpperCase();
-            const receiptNumber = `RCPT-${safeRef}-${Date.now().toString().slice(-4)}`;
+            // ── Resolve Tenant Receipt Number Configuration ──
+            let activeSettings = pmSettings || propsPmSettings;
+            if (!activeSettings && institution?.id) {
+                try {
+                    const records = await apiService.fetchModuleRecords('pm_settings', institution.id);
+                    if (records && records.length > 0) {
+                        activeSettings = records[0];
+                        setPmSettings(records[0]);
+                    }
+                } catch (_) {}
+            }
+
+            // 1. Resolve Prefix (from pm_settings numbering, or companyDetails, or institution, or 'REC')
+            const configuredPrefix = (
+                activeSettings?.numbering?.receiptPrefix ||
+                companyDetails?.globalReceiptPrefix ||
+                institution?.settings?.receiptPrefix ||
+                institution?.receiptPrefix ||
+                'REC'
+            ).trim();
+
+            const cleanPrefix = (configuredPrefix.endsWith('-') || configuredPrefix.endsWith('/'))
+                ? configuredPrefix
+                : `${configuredPrefix}-`;
+
+            // 2. Resolve Next Sequence Number (from pm_settings numbering, or companyDetails, or institution)
+            let nextNum = Number(
+                activeSettings?.numbering?.receiptNextNumber ??
+                companyDetails?.globalReceiptNextNumber ??
+                institution?.settings?.receiptNextNumber ??
+                1000
+            );
+
+            if (isNaN(nextNum) || nextNum < 1) nextNum = 1000;
+
+            // 3. Ensure sequence number doesn't collide with existing receipts
+            const existingSeqNumbers = (receipts || [])
+                .map((r: any) => {
+                    const numStr = String(r.receiptNumber || r.receipt_number || '').trim();
+                    if (numStr.toUpperCase().startsWith(cleanPrefix.toUpperCase())) {
+                        const numPart = parseInt(numStr.substring(cleanPrefix.length), 10);
+                        return isNaN(numPart) ? 0 : numPart;
+                    }
+                    return 0;
+                })
+                .filter((n: number) => n > 0);
+
+            if (existingSeqNumbers.length > 0) {
+                const highestExisting = Math.max(...existingSeqNumbers);
+                if (nextNum <= highestExisting) {
+                    nextNum = highestExisting + 1;
+                }
+            }
+
+            const receiptNumber = `${cleanPrefix}${nextNum}`;
             const receiptId = `rec_feed_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
             const paymentDate = (txn.transactionDate && txn.transactionDate.includes('T'))
                 ? txn.transactionDate.split('T')[0]
@@ -1048,6 +1153,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 : txn.provider === 'EQUITY_JENGA' ? 'Equity Bank'
                 : 'M-Pesa';
 
+            const isTenantPayment = Boolean(student?.isTenant || (pmTenants || []).some((t: any) => t.id === student.id));
+            const paidForPurpose = isTenantPayment ? 'Rent' : 'School Fees';
+
             const receiptPayload = {
                 id: receiptId,
                 receipt_number: receiptNumber,
@@ -1056,8 +1164,8 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 studentId: student.id,
                 student_name: student.name || student.fullName,
                 studentName: student.name || student.fullName,
-                admission_number: student.admissionNumber || student.admission_number || txn.matchedStudentAdm || '',
-                admissionNumber: student.admissionNumber || student.admission_number || txn.matchedStudentAdm || '',
+                admission_number: student.admissionNumber || student.admission_number || txn.matchedStudentAdm || (isTenantPayment ? 'TENANT' : ''),
+                admissionNumber: student.admissionNumber || student.admission_number || txn.matchedStudentAdm || (isTenantPayment ? 'TENANT' : ''),
                 amount_paid: Number(txn.amount) || 0,
                 amountPaid: Number(txn.amount) || 0,
                 payment_date: paymentDate,
@@ -1068,13 +1176,50 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 relatedTransactionId: cleanDisplayRef,
                 institution_id: institution.id,
                 institutionId: institution.id,
-                paid_for: 'School Fees',
-                paidFor: 'School Fees',
+                paid_for: paidForPurpose,
+                paidFor: paidForPurpose,
                 remarks: `Auto-reconciled from ${txn.provider} live feed (Ref: ${cleanDisplayRef})`
             };
 
             // 1. Save new receipt in Supabase database
             await apiService.saveModuleRecord('receipts', receiptPayload);
+
+            // Increment and persist tenant receipt configuration sequence
+            if (activeSettings) {
+                const updatedSettings = {
+                    ...activeSettings,
+                    numbering: {
+                        ...(activeSettings.numbering || {}),
+                        receiptNextNumber: nextNum + 1
+                    }
+                };
+                apiService.saveModuleRecord('pm_settings', updatedSettings).catch(err => {
+                    console.warn('[BankFeedsManager] Failed to persist incremented pm_settings sequence:', err);
+                });
+                setPmSettings(updatedSettings);
+            }
+
+            // If tenant payment, also record to pm_payments table so it appears in Property Management
+            if (isTenantPayment) {
+                try {
+                    const leases = await apiService.fetchModuleRecords('pm_leases', institution.id).catch(() => []);
+                    const tenantLease = (leases || []).find((l: any) => l.tenantId === student.id && l.status === 'Active');
+                    const pmPayment = {
+                        id: `pay_feed_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                        leaseId: tenantLease?.id || '',
+                        amount: Number(txn.amount) || 0,
+                        paymentDate,
+                        paymentMethod: resolvedMethod,
+                        paymentType: 'Rent',
+                        reference: cleanDisplayRef,
+                        receiptNumber,
+                        status: 'Completed',
+                        institutionId: institution.id,
+                        createdAt: new Date().toISOString()
+                    };
+                    await apiService.saveModuleRecord('pm_payments', pmPayment).catch(() => {});
+                } catch (_) {}
+            }
 
             // 2. Mark transaction as reconciled in bank_transactions and mpesa_transactions
             if (supabase) {
