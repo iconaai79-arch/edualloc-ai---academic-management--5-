@@ -686,6 +686,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
     const [search, setSearch] = useState('');
     const [showPdfPreview, setShowPdfPreview] = useState(false);
+    const [leaseSelectedUnitId, setLeaseSelectedUnitId] = useState('');
+    const [leaseRentAmount, setLeaseRentAmount] = useState<number | string>('');
+    const [leaseDepositAmount, setLeaseDepositAmount] = useState<number | string>('');
     const [previewPdfUrl, setPreviewPdfUrl] = useState('');
     const [previewPdfTitle, setPreviewPdfTitle] = useState('');
 
@@ -1885,6 +1888,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             }
 
             setShowLeaseModal(false);
+            setLeaseSelectedUnitId('');
+            setLeaseRentAmount('');
+            setLeaseDepositAmount('');
             loadData();
         } catch (e: any) { alert(e.message || "Failed to save lease"); console.error(e); }
     };
@@ -9762,7 +9768,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 })()}
             </Modal>
 
-            <Modal show={showLeaseModal} onClose={() => { setShowLeaseModal(false); setLandlordSignatureFile(null); setTenantSignatureFile(null); }} title="Create Lease Agreement">
+            <Modal 
+                show={showLeaseModal} 
+                onClose={() => { 
+                    setShowLeaseModal(false); 
+                    setLeaseSelectedUnitId('');
+                    setLeaseRentAmount('');
+                    setLeaseDepositAmount('');
+                    setLandlordSignatureFile(null); 
+                    setTenantSignatureFile(null); 
+                }} 
+                title="Create Lease Agreement"
+            >
                 <form onSubmit={async (e) => {
                     e.preventDefault();
                     const formData = new FormData(e.currentTarget);
@@ -9775,10 +9792,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         : undefined;
 
                     handleSaveLease({
-                        unitId: formData.get('unitId') as string,
+                        unitId: (formData.get('unitId') as string) || leaseSelectedUnitId,
                         tenantId: formData.get('tenantId') as string,
-                        rentAmount: parseFloat(formData.get('rentAmount') as string) || 0,
-                        depositAmount: parseFloat(formData.get('depositAmount') as string) || 0,
+                        rentAmount: parseFloat(String(formData.get('rentAmount') || leaseRentAmount)) || 0,
+                        depositAmount: parseFloat(String(formData.get('depositAmount') || leaseDepositAmount)) || 0,
                         witnessName: formData.get('witnessName') as string,
                         witnessPhone: formData.get('witnessPhone') as string,
                         noticePeriodDays: parseInt(formData.get('noticePeriodDays') as string) || 30,
@@ -9793,42 +9810,155 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 }} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Unit</label>
-                            <select name="unitId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Unit</label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLeaseModal(false);
+                                        setEditingUnit(null);
+                                        setShowUnitModal(true);
+                                    }}
+                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                                    title="Register a new unit"
+                                >
+                                    <PlusIcon className="w-3 h-3" /> Register Unit
+                                </button>
+                            </div>
+                            <select 
+                                name="unitId" 
+                                required 
+                                value={leaseSelectedUnitId}
+                                onChange={(e) => {
+                                    const uId = e.target.value;
+                                    setLeaseSelectedUnitId(uId);
+                                    const u = units.find(unit => unit.id === uId);
+                                    if (u) {
+                                        setLeaseRentAmount(u.rentAmount || '');
+                                        setLeaseDepositAmount(u.rentAmount || '');
+                                    }
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs"
+                            >
                                 <option value="">Choose Unit...</option>
-                                {units.filter(u => u.status === 'Vacant' || u.status === 'Maintenance').map(u => (
-                                    <option key={u.id} value={u.id}>{u.unitNumber} ({u.unitType}) - KES {u.rentAmount}</option>
-                                ))}
+                                {(() => {
+                                    const vacantUnits = units.filter(u => {
+                                        const s = String(u.status || '').trim().toLowerCase();
+                                        return s === 'vacant' || s === 'maintenance' || s === 'available' || s === '';
+                                    });
+                                    const occupiedUnits = units.filter(u => {
+                                        const s = String(u.status || '').trim().toLowerCase();
+                                        return s === 'occupied' || s === 'leased';
+                                    });
+
+                                    if (units.length === 0) {
+                                        return <option value="" disabled>No registered units found</option>;
+                                    }
+
+                                    return (
+                                        <>
+                                            {vacantUnits.length > 0 && (
+                                                <optgroup label="Available Units (Vacant / Maintenance)">
+                                                    {vacantUnits.map(u => {
+                                                        const p = properties.find(prop => prop.id === u.propertyId);
+                                                        const pName = p ? `${p.name} • ` : '';
+                                                        return (
+                                                            <option key={u.id} value={u.id}>
+                                                                {pName}Unit {u.unitNumber} ({u.unitType || 'Unit'}) - KES {Number(u.rentAmount || 0).toLocaleString()} [{u.status || 'Vacant'}]
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </optgroup>
+                                            )}
+                                            {occupiedUnits.length > 0 && (
+                                                <optgroup label="Occupied Units (Renewal / Reassignment)">
+                                                    {occupiedUnits.map(u => {
+                                                        const p = properties.find(prop => prop.id === u.propertyId);
+                                                        const pName = p ? `${p.name} • ` : '';
+                                                        return (
+                                                            <option key={u.id} value={u.id}>
+                                                                {pName}Unit {u.unitNumber} ({u.unitType || 'Unit'}) - KES {Number(u.rentAmount || 0).toLocaleString()} [Occupied]
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </optgroup>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </select>
+                            {units.length === 0 && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold ml-2">
+                                    No units found in your inventory. Click "Register Unit" above to add one.
+                                </p>
+                            )}
+                            {units.length > 0 && units.every(u => String(u.status || '').trim().toLowerCase() === 'occupied') && (
+                                <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold ml-2">
+                                    All units currently have active leases. Showing occupied units for renewals/transfers.
+                                </p>
+                            )}
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Tenant</label>
-                            <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Tenant</label>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLeaseModal(false);
+                                        setEditingTenant(null);
+                                        setShowTenantModal(true);
+                                    }}
+                                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 cursor-pointer"
+                                    title="Onboard a new tenant"
+                                >
+                                    <PlusIcon className="w-3 h-3" /> Onboard Tenant
+                                </button>
+                            </div>
+                            <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs">
                                 <option value="">Choose Tenant...</option>
                                 {tenants.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name} ({t.idNumber || 'No ID'})</option>
+                                    <option key={t.id} value={t.id}>{t.name} ({t.idNumber || t.phoneNumber || 'No ID'})</option>
                                 ))}
+                                {tenants.length === 0 && (
+                                    <option value="" disabled>No onboarded tenants found</option>
+                                )}
                             </select>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Monthly Rent (KES)</label>
-                            <input name="rentAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="0.00" />
+                            <input 
+                                name="rentAmount" 
+                                type="number" 
+                                required 
+                                value={leaseRentAmount}
+                                onChange={e => setLeaseRentAmount(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs" 
+                                placeholder="0.00" 
+                            />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Deposit Required (KES)</label>
-                            <input name="depositAmount" type="number" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="0.00" />
+                            <input 
+                                name="depositAmount" 
+                                type="number" 
+                                required 
+                                value={leaseDepositAmount}
+                                onChange={e => setLeaseDepositAmount(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs" 
+                                placeholder="0.00" 
+                            />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Late Fee Penalty (%)</label>
-                            <input name="lateFeePercentage" type="number" defaultValue="5" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" />
+                            <input name="lateFeePercentage" type="number" defaultValue="5" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs" />
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Notice Period (Days)</label>
-                            <input name="noticePeriodDays" type="number" defaultValue="30" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" />
+                            <input name="noticePeriodDays" type="number" defaultValue="30" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
