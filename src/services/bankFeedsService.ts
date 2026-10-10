@@ -36,6 +36,7 @@ export interface IngestedTransaction {
     matchedStudentId?: string;
     matchedStudentName?: string;
     matchedStudentAdm?: string;
+    matchedStudent?: any;
     generatedReceiptId?: string;
     generatedReceiptNumber?: string;
     reconciliationConfidence: 'EXACT_ADM' | 'EXACT_PHONE' | 'NAME_MATCH' | 'MANUAL' | 'NONE';

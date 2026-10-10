@@ -903,8 +903,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         status: newStatus,
                         updated_at: new Date().toISOString()
                     }).eq('id', invoiceObj.id);
+                } else if (metadata.studentId || metadata.student_id) {
+                    const stdId = metadata.studentId || metadata.student_id;
+                    const { data: openInvs } = await supabase
+                        .from('invoices')
+                        .select('*')
+                        .eq('student_id', stdId)
+                        .in('status', ['pending', 'partial', 'unpaid', 'issued'])
+                        .order('due_date', { ascending: true });
+                    if (openInvs && openInvs.length > 0) {
+                        let unallocated = transaction.amount;
+                        for (const inv of openInvs) {
+                            if (unallocated <= 0) break;
+                            const curPaid = Number(inv.paid_amount || 0);
+                            const tot = Number(inv.total_amount || inv.amount || 0);
+                            const due = Math.max(0, tot - curPaid);
+                            const alloc = Math.min(unallocated, due);
+                            const nextPaid = curPaid + alloc;
+                            const nextStatus = nextPaid >= tot ? 'paid' : (nextPaid > 0 ? 'partial' : 'pending');
+                            await supabase.from('invoices').update({
+                                paid_amount: nextPaid,
+                                status: nextStatus,
+                                updated_at: new Date().toISOString()
+                            }).eq('id', inv.id);
+                            if (!invoiceObj) invoiceObj = inv;
+                            unallocated -= alloc;
+                        }
+                    }
                 }
 
+                const studentAdm = metadata.admissionNumber || metadata.admission_number || metadata.admNo || '';
+                const studentName = metadata.studentName || metadata.student_name || 'Student';
                 const receiptNum = mpesaReceiptNumber || `${receiptPrefix}INV-${Date.now().toString().slice(-6)}`;
                 const receiptId = `rec_inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
                 await supabase.from('receipts').insert({
@@ -912,11 +941,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     receipt_number: receiptNum,
                     institution_id: transaction.institution_id || 'SYSTEM',
                     invoice_id: invoiceObj?.id || metadata.invoiceId || null,
-                    student_id: metadata.studentId || invoiceObj?.student_id || null,
+                    student_id: metadata.studentId || metadata.student_id || invoiceObj?.student_id || null,
+                    student_name: studentName,
+                    admission_number: studentAdm,
                     amount_paid: transaction.amount,
                     payment_date: new Date().toISOString().split('T')[0],
                     payment_method: 'M-Pesa',
-                    related_transaction_id: transaction.id
+                    paid_for: 'School Fees',
+                    related_transaction_id: mpesaReceiptNumber || transaction.id,
+                    remarks: `Automated headless reconciliation via M-Pesa Callback (Ref: ${mpesaReceiptNumber || transaction.id})`
                 });
 
                 if (metadata.requesterId) {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
     BankFeedsService,
     BankFeedAccount,
@@ -62,6 +62,8 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const [suspenseTargetTxn, setSuspenseTargetTxn] = useState<IngestedTransaction | null>(null);
     const [selectedStudentForSuspense, setSelectedStudentForSuspense] = useState<string>('');
     const [isAssigningSuspense, setIsAssigningSuspense] = useState<boolean>(false);
+    const autoReconcilingIdsRef = useRef<Set<string>>(new Set());
+    const [reconcilingId, setReconcilingId] = useState<string | null>(null);
 
     // Simulation states
     const [isSimulating, setIsSimulating] = useState(false);
@@ -911,6 +913,209 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         };
     }, [receipts, students, parseAdmissionNumberFromRef]);
 
+    // ── Helper to Dispatch Parent Payment Notification SMS ──
+    const sendPaymentNotificationSms = useCallback(async (params: {
+        student: any;
+        amount: number;
+        receiptNumber: string;
+        paymentDate: string;
+    }) => {
+        const { student, amount, receiptNumber, paymentDate } = params;
+        if (!student || !institution) return;
+
+        const rawPhone = student.parentPhone || student.parent_phone || student.phone || student.guardianPhone || student.motherPhone || student.fatherPhone;
+        if (!rawPhone) return;
+
+        let cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
+        if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
+        else if (cleanPhone.length === 9) cleanPhone = '254' + cleanPhone;
+
+        if (cleanPhone.length < 9) return;
+
+        try {
+            // Fetch receiving school bank account
+            let receivingAccount: any = null;
+            try {
+                const accs = await apiService.fetchModuleRecords<any>('school_bank_accounts', institution.id).catch(() => []);
+                receivingAccount = accs?.find((a: any) => a.is_default || a.isDefault) || accs?.[0] || null;
+            } catch {}
+
+            // Calculate student balance
+            let totalCharged = 0;
+            let totalPaid = 0;
+            try {
+                const studentInvoices = await apiService.fetchModuleRecords<any>('invoices', institution.id, undefined, { filter: { student_id: student.id } }).catch(() => []);
+                totalCharged = (studentInvoices || []).reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.total_amount || inv.amount || 0), 0);
+
+                const studentReceipts = await apiService.fetchModuleRecords<any>('receipts', institution.id, undefined, { filter: { student_id: student.id } }).catch(() => []);
+                totalPaid = (studentReceipts || []).reduce((sum: number, rec: any) => sum + Number(rec.amountPaid || rec.amount_paid || 0), 0);
+            } catch {}
+
+            const currentBalance = Math.max(0, totalCharged - totalPaid);
+
+            const smsMsg = buildCustomPaymentNotification({
+                account: receivingAccount,
+                student: {
+                    name: student.name || student.fullName,
+                    admissionNumber: student.admissionNumber || student.admission_number || student.admNo
+                },
+                enrollment: {
+                    className: student.className || student.grade || student.class || ''
+                },
+                paymentAmount: amount,
+                totalCharged: totalCharged,
+                totalAdjusted: 0,
+                currentBalance: currentBalance,
+                paymentDate: paymentDate || new Date(),
+                institutionName: institution?.name || 'School',
+                receiptNumber: receiptNumber
+            });
+
+            const smsCfg = institution?.smsConfig || institution?.sms_config;
+            await apiService.sendSms(cleanPhone, smsMsg, smsCfg, 1, institution.id, undefined, true);
+            console.log(`[BankFeedsManager] Dispatched parent SMS payment notification to ${cleanPhone}`);
+        } catch (err) {
+            console.warn('[BankFeedsManager] Failed to dispatch payment notification SMS:', err);
+        }
+    }, [institution]);
+
+    // ── Auto-Reconciliation Engine: Persist Real Receipt & Send Parent SMS ──
+    const handleAutoReconcileTransaction = useCallback(async (txn: IngestedTransaction, targetStudent?: any) => {
+        const student = targetStudent || txn.matchedStudent || students.find(s => s.id === txn.matchedStudentId);
+        if (!student || !institution?.id) return;
+
+        const txnKey = txn.transactionReference && txn.transactionReference !== '-' ? txn.transactionReference : txn.id;
+        if (autoReconcilingIdsRef.current.has(txnKey)) return;
+        autoReconcilingIdsRef.current.add(txnKey);
+        setReconcilingId(txn.id);
+
+        try {
+            // Check if receipt already exists in receipts list to avoid duplicate insertions
+            const alreadyExists = receipts.find(r => {
+                const rRef = String(r.relatedTransactionId || r.related_transaction_id || '').trim().toLowerCase();
+                const cleanRef = String(txn.transactionReference || '').trim().toLowerCase();
+                return cleanRef && (rRef === cleanRef || r.receiptNumber === cleanRef || r.receipt_number === cleanRef);
+            });
+
+            if (alreadyExists) {
+                setLiveTransactions(prev => prev.map(t => {
+                    if (t.id === txn.id || (t.transactionReference && t.transactionReference === txn.transactionReference)) {
+                        return {
+                            ...t,
+                            status: 'MATCHED_AND_RECEIPTED',
+                            generatedReceiptId: alreadyExists.id,
+                            generatedReceiptNumber: alreadyExists.receiptNumber || alreadyExists.receipt_number
+                        };
+                    }
+                    return t;
+                }));
+                return;
+            }
+
+            const rawRef = txn.transactionReference && txn.transactionReference !== '-' ? txn.transactionReference : txn.id;
+            const safeRef = rawRef.replace(/[^A-Za-z0-9]/g, '').slice(-4) || 'FEED';
+            const receiptNumber = `RCPT-${safeRef}-${Date.now().toString().slice(-4)}`;
+            const receiptId = `rec_feed_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            const paymentDate = (txn.transactionDate && txn.transactionDate.includes('T'))
+                ? txn.transactionDate.split('T')[0]
+                : (txn.transactionDate || new Date().toISOString().split('T')[0]);
+
+            const resolvedMethod = txn.provider === 'KCB_BUNI' ? 'KCB IPN'
+                : txn.provider === 'COOP_CONNECT' ? 'Co-op Bank'
+                : txn.provider === 'EQUITY_JENGA' ? 'Equity Bank'
+                : 'M-Pesa';
+
+            const receiptPayload = {
+                id: receiptId,
+                receipt_number: receiptNumber,
+                receiptNumber: receiptNumber,
+                student_id: student.id,
+                studentId: student.id,
+                student_name: student.name || student.fullName,
+                studentName: student.name || student.fullName,
+                admission_number: student.admissionNumber || student.admission_number || txn.matchedStudentAdm || '',
+                admissionNumber: student.admissionNumber || student.admission_number || txn.matchedStudentAdm || '',
+                amount_paid: Number(txn.amount) || 0,
+                amountPaid: Number(txn.amount) || 0,
+                payment_date: paymentDate,
+                paymentDate: paymentDate,
+                payment_method: resolvedMethod,
+                paymentMethod: resolvedMethod,
+                related_transaction_id: rawRef,
+                relatedTransactionId: rawRef,
+                institution_id: institution.id,
+                institutionId: institution.id,
+                paid_for: 'School Fees',
+                paidFor: 'School Fees',
+                remarks: `Auto-reconciled from ${txn.provider} live feed (Ref: ${rawRef})`
+            };
+
+            // 1. Save new receipt in Supabase database
+            await apiService.saveModuleRecord('receipts', receiptPayload);
+
+            // 2. Mark transaction as reconciled in bank_transactions and mpesa_transactions
+            if (supabase) {
+                try {
+                    await supabase.from('bank_transactions').update({
+                        status: 'reconciled',
+                        reconciled_at: new Date().toISOString(),
+                        reconciled_by: 'Auto-Reconciliation Engine'
+                    }).or(`id.eq.${txn.id},reference.eq.${rawRef}`);
+                } catch (_) {}
+                try {
+                    await supabase.from('mpesa_transactions').update({
+                        status: 'completed',
+                        metadata: {
+                            reconciled: true,
+                            reconciled_at: new Date().toISOString(),
+                            receiptId,
+                            receiptNumber
+                        }
+                    }).or(`id.eq.${txn.id},transaction_id.eq.${rawRef}`);
+                } catch (_) {}
+            }
+
+            // 3. Update local state in BankFeedsManager
+            setLiveTransactions(prev => prev.map(t => {
+                if (t.id === txn.id || (t.transactionReference && t.transactionReference === rawRef)) {
+                    return {
+                        ...t,
+                        status: 'MATCHED_AND_RECEIPTED',
+                        matchedStudentId: student.id,
+                        matchedStudentName: student.name || student.fullName,
+                        matchedStudentAdm: student.admissionNumber || student.admission_number,
+                        matchedStudent: student,
+                        generatedReceiptId: receiptId,
+                        generatedReceiptNumber: receiptNumber
+                    };
+                }
+                return t;
+            }));
+
+            // 4. Update parent components immediately so Student Fees reflect the payment
+            if (onReceiptCreated) {
+                onReceiptCreated(receiptPayload);
+            }
+
+            // 5. Dispatch parent SMS payment notification with current fee balance
+            await sendPaymentNotificationSms({
+                student,
+                amount: Number(txn.amount) || 0,
+                receiptNumber,
+                paymentDate
+            });
+
+            if (onLogAction) {
+                onLogAction(`Auto-reconciled feed payment ${rawRef} for ${student.name || 'student'}. Receipt ${receiptNumber} created.`);
+            }
+        } catch (err) {
+            console.error('[BankFeedsManager] Auto-reconciliation error:', err);
+            autoReconcilingIdsRef.current.delete(txnKey);
+        } finally {
+            setReconcilingId(prev => prev === txn.id ? null : prev);
+        }
+    }, [institution?.id, students, receipts, onReceiptCreated, onLogAction, sendPaymentNotificationSms]);
+
     // ── 3. Fetch Real Transactions From DB with Smart Deduplication ──
     const fetchRealTransactions = useCallback(async () => {
         if (!institution?.id) return;
@@ -1075,13 +1280,27 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
 
             setLiveTransactions(aggregated);
             setLastSyncedAt(new Date().toISOString());
+
+            // Automatically reconcile high-confidence matched transactions that do not yet have a persisted receipt
+            const pendingMatches = aggregated.filter(t =>
+                t.status === 'MATCHED_AND_RECEIPTED' &&
+                !t.generatedReceiptId &&
+                t.matchedStudent &&
+                (t.reconciliationConfidence === 'EXACT_ADM' || t.reconciliationConfidence === 'EXACT_PHONE' || t.reconciliationConfidence === 'NAME_MATCH')
+            );
+
+            if (pendingMatches.length > 0) {
+                pendingMatches.forEach(pTxn => {
+                    handleAutoReconcileTransaction(pTxn);
+                });
+            }
         } catch (err) {
             console.error('[BankFeedsManager] Failed to fetch real transactions:', err);
         } finally {
             setIsLoading(false);
             setIsRefreshing(false);
         }
-    }, [institution?.id, matchTransactionDetails, extractRealTransactionCode, extractBillReference, extractPayerName, extractRowPhone, getTransactionTimestamp]);
+    }, [institution?.id, matchTransactionDetails, extractRealTransactionCode, extractBillReference, extractPayerName, extractRowPhone, getTransactionTimestamp, handleAutoReconcileTransaction]);
 
     // Initial load
     useEffect(() => {
@@ -1108,12 +1327,36 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     fetchRealTransactions();
                 }
             )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'receipts', filter: `institution_id=eq.${instId}` },
+                () => {
+                    fetchRealTransactions();
+                }
+            )
             .subscribe();
 
         return () => {
-            supabase.removeChannel(channel);
+            supabase?.removeChannel(channel);
         };
     }, [institution?.id, fetchRealTransactions]);
+
+    // ── 5. Live Auto-Polling & Window Focus Refresh ──
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchRealTransactions();
+        }, 12000);
+
+        const handleFocus = () => {
+            fetchRealTransactions();
+        };
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [fetchRealTransactions]);
 
     // Sample data used ONLY when user explicitly toggles preview
     const samplePreviewData: IngestedTransaction[] = useMemo(() => [
@@ -1201,72 +1444,6 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
     const suspenseCount = useMemo(() => {
         return transactions.filter(t => t.status === 'UNMATCHED_SUSPENSE').length;
     }, [transactions]);
-
-    // ── Helper to Dispatch Parent Payment Notification SMS ──
-    const sendPaymentNotificationSms = async (params: {
-        student: any;
-        amount: number;
-        receiptNumber: string;
-        paymentDate: string;
-    }) => {
-        const { student, amount, receiptNumber, paymentDate } = params;
-        if (!student || !institution) return;
-
-        const rawPhone = student.parentPhone || student.parent_phone || student.phone || student.guardianPhone || student.motherPhone || student.fatherPhone;
-        if (!rawPhone) return;
-
-        let cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
-        if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
-        else if (cleanPhone.length === 9) cleanPhone = '254' + cleanPhone;
-
-        if (cleanPhone.length < 9) return;
-
-        try {
-            // Fetch receiving school bank account
-            let receivingAccount: any = null;
-            try {
-                const accs = await apiService.fetchModuleRecords<any>('school_bank_accounts', institution.id).catch(() => []);
-                receivingAccount = accs?.find((a: any) => a.is_default || a.isDefault) || accs?.[0] || null;
-            } catch {}
-
-            // Calculate student balance
-            let totalCharged = 0;
-            let totalPaid = 0;
-            try {
-                const studentInvoices = await apiService.fetchModuleRecords<any>('invoices', institution.id, undefined, { filter: `student_id.eq.${student.id}` }).catch(() => []);
-                totalCharged = (studentInvoices || []).reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.total_amount || inv.amount || 0), 0);
-
-                const studentReceipts = await apiService.fetchModuleRecords<any>('receipts', institution.id, undefined, { filter: `student_id.eq.${student.id}` }).catch(() => []);
-                totalPaid = (studentReceipts || []).reduce((sum: number, rec: any) => sum + Number(rec.amountPaid || rec.amount_paid || 0), 0);
-            } catch {}
-
-            const currentBalance = Math.max(0, totalCharged - totalPaid);
-
-            const smsMsg = buildCustomPaymentNotification({
-                account: receivingAccount,
-                student: {
-                    name: student.name || student.fullName,
-                    admissionNumber: student.admissionNumber || student.admission_number || student.admNo
-                },
-                enrollment: {
-                    className: student.className || student.grade || student.class || ''
-                },
-                paymentAmount: amount,
-                totalCharged: totalCharged,
-                totalAdjusted: 0,
-                currentBalance: currentBalance,
-                paymentDate: paymentDate || new Date(),
-                institutionName: institution?.name || 'School',
-                receiptNumber: receiptNumber
-            });
-
-            const smsCfg = institution?.smsConfig || institution?.sms_config;
-            await apiService.sendSms(cleanPhone, smsMsg, smsCfg, 1, institution.id, undefined, true);
-            console.log(`[BankFeedsManager] Dispatched parent SMS payment notification to ${cleanPhone}`);
-        } catch (err) {
-            console.warn('[BankFeedsManager] Failed to dispatch payment notification SMS:', err);
-        }
-    };
 
     // ── Simulate Incoming Inflow ──
     const handleTriggerWebhookSimulation = async (e: React.FormEvent) => {
@@ -1708,7 +1885,8 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                             ? txn.createdAt
                                             : (txn.transactionDate || txn.createdAt);
                                         const paidOnVal = formatPaidOn(effectiveTimestamp);
-                                        const isReconciled = txn.status === 'MATCHED_AND_RECEIPTED' || Boolean(txn.generatedReceiptNumber);
+                                        const isReconciled = Boolean(txn.generatedReceiptNumber) || (txn.status === 'MATCHED_AND_RECEIPTED' && Boolean(txn.generatedReceiptId));
+                                        const isReconcilingThis = reconcilingId === txn.id;
                                         const sourceVal = resolveSource(txn);
 
                                         return (
@@ -1743,6 +1921,21 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                                         <span className="inline-block px-2.5 py-0.5 rounded bg-[#5cb85c] text-white text-[11px] font-bold tracking-wide shadow-sm">
                                                             Reconciled
                                                         </span>
+                                                    ) : isReconcilingThis ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-indigo-500 text-white text-[11px] font-bold tracking-wide shadow-sm animate-pulse">
+                                                            <ArrowPathIcon className="w-3 h-3 animate-spin" />
+                                                            Reconciling...
+                                                        </span>
+                                                    ) : (txn.status === 'MATCHED_AND_RECEIPTED' || txn.matchedStudentId) ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAutoReconcileTransaction(txn)}
+                                                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold tracking-wide shadow-sm transition-all cursor-pointer hover:scale-105 active:scale-95"
+                                                            title="Student identified. Click to generate receipt & send SMS"
+                                                        >
+                                                            <CheckCircleIcon className="w-3 h-3" />
+                                                            Reconcile
+                                                        </button>
                                                     ) : txn.status === 'UNMATCHED_SUSPENSE' ? (
                                                         <button
                                                             type="button"

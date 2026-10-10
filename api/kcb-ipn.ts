@@ -1373,45 +1373,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Fallback 3: Try matching student admission number in users table or student_enrollments table
                 if (!invoice) {
-                    const admFilters = [
-                        `admission_number.eq.${referenceCode}`,
-                        `metadata->>admissionNumber.eq.${referenceCode}`
-                    ];
-                    if (parsedAdmissionNumber && parsedAdmissionNumber !== referenceCode) {
-                        admFilters.push(`admission_number.eq.${parsedAdmissionNumber}`);
-                        admFilters.push(`metadata->>admissionNumber.eq.${parsedAdmissionNumber}`);
-                    }
-                    const { data: userFound } = await supabase
-                        .from('users')
-                        .select('id, institution_id, name, parent_name, parent_phone, phone, admission_number')
-                        .or(admFilters.join(','))
-                        .maybeSingle();
-                    if (userFound) {
-                        matchUser = userFound;
+                    const candidateAdms = new Set<string>();
+                    if (referenceCode) candidateAdms.add(referenceCode.trim());
+                    if (parsedAdmissionNumber) candidateAdms.add(parsedAdmissionNumber.trim());
+                    
+                    // Suffix matching (e.g. "8145955-201" -> "201", "ADM-002" -> "002", "2024/001" -> "001")
+                    if (referenceCode.includes('-') || referenceCode.includes('/') || referenceCode.includes(' ')) {
+                        const parts = referenceCode.split(/[-/\s:]+/).map(p => p.trim()).filter(Boolean);
+                        if (parts.length > 1) {
+                            candidateAdms.add(parts[parts.length - 1]);
+                        }
                     }
 
-                    // Fallback to student_enrollments table
+                    // Candidate phones (last 9 digits)
+                    const cleanPhoneDigits = (customerMobileNumber || phone || referenceCode || '').replace(/\D/g, '').slice(-9);
+                    const targetScopeInstId = inst?.id || resolvedInstitutionId || null;
+
+                    // A. Check student_enrollments table by admission number
+                    for (const adm of Array.from(candidateAdms)) {
+                        if (matchUser) break;
+                        let q = supabase.from('student_enrollments').select('*');
+                        if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
+                        
+                        const { data: enrList } = await q.or(`admission_number.ilike.${adm},admission_number.ilike.%-${adm},admission_number.ilike.%/${adm},metadata->>admissionNumber.ilike.${adm},metadata->>admNo.ilike.${adm}`).limit(2);
+                        if (enrList && enrList.length > 0) {
+                            const enrFound = enrList[0];
+                            matchEnrollment = enrFound;
+                            matchUser = {
+                                id: enrFound.student_id || enrFound.user_id || enrFound.id,
+                                institution_id: enrFound.institution_id,
+                                name: enrFound.student_name || enrFound.name,
+                                parent_name: enrFound.parent_name || enrFound.metadata?.parentName,
+                                parent_phone: enrFound.parent_phone || enrFound.metadata?.parentPhone,
+                                phone: enrFound.phone || enrFound.metadata?.phone,
+                                admission_number: enrFound.admission_number || adm,
+                                class_name: enrFound.class_name || enrFound.grade
+                            };
+                            break;
+                        }
+                    }
+
+                    // B. Check users table by admission number
                     if (!matchUser) {
-                        const enrAdm = (parsedAdmissionNumber || referenceCode || '').trim();
-                        if (enrAdm) {
-                            const { data: enrFound } = await supabase
-                                .from('student_enrollments')
-                                .select('*')
-                                .or(`admission_number.eq.${enrAdm},metadata->>admissionNumber.eq.${enrAdm},metadata->>admNo.eq.${enrAdm}`)
-                                .maybeSingle();
-                            if (enrFound) {
-                                matchEnrollment = enrFound;
-                                matchUser = {
-                                    id: enrFound.student_id || enrFound.user_id || enrFound.id,
-                                    institution_id: enrFound.institution_id,
-                                    name: enrFound.student_name || enrFound.name,
-                                    parent_name: enrFound.parent_name || enrFound.metadata?.parentName,
-                                    parent_phone: enrFound.parent_phone || enrFound.metadata?.parentPhone,
-                                    phone: enrFound.phone || enrFound.metadata?.phone,
-                                    admission_number: enrFound.admission_number || enrAdm,
-                                    class_name: enrFound.class_name || enrFound.grade
-                                };
+                        for (const adm of Array.from(candidateAdms)) {
+                            if (matchUser) break;
+                            let q = supabase.from('users').select('id, institution_id, name, parent_name, parent_phone, phone, admission_number, class_name');
+                            if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
+                            
+                            const { data: userList } = await q.or(`admission_number.ilike.${adm},admission_number.ilike.%-${adm},admission_number.ilike.%/${adm},metadata->>admissionNumber.ilike.${adm}`).limit(2);
+                            if (userList && userList.length > 0) {
+                                matchUser = userList[0];
+                                break;
                             }
+                        }
+                    }
+
+                    // C. Fallback: Check student_enrollments by parent phone
+                    if (!matchUser && cleanPhoneDigits.length >= 9) {
+                        let q = supabase.from('student_enrollments').select('*');
+                        if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
+                        const { data: enrByPhone } = await q.or(`parent_phone.ilike.%${cleanPhoneDigits},phone.ilike.%${cleanPhoneDigits},metadata->>parentPhone.ilike.%${cleanPhoneDigits}`).limit(1);
+                        if (enrByPhone && enrByPhone.length > 0) {
+                            const enrFound = enrByPhone[0];
+                            matchEnrollment = enrFound;
+                            matchUser = {
+                                id: enrFound.student_id || enrFound.user_id || enrFound.id,
+                                institution_id: enrFound.institution_id,
+                                name: enrFound.student_name || enrFound.name,
+                                parent_name: enrFound.parent_name || enrFound.metadata?.parentName,
+                                parent_phone: enrFound.parent_phone || enrFound.metadata?.parentPhone,
+                                phone: enrFound.phone || enrFound.metadata?.phone,
+                                admission_number: enrFound.admission_number || '',
+                                class_name: enrFound.class_name || enrFound.grade
+                            };
+                        }
+                    }
+
+                    // D. Fallback: Check users by parent phone
+                    if (!matchUser && cleanPhoneDigits.length >= 9) {
+                        let q = supabase.from('users').select('id, institution_id, name, parent_name, parent_phone, phone, admission_number, class_name');
+                        if (targetScopeInstId) q = q.eq('institution_id', targetScopeInstId);
+                        const { data: userByPhone } = await q.or(`parent_phone.ilike.%${cleanPhoneDigits},phone.ilike.%${cleanPhoneDigits}`).limit(1);
+                        if (userByPhone && userByPhone.length > 0) {
+                            matchUser = userByPhone[0];
                         }
                     }
 
@@ -1904,20 +1948,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             status: newStatus,
                             updated_at: new Date().toISOString()
                         }).eq('id', invoiceObj.id);
+                    } else if (metadata.studentId) {
+                        // Headless FIFO allocation across open invoices for this student
+                        const { data: openInvs } = await supabase
+                            .from('invoices')
+                            .select('*')
+                            .eq('student_id', metadata.studentId)
+                            .in('status', ['pending', 'partial', 'unpaid', 'issued'])
+                            .order('due_date', { ascending: true });
+                        if (openInvs && openInvs.length > 0) {
+                            let unallocated = amt;
+                            for (const inv of openInvs) {
+                                if (unallocated <= 0) break;
+                                const curPaid = Number(inv.paid_amount || 0);
+                                const tot = Number(inv.total_amount || inv.amount || 0);
+                                const due = Math.max(0, tot - curPaid);
+                                const alloc = Math.min(unallocated, due);
+                                const nextPaid = curPaid + alloc;
+                                const nextStatus = nextPaid >= tot ? 'paid' : (nextPaid > 0 ? 'partial' : 'pending');
+                                await supabase.from('invoices').update({
+                                    paid_amount: nextPaid,
+                                    status: nextStatus,
+                                    updated_at: new Date().toISOString()
+                                }).eq('id', inv.id);
+                                if (!invoiceObj) invoiceObj = inv;
+                                unallocated -= alloc;
+                            }
+                        }
                     }
 
-                    const receiptNum = transactionID || `${receiptPrefix}INV-${Date.now().toString().slice(-6)}`;
+                    const targetInstId = instId || resolvedInstitutionId || 'SYSTEM';
+                    const studentAdm = metadata.admissionNumber || parsedAdmissionNumber || referenceCode || '';
+                    const studentName = metadata.studentName || payerName || 'Student';
+                    const receiptNum = transactionReference || transactionID || `${receiptPrefix}INV-${Date.now().toString().slice(-6)}`;
                     const receiptId = `rec_inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
                     await supabase.from('receipts').insert({
                         id: receiptId,
                         receipt_number: receiptNum,
-                        institution_id: instId || 'SYSTEM',
+                        institution_id: targetInstId,
                         invoice_id: invoiceObj?.id || metadata.invoiceId || null,
                         student_id: metadata.studentId || invoiceObj?.student_id || null,
+                        student_name: studentName,
+                        admission_number: studentAdm,
                         amount_paid: amt,
                         payment_date: (timestamp ? timestamp.split('T')[0] : null) || new Date().toISOString().split('T')[0],
                         payment_method: 'KCB IPN',
-                        related_transaction_id: transaction.id
+                        paid_for: 'School Fees',
+                        related_transaction_id: transactionReference || transactionID || transaction.id,
+                        remarks: `Automated headless reconciliation via KCB IPN (Ref: ${transactionReference || transactionID})`
                     });
 
                     if (metadata.requesterId) {

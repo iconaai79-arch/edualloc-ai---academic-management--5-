@@ -1849,6 +1849,40 @@ export const apiService = {
                         p.op_number = fileNo;
                     });
                 }
+                if (module === 'receipts' && Array.isArray(finalResult)) {
+                    finalResult.forEach((r: any) => {
+                        const rNum = r.receiptNumber || r.receipt_number || '';
+                        r.receiptNumber = rNum;
+                        r.receipt_number = rNum;
+                        const amt = Number(r.amountPaid ?? r.amount_paid ?? 0);
+                        r.amountPaid = amt;
+                        r.amount_paid = amt;
+                        const sId = r.studentId || r.student_id || '';
+                        r.studentId = sId;
+                        r.student_id = sId;
+                        const sName = r.studentName || r.student_name || '';
+                        r.studentName = sName;
+                        r.student_name = sName;
+                        const sAdm = r.admissionNumber || r.admission_number || '';
+                        r.admissionNumber = sAdm;
+                        r.admission_number = sAdm;
+                        const pDate = r.paymentDate || r.payment_date || '';
+                        r.paymentDate = pDate;
+                        r.payment_date = pDate;
+                        const pMethod = r.paymentMethod || r.payment_method || '';
+                        r.paymentMethod = pMethod;
+                        r.payment_method = pMethod;
+                        const relTxn = r.relatedTransactionId || r.related_transaction_id || '';
+                        r.relatedTransactionId = relTxn;
+                        r.related_transaction_id = relTxn;
+                        const invId = r.invoiceId || r.invoice_id || '';
+                        r.invoiceId = invId;
+                        r.invoice_id = invId;
+                        const instId = r.institutionId || r.institution_id || '';
+                        r.institutionId = instId;
+                        r.institution_id = instId;
+                    });
+                }
                 if (module === 'student_enrollments' && Array.isArray(finalResult)) {
                     finalResult.forEach((enr: any) => {
                         let meta = enr.metadata;
