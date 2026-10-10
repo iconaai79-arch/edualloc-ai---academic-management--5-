@@ -8054,7 +8054,10 @@ export const apiService = {
                     paidByDosId: r.paidByDosId || r.paid_by_dos_id || meta.paidByDosId || meta.paid_by_dos_id || '',
                     paidAt: r.paidAt || r.paid_at || meta.paidAt || meta.paid_at || '',
                     teacherSignatureDataUrl: r.teacherSignatureDataUrl || r.teacher_signature_data_url || meta.teacherSignatureDataUrl || meta.teacher_signature_data_url || '',
-                    paymentMethod: r.paymentMethod || r.payment_method || meta.paymentMethod || meta.payment_method || ''
+                    paymentMethod: r.paymentMethod || r.payment_method || meta.paymentMethod || meta.payment_method || '',
+                    autoConcluded: r.autoConcluded !== undefined ? Boolean(r.autoConcluded) : (r.auto_concluded !== undefined ? Boolean(r.auto_concluded) : (meta.autoConcluded !== undefined ? Boolean(meta.autoConcluded) : (meta.auto_concluded !== undefined ? Boolean(meta.auto_concluded) : false))),
+                    autoConcludedAt: r.autoConcludedAt || r.auto_concluded_at || meta.autoConcludedAt || meta.auto_concluded_at || undefined,
+                    autoConcludedReason: r.autoConcludedReason || r.auto_concluded_reason || meta.autoConcludedReason || meta.auto_concluded_reason || undefined
                 };
             });
 
@@ -8175,7 +8178,13 @@ export const apiService = {
             dosRecipientId: payload.dosRecipientId || payload.dos_recipient_id,
             dosReceivedAt: payload.dosReceivedAt || payload.dos_received_at,
             teacherSignatureDataUrl: payload.teacherSignatureDataUrl,
-            paymentMethod: payload.paymentMethod
+            paymentMethod: payload.paymentMethod,
+            autoConcluded: payload.autoConcluded !== undefined ? payload.autoConcluded : payload.auto_concluded,
+            auto_concluded: payload.auto_concluded !== undefined ? payload.auto_concluded : payload.autoConcluded,
+            autoConcludedAt: payload.autoConcludedAt || payload.auto_concluded_at,
+            auto_concluded_at: payload.auto_concluded_at || payload.autoConcludedAt,
+            autoConcludedReason: payload.autoConcludedReason || payload.auto_concluded_reason,
+            auto_concluded_reason: payload.auto_concluded_reason || payload.autoConcludedReason
         };
 
         const existingMeta = typeof payload.metadata === 'object' && payload.metadata !== null ? payload.metadata : {};
@@ -8214,6 +8223,12 @@ export const apiService = {
         delete payload.dos_received_at;
         delete payload.teacherSignatureDataUrl;
         delete payload.paymentMethod;
+        delete payload.autoConcluded;
+        delete payload.auto_concluded;
+        delete payload.autoConcludedAt;
+        delete payload.auto_concluded_at;
+        delete payload.autoConcludedReason;
+        delete payload.auto_concluded_reason;
 
         // Immediately update localStorage remedial_sessions so all open tabs and components see it
         const targetInst = payload.institutionId || payload.institution_id;
