@@ -1074,6 +1074,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const shouldSkipTenancy = isGroupOrSuperAdmin && (!targetInstParam || isSystemOrAll(targetInstParam));
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
 
+            // Fast-path: timetable_settings and exam_timetable_settings are JSONB configs on the institutions table
+            if (moduleName === 'timetable_settings' || moduleName === 'exam_timetable_settings') {
+                const targetInst = effectiveTenantInstId || targetInstParam || user?.institutionId;
+                if (targetInst && targetInst !== 'ALL' && targetInst !== 'SYSTEM') {
+                    try {
+                        const { data: inst } = await supabase
+                            .from('institutions')
+                            .select('id, timetable_settings, exam_timetable_settings')
+                            .eq('id', targetInst)
+                            .maybeSingle();
+                        if (inst) {
+                            const rawSetting = moduleName === 'timetable_settings' 
+                                ? inst.timetable_settings 
+                                : inst.exam_timetable_settings;
+                            if (rawSetting && typeof rawSetting === 'object' && Object.keys(rawSetting).length > 0) {
+                                const resObj = {
+                                    id: `${moduleName}_${targetInst}`,
+                                    institution_id: targetInst,
+                                    ...(Array.isArray(rawSetting) ? {} : rawSetting),
+                                    data: rawSetting
+                                };
+                                return res.status(200).json([resObj]);
+                            }
+                        }
+                    } catch (tErr: any) {
+                        console.warn(`[API GET] Failed to resolve ${moduleName} from institutions table:`, tErr?.message || tErr);
+                    }
+                }
+                return res.status(200).json([]);
+            }
+
             // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)
             if (CACHEABLE_MODULES.includes(moduleName) && !getStrParam(select)) {
                 const cached = _serverModuleMemoryCache.get(moduleName);
@@ -3193,6 +3224,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             const { data: recordData } = req.body || {};
             if (!recordData) return res.status(400).json({ success: false, error: 'No data' });
+
+            // Fast-path: timetable_settings and exam_timetable_settings are saved to institutions table
+            if (moduleName === 'timetable_settings' || moduleName === 'exam_timetable_settings') {
+                const targetInst = (recordData && !Array.isArray(recordData) && (recordData.institution_id || recordData.institutionId))
+                    || effectiveTenantInstId || targetInstParam || user?.institutionId;
+                if (targetInst && targetInst !== 'ALL' && targetInst !== 'SYSTEM') {
+                    const payload = Array.isArray(recordData) ? recordData[0] : recordData;
+                    const col = moduleName === 'timetable_settings' ? 'timetable_settings' : 'exam_timetable_settings';
+                    await supabase
+                        .from('institutions')
+                        .update({ [col]: payload, updated_at: new Date().toISOString() })
+                        .eq('id', targetInst);
+                    return res.status(200).json({ success: true, count: 1, module: moduleName });
+                }
+                return res.status(200).json({ success: true, count: 0, module: moduleName });
+            }
             
             // Add tenancy if missing (skip for root tables that don't have this column or for super_admin)
             const skipTenancy = user?.role === 'super_admin' || moduleName === 'institutions' || isTableWithoutInstitutionId(moduleName);
@@ -5837,6 +5884,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 const idsArray = Array.isArray(ids) ? ids : [ids];
                 let currentUpdateData = updateData && typeof updateData === 'object' ? stripUniversalTransientKeys(updateData) : updateData;
+
+                if (moduleName === 'timetable_settings' || moduleName === 'exam_timetable_settings') {
+                    const targetInst = (currentUpdateData && (currentUpdateData.institution_id || currentUpdateData.institutionId))
+                        || effectiveTenantInstId || targetInstParam || user?.institutionId;
+                    if (targetInst && targetInst !== 'ALL' && targetInst !== 'SYSTEM') {
+                        const col = moduleName === 'timetable_settings' ? 'timetable_settings' : 'exam_timetable_settings';
+                        await supabase
+                            .from('institutions')
+                            .update({ [col]: currentUpdateData, updated_at: new Date().toISOString() })
+                            .eq('id', targetInst);
+                        return res.status(200).json({ success: true, count: 1, module: moduleName });
+                    }
+                    return res.status(200).json({ success: true, count: 0, module: moduleName });
+                }
                 if (moduleName === 'his_patients' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
                     const opVal = copy.admission_number || copy.admissionNumber || copy.custom_patient_id || copy.customPatientId || copy.patient_number || copy.patientNumber || copy.op_number || copy.opNumber;
