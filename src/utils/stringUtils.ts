@@ -215,3 +215,63 @@ export const extractParentPhoneNumber = (student?: any, enrollments?: any[]): st
 
     return '';
 };
+
+/**
+ * Validates if a string is a genuine provider transaction code (e.g. M-Pesa 'FT262834RGCD', 'UJ1F48QRBS',
+ * or bank reference 'FT260822009', 'KCB8940219X') rather than an internal synthetic ID or placeholder.
+ */
+export const isRealTransactionCode = (val?: string | null, customerRef?: string | null): boolean => {
+    if (!val) return false;
+    const s = String(val).trim();
+    if (!s || s.length < 5 || s.length > 32) return false;
+
+    // Reject internal system prefixes & tracking IDs
+    if (/^(txn_|kcb_ipn_|kcb_co_|kcb_1\d{8,}|msg_|mock_|feed_|rec_|inv_|tmp_|00uxx|ws_co_|checkout_)/i.test(s)) {
+        return false;
+    }
+
+    // Reject UUIDs
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
+        return false;
+    }
+
+    // Reject placeholders & status words
+    if (/^(n\/a|none|null|undefined|pending|completed|failed|cash|mpesa|bank|transfer|-)$/i.test(s)) {
+        return false;
+    }
+
+    // Reject if it matches the customer reference or looks like an admission/account reference
+    if (customerRef) {
+        const cleanCust = String(customerRef).trim().toLowerCase();
+        const sLower = s.toLowerCase();
+        if (cleanCust && (sLower === cleanCust || cleanCust.endsWith('-' + sLower) || cleanCust.endsWith('/' + sLower))) {
+            return false;
+        }
+    }
+
+    // Real M-Pesa receipts (e.g. FT262834RGCD, UJ1F48QRBS, TK72A190XY) or Bank refs (e.g. KCB8940219X, FT260822009)
+    // Must contain alphanumeric characters with both letters and digits
+    const hasLetter = /[A-Za-z]/.test(s);
+    const hasDigit = /\d/.test(s);
+    if (hasLetter && hasDigit && /^[A-Za-z0-9\-_]{6,25}$/.test(s)) {
+        return true;
+    }
+
+    return false;
+};
+
+/**
+ * Resolves a clean provider transaction code (e.g. 'FT262834RGCD') from any raw reference,
+ * stripping internal prefixes like 'txn_' if the remainder is a valid code.
+ */
+export const cleanProviderTransactionCode = (val?: string | null): string => {
+    if (!val) return '';
+    const s = String(val).trim();
+    if (!s || /^(none|null|undefined|n\/a|-)$/i.test(s)) return '';
+    if (isRealTransactionCode(s)) return s.toUpperCase();
+    if (/^txn_/i.test(s)) {
+        const stripped = s.replace(/^txn_/i, '').trim();
+        if (isRealTransactionCode(stripped)) return stripped.toUpperCase();
+    }
+    return '';
+};

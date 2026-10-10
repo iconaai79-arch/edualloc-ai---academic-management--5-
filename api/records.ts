@@ -1534,7 +1534,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
                     'academic_years', 'semesters', 'allocation_requests',
                     // Finance reference tables — small but queried on every finance page load
-                    'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions',
+                    'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions', 'bank_transactions',
                     'finance_numbering_configs', 'bursary_disbursements',
                     // Absence & request modules
                     'student_absence_requests', 'absence_requests', 'time_off_requests', 'commission_withdrawal_requests',
@@ -1764,7 +1764,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['marketing_prospects', 'campaign_leads', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)
+                            ['marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);

@@ -49,7 +49,7 @@ import { isEduInstitution, isSchoolInstitution } from '../../utils/roleUtils';
 import { KenyanOfficialStamp } from '../common/KenyanOfficialStamp';
 import { generateKenyanStampSvgString } from '../../utils/stampGenerator';
 import { resolveRealStudentAdmNo, resolveRealStudentClass, resolveRealStudentStream, normalizeClassName, normalizeStreamName, naturalClassSort, isPlaceholderEmail } from '../../utils/academicUtils';
-import { extractParentPhoneNumber } from '../../utils/stringUtils';
+import { extractParentPhoneNumber, isRealTransactionCode, cleanProviderTransactionCode } from '../../utils/stringUtils';
 import { DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE, DEFAULT_SAMPLE_PAYMENT_INSTRUCTIONS, previewCustomPaymentNotification, buildCustomPaymentNotification } from '../../utils/paymentNotificationHelper';
 import * as XLSX from 'xlsx';
 import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
@@ -1388,6 +1388,189 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         fetchSelectedBranchData();
     }, [selectedBranchId, selectedBranchTargetIds]);
+
+    // ── Dedicated Real Provider Transaction Code Lookup Map ──
+    const [realTxnCodesMap, setRealTxnCodesMap] = useState<Map<string, string>>(new Map());
+
+    const fetchTransactionReferenceMappings = useCallback(async () => {
+        try {
+            const targetInstId = (selectedBranchId && selectedBranchId !== 'ALL') ? selectedBranchId : props.institution?.id;
+            if (!targetInstId) return;
+
+            const [mpesaRows, bankRows, feedRows] = await Promise.all([
+                apiService.fetchModuleRecords<any>('mpesa_transactions', targetInstId, undefined, { order: 'created_at.desc', limit: 400 }).catch(() => []),
+                apiService.fetchModuleRecords<any>('bank_transactions', targetInstId, undefined, { order: 'created_at.desc', limit: 400 }).catch(() => []),
+                apiService.fetchModuleRecords<any>('bank_feed_transactions', targetInstId, undefined, { order: 'created_at.desc', limit: 400 }).catch(() => [])
+            ]);
+
+            const codeMap = new Map<string, string>();
+
+            const registerCodeMapping = (id: string, code: string, row?: any) => {
+                if (!code || !isRealTransactionCode(code)) return;
+                const upperCode = code.toUpperCase().trim();
+                if (id) {
+                    codeMap.set(id, upperCode);
+                    codeMap.set(id.toLowerCase(), upperCode);
+                    if (id.startsWith('txn_')) {
+                        const stripped = id.replace(/^txn_/i, '');
+                        codeMap.set(stripped, upperCode);
+                        codeMap.set(stripped.toLowerCase(), upperCode);
+                    }
+                }
+                if (row) {
+                    const amt = Number(row.amount) || 0;
+                    const custRef = row.customer_reference || row.customerReference || row.billReferenceNumber || row.bill_ref_number;
+                    if (amt > 0 && custRef) {
+                        codeMap.set(`amt_adm:${amt}_${String(custRef).trim().toLowerCase()}`, upperCode);
+                    }
+                    if (amt > 0 && row.student_id) {
+                        codeMap.set(`amt_stu:${amt}_${String(row.student_id).trim().toLowerCase()}`, upperCode);
+                    }
+                }
+            };
+
+            // Process mpesa_transactions (contains M-Pesa, KCB, etc.)
+            (mpesaRows || []).forEach((row: any) => {
+                const code = cleanProviderTransactionCode(row.transaction_id || row.checkout_request_id || row.mpesa_receipt_number);
+                if (code) {
+                    registerCodeMapping(row.id, code, row);
+                }
+            });
+
+            // Process bank_transactions
+            (bankRows || []).forEach((row: any) => {
+                const payload = typeof row.payload === 'string' ? (() => { try { return JSON.parse(row.payload); } catch { return {}; } })() : (row.payload || {});
+                const code = cleanProviderTransactionCode(
+                    row.reference || payload.transactionReference || payload.transactionID || payload.mpesaReceiptNumber
+                );
+                if (code) {
+                    registerCodeMapping(row.id, code, row);
+                }
+            });
+
+            // Process bank_feed_transactions
+            (feedRows || []).forEach((row: any) => {
+                const payload = typeof row.payload === 'string' ? (() => { try { return JSON.parse(row.payload); } catch { return {}; } })() : (row.payload || {});
+                const code = cleanProviderTransactionCode(
+                    row.reference || payload.transactionReference || payload.transactionID
+                );
+                if (code) {
+                    registerCodeMapping(row.id, code, row);
+                }
+            });
+
+            // Also index props.transactions if provided
+            (props.transactions || []).forEach((row: any) => {
+                const code = cleanProviderTransactionCode(row.transactionId || row.transaction_id || row.id);
+                if (code) {
+                    registerCodeMapping(row.id, code, row);
+                }
+            });
+
+            setRealTxnCodesMap(codeMap);
+        } catch (e) {
+            console.error("Failed to load transaction reference mappings:", e);
+        }
+    }, [props.institution?.id, selectedBranchId, props.transactions]);
+
+    useEffect(() => {
+        fetchTransactionReferenceMappings();
+    }, [fetchTransactionReferenceMappings]);
+
+    // ── Helper: Resolve Clean Display Transaction Reference (e.g. FT262834RGCD instead of txn_1791607861162) ──
+    const resolveReceiptDisplayReference = useCallback((rec: any): string => {
+        if (!rec) return '—';
+
+        // 1. Direct candidates on receipt object
+        const directCandidates = [
+            rec.mpesaReceiptNumber,
+            rec.mpesa_receipt_number,
+            rec.transactionReference,
+            rec.transaction_reference,
+            rec.relatedTransactionId,
+            rec.related_transaction_id,
+            rec.reference,
+            rec.transactionId,
+            rec.transId,
+            rec.transID
+        ];
+
+        for (const c of directCandidates) {
+            const clean = cleanProviderTransactionCode(c);
+            if (clean) return clean;
+        }
+
+        // 2. Remarks inspection (e.g. "Auto-reconciled from ... (Ref: FT262834RGCD)" or "Ref: FT262834RGCD")
+        const remarks = String(rec.remarks || rec.notes || '').trim();
+        if (remarks) {
+            const refMatch = remarks.match(/(?:ref|code|reference|receipt|mpesa)\s*[:=]\s*([A-Za-z0-9_-]+)/i);
+            if (refMatch && refMatch[1]) {
+                const clean = cleanProviderTransactionCode(refMatch[1]);
+                if (clean) return clean;
+            }
+            const tokens = remarks.match(/\b([A-Z0-9]{8,15})\b/g);
+            if (tokens) {
+                for (const t of tokens) {
+                    const clean = cleanProviderTransactionCode(t);
+                    if (clean) return clean;
+                }
+            }
+        }
+
+        // 3. Lookup in realTxnCodesMap by transaction ID
+        const raw = String(rec.relatedTransactionId || rec.related_transaction_id || '').trim();
+        if (raw) {
+            if (realTxnCodesMap.has(raw)) return realTxnCodesMap.get(raw)!;
+            if (realTxnCodesMap.has(raw.toLowerCase())) return realTxnCodesMap.get(raw.toLowerCase())!;
+            const stripped = raw.replace(/^txn_/i, '');
+            if (realTxnCodesMap.has(stripped)) return realTxnCodesMap.get(stripped)!;
+            if (realTxnCodesMap.has(stripped.toLowerCase())) return realTxnCodesMap.get(stripped.toLowerCase())!;
+        }
+
+        // 4. Secondary lookup by Amount + Admission Number / Student ID
+        const amt = Number(rec.amountPaid || rec.amount_paid || rec.amount || 0);
+        const adm = String(rec.admissionNumber || rec.admission_number || '').trim().toLowerCase();
+        if (amt > 0 && adm) {
+            const key = `amt_adm:${amt}_${adm}`;
+            if (realTxnCodesMap.has(key)) return realTxnCodesMap.get(key)!;
+        }
+        const sId = String(rec.studentId || rec.student_id || '').trim().toLowerCase();
+        if (amt > 0 && sId) {
+            const key2 = `amt_stu:${amt}_${sId}`;
+            if (realTxnCodesMap.has(key2)) return realTxnCodesMap.get(key2)!;
+        }
+
+        // 5. Fallback formatting: If raw starts with txn_, strip txn_ unless purely numeric timestamp that could not be matched
+        if (raw && !raw.startsWith('txn_feed_')) {
+            if (/^txn_\d{10,}$/i.test(raw)) {
+                return raw;
+            }
+            return raw.replace(/^txn_/i, '');
+        }
+
+        return '—';
+    }, [realTxnCodesMap]);
+
+    // Background auto-heal: Permanently update existing receipts in Supabase if synthetic txn_ ID was resolved to real code
+    useEffect(() => {
+        if (realTxnCodesMap.size === 0) return;
+        const allRecs = [...(props.receipts || []), ...(allBranchReceipts || [])];
+        allRecs.forEach(rec => {
+            const raw = String(rec.relatedTransactionId || rec.related_transaction_id || '').trim();
+            if (raw && raw.startsWith('txn_')) {
+                const resolved = resolveReceiptDisplayReference(rec);
+                if (resolved && resolved !== '—' && !resolved.startsWith('txn_') && resolved !== raw) {
+                    rec.relatedTransactionId = resolved;
+                    rec.related_transaction_id = resolved;
+                    apiService.saveModuleRecord('receipts', {
+                        id: rec.id,
+                        related_transaction_id: resolved,
+                        relatedTransactionId: resolved
+                    }).catch(() => {});
+                }
+            }
+        });
+    }, [realTxnCodesMap, props.receipts, allBranchReceipts, resolveReceiptDisplayReference]);
 
     const matchesSelectedBranch = useCallback((item: any) => {
         if (!item) return false;
@@ -6480,8 +6663,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
                 };
 
-                const relatedTx = receipt.relatedTransactionId ? {
-                    transactionId: receipt.relatedTransactionId,
+                const cleanRef = resolveReceiptDisplayReference(receipt);
+                const txId = (cleanRef && cleanRef !== '—') ? cleanRef : receipt.relatedTransactionId;
+                const relatedTx = txId ? {
+                    transactionId: txId,
                     amount: receipt.amountPaid,
                     provider: receipt.paymentMethod,
                     description: receipt.paidFor || 'Fees Payment'
@@ -6563,8 +6748,10 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
                 };
 
-                const relatedTx = receipt.relatedTransactionId ? {
-                    transactionId: receipt.relatedTransactionId,
+                const cleanRef = resolveReceiptDisplayReference(receipt);
+                const txId = (cleanRef && cleanRef !== '—') ? cleanRef : receipt.relatedTransactionId;
+                const relatedTx = txId ? {
+                    transactionId: txId,
                     amount: receipt.amountPaid,
                     provider: receipt.paymentMethod,
                     description: receipt.paidFor || 'Fees Payment'
@@ -7067,8 +7254,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const student = sId ? mergedStudents.find(s => s.id === sId || (s as any).student_id === sId || s.admissionNumber === sId) : null;
             
             // Standard matches
+            const cleanRef = resolveReceiptDisplayReference(rec);
             const matchesReceiptNumber = (rec.receiptNumber || (rec as any).receipt_number || '').toLowerCase().includes(query);
-            const matchesRef = (rec.relatedTransactionId || (rec as any).related_transaction_id || '').toLowerCase().includes(query);
+            const matchesRef = (rec.relatedTransactionId || (rec as any).related_transaction_id || '').toLowerCase().includes(query) || (cleanRef !== '—' && cleanRef.toLowerCase().includes(query));
             
             let matchesQuery = !query || matchesReceiptNumber || matchesRef;
 
@@ -7161,13 +7349,14 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const openEditReceipt = (rec: any) => {
         setReceiptEditTarget(rec);
         const recStudent = (mergedStudents.length > 0 ? mergedStudents : (props.students || [])).find((s: any) => s.id === (rec.studentId || rec.student_id));
+        const cleanRef = resolveReceiptDisplayReference(rec);
         setReceiptEditForm({
             studentId: rec.studentId || rec.student_id || '',
             receiptStudentSearch: recStudent ? `${recStudent.name} [${recStudent.admissionNumber || (recStudent as any).admission_number || (recStudent as any).admNo || ''}]` : '',
             amountPaid: String(rec.amountPaid ?? rec.amount_paid ?? rec.amount ?? ''),
             paymentMethod: rec.paymentMethod || rec.payment_method || 'Cash',
             paymentDate: rec.paymentDate || rec.payment_date || rec.date || '',
-            relatedTransactionId: rec.relatedTransactionId || rec.related_transaction_id || '',
+            relatedTransactionId: (cleanRef && cleanRef !== '—') ? cleanRef : (rec.relatedTransactionId || rec.related_transaction_id || ''),
             paidFor: rec.paidFor || rec.paid_for || '',
             reason: '',
         });
@@ -8257,10 +8446,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const handleDownloadReceipt = async (receipt: Receipt) => {
         try {
+            const cleanRef = resolveReceiptDisplayReference(receipt);
+            const txId = (cleanRef && cleanRef !== '—') ? cleanRef : receipt.relatedTransactionId;
             let relatedTx = null;
-            if (receipt.relatedTransactionId) {
+            if (txId) {
                 relatedTx = {
-                    transactionId: receipt.relatedTransactionId,
+                    transactionId: txId,
                     amount: receipt.amountPaid,
                     provider: receipt.paymentMethod,
                     description: receipt.paidFor || 'Fees Payment'
@@ -8303,10 +8494,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
     const handlePreviewOnScreenReceipt = async (receipt: Receipt) => {
         try {
+            const cleanRef = resolveReceiptDisplayReference(receipt);
+            const txId = (cleanRef && cleanRef !== '—') ? cleanRef : receipt.relatedTransactionId;
             let relatedTx = null;
-            if (receipt.relatedTransactionId) {
+            if (txId) {
                 relatedTx = {
-                    transactionId: receipt.relatedTransactionId,
+                    transactionId: txId,
                     amount: receipt.amountPaid,
                     provider: receipt.paymentMethod,
                     description: receipt.paidFor || 'Fees Payment'
@@ -8360,10 +8553,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             const remainingBalance = studentFinanceRecord ? studentFinanceRecord.totals.balance : undefined;
             const previousBalance = remainingBalance !== undefined ? (remainingBalance + (Number(receipt.amountPaid) || 0)) : undefined;
 
-            // Ensure votehead distribution is attached
+            // Ensure votehead distribution is attached and clean transaction reference is passed
             const existingBreakdown = (receipt as any).allocations || (receipt as any).voteheadsBreakdown || (receipt as any).voteHeadBreakdown || (receipt as any).items;
+            const cleanRef = resolveReceiptDisplayReference(receipt);
+            const txId = (cleanRef && cleanRef !== '—') ? cleanRef : receipt.relatedTransactionId;
             const enrichedReceipt: any = {
                 ...receipt,
+                relatedTransactionId: txId,
                 items: existingBreakdown 
                     ? (typeof existingBreakdown === 'string' ? JSON.parse(existingBreakdown) : existingBreakdown) 
                     : computeVoteheadDistribution(receipt.amountPaid, receipt.studentId, (receipt as any).invoiceId)
@@ -12290,8 +12486,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     <td className="px-6 py-4 text-right">
                                                         <span className="text-xs font-black text-slate-900 dark:text-white">KES {rec.amountPaid?.toLocaleString()}</span>
                                                     </td>
-                                                    <td className="px-6 py-4 text-xs font-semibold text-slate-550 dark:text-slate-400">
-                                                        {rec.relatedTransactionId || '—'}
+                                                    <td className="px-6 py-4 text-xs font-bold text-slate-700 dark:text-slate-300 font-mono tracking-tight">
+                                                        {resolveReceiptDisplayReference(rec)}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className="text-xs font-black text-indigo-650 dark:text-indigo-400">{rec.receiptNumber}</span>
@@ -26857,7 +27053,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             {detectedDuplicateReceipts.slice(0, 30).map((r: any, idx: number) => (
                                                 <tr key={r.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
                                                     <td className="py-2 px-3 font-bold text-slate-800 dark:text-slate-200">
-                                                        {r.receiptNumber || r.receipt_number || r.relatedTransactionId || r.id}
+                                                        {r.receiptNumber || r.receipt_number || resolveReceiptDisplayReference(r) || r.id}
                                                     </td>
                                                     <td className="py-2 px-3 text-slate-500 font-medium">
                                                         {(r.paymentDate || r.payment_date || '').split('T')[0] || '—'}

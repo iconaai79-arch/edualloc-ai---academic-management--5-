@@ -706,7 +706,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             amount_paid: transaction.amount,
                             payment_date: new Date().toISOString().split('T')[0],
                             payment_method: 'M-Pesa',
-                            related_transaction_id: transaction.id
+                            related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
                         });
 
                         console.log(`[M-Pesa Callback] ✅ Subscription extended by ${days} days`);
@@ -790,7 +790,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         amount_paid: transaction.amount,
                         payment_date: new Date().toISOString().split('T')[0],
                         payment_method: 'M-Pesa',
-                        related_transaction_id: transaction.id
+                        related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
                     });
 
                     // 4. Send Welcome Credentials SMS
@@ -882,7 +882,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     amount_paid: transaction.amount,
                     payment_date: new Date().toISOString().split('T')[0],
                     payment_method: 'M-Pesa',
-                    related_transaction_id: transaction.id
+                    related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
                 });
             } else if (metadata.type === 'invoice' || metadata.type === 'fee_payment' || metadata.studentId || metadata.invoiceId) {
                 console.log(`[M-Pesa Callback] Processing invoice/fee payment for institution: ${transaction.institution_id}`);
@@ -948,7 +948,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     payment_date: new Date().toISOString().split('T')[0],
                     payment_method: 'M-Pesa',
                     paid_for: 'School Fees',
-                    related_transaction_id: mpesaReceiptNumber || transaction.id,
+                    related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id,
                     remarks: `Automated headless reconciliation via M-Pesa Callback (Ref: ${mpesaReceiptNumber || transaction.id})`
                 });
 
@@ -1005,7 +1005,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     amount_paid: transaction.amount,
                     payment_date: new Date().toISOString().split('T')[0],
                     payment_method: 'M-Pesa',
-                    related_transaction_id: transaction.id
+                    related_transaction_id: mpesaReceiptNumber || transaction.transaction_id || transaction.id
                 });
 
                 // Fetch new balance for accurate notifications

@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase as sharedSupabase, initSupabase } from '../lib/supabase';
-import { generateAlphanumericCode, formatPhoneNumber } from '../utils/stringUtils';
+import { generateAlphanumericCode, formatPhoneNumber, isRealTransactionCode, cleanProviderTransactionCode } from '../utils/stringUtils';
 import { isPlaceholderEmail } from '../utils/academicUtils';
 import { localDb } from './localDb';
 import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
@@ -1872,7 +1872,17 @@ export const apiService = {
                         const pMethod = r.paymentMethod || r.payment_method || '';
                         r.paymentMethod = pMethod;
                         r.payment_method = pMethod;
-                        const relTxn = r.relatedTransactionId || r.related_transaction_id || '';
+                        let relTxn = r.relatedTransactionId || r.related_transaction_id || '';
+                        const cleanCandidate = cleanProviderTransactionCode(relTxn);
+                        if (cleanCandidate) {
+                            relTxn = cleanCandidate;
+                        } else if (/^txn_\d{10,}$/i.test(relTxn) && r.remarks) {
+                            const remMatch = String(r.remarks).match(/(?:ref|code|receipt|reference|mpesa)\s*[:=]\s*([A-Za-z0-9_-]+)/i);
+                            if (remMatch && remMatch[1] && !/^txn_\d{10,}$/i.test(remMatch[1])) {
+                                const cleanedFromRemarks = cleanProviderTransactionCode(remMatch[1]);
+                                if (cleanedFromRemarks) relTxn = cleanedFromRemarks;
+                            }
+                        }
                         r.relatedTransactionId = relTxn;
                         r.related_transaction_id = relTxn;
                         const invId = r.invoiceId || r.invoice_id || '';

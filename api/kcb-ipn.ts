@@ -1731,7 +1731,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         amount_paid: amt,
                         payment_date: new Date().toISOString().split('T')[0],
                         payment_method: 'KCB IPN',
-                        related_transaction_id: transaction.id
+                        related_transaction_id: transactionReference || transactionID || transaction.transaction_id || transaction.id
                     });
 
                     // Create Notification
@@ -1781,7 +1781,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         amount_paid: amt,
                         payment_date: new Date().toISOString().split('T')[0],
                         payment_method: 'KCB IPN',
-                        related_transaction_id: transaction.id
+                        related_transaction_id: transactionReference || transactionID || transaction.transaction_id || transaction.id
                     });
 
                     if (metadata.requesterId) {
@@ -1850,7 +1850,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             amount_paid: amt,
                             payment_date: new Date().toISOString().split('T')[0],
                             payment_method: 'KCB IPN',
-                            related_transaction_id: transaction.id
+                            related_transaction_id: transactionReference || transactionID || transaction.transaction_id || transaction.id
                         });
 
                         // 4. Send Welcome Credentials SMS
@@ -1928,7 +1928,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         amount_paid: amt,
                         payment_date: new Date().toISOString().split('T')[0],
                         payment_method: 'KCB IPN',
-                        related_transaction_id: transaction.id
+                        related_transaction_id: transactionReference || transactionID || transaction.transaction_id || transaction.id
                     });
                 } else if (type === 'invoice' || type === 'fee_payment' || metadata.studentId) {
                     const invId = metadata.invoiceId;
@@ -1994,7 +1994,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         payment_date: (timestamp ? timestamp.split('T')[0] : null) || new Date().toISOString().split('T')[0],
                         payment_method: 'KCB IPN',
                         paid_for: 'School Fees',
-                        related_transaction_id: transactionReference || transactionID || transaction.id,
+                        related_transaction_id: transactionReference || transactionID || transaction.transaction_id || transaction.id,
                         remarks: `Automated headless reconciliation via KCB IPN (Ref: ${transactionReference || transactionID})`
                     });
 

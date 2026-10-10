@@ -281,7 +281,10 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         if (customerRef) {
             const cleanCust = String(customerRef).trim().toLowerCase();
             const sLower = s.toLowerCase();
-            if (cleanCust && (sLower === cleanCust || cleanCust.endsWith('-' + sLower) || cleanCust.endsWith('/' + sLower))) {
+            const custHasLetter = /[A-Za-z]/.test(cleanCust);
+            const custHasDigit = /\d/.test(cleanCust);
+            const isCustLikelyTxnCode = custHasLetter && custHasDigit && cleanCust.length >= 8 && !cleanCust.includes('-') && !cleanCust.includes('/');
+            if (!isCustLikelyTxnCode && cleanCust && (sLower === cleanCust || cleanCust.endsWith('-' + sLower) || cleanCust.endsWith('/' + sLower))) {
                 return false;
             }
         }
@@ -520,36 +523,36 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         }
 
         const candidates = [
+            row.reference,
+            row.transaction_id,
+            row.transactionId,
+            row.transaction_reference,
             row.mpesa_receipt_number,
             row.receipt_number,
+            raw.transactionID,
+            raw.transactionReference,
+            raw.transaction_reference,
+            raw.mpesaReceiptNumber,
+            raw.mpesa_receipt_number,
+            meta.transactionReference,
+            meta.transaction_reference,
+            meta.mpesaReceiptNumber,
+            meta.mpesa_receipt_number,
             row.trans_id,
             row.transId,
             row.transID,
             row.third_party_trans_id,
-            row.transaction_reference,
-            meta.mpesaReceiptNumber,
-            meta.mpesa_receipt_number,
             meta.transID,
             meta.transId,
             meta.TransID,
             meta.receiptNumber,
             meta.retrievalRefNo,
-            meta.transactionReference,
-            meta.transaction_reference,
             meta.referenceNumber,
-            raw.mpesaReceiptNumber,
-            raw.mpesa_receipt_number,
             raw.transID,
             raw.transId,
             raw.TransID,
-            raw.transactionID,
-            raw.transactionReference,
-            raw.transaction_reference,
             raw.retrievalRefNo,
-            raw.receiptNumber,
-            row.transaction_id,
-            // Only test row.reference if it does NOT match customer reference
-            row.reference
+            raw.receiptNumber
         ];
 
         // Priority 1: Check candidates with isRealTransactionCode
@@ -722,6 +725,11 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             if (!c) continue;
             const s = String(c).trim();
             if (s && !/^(none|null|undefined|n\/a|-)$/i.test(s) && !/^(ws_co_|txn_|msg_|rec_|rct_|inv_|00uxx)/i.test(s)) {
+                // If candidate is a genuine provider transaction code (e.g. FT262834RGCD, UJ1F48QRBS),
+                // it is the transaction code, NOT a student admission / bill reference! Skip it!
+                if (isRealTransactionCode(s)) {
+                    continue;
+                }
                 return s;
             }
         }
@@ -1012,8 +1020,22 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 return;
             }
 
-            const rawRef = txn.transactionReference && txn.transactionReference !== '-' ? txn.transactionReference : txn.id;
-            const safeRef = rawRef.replace(/[^A-Za-z0-9]/g, '').slice(-4) || 'FEED';
+            // Resolve genuine transaction reference (e.g. FT262834RGCD, UJ1F48QRBS)
+            let realRef = (txn.transactionReference && txn.transactionReference !== '-' && !txn.transactionReference.startsWith('txn_'))
+                ? txn.transactionReference
+                : extractRealTransactionCode(txn.rawPayload || txn, txn.billReferenceNumber);
+
+            if (!realRef || realRef === '-' || realRef.startsWith('txn_')) {
+                if (txn.id && /^txn_[A-Za-z0-9]{6,25}$/i.test(txn.id) && !/^txn_\d{10,}$/i.test(txn.id)) {
+                    realRef = txn.id.replace(/^txn_/i, '');
+                }
+            }
+            if (!realRef || realRef === '-') {
+                realRef = txn.transactionReference && txn.transactionReference !== '-' ? txn.transactionReference : txn.id;
+            }
+
+            const cleanDisplayRef = realRef.replace(/^txn_/i, '');
+            const safeRef = (cleanDisplayRef.replace(/[^A-Za-z0-9]/g, '').slice(-4) || 'FEED').toUpperCase();
             const receiptNumber = `RCPT-${safeRef}-${Date.now().toString().slice(-4)}`;
             const receiptId = `rec_feed_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
             const paymentDate = (txn.transactionDate && txn.transactionDate.includes('T'))
@@ -1041,13 +1063,13 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 paymentDate: paymentDate,
                 payment_method: resolvedMethod,
                 paymentMethod: resolvedMethod,
-                related_transaction_id: rawRef,
-                relatedTransactionId: rawRef,
+                related_transaction_id: cleanDisplayRef,
+                relatedTransactionId: cleanDisplayRef,
                 institution_id: institution.id,
                 institutionId: institution.id,
                 paid_for: 'School Fees',
                 paidFor: 'School Fees',
-                remarks: `Auto-reconciled from ${txn.provider} live feed (Ref: ${rawRef})`
+                remarks: `Auto-reconciled from ${txn.provider} live feed (Ref: ${cleanDisplayRef})`
             };
 
             // 1. Save new receipt in Supabase database
