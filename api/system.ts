@@ -371,8 +371,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 err?.code === '55P03' || // lock_not_available
                                 err?.code === '40001';   // serialization_failure
 
+                            const isConcurrentTupleUpdate = 
+                                /tuple concurrently (updated|deleted)/i.test(err?.message || '') ||
+                                (err?.code === 'XX000' && (/tuple concurrently/i.test(err?.message || '') || /simple_heap_update/i.test(err?.routine || '')));
+
                             const isCatalogRace =
-                                err?.code === '23505' && (
+                                isConcurrentTupleUpdate ||
+                                (err?.code === '23505' && (
                                     err?.schema === 'pg_catalog' ||
                                     err?.table === 'pg_proc' ||
                                     err?.table === 'pg_type' ||
@@ -381,14 +386,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     (typeof err?.constraint === 'string' && err.constraint.startsWith('pg_')) ||
                                     /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.detail || '') ||
                                     /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.constraint || '')
-                                );
+                                ));
 
                             if (isStatementTimeout) {
                                 console.warn(`[SQL Engine] Statement timeout (code: 57014) on: ${singleStmt.substring(0, 80)}. Aborting statement to prevent function timeout.`);
                                 break;
                             }
 
-                            if ((isTransientLockError || isCatalogRace) && attempt < MAX_RETRIES) {
+                            if ((isTransientLockError || isCatalogRace || isConcurrentTupleUpdate) && attempt < MAX_RETRIES) {
                                 // Exponential backoff with jitter (e.g. 200ms, 400ms, 800ms...)
                                 const delayMs = Math.min(200 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 250), 2000);
                                 console.warn(`[SQL Engine] Transient concurrency or lock conflict (code: ${err.code}, constraint: ${err.constraint || 'none'} - ${err.message}). Retrying statement ${attempt + 1}/${MAX_RETRIES} in ${delayMs}ms...`);
@@ -396,14 +401,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 continue;
                             }
 
-                            const isIdempotentDDL = /^\s*(CREATE\s+(OR\s+REPLACE\s+)?FUNCTION|CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS|CREATE\s+TYPE|DROP\s+FUNCTION\s+IF\s+EXISTS|DROP\s+TABLE\s+IF\s+EXISTS|DROP\s+TRIGGER\s+IF\s+EXISTS)/i.test(singleStmt);
+                            const isIdempotentDDL = /^\s*(CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|TRIGGER|PROCEDURE)|CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS|CREATE\s+TYPE|DROP\s+(FUNCTION|TRIGGER|TABLE|VIEW)\s+IF\s+EXISTS)/i.test(singleStmt);
 
                             const isIgnorableSchemaError =
                                 err?.code === '42710' || // duplicate_object (trigger / constraint already exists)
                                 err?.code === '42P07' || // duplicate_table (relation already exists)
                                 err?.code === '42701' || // duplicate_column (column already exists)
                                 err?.code === '42P16' || // invalid_table_definition (e.g. duplicate primary key)
-                                (isCatalogRace && isIdempotentDDL); // concurrent catalog registration collision for idempotent DDL
+                                ((isCatalogRace || isConcurrentTupleUpdate) && isIdempotentDDL); // concurrent catalog registration collision for idempotent DDL
 
                             if (isIgnorableSchemaError) {
                                 console.warn(`[SQL Engine Info] Idempotent schema object already exists (code ${err.code}, constraint: ${err.constraint || 'none'}: ${err.message}). Continuing...`);
