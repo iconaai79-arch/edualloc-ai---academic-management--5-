@@ -777,9 +777,43 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             setInvoices(inv || []);
             setNotices(nt || []);
             setExpenses(ex || []);
-            setUtilityReadings(utr || []);
-            setInspections(insp || []);
-            setDepositRefunds(ref || []);
+            setInspections((insp || []).map((r: any) => ({
+                ...r,
+                leaseId: r.leaseId || r.lease_id || '',
+                tenantId: r.tenantId || r.tenant_id || '',
+                inspectionDate: r.inspectionDate || r.inspection_date || r.createdAt || r.created_at || new Date().toISOString(),
+                inspectedBy: r.inspectedBy || r.inspected_by || '',
+                structuralCondition: r.structuralCondition || r.structural_condition || 'Good',
+                structuralComments: r.structuralComments || r.structural_comments || '',
+                cleaningCondition: r.cleaningCondition || r.cleaning_condition || 'Good',
+                cleaningComments: r.cleaningComments || r.cleaning_comments || '',
+                fittingsCondition: r.fittingsCondition || r.fittings_condition || 'Good',
+                fittingsComments: r.fittingsComments || r.fittings_comments || '',
+                repairsRequired: r.repairsRequired || r.repairs_required || '',
+                estimatedRepairCost: Number(r.estimatedRepairCost !== undefined ? r.estimatedRepairCost : r.estimated_repair_cost) || 0,
+                tenantSignoff: Boolean(r.tenantSignoff !== undefined ? r.tenantSignoff : r.tenant_signoff),
+                status: r.status || 'Draft',
+                institutionId: r.institutionId || r.institution_id || institutionId,
+                createdAt: r.createdAt || r.created_at || new Date().toISOString()
+            })));
+            setDepositRefunds((ref || []).map((r: any) => ({
+                ...r,
+                leaseId: r.leaseId || r.lease_id || '',
+                tenantId: r.tenantId || r.tenant_id || '',
+                statementDate: r.statementDate || r.statement_date || r.createdAt || r.created_at || new Date().toISOString(),
+                originalDeposit: Number(r.originalDeposit !== undefined ? r.originalDeposit : r.original_deposit) || 0,
+                rentArrearsDeduction: Number(r.rentArrearsDeduction !== undefined ? r.rentArrearsDeduction : r.rent_arrears_deduction) || 0,
+                utilityArrearsDeduction: Number(r.utilityArrearsDeduction !== undefined ? r.utilityArrearsDeduction : r.utility_arrears_deduction) || 0,
+                damageRepairDeduction: Number(r.damageRepairDeduction !== undefined ? r.damageRepairDeduction : r.damage_repair_deduction) || 0,
+                otherDeductions: Number(r.otherDeductions !== undefined ? r.otherDeductions : r.other_deductions) || 0,
+                otherDeductionsComments: r.otherDeductionsComments || r.other_deductions_comments || '',
+                refundAmount: Number(r.refundAmount !== undefined ? r.refundAmount : r.refund_amount) || 0,
+                paymentMethod: r.paymentMethod || r.payment_method || 'Bank Transfer',
+                paymentReference: r.paymentReference || r.payment_reference || '',
+                status: r.status || 'Pending Approval',
+                institutionId: r.institutionId || r.institution_id || institutionId,
+                createdAt: r.createdAt || r.created_at || new Date().toISOString()
+            })));
             
             if (stg && stg.length > 0) {
                 setPmSettings(stg[0]);

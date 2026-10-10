@@ -1705,19 +1705,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        errDetailStr.includes('does not exist') ||
                                        errDetailStr.includes('relation');
                 if (isTableMissing) {
-                    if (moduleName === 'school_remedial_duty_roster') {
+                    if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections') {
                         const targetInst = targetInstParam || user?.institutionId;
                         if (targetInst) {
                             try {
                                 const { data: imsData } = await supabase
                                     .from('institution_module_states')
                                     .select('data')
-                                    .or(`id.eq.ims_school_remedial_duty_roster_${targetInst},id.eq.school_remedial_duty_roster_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.school_remedial_duty_roster)`)
+                                    .or(`id.eq.ims_${moduleName}_${targetInst},id.eq.${moduleName}_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.${moduleName})`)
                                     .order('updated_at', { ascending: false })
                                     .limit(1);
                                 if (imsData && imsData.length > 0 && imsData[0].data) {
-                                    const rosterData = Array.isArray(imsData[0].data) ? imsData[0].data : (imsData[0].data.roster || [imsData[0].data]);
-                                    return res.status(200).json(rosterData);
+                                    const fallbackList = Array.isArray(imsData[0].data) ? imsData[0].data : (imsData[0].data.records || imsData[0].data.roster || [imsData[0].data]);
+                                    return res.status(200).json(fallbackList);
                                 }
                             } catch (_) {}
                         }
@@ -2712,6 +2712,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.warn(`[API GET Auto-Enrollment Note]:`, synthErr?.message || synthErr);
                     }
                 }
+            if (moduleName === 'pm_deposit_refunds' && Array.isArray(data)) {
+                data = data.map((r: any) => ({
+                    ...r,
+                    leaseId: r.leaseId || r.lease_id,
+                    lease_id: r.lease_id || r.leaseId,
+                    tenantId: r.tenantId || r.tenant_id,
+                    tenant_id: r.tenant_id || r.tenantId,
+                    statementDate: r.statementDate || r.statement_date || r.created_at,
+                    statement_date: r.statement_date || r.statementDate || r.created_at,
+                    originalDeposit: Number(r.originalDeposit !== undefined ? r.originalDeposit : r.original_deposit) || 0,
+                    original_deposit: Number(r.original_deposit !== undefined ? r.original_deposit : r.originalDeposit) || 0,
+                    rentArrearsDeduction: Number(r.rentArrearsDeduction !== undefined ? r.rentArrearsDeduction : r.rent_arrears_deduction) || 0,
+                    rent_arrears_deduction: Number(r.rent_arrears_deduction !== undefined ? r.rent_arrears_deduction : r.rentArrearsDeduction) || 0,
+                    utilityArrearsDeduction: Number(r.utilityArrearsDeduction !== undefined ? r.utilityArrearsDeduction : r.utility_arrears_deduction) || 0,
+                    utility_arrears_deduction: Number(r.utility_arrears_deduction !== undefined ? r.utility_arrears_deduction : r.utilityArrearsDeduction) || 0,
+                    damageRepairDeduction: Number(r.damageRepairDeduction !== undefined ? r.damageRepairDeduction : r.damage_repair_deduction) || 0,
+                    damage_repair_deduction: Number(r.damage_repair_deduction !== undefined ? r.damage_repair_deduction : r.damageRepairDeduction) || 0,
+                    otherDeductions: Number(r.otherDeductions !== undefined ? r.otherDeductions : r.other_deductions) || 0,
+                    other_deductions: Number(r.other_deductions !== undefined ? r.other_deductions : r.otherDeductions) || 0,
+                    otherDeductionsComments: r.otherDeductionsComments || r.other_deductions_comments,
+                    other_deductions_comments: r.other_deductions_comments || r.otherDeductionsComments,
+                    refundAmount: Number(r.refundAmount !== undefined ? r.refundAmount : r.refund_amount) || 0,
+                    refund_amount: Number(r.refund_amount !== undefined ? r.refund_amount : r.refundAmount) || 0,
+                    paymentMethod: r.paymentMethod || r.payment_method,
+                    payment_method: r.payment_method || r.paymentMethod,
+                    paymentReference: r.paymentReference || r.payment_reference,
+                    payment_reference: r.payment_reference || r.paymentReference,
+                    status: r.status || 'Pending Approval',
+                    institutionId: r.institutionId || r.institution_id,
+                    institution_id: r.institution_id || r.institutionId,
+                    createdAt: r.createdAt || r.created_at,
+                    created_at: r.created_at || r.createdAt
+                }));
+            }
+
+            if (moduleName === 'pm_inspections' && Array.isArray(data)) {
+                data = data.map((r: any) => ({
+                    ...r,
+                    leaseId: r.leaseId || r.lease_id,
+                    lease_id: r.lease_id || r.leaseId,
+                    tenantId: r.tenantId || r.tenant_id,
+                    tenant_id: r.tenant_id || r.tenantId,
+                    inspectionDate: r.inspectionDate || r.inspection_date || r.created_at,
+                    inspection_date: r.inspection_date || r.inspectionDate || r.created_at,
+                    inspectedBy: r.inspectedBy || r.inspected_by,
+                    inspected_by: r.inspected_by || r.inspectedBy,
+                    structuralCondition: r.structuralCondition || r.structural_condition,
+                    structural_condition: r.structural_condition || r.structuralCondition,
+                    structuralComments: r.structuralComments || r.structural_comments,
+                    structural_comments: r.structural_comments || r.structuralComments,
+                    cleaningCondition: r.cleaningCondition || r.cleaning_condition,
+                    cleaning_condition: r.cleaning_condition || r.cleaningCondition,
+                    cleaningComments: r.cleaningComments || r.cleaning_comments,
+                    cleaning_comments: r.cleaning_comments || r.cleaningComments,
+                    fittingsCondition: r.fittingsCondition || r.fittings_condition,
+                    fittings_condition: r.fittings_condition || r.fittingsCondition,
+                    fittingsComments: r.fittingsComments || r.fittings_comments,
+                    fittings_comments: r.fittings_comments || r.fittingsComments,
+                    repairsRequired: r.repairsRequired || r.repairs_required,
+                    repairs_required: r.repairs_required || r.repairsRequired,
+                    estimatedRepairCost: Number(r.estimatedRepairCost !== undefined ? r.estimatedRepairCost : r.estimated_repair_cost) || 0,
+                    estimated_repair_cost: Number(r.estimated_repair_cost !== undefined ? r.estimated_repair_cost : r.estimatedRepairCost) || 0,
+                    tenantSignoff: Boolean(r.tenantSignoff !== undefined ? r.tenantSignoff : r.tenant_signoff),
+                    tenant_signoff: Boolean(r.tenant_signoff !== undefined ? r.tenant_signoff : r.tenantSignoff),
+                    status: r.status || 'Draft',
+                    institutionId: r.institutionId || r.institution_id,
+                    institution_id: r.institution_id || r.institutionId,
+                    createdAt: r.createdAt || r.created_at,
+                    created_at: r.created_at || r.createdAt
+                }));
             }
 
             return res.status(200).json(data || []);
@@ -5118,6 +5188,77 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normDuty) : normDuty(currentPayload);
             }
 
+            if (moduleName === 'pm_deposit_refunds') {
+                const normRefund = (c: any) => {
+                    if (!c || typeof c !== 'object') return c;
+                    const copy = { ...c };
+                    const camelMap: Record<string, string> = {
+                        leaseId: 'lease_id',
+                        tenantId: 'tenant_id',
+                        statementDate: 'statement_date',
+                        originalDeposit: 'original_deposit',
+                        rentArrearsDeduction: 'rent_arrears_deduction',
+                        utilityArrearsDeduction: 'utility_arrears_deduction',
+                        damageRepairDeduction: 'damage_repair_deduction',
+                        otherDeductions: 'other_deductions',
+                        otherDeductionsComments: 'other_deductions_comments',
+                        refundAmount: 'refund_amount',
+                        paymentMethod: 'payment_method',
+                        paymentReference: 'payment_reference',
+                        institutionId: 'institution_id',
+                        createdAt: 'created_at'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (copy[camelKey] !== undefined) {
+                            if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                            if (camelKey !== snakeKey) delete copy[camelKey];
+                        }
+                    });
+                    ['original_deposit', 'rent_arrears_deduction', 'utility_arrears_deduction', 'damage_repair_deduction', 'other_deductions', 'refund_amount'].forEach(col => {
+                        if (copy[col] !== undefined && typeof copy[col] !== 'number') {
+                            copy[col] = parseFloat(copy[col]) || 0;
+                        }
+                    });
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normRefund) : normRefund(currentPayload);
+            }
+
+            if (moduleName === 'pm_inspections') {
+                const normInsp = (c: any) => {
+                    if (!c || typeof c !== 'object') return c;
+                    const copy = { ...c };
+                    const camelMap: Record<string, string> = {
+                        leaseId: 'lease_id',
+                        tenantId: 'tenant_id',
+                        inspectionDate: 'inspection_date',
+                        inspectedBy: 'inspected_by',
+                        structuralCondition: 'structural_condition',
+                        structuralComments: 'structural_comments',
+                        cleaningCondition: 'cleaning_condition',
+                        cleaningComments: 'cleaning_comments',
+                        fittingsCondition: 'fittings_condition',
+                        fittingsComments: 'fittings_comments',
+                        repairsRequired: 'repairs_required',
+                        estimatedRepairCost: 'estimated_repair_cost',
+                        tenantSignoff: 'tenant_signoff',
+                        institutionId: 'institution_id',
+                        createdAt: 'created_at'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (copy[camelKey] !== undefined) {
+                            if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                            if (camelKey !== snakeKey) delete copy[camelKey];
+                        }
+                    });
+                    if (copy.estimated_repair_cost !== undefined && typeof copy.estimated_repair_cost !== 'number') {
+                        copy.estimated_repair_cost = parseFloat(copy.estimated_repair_cost) || 0;
+                    }
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInsp) : normInsp(currentPayload);
+            }
+
             let data: any = null;
 
             let error: any = null;
@@ -5785,7 +5926,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (moduleName === 'school_remedial_duty_roster') {
+                    if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections') {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {
@@ -5793,7 +5934,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 const { data: existingIms } = await supabase
                                     .from('institution_module_states')
                                     .select('data')
-                                    .eq('id', `ims_school_remedial_duty_roster_${instId}`)
+                                    .eq('id', `ims_${moduleName}_${instId}`)
                                     .maybeSingle();
                                 let currentList: any[] = [];
                                 if (existingIms?.data && Array.isArray(existingIms.data)) {
@@ -5809,9 +5950,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     }
                                 });
                                 await supabase.from('institution_module_states').upsert({
-                                    id: `ims_school_remedial_duty_roster_${instId}`,
+                                    id: `ims_${moduleName}_${instId}`,
                                     institution_id: instId,
-                                    module_id: 'school_remedial_duty_roster',
+                                    module_id: moduleName,
                                     status: 'active',
                                     data: currentList,
                                     updated_at: new Date().toISOString()

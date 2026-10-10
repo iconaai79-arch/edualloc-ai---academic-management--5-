@@ -56,7 +56,8 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
 
         let targetDate: Date;
         if (endDateStr) {
-            targetDate = new Date(endDateStr);
+            const parsed = new Date(endDateStr);
+            targetDate = !isNaN(parsed.getTime()) ? parsed : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
         } else {
             const demoDate = new Date();
             demoDate.setDate(demoDate.getDate() + 5);
@@ -68,14 +69,15 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
         let calculatedDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
         
         if (daysLeftOverride !== undefined) {
-            calculatedDays = daysLeftOverride;
+            const parsedOverride = Number(daysLeftOverride);
+            calculatedDays = !isNaN(parsedOverride) ? parsedOverride : calculatedDays;
         }
 
-        if (calculatedDays < 0) calculatedDays = 0;
+        if (isNaN(calculatedDays) || calculatedDays < 0) calculatedDays = 0;
 
         const totalCycleDays = 30;
         const daysElapsed = Math.max(0, totalCycleDays - calculatedDays);
-        const progressPercentage = Math.min(100, Math.max(10, Math.round((daysElapsed / totalCycleDays) * 100)));
+        const progressPercentage = Math.min(100, Math.max(10, Math.round((daysElapsed / totalCycleDays) * 100))) || 0;
 
         const isCritical = calculatedDays <= 3;
         const isWarning = calculatedDays > 3 && calculatedDays <= 7;
@@ -87,17 +89,28 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
             isTrial,
             isCritical,
             isWarning,
-            formattedDate: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            formattedDate: !isNaN(targetDate.getTime())
+                ? targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : 'Active'
         };
     }, [subscriptionEndsAt, trialEndsAt, institution, daysLeftOverride]);
 
     // SMS Balance info
     const smsInfo = useMemo(() => {
-        const balance = smsBalanceOverride !== undefined 
+        const rawBalance = smsBalanceOverride !== undefined 
             ? smsBalanceOverride 
             : (institution?.smsBalance !== undefined ? institution.smsBalance : 850);
-        const isLow = balance < (institution?.lowSmsThreshold || 100);
-        const unitPrice = institution?.customSmsPrice || 2.0;
+        const parsedBalance = typeof rawBalance === 'number' ? rawBalance : parseFloat(String(rawBalance));
+        const balance = !isNaN(parsedBalance) ? parsedBalance : 850;
+
+        const rawThreshold = institution?.lowSmsThreshold ?? 100;
+        const parsedThreshold = typeof rawThreshold === 'number' ? rawThreshold : parseFloat(String(rawThreshold));
+        const lowThreshold = !isNaN(parsedThreshold) ? parsedThreshold : 100;
+        const isLow = balance < lowThreshold;
+
+        const rawUnitPrice = institution?.customSmsPrice ?? (institution as any)?.custom_sms_price ?? 2.0;
+        const parsedUnitPrice = typeof rawUnitPrice === 'number' ? rawUnitPrice : parseFloat(String(rawUnitPrice));
+        const unitPrice = !isNaN(parsedUnitPrice) && parsedUnitPrice > 0 ? parsedUnitPrice : 2.0;
 
         return {
             balance,
@@ -184,7 +197,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     title={`SMS Balance: ${smsInfo.formattedBalance} Units`}
                 >
                     <ChatBubbleLeftRightIcon className="w-4 h-4 text-white mb-0.5" />
-                    <span className="text-[8px] font-black leading-none">{smsInfo.balance > 999 ? `${(smsInfo.balance/1000).toFixed(1)}k` : smsInfo.balance}</span>
+                    <span className="text-[8px] font-black leading-none">{Number(smsInfo.balance) > 999 ? `${(Number(smsInfo.balance)/1000).toFixed(1)}k` : smsInfo.balance}</span>
                 </button>
 
                 {/* Floating Tooltip Hover Drawer */}
@@ -374,7 +387,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Units</span>
                             </div>
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                                KES {smsInfo.unitPrice.toFixed(2)}/sms
+                                KES {Number(smsInfo.unitPrice || 2.0).toFixed(2)}/sms
                             </span>
                         </div>
 
@@ -404,9 +417,9 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     institutionName={institution?.name}
                     mpesaConfig={institution?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
                     ncbaConfig={institution?.ncbaConfig}
-                    monthlyPrice={institution?.customSubscriptionPrice?.monthly || 4999}
-                    quarterlyPrice={institution?.customSubscriptionPrice?.quarterly || 13500}
-                    yearlyPrice={institution?.customSubscriptionPrice?.yearly || 49999}
+                    monthlyPrice={Number(institution?.customSubscriptionPrice?.monthly) || 4999}
+                    quarterlyPrice={Number(institution?.customSubscriptionPrice?.quarterly) || 13500}
+                    yearlyPrice={Number(institution?.customSubscriptionPrice?.yearly) || 49999}
                     onSuccess={() => {
                         setIsPayModalOpen(false);
                         alert('Payment processed successfully! Your subscription has been extended.');
@@ -424,7 +437,7 @@ export const SubscriptionExpiryBanner: React.FC<SubscriptionExpiryBannerProps> =
                     institutionName={institution?.name || 'Academic Institution'}
                     mpesaConfig={institution?.mpesaConfig || { paybillNumber: '247247', accountNumber: 'SUBSCRIPTION', consumerKey: '', consumerSecret: '', passkey: '' }}
                     ncbaConfig={institution?.ncbaConfig}
-                    smsUnitPrice={institution?.customSmsPrice || 2.0}
+                    smsUnitPrice={Number(smsInfo.unitPrice) || 2.0}
                     onPurchaseComplete={(purchasedUnits) => {
                         setIsSmsModalOpen(false);
                         alert(`Successfully topped up ${purchasedUnits} SMS credits!`);

@@ -10,6 +10,7 @@ import {
 import { apiService } from '../services/apiService';
 import type { Institution, User as UserType } from '../types';
 import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
+import { TransportOpeningBalancesModal } from './TransportOpeningBalancesModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export interface TransportFeeInvoice {
     amount?: number;
     paidAmount?: number;
     balance?: number;
+    isOpeningBalance?: boolean;
 }
 
 interface TransportBillingProps {
@@ -67,6 +69,9 @@ interface TransportBillingProps {
     currentInstitution?: Institution | null;
     users?: UserType[];
     onSendSms?: (recipient: string | string[], message: string, config?: any, units?: number, institutionId?: string) => Promise<any>;
+    onSaveOpeningBalance?: (invoice: TransportFeeInvoice) => void;
+    onImportOpeningBalances?: (invoices: TransportFeeInvoice[]) => void;
+    onDeleteOpeningBalance?: (invoiceId: string) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -847,7 +852,14 @@ const InvoiceTable: React.FC<{
                                                         <User className="w-4 h-4 text-indigo-500" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.studentName}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">{inv.studentName}</p>
+                                                            {(inv.isOpeningBalance || (inv.period && inv.period.toLowerCase().includes('opening'))) && (
+                                                                <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                                                    Opening B/F
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-[9px] font-bold text-slate-400">{inv.admissionNumber}</p>
                                                     </div>
                                                 </div>
@@ -1050,18 +1062,70 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
     onUpdateDefaultOneWayPercentage,
     currentInstitution,
     users = [],
-    onSendSms
+    onSendSms,
+    onSaveOpeningBalance,
+    onImportOpeningBalances,
+    onDeleteOpeningBalance
 }) => {
-    const [activeSection, setActiveSection] = useState<'overview' | 'fees' | 'invoices'>('overview');
+    const [activeSection, setActiveSection] = useState<'overview' | 'fees' | 'invoices' | 'opening_balances'>('overview');
     const [billingCycle, setBillingCycle] = useState<BillingCycle>('term');
     const [period, setPeriod] = useState('Term 2 · 2026');
     const [notifyViaSms, setNotifyViaSms] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [isOpeningBalancesModalOpen, setIsOpeningBalancesModalOpen] = useState(false);
 
     const totalExpected = useMemo(() => invoices.filter(i => i.status !== 'waived').reduce((s, i) => s + (i.finalAmount || i.amount || 0), 0), [invoices]);
     const totalCollected = useMemo(() => invoices.filter(i => i.status === 'paid').reduce((s, i) => s + (i.paidAmount || i.finalAmount || i.amount || 0), 0), [invoices]);
     const totalOutstanding = useMemo(() => invoices.filter(i => i.status === 'pending' || i.status === 'overdue').reduce((s, i) => s + (i.finalAmount || i.amount || 0), 0), [invoices]);
     const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+    const openingBalanceInvoices = useMemo(() => {
+        return invoices.filter(i => 
+            i.isOpeningBalance === true || 
+            (i.period && (
+                i.period.toLowerCase().includes('opening') ||
+                i.period.toLowerCase().includes('b/f') ||
+                i.period.toLowerCase().includes('brought forward')
+            )) ||
+            (i.notes && i.notes.toLowerCase().includes('opening balance'))
+        );
+    }, [invoices]);
+
+    const resolvedStudents = useMemo(() => {
+        const list: Array<{
+            id: string;
+            name: string;
+            admissionNumber?: string;
+            studentClass?: string;
+            parentPhone?: string;
+            assignedRouteId?: string;
+        }> = (users || [])
+            .filter(u => u.role === 'student' || (u as any).roles?.includes?.('student'))
+            .map(u => ({
+                id: u.id,
+                name: u.name,
+                admissionNumber: (u as any).admissionNumber || (u as any).admission_number || u.metadata?.admissionNumber || '',
+                studentClass: (u as any).studentClass || (u as any).className || u.metadata?.studentClass || '',
+                parentPhone: (u as any).parentPhone || (u as any).phoneNumber || u.metadata?.parentPhone || '',
+                assignedRouteId: (u as any).routeId || (u as any).vehicleId || u.metadata?.routeId || ''
+            }));
+
+        const seen = new Set(list.map(s => s.id));
+        invoices.forEach(inv => {
+            if (inv.studentId && !seen.has(inv.studentId)) {
+                seen.add(inv.studentId);
+                list.push({
+                    id: inv.studentId,
+                    name: inv.studentName,
+                    admissionNumber: inv.admissionNumber,
+                    studentClass: '',
+                    parentPhone: inv.parentPhone,
+                    assignedRouteId: inv.routeId
+                });
+            }
+        });
+        return list;
+    }, [users, invoices]);
 
     const handleGenerate = () => {
         setGenerating(true);
@@ -1120,6 +1184,17 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                         <span>Notify via SMS</span>
                     </label>
 
+                    {/* Quick Opening Balances Button */}
+                    <button
+                        type="button"
+                        onClick={() => setIsOpeningBalancesModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+                        title="Update or import commuter opening balances brought forward"
+                    >
+                        <Banknote className="w-4 h-4" />
+                        <span>Opening Balances (B/F)</span>
+                    </button>
+
                     <button
                         onClick={handleGenerate}
                         disabled={generating}
@@ -1177,6 +1252,7 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                     { id: 'overview', label: 'Billing Overview', icon: TrendingUp },
                     { id: 'fees',     label: 'Route Tariffs', icon: Banknote },
                     { id: 'invoices', label: `Invoices (${invoices.length})`, icon: FileText },
+                    { id: 'opening_balances', label: `Opening Balances (${openingBalanceInvoices.length})`, icon: Wallet },
                 ] as const).map(s => (
                     <button
                         key={s.id}
@@ -1288,6 +1364,79 @@ export const TransportBillingManager: React.FC<TransportBillingProps> = ({
                         onSendSms={onSendSms}
                     />
                 )
+            )}
+
+            {/* Opening Balances Section */}
+            {activeSection === 'opening_balances' && (
+                <div className="space-y-6">
+                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-[2.5rem] p-6 lg:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-2">
+                            <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded-full text-[10px] font-black uppercase tracking-wider">
+                                Ledger Brought Forward (B/F)
+                            </span>
+                            <h3 className="text-2xl font-black uppercase tracking-tight">Commuter Opening Balances</h3>
+                            <p className="text-xs text-indigo-200 max-w-xl font-medium">
+                                Manage legacy arrears, onboarding balances, and opening receivables for all transport subscribers. Bulk upload via Excel or update individual commuters.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsOpeningBalancesModalOpen(true)}
+                            className="px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl transition-all cursor-pointer flex items-center gap-2.5 active:scale-95 shrink-0"
+                        >
+                            <UploadCloud className="w-4 h-4" />
+                            <span>Update or Import Excel</span>
+                        </button>
+                    </div>
+
+                    {openingBalanceInvoices.length === 0 ? (
+                        <div className="bg-white dark:bg-slate-800 p-20 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-700 text-center">
+                            <Wallet className="w-14 h-14 text-slate-200 dark:text-slate-700 mx-auto mb-6" />
+                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No opening balances recorded yet</p>
+                            <p className="text-xs font-bold text-slate-400 mt-2">
+                                Click "Update or Import Excel" to upload a spreadsheet or record individual balances.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => setIsOpeningBalancesModalOpen(true)}
+                                className="mt-6 px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-indigo-700 transition-all"
+                            >
+                                Open Opening Balances Importer
+                            </button>
+                        </div>
+                    ) : (
+                        <InvoiceTable
+                            invoices={openingBalanceInvoices}
+                            institution={currentInstitution}
+                            onMarkPaid={onMarkPaid}
+                            onWaive={onWaive}
+                            onSendSms={onSendSms}
+                        />
+                    )}
+                </div>
+            )}
+
+            {/* Opening Balances Modal */}
+            {isOpeningBalancesModalOpen && (
+                <TransportOpeningBalancesModal
+                    isOpen={isOpeningBalancesModalOpen}
+                    onClose={() => setIsOpeningBalancesModalOpen(false)}
+                    currentInstitution={currentInstitution || { id: '', name: 'Institution' } as any}
+                    students={resolvedStudents}
+                    routes={routeSettings.map(r => ({ id: r.routeId, name: r.routeName }))}
+                    routeFeeSettings={routeSettings}
+                    existingInvoices={invoices}
+                    onSaveOpeningBalance={(inv) => {
+                        if (onSaveOpeningBalance) onSaveOpeningBalance(inv);
+                    }}
+                    onImportOpeningBalances={(importedInvs) => {
+                        if (onImportOpeningBalances) onImportOpeningBalances(importedInvs);
+                    }}
+                    onDeleteOpeningBalance={(invId) => {
+                        if (onDeleteOpeningBalance) onDeleteOpeningBalance(invId);
+                    }}
+                />
             )}
         </div>
     );

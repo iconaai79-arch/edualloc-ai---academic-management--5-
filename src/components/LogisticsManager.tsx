@@ -45,7 +45,8 @@ import {
     Briefcase,
     Cloud,
     RefreshCw,
-    Radio
+    Radio,
+    UploadCloud
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Institution, User as UserType, Course, StudentEnrollment } from '../types';
@@ -54,6 +55,7 @@ import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
 import { TransportBillingManager } from './TransportBillingManager';
 import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
+import { TransportOpeningBalancesModal } from './TransportOpeningBalancesModal';
 import { TransportManager } from './TransportManager';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
@@ -997,6 +999,71 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setTransportInvoices(nextInvs);
         persistHubToCloud({ transportInvoices: nextInvs });
     };
+
+    const handleSaveOpeningBalance = (invoice: TransportFeeInvoice) => {
+        const exists = transportInvoices.some(i => i.id === invoice.id || (
+            i.studentId === invoice.studentId &&
+            (i.isOpeningBalance || (i.period && (i.period.toLowerCase().includes('opening') || i.period.toLowerCase().includes('b/f'))))
+        ));
+
+        let nextInvs: TransportFeeInvoice[];
+        if (exists) {
+            nextInvs = transportInvoices.map(i => {
+                if (i.id === invoice.id || (
+                    i.studentId === invoice.studentId &&
+                    (i.isOpeningBalance || (i.period && (i.period.toLowerCase().includes('opening') || i.period.toLowerCase().includes('b/f'))))
+                )) {
+                    return invoice;
+                }
+                return i;
+            });
+        } else {
+            nextInvs = [invoice, ...transportInvoices];
+        }
+
+        setTransportInvoices(nextInvs);
+        const invKey = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : null;
+        if (invKey) safeSetLocalItem(invKey, nextInvs);
+        persistHubToCloud({ transportInvoices: nextInvs });
+        toastSuccess(`Opening balance for ${invoice.studentName} updated successfully.`);
+    };
+
+    const handleImportOpeningBalances = (importedInvoices: TransportFeeInvoice[]) => {
+        if (!importedInvoices || importedInvoices.length === 0) return;
+
+        const importedMap = new Map<string, TransportFeeInvoice>();
+        importedInvoices.forEach(inv => {
+            importedMap.set(inv.studentId, inv);
+        });
+
+        const updatedExisting = transportInvoices.map(i => {
+            const isOpening = i.isOpeningBalance || (i.period && (i.period.toLowerCase().includes('opening') || i.period.toLowerCase().includes('b/f')));
+            if (isOpening && importedMap.has(i.studentId)) {
+                const replacement = importedMap.get(i.studentId)!;
+                importedMap.delete(i.studentId);
+                return replacement;
+            }
+            return i;
+        });
+
+        const newRecords = Array.from(importedMap.values());
+        const nextInvs = [...newRecords, ...updatedExisting];
+
+        setTransportInvoices(nextInvs);
+        const invKey = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : null;
+        if (invKey) safeSetLocalItem(invKey, nextInvs);
+        persistHubToCloud({ transportInvoices: nextInvs });
+        toastSuccess(`Successfully imported ${importedInvoices.length} commuter opening balance(s).`);
+    };
+
+    const handleDeleteOpeningBalance = (invoiceId: string) => {
+        const nextInvs = transportInvoices.filter(i => i.id !== invoiceId);
+        setTransportInvoices(nextInvs);
+        const invKey = currentInstitution?.id ? `eduai_transport_fee_invoices_${currentInstitution.id}` : null;
+        if (invKey) safeSetLocalItem(invKey, nextInvs);
+        persistHubToCloud({ transportInvoices: nextInvs });
+        toastSuccess('Opening balance record removed.');
+    };
     // ─────────────────────────────────────────────────────────────────────────
 
     // Commute Sub-Tabs inside manifest view
@@ -1013,6 +1080,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     // Route Registration & Editing Modal States
     const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
+    const [isOpeningBalancesModalOpen, setIsOpeningBalancesModalOpen] = useState(false);
     const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
     const [selectedStreamFilter, setSelectedStreamFilter] = useState<string>('ALL');
     const [editingRoute, setEditingRoute] = useState<{
@@ -1255,7 +1323,49 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setStudentCommutePrefs(initialPrefs);
     }, [students, isEduTransport, busRoutes, currentInstitution?.id]);
 
+    const resolvedCommuterStudents = useMemo(() => {
+        const list: Array<{
+            id: string;
+            name: string;
+            admissionNumber?: string;
+            studentClass?: string;
+            parentPhone?: string;
+            assignedRouteId?: string;
+        }> = (students || []).map(s => {
+            const userObj = users.find(u => u.id === s.id || u.email === (s as any).email);
+            const phone = (s as any).parentPhone || (s as any).guardianPhoneNumber || (s as any).phoneNumber || (userObj as any)?.guardianPhoneNumber || (userObj as any)?.guardianPhone || (userObj as any)?.parentPhone || (userObj as any)?.phoneNumber || '';
+            const adm = getStudentResolvedAdm(s) || (s as any).admissionNumber || '';
+            const enr = institutionEnrollments.find(e => e.studentId === s.id);
+            const cls = getStudentBaseClass(s, enr);
+            const routePref = studentCommutePrefs[s.id]?.routeId;
 
+            return {
+                id: s.id,
+                name: s.name,
+                admissionNumber: adm,
+                studentClass: cls,
+                parentPhone: phone,
+                assignedRouteId: routePref && routePref !== 'none' ? routePref : ''
+            };
+        });
+
+        const seen = new Set(list.map(s => s.id));
+        transportInvoices.forEach(inv => {
+            if (inv.studentId && !seen.has(inv.studentId)) {
+                seen.add(inv.studentId);
+                list.push({
+                    id: inv.studentId,
+                    name: inv.studentName,
+                    admissionNumber: inv.admissionNumber || '',
+                    studentClass: '',
+                    parentPhone: inv.parentPhone || '',
+                    assignedRouteId: inv.routeId || ''
+                });
+            }
+        });
+
+        return list;
+    }, [students, users, institutionEnrollments, studentCommutePrefs, transportInvoices]);
 
     // Modal state for adding a new trip
     const [isAddTripModalOpen, setIsAddTripModalOpen] = useState(false);
@@ -3651,6 +3761,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
                         {/* Export Actions */}
                         <div className="flex items-center gap-2">
+                            {reportSubTab === 'billing' && isEduTransport && (
+                                <button
+                                    onClick={() => setIsOpeningBalancesModalOpen(true)}
+                                    className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
+                                    title="Update or import commuter opening balances (B/F Arrears & Advance)"
+                                >
+                                    <UploadCloud className="w-3.5 h-3.5" />
+                                    <span>Opening Balances (B/F)</span>
+                                </button>
+                            )}
                             <button
                                 onClick={handleExportExcel}
                                 className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
@@ -4025,6 +4145,17 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             <span>Cloud Synced {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                     )}
+                    {isEduTransport && (
+                        <button
+                            type="button"
+                            onClick={() => setIsOpeningBalancesModalOpen(true)}
+                            className="px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                            title="Update or import opening commuter balances (B/F Arrears & Advance)"
+                        >
+                            <UploadCloud className="w-4 h-4" />
+                            <span>Opening Balances (B/F)</span>
+                        </button>
+                    )}
                     <button 
                         type="button"
                         onClick={async () => {
@@ -4138,10 +4269,29 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
                         currentInstitution={currentInstitution}
                         users={users}
+                        onSaveOpeningBalance={handleSaveOpeningBalance}
+                        onImportOpeningBalances={handleImportOpeningBalances}
+                        onDeleteOpeningBalance={handleDeleteOpeningBalance}
                     />
                 )}
                 {activeTab === 'reports' && renderReports()}
             </div>
+
+            {/* Modal: Transport Opening Balances (B/F Arrears & Advance Importer) */}
+            {isOpeningBalancesModalOpen && (
+                <TransportOpeningBalancesModal
+                    isOpen={isOpeningBalancesModalOpen}
+                    onClose={() => setIsOpeningBalancesModalOpen(false)}
+                    currentInstitution={currentInstitution}
+                    students={resolvedCommuterStudents}
+                    routes={busRoutes.map(r => ({ id: r.id, name: r.name }))}
+                    routeFeeSettings={routeFeeSetting}
+                    existingInvoices={transportInvoices}
+                    onSaveOpeningBalance={handleSaveOpeningBalance}
+                    onImportOpeningBalances={handleImportOpeningBalances}
+                    onDeleteOpeningBalance={handleDeleteOpeningBalance}
+                />
+            )}
         </div>
     );
 };
