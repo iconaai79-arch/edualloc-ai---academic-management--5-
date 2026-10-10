@@ -70,6 +70,375 @@ const dataUriToBlob = (dataUri: string) => {
     return new Blob([ab], { type: mimeString });
 };
 
+// ── Top-level Stable Modal Component ──────────────────────────────────────────
+// Declared at module scope so React does NOT unmount it on parent re-renders.
+const Modal: React.FC<{
+    show: boolean;
+    onClose: () => void;
+    title: string;
+    children: React.ReactNode;
+    maxWidth?: string;
+}> = ({ show, onClose, title, children, maxWidth = "max-w-lg" }) => {
+    if (!show) return null;
+    return createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className={`bg-white dark:bg-slate-900 w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300`}>
+                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">{title}</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                        <XIcon className="w-6 h-6 text-slate-400" />
+                    </button>
+                </div>
+                <div className="p-8 max-h-[70vh] overflow-y-auto">
+                    {children}
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
+// ── Stable Form Component for Landlord Onboarding ─────────────────────────────
+interface LandlordModalFormProps {
+    editingLandlord: PMLandlord | null;
+    onSave: (data: Partial<PMLandlord>) => void;
+}
+
+const LandlordModalForm: React.FC<LandlordModalFormProps> = ({ editingLandlord, onSave }) => {
+    const [name, setName] = useState(editingLandlord?.name || '');
+    const [phoneNumber, setPhoneNumber] = useState(editingLandlord?.phoneNumber || '');
+    const [email, setEmail] = useState(editingLandlord?.email || '');
+    const [idNumber, setIdNumber] = useState(editingLandlord?.idNumber || '');
+    const [taxPin, setTaxPin] = useState(editingLandlord?.taxPin || '');
+    const [preferredPaymentMethod, setPreferredPaymentMethod] = useState(editingLandlord?.preferredPaymentMethod || 'Bank');
+    const [bankDetails, setBankDetails] = useState(editingLandlord?.bankDetails || '');
+
+    useEffect(() => {
+        setName(editingLandlord?.name || '');
+        setPhoneNumber(editingLandlord?.phoneNumber || '');
+        setEmail(editingLandlord?.email || '');
+        setIdNumber(editingLandlord?.idNumber || '');
+        setTaxPin(editingLandlord?.taxPin || '');
+        setPreferredPaymentMethod(editingLandlord?.preferredPaymentMethod || 'Bank');
+        setBankDetails(editingLandlord?.bankDetails || '');
+    }, [editingLandlord]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({
+            name,
+            phoneNumber,
+            email,
+            idNumber,
+            taxPin,
+            preferredPaymentMethod,
+            bankDetails,
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Full Name / Company Name</label>
+                <input
+                    name="name"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    placeholder="e.g. John Doe / XYZ Holdings"
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
+                    <input
+                        name="phoneNumber"
+                        required
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                        placeholder="+254..."
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
+                    <input
+                        name="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                        placeholder="john@example.com"
+                    />
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID Number</label>
+                    <input
+                        name="idNumber"
+                        value={idNumber}
+                        onChange={(e) => setIdNumber(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tax PIN</label>
+                    <input
+                        name="taxPin"
+                        value={taxPin}
+                        onChange={(e) => setTaxPin(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                        placeholder="e.g. A00..."
+                    />
+                </div>
+            </div>
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Preferred Payment Method</label>
+                <select
+                    name="preferredPaymentMethod"
+                    value={preferredPaymentMethod}
+                    onChange={(e) => setPreferredPaymentMethod(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                >
+                    <option value="Bank">Bank Transfer</option>
+                    <option value="M-Pesa">M-Pesa</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Other">Other / Multiple</option>
+                </select>
+            </div>
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank / Payment Details</label>
+                <textarea
+                    name="bankDetails"
+                    value={bankDetails}
+                    onChange={(e) => setBankDetails(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24"
+                    placeholder="Bank name & details, or M-Pesa Till/Paybill details..."
+                />
+            </div>
+            <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4">
+                {editingLandlord ? 'Update Landlord Profile' : 'Save Landlord Profile'}
+            </button>
+        </form>
+    );
+};
+
+// ── Stable Form Component for Tenant Onboarding ───────────────────────────────
+interface TenantModalFormProps {
+    editingTenant: PMTenant | null;
+    onSave: (data: Partial<PMTenant>) => void;
+}
+
+const TenantModalForm: React.FC<TenantModalFormProps> = ({ editingTenant, onSave }) => {
+    const [name, setName] = useState(editingTenant?.name || '');
+    const [email, setEmail] = useState(editingTenant?.email || '');
+    const [phoneNumber, setPhoneNumber] = useState(editingTenant?.phoneNumber || '');
+    const [idNumber, setIdNumber] = useState(editingTenant?.idNumber || '');
+
+    useEffect(() => {
+        setName(editingTenant?.name || '');
+        setEmail(editingTenant?.email || '');
+        setPhoneNumber(editingTenant?.phoneNumber || '');
+        setIdNumber(editingTenant?.idNumber || '');
+    }, [editingTenant]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({
+            name,
+            email: email || undefined,
+            phoneNumber,
+            idNumber,
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tenant Name</label>
+                <input
+                    name="name"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"
+                    placeholder="Full Name"
+                />
+            </div>
+            <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
+                <input
+                    name="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"
+                    placeholder="Email (optional, creates portal login)"
+                />
+            </div>
+            <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
+                <input
+                    name="phoneNumber"
+                    required
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"
+                    placeholder="Phone Number"
+                />
+            </div>
+            <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID / Passport Number</label>
+                <input
+                    name="idNumber"
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none"
+                    placeholder="ID / Passport Number"
+                />
+            </div>
+            <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
+                {editingTenant ? "Save Changes" : "Complete Onboarding"}
+            </button>
+        </form>
+    );
+};
+
+// ── Stable Form Component for Property Onboarding ─────────────────────────────
+interface PropertyModalFormProps {
+    editingProperty: PMProperty | null;
+    editingPropertyTown: string;
+    existingTowns: string[];
+    landlords: PMLandlord[];
+    onSave: (data: Partial<PMProperty>) => void;
+}
+
+const PropertyModalForm: React.FC<PropertyModalFormProps> = ({
+    editingProperty,
+    editingPropertyTown,
+    existingTowns,
+    landlords,
+    onSave
+}) => {
+    const [name, setName] = useState(editingProperty?.name || '');
+    const [address, setAddress] = useState(editingProperty?.address || '');
+    const [town, setTown] = useState(editingPropertyTown || editingProperty?.town || '');
+    const [propertyType, setPropertyType] = useState<PMPropertyType>(editingProperty?.propertyType || 'Apartment');
+    const [landlordId, setLandlordId] = useState(editingProperty?.landlordId || '');
+    const [commissionRate, setCommissionRate] = useState<number | string>(editingProperty?.commissionRate ?? 0);
+
+    useEffect(() => {
+        setName(editingProperty?.name || '');
+        setAddress(editingProperty?.address || '');
+        setTown(editingPropertyTown || editingProperty?.town || '');
+        setPropertyType(editingProperty?.propertyType || 'Apartment');
+        setLandlordId(editingProperty?.landlordId || '');
+        setCommissionRate(editingProperty?.commissionRate ?? 0);
+    }, [editingProperty, editingPropertyTown]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onSave({
+            name,
+            address,
+            town,
+            propertyType,
+            landlordId,
+            commissionRate: parseFloat(String(commissionRate)) || 0,
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Property Name</label>
+                <input
+                    name="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    placeholder="e.g. Blue Lagoon Apartments"
+                />
+            </div>
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Physical Address</label>
+                <input
+                    name="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    placeholder="Street, Block No."
+                />
+            </div>
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Town / City</label>
+                <input
+                    name="town"
+                    list="towns-list"
+                    value={town}
+                    onChange={(e) => setTown(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    placeholder="e.g. Nairobi, Mombasa, Kisumu"
+                />
+                <datalist id="towns-list">
+                    {existingTowns.map(t => (
+                        <option key={t} value={t} />
+                    ))}
+                </datalist>
+            </div>
+            <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type</label>
+                <select
+                    name="propertyType"
+                    value={propertyType}
+                    onChange={(e) => setPropertyType(e.target.value as PMPropertyType)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                >
+                    <option value="Apartment">Apartment</option>
+                    <option value="Commercial">Commercial</option>
+                    <option value="Mixed-use">Mixed-use</option>
+                    <option value="Warehouse">Warehouse</option>
+                    <option value="Land">Land</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Landlord (Optional)</label>
+                    <select
+                        name="landlordId"
+                        value={landlordId}
+                        onChange={(e) => setLandlordId(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    >
+                        <option value="">Select Landlord</option>
+                        {landlords.map(ll => <option key={ll.id} value={ll.id}>{ll.name}</option>)}
+                    </select>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Commission Rate (%)</label>
+                    <input
+                        name="commissionRate"
+                        type="number"
+                        step="0.1"
+                        value={commissionRate}
+                        onChange={(e) => setCommissionRate(e.target.value)}
+                        min="0"
+                        max="100"
+                        className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all"
+                    />
+                </div>
+            </div>
+            <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
+                {editingProperty ? "Save Changes" : "Save Asset"}
+            </button>
+        </form>
+    );
+};
+
 interface PropertyManagementViewProps {
     currentUser?: User;
     currentInstitution?: Institution;
@@ -8570,24 +8939,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         );
     };
 
-    const Modal = ({ show, onClose, title, children, maxWidth = "max-w-lg" }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
-        if (!show) return null;
-        return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                <div className={`bg-white dark:bg-slate-900 w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300`}>
-                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">{title}</h3>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                            <XIcon className="w-6 h-6 text-slate-400" />
-                        </button>
-                    </div>
-                    <div className="p-8 max-h-[70vh] overflow-y-auto">
-                        {children}
-                    </div>
-                </div>
-            </div>
-        );
-    };
 
     if (loading) {
         return (
@@ -9223,68 +9574,13 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 }}
                 title={editingProperty ? "Edit Property" : "Register New Property"}
             >
-                <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    handleSaveProperty({
-                        name: formData.get('name') as string,
-                        address: formData.get('address') as string,
-                        town: editingPropertyTown,
-                        propertyType: formData.get('propertyType') as PMPropertyType,
-                        landlordId: formData.get('landlordId') as string,
-                        commissionRate: parseFloat(formData.get('commissionRate') as string) || 0,
-                    });
-                }} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Property Name</label>
-                        <input name="name" defaultValue={editingProperty?.name} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. Blue Lagoon Apartments" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Physical Address</label>
-                        <input name="address" defaultValue={editingProperty?.address} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="Street, Block No." />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Town / City</label>
-                        <input 
-                            name="town" 
-                            list="towns-list"
-                            value={editingPropertyTown}
-                            onChange={(e) => setEditingPropertyTown(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" 
-                            placeholder="e.g. Nairobi, Mombasa, Kisumu" 
-                        />
-                        <datalist id="towns-list">
-                            {existingTowns.map(town => (
-                                <option key={town} value={town} />
-                            ))}
-                        </datalist>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type</label>
-                        <select name="propertyType" defaultValue={editingProperty?.propertyType || 'Apartment'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
-                            <option value="Apartment">Apartment</option>
-                            <option value="Commercial">Commercial</option>
-                            <option value="Mixed-use">Mixed-use</option>
-                            <option value="Warehouse">Warehouse</option>
-                        </select>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Landlord (Optional)</label>
-                            <select name="landlordId" defaultValue={editingProperty?.landlordId || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
-                                <option value="">Select Landlord</option>
-                                {landlords.map(ll => <option key={ll.id} value={ll.id}>{ll.name}</option>)}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Commission Rate (%)</label>
-                            <input name="commissionRate" type="number" step="0.1" defaultValue={editingProperty?.commissionRate || 0} min="0" max="100" className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" />
-                        </div>
-                    </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
-                        {editingProperty ? "Save Changes" : "Save Asset"}
-                    </button>
-                </form>
+                <PropertyModalForm
+                    editingProperty={editingProperty}
+                    editingPropertyTown={editingPropertyTown}
+                    existingTowns={existingTowns}
+                    landlords={landlords}
+                    onSave={handleSaveProperty}
+                />
             </Modal>
 
             <Modal
@@ -9292,60 +9588,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 onClose={() => { setShowLandlordModal(false); setEditingLandlord(null); }}
                 title={editingLandlord ? 'Edit Landlord Profile' : 'Onboard Landlord'}
             >
-                <form onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    handleSaveLandlord({
-                        name: formData.get('name') as string,
-                        phoneNumber: formData.get('phoneNumber') as string,
-                        email: formData.get('email') as string,
-                        idNumber: formData.get('idNumber') as string,
-                        taxPin: formData.get('taxPin') as string,
-                        bankDetails: formData.get('bankDetails') as string,
-                        preferredPaymentMethod: formData.get('preferredPaymentMethod') as string,
-                    });
-                }} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Full Name / Company Name</label>
-                        <input key={editingLandlord?.id + '-name'} name="name" required defaultValue={editingLandlord?.name || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. John Doe / XYZ Holdings" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
-                            <input key={editingLandlord?.id + '-phone'} name="phoneNumber" required defaultValue={editingLandlord?.phoneNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="+254..." />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                            <input key={editingLandlord?.id + '-email'} name="email" type="email" defaultValue={editingLandlord?.email || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="john@example.com" />
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID Number</label>
-                            <input key={editingLandlord?.id + '-id'} name="idNumber" defaultValue={editingLandlord?.idNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tax PIN</label>
-                            <input key={editingLandlord?.id + '-tax'} name="taxPin" defaultValue={editingLandlord?.taxPin || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="e.g. A00..." />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Preferred Payment Method</label>
-                        <select key={editingLandlord?.id + '-method'} name="preferredPaymentMethod" defaultValue={editingLandlord?.preferredPaymentMethod || 'Bank'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all">
-                            <option value="Bank">Bank Transfer</option>
-                            <option value="M-Pesa">M-Pesa</option>
-                            <option value="Cash">Cash</option>
-                            <option value="Other">Other / Multiple</option>
-                        </select>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Bank / Payment Details</label>
-                        <textarea key={editingLandlord?.id + '-bank'} name="bankDetails" defaultValue={editingLandlord?.bankDetails || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-purple-500 rounded-2xl p-4 font-bold outline-none transition-all h-24" placeholder="Bank name & details, or M-Pesa Till/Paybill details..." />
-                    </div>
-                    <button type="submit" className="w-full bg-purple-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-500/20 mt-4">
-                        {editingLandlord ? 'Update Landlord Profile' : 'Save Landlord Profile'}
-                    </button>
-                </form>
+                <LandlordModalForm
+                    editingLandlord={editingLandlord}
+                    onSave={handleSaveLandlord}
+                />
             </Modal>
 
             <Modal
@@ -9409,36 +9655,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             </Modal>
 
             <Modal show={showTenantModal} onClose={() => setShowTenantModal(false)} title={editingTenant ? "Edit Tenant Profile" : "Tenant Onboarding"}>
-                <form key={editingTenant?.id || 'new'} onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    handleSaveTenant({
-                        name: formData.get('name') as string,
-                        email: (formData.get('email') as string) || undefined,
-                        phoneNumber: formData.get('phoneNumber') as string,
-                        idNumber: formData.get('idNumber') as string
-                    });
-                }} className="space-y-6">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Tenant Name</label>
-                        <input name="name" required defaultValue={editingTenant?.name || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Full Name" />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                        <input name="email" type="email" defaultValue={editingTenant?.email || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Email (optional, creates portal login)" />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone Number</label>
-                        <input name="phoneNumber" required defaultValue={editingTenant?.phoneNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="Phone Number" />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">ID / Passport Number</label>
-                        <input name="idNumber" defaultValue={editingTenant?.idNumber || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none" placeholder="ID / Passport Number" />
-                    </div>
-                    <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
-                        {editingTenant ? "Save Changes" : "Complete Onboarding"}
-                    </button>
-                </form>
+                <TenantModalForm
+                    editingTenant={editingTenant}
+                    onSave={handleSaveTenant}
+                />
             </Modal>
 
             <Modal show={showWhtReviewModal} onClose={() => { setShowWhtReviewModal(false); setSelectedInvoiceForWhtReview(null); }} title="Verify Withholding Tax Certificate">
@@ -11305,25 +11525,6 @@ const ArrearsManager: React.FC<{
         setArrCurrentPage(1);
     }, [arrSearch, arrProperty, arrLandlord, arrMin, arrMax, arrPeriod]);
 
-    const Modal = ({ show, onClose, title, children, maxWidth = "max-w-lg" }: { show: boolean, onClose: () => void, title: string, children: React.ReactNode, maxWidth?: string }) => {
-        if (!show) return null;
-        return createPortal(
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                <div className={`bg-white dark:bg-slate-905 w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300`}>
-                    <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
-                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">{title}</h3>
-                        <button onClick={onClose} className="p-2 hover:bg-slate-105 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                            <XIcon className="w-6 h-6 text-slate-400" />
-                        </button>
-                    </div>
-                    <div className="p-8 max-h-[70vh] overflow-y-auto">
-                        {children}
-                    </div>
-                </div>
-            </div>,
-            document.body
-        );
-    };
 
     const handleExportPdf = async () => {
         setExporting(true);

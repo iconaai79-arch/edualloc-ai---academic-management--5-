@@ -14084,7 +14084,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     onChange={(e) => setUninvoicedAcademicYearId(e.target.value)}
                                                     className="w-full px-3 py-2 bg-slate-900/90 text-white rounded-xl border border-white/20 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
                                                 >
-                                                    {(props.academicYears && props.academicYears.length > 0 ? props.academicYears : [{ id: 'ay_2026', name: '2026' }]).map(ay => (
+                                                    {(props.academicYears && props.academicYears.length > 0 ? props.academicYears : [{ id: 'ay_2026', name: '2026' }]).map((ay: any) => (
                                                         <option key={ay.id} value={ay.id}>
                                                             {ay.name || ay.id} {ay.status === 'Active' || ay.isCurrent ? '• Active' : ''}
                                                         </option>
@@ -14108,7 +14108,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         onChange={(e) => setUninvoicedSemesterId(e.target.value)}
                                                         className="w-full px-3 py-2 bg-slate-900/90 text-white rounded-xl border border-white/20 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400 cursor-pointer"
                                                     >
-                                                        {(props.semesters && props.semesters.length > 0 ? props.semesters : [{ id: 'sem_1', name: 'Term 1' }, { id: 'sem_2', name: 'Term 2' }, { id: 'sem_3', name: 'Term 3' }]).map(sem => (
+                                                        {(props.semesters && props.semesters.length > 0 ? props.semesters : [{ id: 'sem_1', name: 'Term 1' }, { id: 'sem_2', name: 'Term 2' }, { id: 'sem_3', name: 'Term 3' }]).map((sem: any) => (
                                                             <option key={sem.id} value={sem.id}>
                                                                 {sem.name || sem.id} {sem.status === 'Active' || sem.isCurrent ? '• Current' : ''}
                                                             </option>
@@ -16764,7 +16764,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                             className="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl outline-none font-bold text-slate-700 dark:text-slate-200 text-sm shadow-xs cursor-pointer"
                                         >
                                             <option value="All">All Classes &amp; Grades</option>
-                                            {availableOpeningBalanceClasses.map(cls => (
+                                            {availableOpeningBalanceClasses.map((cls: any) => (
                                                 <option key={cls} value={cls}>{cls}</option>
                                             ))}
                                         </select>
@@ -22099,15 +22099,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                     paid: students.reduce((a: number, s: any) => a + s.totals.paid, 0),
                                                     balance: students.reduce((a: number, s: any) => a + s.totals.balance, 0),
                                                 };
-                                            }).filter(r => r.invoiced > 0);
-                                            const totals = classSummary.reduce((a: any, r) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
+                                            }).filter((r: any) => r.invoiced > 0);
+                                            const totals = classSummary.reduce((a: any, r: any) => ({ invoiced: a.invoiced + r.invoiced, paid: a.paid + r.paid, balance: a.balance + r.balance }), { invoiced: 0, paid: 0, balance: 0 });
                                             return (
                                                 <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm p-6 bg-white dark:bg-slate-900">
                                                     <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
                                                         <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-white">Class Summary</h3>
                                                         <div className="flex items-center gap-2">
                                                             <button
-                                                                onClick={() => exportCSV('class_summary_report', ['Class', 'Students Count', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection Rate %'], classSummary.map(r => [r.cls, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))}
+                                                                onClick={() => exportCSV('class_summary_report', ['Class', 'Students Count', 'Total Invoiced', 'Total Paid', 'Outstanding Balance', 'Collection Rate %'], classSummary.map((r: any) => [r.cls, r.count, r.invoiced, r.paid, r.balance, r.invoiced > 0 ? ((r.paid / r.invoiced) * 100).toFixed(1) : '0']))}
                                                                 className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
                                                             >
                                                                 📥 CSV
@@ -22121,7 +22121,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                         <table className="w-full text-left">
                                                             <thead><tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">{['Class', 'Students', 'Total Invoiced', 'Total Paid', 'Outstanding', 'Collection %'].map(h => TH(h))}</tr></thead>
                                                             <tbody>
-                                                                {classSummary.map((r, i) => (
+                                                                {classSummary.map((r: any, i: number) => (
                                                                     <tr key={i} className="border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                                                         <TD cls="font-black text-slate-900 dark:text-white">{r.cls}</TD>
                                                                         <TD cls="text-slate-500 font-bold">{r.count}</TD>
@@ -22138,7 +22138,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 ))}
                                                                 <tr className="border-t-2 border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 font-black">
                                                                     <TD cls="text-slate-900 dark:text-white text-[10px] uppercase tracking-widest">TOTAL</TD>
-                                                                    <TD cls="text-slate-900 dark:text-white">{classSummary.reduce((a, r) => a + r.count, 0)}</TD>
+                                                                    <TD cls="text-slate-900 dark:text-white">{classSummary.reduce((a: number, r: any) => a + r.count, 0)}</TD>
                                                                     <TD cls="text-slate-900 dark:text-white">KSh {totals.invoiced.toLocaleString()}</TD>
                                                                     <TD cls="text-emerald-600 dark:text-emerald-400">KSh {totals.paid.toLocaleString()}</TD>
                                                                     <TD cls="text-rose-600 dark:text-rose-400">KSh {totals.balance.toLocaleString()}</TD>
@@ -22368,7 +22368,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                                                             >
                                                                 <option value="All">All Classes ({availableDistClasses.length})</option>
-                                                                {availableDistClasses.map(cls => (
+                                                                {availableDistClasses.map((cls: any) => (
                                                                     <option key={cls} value={cls}>{cls}</option>
                                                                 ))}
                                                             </select>

@@ -2959,6 +2959,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         }
     }, [users, currentUser, loadData]);
 
+    const onPmAddUser = useCallback(async (userData: any) => {
+        if (!currentUser) return;
+        const targetInstitutionId = userData.institutionId || currentUser.institutionId;
+        await apiService.registerUser(
+            { ...userData, id: generateUserId(), institutionId: targetInstitutionId },
+            activeInstitution?.name
+        );
+        await loadData(false, true);
+    }, [currentUser, activeInstitution?.name, loadData]);
+
     const handleAccessAlumnaPortal = useCallback((school: SchoolRegistry) => {
         setIsTransitioning(true);
         setTimeout(() => {
@@ -4035,7 +4045,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             if (currentUser.id.startsWith('temp_admin_')) return;
 
             apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).then(notifs => {
-                if (notifs) setNotifications(notifs);
+                if (notifs) {
+                    setNotifications(prev => {
+                        if (prev && prev.length === notifs.length) {
+                            const isSame = prev.every((p, idx) => p.id === notifs[idx]?.id && p.isRead === notifs[idx]?.isRead && p.timestamp === notifs[idx]?.timestamp);
+                            if (isSame) return prev;
+                        }
+                        return notifs;
+                    });
+                }
             }).catch(() => {});
         };
 
@@ -8778,15 +8796,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             onEditUser={onEditUser}
                                             onImportUsers={onImportUsers}
                                              transactions={transactions}
-                                            onAddUser={async (userData: any) => {
-                                                if (!currentUser) return;
-                                                const targetInstitutionId = userData.institutionId || currentUser.institutionId;
-                                                await apiService.registerUser(
-                                                    { ...userData, id: generateUserId(), institutionId: targetInstitutionId },
-                                                    activeInstitution?.name
-                                                );
-                                                await loadData(false, true);
-                                            }}
+                                            onAddUser={onPmAddUser}
                                         />
                                     )
                                 ) : (activeRole === 'farmer' || activeRole === 'rider' || activeRole === 'coop_admin') ? (
