@@ -1035,6 +1035,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             }
 
             const cleanDisplayRef = realRef.replace(/^txn_/i, '');
+            const rawRef = cleanDisplayRef || txn.transactionReference || txn.id;
             const safeRef = (cleanDisplayRef.replace(/[^A-Za-z0-9]/g, '').slice(-4) || 'FEED').toUpperCase();
             const receiptNumber = `RCPT-${safeRef}-${Date.now().toString().slice(-4)}`;
             const receiptId = `rec_feed_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -1078,14 +1079,19 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             // 2. Mark transaction as reconciled in bank_transactions and mpesa_transactions
             if (supabase) {
                 try {
-                    await supabase.from('bank_transactions').update({
+                    const bankQuery = supabase.from('bank_transactions').update({
                         status: 'reconciled',
                         reconciled_at: new Date().toISOString(),
                         reconciled_by: 'Auto-Reconciliation Engine'
-                    }).or(`id.eq.${txn.id},reference.eq.${rawRef}`);
+                    });
+                    if (cleanDisplayRef && cleanDisplayRef !== txn.id) {
+                        await bankQuery.or(`id.eq.${txn.id},reference.eq.${cleanDisplayRef}`);
+                    } else {
+                        await bankQuery.eq('id', txn.id);
+                    }
                 } catch (_) {}
                 try {
-                    await supabase.from('mpesa_transactions').update({
+                    const mpesaQuery = supabase.from('mpesa_transactions').update({
                         status: 'completed',
                         metadata: {
                             reconciled: true,
@@ -1093,13 +1099,18 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                             receiptId,
                             receiptNumber
                         }
-                    }).or(`id.eq.${txn.id},transaction_id.eq.${rawRef}`);
+                    });
+                    if (cleanDisplayRef && cleanDisplayRef !== txn.id) {
+                        await mpesaQuery.or(`id.eq.${txn.id},transaction_id.eq.${cleanDisplayRef}`);
+                    } else {
+                        await mpesaQuery.eq('id', txn.id);
+                    }
                 } catch (_) {}
             }
 
             // 3. Update local state in BankFeedsManager
             setLiveTransactions(prev => prev.map(t => {
-                if (t.id === txn.id || (t.transactionReference && t.transactionReference === rawRef)) {
+                if (t.id === txn.id || (t.transactionReference && (t.transactionReference === cleanDisplayRef || t.transactionReference === rawRef))) {
                     return {
                         ...t,
                         status: 'MATCHED_AND_RECEIPTED',
@@ -1128,7 +1139,7 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             });
 
             if (onLogAction) {
-                onLogAction(`Auto-reconciled feed payment ${rawRef} for ${student.name || 'student'}. Receipt ${receiptNumber} created.`);
+                onLogAction(`Auto-reconciled feed payment ${cleanDisplayRef} for ${student.name || 'student'}. Receipt ${receiptNumber} created.`);
             }
         } catch (err) {
             console.error('[BankFeedsManager] Auto-reconciliation error:', err);
