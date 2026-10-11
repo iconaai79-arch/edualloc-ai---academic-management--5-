@@ -5372,7 +5372,25 @@ export const apiService = {
         });
     },
     async saveToSmsOutbox(messages: any[]): Promise<void> {
-        await apiService.saveModuleRecord('sms_outbox', messages);
+        if (!messages) return;
+        const list = Array.isArray(messages) ? messages : [messages];
+        if (list.length === 0) return;
+        const cleanList = list.map(m => {
+            const recipient = m.recipient || m.recipientPhone || m.recipient_phone || m.phone || m.phoneNumber || m.phone_number || '';
+            return {
+                id: m.id || `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: m.institutionId || m.institution_id,
+                institution_id: m.institutionId || m.institution_id,
+                recipient: String(recipient).trim(),
+                message: m.message || '',
+                units: Number(m.units) || Math.ceil((m.message || '').length / 160) || 1,
+                status: m.status || 'pending',
+                createdAt: m.createdAt || m.created_at || new Date().toISOString()
+            };
+        }).filter(m => Boolean(m.recipient) && m.recipient !== '—');
+
+        if (cleanList.length === 0) return;
+        await apiService.saveModuleRecords('sms_outbox', cleanList);
     },
     async removeFromSmsOutbox(id: string): Promise<void> {
         await apiService.deleteModuleRecord('sms_outbox', id);

@@ -5278,6 +5278,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normDuty) : normDuty(currentPayload);
             }
 
+            // Normalize sms_outbox: ensure recipient is set, default units/status, prune non-schema fields
+            if (moduleName === 'sms_outbox' || targetDbTable === 'sms_outbox') {
+                const normOutbox = (c: any) => {
+                    if (!c || typeof c !== 'object') return c;
+                    const copy = { ...c };
+                    if (!copy.id || copy.id === 'null' || copy.id === 'undefined') {
+                        copy.id = `ob_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    }
+                    const instId = copy.institutionId || copy.institution_id;
+                    if (instId) copy.institution_id = instId;
+                    delete copy.institutionId;
+
+                    const phone = copy.recipient || copy.recipientPhone || copy.recipient_phone || copy.phone || copy.phoneNumber || copy.phone_number;
+                    if (phone) {
+                        copy.recipient = String(phone).trim();
+                    } else {
+                        copy.recipient = '—';
+                    }
+                    delete copy.recipientPhone;
+                    delete copy.recipient_phone;
+                    delete copy.recipientName;
+                    delete copy.recipient_name;
+                    delete copy.studentId;
+                    delete copy.student_id;
+                    delete copy.studentIds;
+                    delete copy.student_ids;
+                    delete copy.type;
+                    delete copy.phone;
+                    delete copy.phoneNumber;
+                    delete copy.phone_number;
+                    delete copy.metadata;
+
+                    if (!copy.status) copy.status = 'pending';
+                    if (!copy.units) copy.units = 1;
+                    if (copy.message === undefined) copy.message = '';
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normOutbox) : normOutbox(currentPayload);
+            }
+
             if (moduleName === 'pm_deposit_refunds') {
                 const normRefund = (c: any) => {
                     if (!c || typeof c !== 'object') return c;
@@ -7045,6 +7086,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (Object.keys(meta).length > 0) {
                         c.metadata = meta;
                     }
+                    currentUpdateData = c;
+                } else if ((moduleName === 'sms_outbox' || targetDbTable === 'sms_outbox') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const c = { ...currentUpdateData };
+                    const instId = c.institutionId || c.institution_id;
+                    if (instId) c.institution_id = instId;
+                    delete c.institutionId;
+                    const phone = c.recipient || c.recipientPhone || c.recipient_phone || c.phone || c.phoneNumber || c.phone_number;
+                    if (phone) c.recipient = String(phone).trim();
+                    delete c.recipientPhone;
+                    delete c.recipient_phone;
+                    delete c.recipientName;
+                    delete c.recipient_name;
+                    delete c.studentId;
+                    delete c.student_id;
+                    delete c.studentIds;
+                    delete c.student_ids;
+                    delete c.type;
+                    delete c.phone;
+                    delete c.phoneNumber;
+                    delete c.phone_number;
+                    delete c.metadata;
                     currentUpdateData = c;
                 }
                 let data: any = null;

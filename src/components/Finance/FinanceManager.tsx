@@ -4248,6 +4248,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     );
     const [consolidateSiblingsSms, setConsolidateSiblingsSms] = useState(true);
     const [isSendingReminders, setIsSendingReminders] = useState(false);
+    const [reminderSendingProgress, setReminderSendingProgress] = useState<{ current: number; total: number } | null>(null);
     const [reminderSendSuccess, setReminderSendSuccess] = useState<string | null>(null);
 
     // Sibling Payment Splitter State
@@ -5011,9 +5012,17 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     }, [studentFinanceData]);
 
     const getStudentParentPhone = (student: any): string => {
+        // First try the robust extractParentPhoneNumber utility with studentEnrollments
+        const resolved = extractParentPhoneNumber(student, props.studentEnrollments);
+        if (resolved && resolved.trim()) {
+            return resolved.trim();
+        }
         const raw = (student as any).phone || 
                     (student as any).parentPhone || 
+                    (student as any).phoneNumber || 
+                    (student as any).parent_phone || 
                     student.metadata?.parentPhone || 
+                    student.metadata?.parent_phone || 
                     student.metadata?.phone || 
                     student.metadata?.guardianPhone || 
                     student.metadata?.fatherPhone || 
@@ -5048,6 +5057,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         });
     }, [studentFinanceData, reminderMinBalance, reminderMaxBalance, reminderClassFilter]);
 
+    const reminderPhoneStats = useMemo(() => {
+        let withPhone = 0;
+        let withoutPhone = 0;
+        const uniquePhones = new Set<string>();
+
+        reminderTargetStudents.forEach(student => {
+            const phone = getStudentParentPhone(student);
+            if (phone) {
+                withPhone++;
+                uniquePhones.add(phone);
+            } else {
+                withoutPhone++;
+            }
+        });
+
+        return {
+            withPhone,
+            withoutPhone,
+            uniquePhonesCount: uniquePhones.size
+        };
+    }, [reminderTargetStudents, props.studentEnrollments]);
+
     const sampleReminderStudent = useMemo(() => {
         return reminderTargetStudents[0] || {
             name: 'John Kamau',
@@ -5081,15 +5112,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
         setIsSendingReminders(true);
         setReminderSendSuccess(null);
+        setReminderSendingProgress(null);
 
         try {
             const schoolName = props.institution.name || 'School';
-            let outboxMessages: any[] = [];
+            interface ReminderDispatchItem {
+                phone: string;
+                message: string;
+                recipientName: string;
+                studentIds: string[];
+                type: string;
+            }
+
+            const messagesToSend: ReminderDispatchItem[] = [];
+            const noPhoneStudents: typeof reminderTargetStudents = [];
 
             if (consolidateSiblingsSms) {
                 // Group target students by parent phone number
                 const groupedByPhone: Record<string, typeof reminderTargetStudents> = {};
-                const noPhoneStudents: typeof reminderTargetStudents = [];
 
                 reminderTargetStudents.forEach(student => {
                     const phone = getStudentParentPhone(student);
@@ -5122,80 +5162,127 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         messageText = `Dear Parent, please be reminded of your children's fee balances at ${schoolName}: ${siblingDetails}. Total Outstanding: KSh ${totalBal.toLocaleString()}. Kindly clear the balance via M-Pesa / Bank. Thank you.`;
                     }
 
-                    outboxMessages.push({
-                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                        institutionId: props.institution.id,
-                        recipientPhone: phone,
+                    messagesToSend.push({
+                        phone,
                         recipientName: students.map(s => s.name).join(' & '),
                         studentIds: students.map(s => s.id),
                         message: messageText,
-                        status: 'pending',
-                        type: 'fee_reminder_consolidated',
-                        createdAt: new Date().toISOString()
+                        type: 'fee_reminder_consolidated'
                     });
                 });
-
-                // Handle any students without phone numbers
-                noPhoneStudents.forEach(s => {
-                    const text = reminderTemplate
-                        .replace(/\{student_name\}/g, s.name || 'Student')
-                        .replace(/\{adm_no\}/g, s.admissionNumber || (s as any).admission_number || '—')
-                        .replace(/\{balance\}/g, (s.totals.balance || 0).toLocaleString())
-                        .replace(/\{class_name\}/g, s.className || 'Class')
-                        .replace(/\{school_name\}/g, schoolName);
-
-                    outboxMessages.push({
-                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                        institutionId: props.institution.id,
-                        recipientPhone: '',
-                        recipientName: s.name,
-                        studentId: s.id,
-                        message: text,
-                        status: 'pending',
-                        type: 'fee_reminder',
-                        createdAt: new Date().toISOString()
-                    });
-                });
-
             } else {
                 // Individual SMS per student
-                outboxMessages = reminderTargetStudents.map(student => {
+                reminderTargetStudents.forEach(student => {
                     const phone = getStudentParentPhone(student);
-                    const text = reminderTemplate
-                        .replace(/\{student_name\}/g, student.name || 'Student')
-                        .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
-                        .replace(/\{balance\}/g, (student.totals.balance || 0).toLocaleString())
-                        .replace(/\{class_name\}/g, student.className || 'Class')
-                        .replace(/\{school_name\}/g, schoolName);
+                    if (phone) {
+                        const text = reminderTemplate
+                            .replace(/\{student_name\}/g, student.name || 'Student')
+                            .replace(/\{adm_no\}/g, student.admissionNumber || (student as any).admission_number || '—')
+                            .replace(/\{balance\}/g, (student.totals.balance || 0).toLocaleString())
+                            .replace(/\{class_name\}/g, student.className || 'Class')
+                            .replace(/\{school_name\}/g, schoolName);
 
-                    return {
-                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                        institutionId: props.institution.id,
-                        recipientPhone: phone,
-                        recipientName: student.name,
-                        studentId: student.id,
-                        message: text,
-                        status: 'pending',
-                        type: 'fee_reminder',
-                        createdAt: new Date().toISOString()
-                    };
+                        messagesToSend.push({
+                            phone,
+                            recipientName: student.name,
+                            studentIds: [student.id],
+                            message: text,
+                            type: 'fee_reminder'
+                        });
+                    } else {
+                        noPhoneStudents.push(student);
+                    }
                 });
             }
 
-            await apiService.saveToSmsOutbox(outboxMessages).catch(async () => {
-                await apiService.saveModuleRecord('sms_outbox', outboxMessages);
-            });
-
-            if (props.onLogAction) {
-                props.onLogAction(`Dispatched ${outboxMessages.length} fee reminder SMS messages to parents.`);
+            if (messagesToSend.length === 0) {
+                alert(`None of the ${reminderTargetStudents.length} selected students have a valid parent phone number. Please update student/parent contact records before sending SMS.`);
+                setIsSendingReminders(false);
+                return;
             }
 
-            setReminderSendSuccess(`Successfully queued ${outboxMessages.length} fee reminder SMS messages to Outbox!`);
+            setReminderSendingProgress({ current: 0, total: messagesToSend.length });
+
+            // Live dispatch in concurrent batches of 5 with progress reporting
+            const BATCH_SIZE = 5;
+            let sentCount = 0;
+            let failedCount = 0;
+            const outboxRecordsToSave: any[] = [];
+
+            for (let i = 0; i < messagesToSend.length; i += BATCH_SIZE) {
+                const batch = messagesToSend.slice(i, i + BATCH_SIZE);
+                await Promise.all(batch.map(async (item) => {
+                    const segments = Math.max(1, Math.ceil(item.message.length / 160));
+                    let dispatchSuccess = false;
+
+                    try {
+                        const res = await apiService.sendSms(
+                            item.phone,
+                            item.message,
+                            props.institution.smsConfig,
+                            segments,
+                            props.institution.id
+                        );
+                        if (res && res.success !== false) {
+                            dispatchSuccess = true;
+                            sentCount++;
+                        } else {
+                            console.warn(`SMS dispatch warning for ${item.phone}:`, res);
+                            failedCount++;
+                        }
+                    } catch (dispatchErr) {
+                        console.error(`SMS dispatch failed for ${item.phone}:`, dispatchErr);
+                        failedCount++;
+                    }
+
+                    // Archive to Outbox
+                    outboxRecordsToSave.push({
+                        id: `sms_rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        institutionId: props.institution.id,
+                        recipient: item.phone,
+                        recipientPhone: item.phone,
+                        recipientName: item.recipientName,
+                        studentIds: item.studentIds,
+                        message: item.message,
+                        units: segments,
+                        status: dispatchSuccess ? 'sent' : 'pending',
+                        type: item.type,
+                        createdAt: new Date().toISOString()
+                    });
+                }));
+
+                const currentCount = Math.min(i + BATCH_SIZE, messagesToSend.length);
+                setReminderSendingProgress({ current: currentCount, total: messagesToSend.length });
+                // Yield to allow UI render
+                await new Promise(r => setTimeout(r, 25));
+            }
+
+            // Persist all outbox records (with clean schema)
+            if (outboxRecordsToSave.length > 0) {
+                await apiService.saveToSmsOutbox(outboxRecordsToSave).catch(async () => {
+                    await apiService.saveModuleRecords('sms_outbox', outboxRecordsToSave).catch(() => {});
+                });
+            }
+
+            let resultSummary = `Successfully dispatched ${sentCount} fee reminder SMS message${sentCount === 1 ? '' : 's'} directly to parents!`;
+            if (failedCount > 0) {
+                resultSummary += ` (${failedCount} queued to Outbox for retry due to network/provider limits)`;
+            }
+            if (noPhoneStudents.length > 0) {
+                resultSummary += ` (${noPhoneStudents.length} student${noPhoneStudents.length === 1 ? '' : 's'} skipped due to missing parent phone number)`;
+            }
+
+            if (props.onLogAction) {
+                props.onLogAction(resultSummary);
+            }
+
+            setReminderSendSuccess(resultSummary);
         } catch (e: any) {
             console.error("Failed to send fee reminders:", e);
-            alert("Failed to queue SMS reminders. Please check connection.");
+            alert("Failed to send SMS reminders. Please check connection.");
         } finally {
             setIsSendingReminders(false);
+            setReminderSendingProgress(null);
         }
     };
 
@@ -5295,28 +5382,51 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         try {
             const schoolName = props.institution.name || 'School';
             const text = `Dear Parent, this is a friendly reminder regarding your commitment to pay KSh ${promise.promisedAmount.toLocaleString()} by ${promise.promisedDate} for ${promise.studentName}. Kindly clear via M-Pesa / Bank. Thank you, ${schoolName}.`;
+            const segments = Math.max(1, Math.ceil(text.length / 160));
+
+            let liveSuccess = false;
+            try {
+                const res = await apiService.sendSms(
+                    promise.parentPhone,
+                    text,
+                    props.institution.smsConfig,
+                    segments,
+                    props.institution.id
+                );
+                if (res && res.success !== false) {
+                    liveSuccess = true;
+                }
+            } catch (smsErr) {
+                console.warn("Live PTP SMS send failed, queueing to Outbox:", smsErr);
+            }
 
             const smsMsg = {
                 id: `sms_ptp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                 institutionId: props.institution.id,
+                recipient: promise.parentPhone,
                 recipientPhone: promise.parentPhone,
                 recipientName: promise.studentName || 'Parent',
                 studentId: promise.studentId,
                 message: text,
-                status: 'pending',
+                units: segments,
+                status: liveSuccess ? 'sent' : 'pending',
                 type: 'fee_promise_reminder',
                 createdAt: new Date().toISOString()
             };
 
             await apiService.saveToSmsOutbox([smsMsg]).catch(async () => {
-                await apiService.saveModuleRecord('sms_outbox', [smsMsg]);
+                await apiService.saveModuleRecords('sms_outbox', [smsMsg]).catch(() => {});
             });
 
             if (props.onLogAction) {
-                props.onLogAction(`Sent PTP reminder SMS to ${promise.parentPhone} for ${promise.studentName}`);
+                props.onLogAction(`${liveSuccess ? 'Dispatched' : 'Queued'} PTP reminder SMS to ${promise.parentPhone} for ${promise.studentName}`);
             }
 
-            alert(`PTP Reminder SMS queued to Outbox for ${promise.studentName}!`);
+            if (liveSuccess) {
+                alert(`PTP Reminder SMS sent successfully to ${promise.studentName} (${promise.parentPhone})!`);
+            } else {
+                alert(`PTP Reminder SMS queued to Outbox for ${promise.studentName} (${promise.parentPhone}).`);
+            }
         } catch (err: any) {
             console.error("Failed to send PTP reminder SMS:", err);
             alert("Failed to send SMS reminder.");
@@ -10717,13 +10827,30 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </select>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between px-1">
-                                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                    📢 Matching Target: {reminderTargetStudents.length} Students / Parents
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-400">
-                                    Filtered Outstanding: KSh {reminderTargetStudents.reduce((sum, s) => sum + s.totals.balance, 0).toLocaleString()}
-                                </span>
+                            <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/40 rounded-2xl space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                                        📢 Matching Target: {reminderTargetStudents.length} Student{reminderTargetStudents.length === 1 ? '' : 's'}
+                                    </span>
+                                    <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                        Total Outstanding: KSh {reminderTargetStudents.reduce((sum, s) => sum + s.totals.balance, 0).toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-indigo-100/60 dark:border-indigo-900/30 text-[11px] font-bold">
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                                        ✓ {reminderPhoneStats.withPhone} with Parent Phone
+                                    </span>
+                                    {reminderPhoneStats.withoutPhone > 0 && (
+                                        <span className="px-2 py-0.5 rounded-md bg-amber-100/80 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                                            ⚠ {reminderPhoneStats.withoutPhone} Missing Phone (Skipped)
+                                        </span>
+                                    )}
+                                    {consolidateSiblingsSms && (
+                                        <span className="px-2 py-0.5 rounded-md bg-purple-100/80 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300">
+                                            📱 {reminderPhoneStats.uniquePhonesCount} Unique Parent SMS to Dispatch
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Consolidate Sibling SMS Switch */}
@@ -10822,18 +10949,24 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                             <button
                                 type="button"
                                 onClick={handleSendFeeReminders}
-                                disabled={isSendingReminders || reminderTargetStudents.length === 0}
+                                disabled={isSendingReminders || reminderTargetStudents.length === 0 || reminderPhoneStats.withPhone === 0}
                                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-95 cursor-pointer"
                             >
                                 {isSendingReminders ? (
                                     <>
                                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        <span>Queuing SMS...</span>
+                                        <span>
+                                            {reminderSendingProgress 
+                                                ? `Sending (${reminderSendingProgress.current}/${reminderSendingProgress.total})...`
+                                                : 'Dispatching SMS...'}
+                                        </span>
                                     </>
                                 ) : (
                                     <>
                                         <PaperAirplaneIcon className="w-4 h-4" />
-                                        <span>Dispatch {reminderTargetStudents.length} SMS Reminders</span>
+                                        <span>
+                                            Dispatch {consolidateSiblingsSms ? reminderPhoneStats.uniquePhonesCount : reminderPhoneStats.withPhone} SMS Reminders
+                                        </span>
                                     </>
                                 )}
                             </button>
