@@ -452,6 +452,7 @@ const isTableWithoutInstitutionId = (module: string) => {
   return [
     'institutions',
     'counties', 'constituencies', 'wards', 'political_parties',
+    'school_registry',
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
     'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
@@ -1298,6 +1299,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (getStrParam(id)) q = q.eq('id', getStrParam(id));
                 if (getStrParam(queryCountyId)) q = q.eq('county_id', getStrParam(queryCountyId));
+                if (moduleName === 'school_registry' && (req.query.institution_id || req.query.institutionId)) {
+                    const filterInst = getStrParam(req.query.institution_id) || getStrParam(req.query.institutionId);
+                    if (filterInst) q = q.eq('institution_id', filterInst);
+                }
 
                 // Custom filters from other query params
                 Object.entries(req.query).forEach(([key, value]) => {
@@ -1360,7 +1365,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (isNaN(offset)) offset = 0;
             
             const CHUNK_SIZE = ['users', 'students', 'receipts', 'invoices',
-                'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters'].includes(moduleName) 
+                'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters', 'school_registry'].includes(moduleName) 
                 ? 1000 
                 : (['student_enrollments', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
@@ -1370,14 +1375,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             ? 100
                             : (['security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
                                 ? 250
-                                : (moduleName === 'institutions' ? 500 : (['school_registry'].includes(moduleName) ? 200 : 1000))))));
+                                : (moduleName === 'institutions' ? 500 : 1000)))));
             let data: any[] = [];
             let error: any = null;
 
             // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications'].includes(moduleName) ? 8000 : 5000);
+                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const elapsed = Date.now() - requestStartTime;
@@ -1428,6 +1433,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.or(`user_id.eq.${user.id},user_id.eq.u_${rawUserId}${user.institutionId ? `,institution_id.eq.${user.institutionId}` : ''}`);
                 }
                 if (getStrParam(id)) q = q.eq('id', getStrParam(id));
+                if (moduleName === 'school_registry' && (req.query.institution_id || req.query.institutionId)) {
+                    const filterInst = getStrParam(req.query.institution_id) || getStrParam(req.query.institutionId);
+                    if (filterInst) q = q.eq('institution_id', filterInst);
+                }
                 Object.entries(req.query).forEach(([key, value]) => {
                     if (!reservedParams.includes(key) && value) {
                         const strVal = getStrParam(value);
@@ -1520,6 +1529,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (getStrParam(id)) sqlConditions.push({ sql: `id::text = $VAL`, val: getStrParam(id) });
             if (getStrParam(queryCountyId)) sqlConditions.push({ sql: `county_id::text = $VAL`, val: getStrParam(queryCountyId) });
+            if (moduleName === 'school_registry' && (req.query.institution_id || req.query.institutionId)) {
+                const filterInst = getStrParam(req.query.institution_id) || getStrParam(req.query.institutionId);
+                if (filterInst) sqlConditions.push({ sql: `"institution_id"::text = $VAL`, val: filterInst });
+            }
 
             Object.entries(req.query).forEach(([key, value]) => {
                 if (!reservedParams.includes(key) && value) {
@@ -1592,6 +1605,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Academic lookup tables — frequently large, benefit most from direct PG
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
                     'academic_years', 'semesters', 'allocation_requests',
+                    // Nationwide school registry & directory
+                    'school_registry',
                     // Finance reference tables — small but queried on every finance page load
                     'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions', 'bank_transactions',
                     'finance_numbering_configs', 'bursary_disbursements',
@@ -1626,7 +1641,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!directPgSuccess) {
                     if (finalLimit <= CHUNK_SIZE) {
-                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1), 5000)
+                        let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), offset, offset + finalLimit - 1), queryTimeout)
                             .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                         if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014') && Date.now() - requestStartTime < 9000) {
                             console.warn(`[API GET] Timeout on '${moduleName}' ordered query, retrying fast query...`);
@@ -1647,7 +1662,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             const batchSize = Math.min(CHUNK_SIZE, remaining);
                             let effectiveBatchSize = batchSize;
-                            let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), currentOffset, currentOffset + batchSize - 1))
+                            let res: any = await executeWithTimeout(applyRange(buildBaseQuery(), currentOffset, currentOffset + batchSize - 1), queryTimeout)
                                 .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                             
                             // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
