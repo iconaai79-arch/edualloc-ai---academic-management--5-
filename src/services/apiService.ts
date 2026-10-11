@@ -5595,7 +5595,7 @@ export const apiService = {
         }
     },
     async fetchNotifications(userId: string, options: any = {}): Promise<AppNotification[]> {
-        if (!userId || userId.startsWith('temp_admin_') || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+        const getLocalFallback = () => {
             const localNotifs = (ls.get('app_notifications') || []) as any[];
             const normalizedUserId = String(userId || '').replace(/^u_/, '').toLowerCase();
             const filtered = localNotifs.filter(n => {
@@ -5603,13 +5603,24 @@ export const apiService = {
                 return !targetId || targetId === normalizedUserId;
             });
             return toCamelCase(filtered);
+        };
+
+        if (!userId || userId.startsWith('temp_admin_') || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+            return getLocalFallback();
         }
-        return apiService.fetchModuleRecords('app_notifications', undefined, undefined, {
-            filter: { user_id: userId },
-            order: 'timestamp.desc',
-            limit: 50,
-            ...options
-        });
+
+        try {
+            const res = await apiService.fetchModuleRecords('app_notifications', undefined, undefined, {
+                filter: { user_id: userId },
+                order: 'timestamp.desc',
+                limit: 50,
+                ...options
+            });
+            return Array.isArray(res) ? res : getLocalFallback();
+        } catch (err) {
+            console.warn('[fetchNotifications] Server query timed out or failed, utilizing local notification cache:', err);
+            return getLocalFallback();
+        }
     },
     async createNotification(
         userIdOrObj: string | {

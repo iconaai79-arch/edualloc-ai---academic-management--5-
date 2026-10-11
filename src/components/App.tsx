@@ -1312,6 +1312,26 @@ END $startup$;
                             `).catch(() => {});
                         }
 
+                        const notifPerfSyncedKey = 'eduai_app_notifs_perf_v469';
+                        if (!localStorage.getItem(notifPerfSyncedKey)) {
+                            localStorage.setItem(notifPerfSyncedKey, 'true');
+                            apiService.runMigration(`
+                                ALTER TABLE public.app_notifications ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+                                ALTER TABLE public.app_notifications ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+                                ALTER TABLE public.app_notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_user_id ON public.app_notifications(user_id);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_institution_id ON public.app_notifications(institution_id);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_created_at ON public.app_notifications(created_at DESC);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_timestamp ON public.app_notifications(timestamp DESC);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_user_timestamp ON public.app_notifications(user_id, timestamp DESC);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_timestamp ON public.app_notifications(institution_id, timestamp DESC);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_user_created ON public.app_notifications(user_id, created_at DESC);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_created ON public.app_notifications(institution_id, created_at DESC);
+                                CREATE INDEX IF NOT EXISTS idx_app_notifications_id ON public.app_notifications(id);
+                                NOTIFY pgrst, 'reload schema';
+                            `).catch(() => {});
+                        }
+
                         const teacherCheckinSyncedKey = 'eduai_teacher_checkin_synced_v278';
                         if (!localStorage.getItem(teacherCheckinSyncedKey)) {
                             localStorage.setItem(teacherCheckinSyncedKey, 'true');
