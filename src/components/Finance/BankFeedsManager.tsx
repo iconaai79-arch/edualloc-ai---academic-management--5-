@@ -1088,6 +1088,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 realRef = txn.transactionReference && txn.transactionReference !== '-' ? txn.transactionReference : txn.id;
             }
 
+            const rawRef = txn.transactionReference || txn.id || '';
+            const cleanDisplayRef = realRef || rawRef;
+
             // ── Resolve Tenant Receipt Number Configuration ──
             let activeSettings = pmSettings || propsPmSettings;
             if (!activeSettings && institution?.id) {
