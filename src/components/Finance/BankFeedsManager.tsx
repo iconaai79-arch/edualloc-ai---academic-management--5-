@@ -8,6 +8,7 @@ import {
 import { apiService } from '../../services/apiService';
 import { supabase } from '../../lib/supabase';
 import { buildCustomPaymentNotification } from '../../utils/paymentNotificationHelper';
+import { extractParentPhoneNumber } from '../../utils/stringUtils';
 import {
     ArrowPathIcon,
     BuildingLibraryIcon,
@@ -981,18 +982,63 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
         amount: number;
         receiptNumber: string;
         paymentDate: string;
+        txn?: IngestedTransaction;
+        resolvedMethod?: string;
     }) => {
-        const { student, amount, receiptNumber, paymentDate } = params;
-        if (!student || !institution) return;
+        const { student, amount, receiptNumber, paymentDate, txn, resolvedMethod } = params;
+        if (!student || !institution) {
+            console.warn('[BankFeedsManager SMS] Aborted: Missing student or institution data.');
+            return;
+        }
 
-        const rawPhone = student.parentPhone || student.parent_phone || student.phone || student.guardianPhone || student.motherPhone || student.fatherPhone;
-        if (!rawPhone) return;
+        // 1. Resolve phone number from multiple prioritized sources:
+        // Priority A: Direct parent phone using standard robust utility
+        const studentParentPhone = extractParentPhoneNumber(student);
+
+        // Priority B: Transaction direct payer phone (from M-Pesa / Bank feed payload)
+        const txnPayerPhone = txn ? resolveDisplayPhoneNumber(txn) : '';
+
+        // Priority C: Direct properties and nested metadata on student/tenant/transaction
+        const rawPhone = studentParentPhone ||
+            txnPayerPhone ||
+            student.parentPhone ||
+            student.parent_phone ||
+            student.phone ||
+            student.phoneNumber ||
+            student.phone_number ||
+            student.guardianPhone ||
+            student.guardian_phone ||
+            student.motherPhone ||
+            student.fatherPhone ||
+            student.metadata?.parentPhone ||
+            student.metadata?.parent_phone ||
+            student.metadata?.phone ||
+            student.metadata?.phoneNumber ||
+            student.metadata?.phone_number ||
+            student.metadata?.parentContact ||
+            student.metadata?.parents?.[0]?.phone ||
+            student.metadata?.parents?.[1]?.phone ||
+            (txn as any)?.payerPhone ||
+            (txn as any)?.phoneNumber ||
+            (txn as any)?.phone;
+
+        if (!rawPhone) {
+            const warnMsg = `[BankFeedsManager SMS] Skipped SMS for ${student.name || student.id} (Receipt ${receiptNumber}): No parent or payer phone number registered.`;
+            console.warn(warnMsg);
+            if (onLogAction) onLogAction(warnMsg);
+            return;
+        }
 
         let cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
         if (cleanPhone.startsWith('0')) cleanPhone = '254' + cleanPhone.substring(1);
         else if (cleanPhone.length === 9) cleanPhone = '254' + cleanPhone;
 
-        if (cleanPhone.length < 9) return;
+        if (cleanPhone.length < 9) {
+            const warnMsg = `[BankFeedsManager SMS] Skipped SMS for ${student.name || student.id}: Cleaned phone '${cleanPhone}' is invalid (minimum 9 digits required).`;
+            console.warn(warnMsg);
+            if (onLogAction) onLogAction(warnMsg);
+            return;
+        }
 
         try {
             // Fetch receiving school bank account
@@ -1006,40 +1052,79 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
             let totalCharged = 0;
             let totalPaid = 0;
             try {
-                const studentInvoices = await apiService.fetchModuleRecords<any>('invoices', institution.id, undefined, { filter: { student_id: student.id } }).catch(() => []);
+                // In-memory receipts first for instant response & resilience
+                const matchingReceipts = (receipts || []).filter((r: any) => {
+                    const rSid = r.studentId || r.student_id;
+                    const sAdm = student.admissionNumber || student.admission_number || student.admNo;
+                    const rAdm = r.admissionNumber || r.admission_number;
+                    return (rSid && (rSid === student.id || rSid === student.userId || rSid === student.user_id)) ||
+                           (sAdm && rAdm && String(sAdm).trim().toLowerCase() === String(rAdm).trim().toLowerCase());
+                });
+                totalPaid = matchingReceipts.reduce((sum: number, rec: any) => sum + Number(rec.amountPaid || rec.amount_paid || rec.amount || 0), 0);
+
+                // Fetch invoices for this student
+                const studentInvoices = await apiService.fetchModuleRecords<any>('invoices', institution.id, undefined, { 
+                    filter: { student_id: student.id } 
+                }).catch(() => []);
                 totalCharged = (studentInvoices || []).reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.total_amount || inv.amount || 0), 0);
 
-                const studentReceipts = await apiService.fetchModuleRecords<any>('receipts', institution.id, undefined, { filter: { student_id: student.id } }).catch(() => []);
-                totalPaid = (studentReceipts || []).reduce((sum: number, rec: any) => sum + Number(rec.amountPaid || rec.amount_paid || 0), 0);
-            } catch {}
+                if (totalCharged === 0 && (student.admissionNumber || student.admission_number)) {
+                    const adm = student.admissionNumber || student.admission_number;
+                    const admInvoices = await apiService.fetchModuleRecords<any>('invoices', institution.id, undefined, { 
+                        filter: { admission_number: adm } 
+                    }).catch(() => []);
+                    totalCharged = (admInvoices || []).reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || inv.total_amount || inv.amount || 0), 0);
+                }
+            } catch (balErr) {
+                console.warn('[BankFeedsManager SMS] Balance calculation exception:', balErr);
+            }
 
             const currentBalance = Math.max(0, totalCharged - totalPaid);
+            const isTenant = Boolean(student?.isTenant || (pmTenants || []).some((t: any) => t.id === student.id));
 
-            const smsMsg = buildCustomPaymentNotification({
-                account: receivingAccount,
-                student: {
-                    name: student.name || student.fullName,
-                    admissionNumber: student.admissionNumber || student.admission_number || student.admNo
-                },
-                enrollment: {
-                    className: student.className || student.grade || student.class || ''
-                },
-                paymentAmount: amount,
-                totalCharged: totalCharged,
-                totalAdjusted: 0,
-                currentBalance: currentBalance,
-                paymentDate: paymentDate || new Date(),
-                institutionName: institution?.name || 'School',
-                receiptNumber: receiptNumber
-            });
+            const smsMsg = isTenant
+                ? `Dear ${student.name || 'Tenant'}, rent payment of KES ${amount.toLocaleString()} received via ${resolvedMethod || 'Bank/M-Pesa'}. Receipt No: ${receiptNumber}. Date: ${paymentDate}. Thank you.`
+                : buildCustomPaymentNotification({
+                    account: receivingAccount,
+                    student: {
+                        name: student.name || student.fullName,
+                        admissionNumber: student.admissionNumber || student.admission_number || student.admNo
+                    },
+                    enrollment: {
+                        className: student.className || student.grade || student.class || ''
+                    },
+                    paymentAmount: amount,
+                    totalCharged: totalCharged,
+                    totalAdjusted: 0,
+                    currentBalance: currentBalance,
+                    paymentDate: paymentDate || new Date(),
+                    institutionName: institution?.name || 'School',
+                    receiptNumber: receiptNumber
+                });
 
             const smsCfg = institution?.smsConfig || institution?.sms_config;
-            await apiService.sendSms(cleanPhone, smsMsg, smsCfg, 1, institution.id, undefined, true);
-            console.log(`[BankFeedsManager] Dispatched parent SMS payment notification to ${cleanPhone}`);
-        } catch (err) {
-            console.warn('[BankFeedsManager] Failed to dispatch payment notification SMS:', err);
+            console.info(`[BankFeedsManager SMS] Dispatching auto-reconcile SMS to ${cleanPhone} (Receipt: ${receiptNumber})...`);
+            const smsRes = await apiService.sendSms(cleanPhone, smsMsg, smsCfg, 1, institution.id, undefined, true);
+
+            if (smsRes && smsRes.success !== false) {
+                console.info(`[BankFeedsManager SMS] Successfully dispatched payment SMS to ${cleanPhone}`);
+                if (onLogAction) {
+                    onLogAction(`Dispatched payment SMS to ${cleanPhone} for receipt ${receiptNumber}`);
+                }
+            } else {
+                const errMsg = smsRes?.message || 'Gateway dispatch failed';
+                console.warn(`[BankFeedsManager SMS] SMS dispatch to ${cleanPhone} failed:`, errMsg);
+                if (onLogAction) {
+                    onLogAction(`SMS delivery failed to ${cleanPhone}: ${errMsg}`);
+                }
+            }
+        } catch (err: any) {
+            console.error('[BankFeedsManager SMS] Unexpected exception dispatching SMS:', err);
+            if (onLogAction) {
+                onLogAction(`SMS dispatch error for receipt ${receiptNumber}: ${err?.message || String(err)}`);
+            }
         }
-    }, [institution]);
+    }, [institution, receipts, pmTenants, resolveDisplayPhoneNumber, onLogAction]);
 
     // ── Auto-Reconciliation Engine: Persist Real Receipt & Send Parent SMS ──
     const handleAutoReconcileTransaction = useCallback(async (txn: IngestedTransaction, targetStudent?: any) => {
@@ -1283,7 +1368,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 student,
                 amount: Number(txn.amount) || 0,
                 receiptNumber,
-                paymentDate
+                paymentDate,
+                txn,
+                resolvedMethod
             });
 
             if (onLogAction) {
@@ -1693,7 +1780,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                                 student: matchedStudentObj,
                                 amount: newTxn.amount,
                                 receiptNumber: newTxn.generatedReceiptNumber || 'RCPT',
-                                paymentDate: newTxn.transactionDate
+                                paymentDate: newTxn.transactionDate,
+                                txn: newTxn,
+                                resolvedMethod: simProvider === 'KCB_BUNI' ? 'KCB Direct' : 'M-Pesa'
                             });
                         }
                     }
@@ -1777,7 +1866,9 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                 student: targetStudent,
                 amount: suspenseTargetTxn.amount,
                 receiptNumber,
-                paymentDate: new Date().toISOString().split('T')[0]
+                paymentDate: new Date().toISOString().split('T')[0],
+                txn: suspenseTargetTxn,
+                resolvedMethod: suspenseTargetTxn.provider === 'KCB_BUNI' ? 'KCB Direct' : 'M-Pesa'
             });
 
             if (onLogAction) {
