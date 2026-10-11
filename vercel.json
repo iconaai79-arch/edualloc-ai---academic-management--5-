@@ -46,16 +46,13 @@
   },
   "functions": {
     "api/ai.ts": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 60
     },
     "api/records.ts": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 60
     },
     "api/*.ts": {
-      "maxDuration": 60,
-      "memory": 1024
+      "maxDuration": 60
     }
   },
   "crons": [
