@@ -34,6 +34,7 @@ import type {
     AcademicsOfficerProps, LecturerProps, ParentProps,
     CountyAdminProps, HROfficerProps, FinanceOfficerProps, SupportStaffProps
 } from '../types';
+import { isSuperAdminUser } from '../types';
 import type { BuildingFloor, BuildingOffice, BuildingVisitorLog, BuildingVisitorAsset } from '../types';
 import { XIcon } from './icons/XIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
@@ -1414,14 +1415,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 };
 
                 const isGuestMode = !currentUser;
-                const isSuperAdmin = currentUser?.role === 'super_admin';
+                const isSuperAdmin = isSuperAdminUser(currentUser);
                 const identityTimeout = isSuperAdmin ? 30000 : 15000;
 
                 const results = await Promise.all([
                     withTimeout(apiService.fetchInstitutions().catch(() => []), identityTimeout, []),
                     (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<County>('counties', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
                     withTimeout(apiService.fetchCompanySettings().catch(() => null), identityTimeout, null),
-                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? withTimeout(apiService.fetchModuleRecords<User>('users', undefined, undefined, { limit: 100000 }).catch(() => []), identityTimeout, []) : withTimeout(apiService.fetchUsers(currentUser?.institutionId).catch(() => []), identityTimeout, []),
+                    (isGuestMode || (isAlumnaeMode && !currentUser)) ? Promise.resolve([]) : (isSuperAdmin || currentUser?.role === 'super_admin' || currentUser?.role?.startsWith('county_')) ? withTimeout(apiService.fetchModuleRecords<User>('users', undefined, undefined, { limit: 100000 }).catch(() => []), identityTimeout, []) : withTimeout(apiService.fetchUsers(currentUser?.institutionId).catch(() => []), identityTimeout, []),
                     (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchFullRegistry().catch(() => []), identityTimeout, []) : Promise.resolve([]),
                     !currentUser ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
                     isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<any>('events', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
@@ -1493,7 +1494,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     if (insts.length <= 2 && prev && prev.length > 2) {
                         return prev;
                     }
-                    return insts;
+                    const prevMap = new Map((prev || []).map(p => [p.id, p]));
+                    insts.forEach(fi => {
+                        prevMap.set(fi.id, { ...(prevMap.get(fi.id) || {}), ...fi });
+                    });
+                    return Array.from(prevMap.values());
                 }
                 return (prev && prev.length > 0) ? prev : (insts || []);
             });
@@ -1511,10 +1516,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id)
             } : null;
             const instType = activeInst?.institutionType || 'General';
-            const instId = instOverrideId || (currentUser && (currentUser.role === 'super_admin' || (currentUser.role || '').startsWith('county_')) ? undefined : currentUser?.institutionId);
+            const isSuper = isSuperAdminUser(currentUser) || currentUser?.role === 'super_admin';
+            const instId = instOverrideId || (isSuper || (currentUser?.role || '').startsWith('county_') ? undefined : currentUser?.institutionId);
             const cntId = (currentUser?.role || '').startsWith('county_') ? currentUser?.countyId : undefined;
-            const effectiveInstId = instOverrideId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id || currentUser?.institutionId || instId || ''));
-            const isSuper = currentUser?.role === 'super_admin';
+            const effectiveInstId = instOverrideId || (isSuper ? undefined : (activeInst?.id || currentUser?.institutionId || instId || ''));
 
             // Sector Detection
             const instTypeLower = instType.toLowerCase();
@@ -1580,12 +1585,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     if (insts.length <= 2 && prev && prev.length > 2) {
                         return prev;
                     }
-                    const demoInsts = (prev || []).filter(i => i && i.id?.startsWith('demo_'));
-                    const combined = [...insts];
-                    demoInsts.forEach(di => {
-                        if (!combined.some(i => i.id === di.id)) combined.push(di);
+                    const prevMap = new Map((prev || []).map(p => [p.id, p]));
+                    insts.forEach(fi => {
+                        prevMap.set(fi.id, { ...(prevMap.get(fi.id) || {}), ...fi });
                     });
-                    return combined;
+                    return Array.from(prevMap.values());
                 });
             } else if (isOffline) {
                 setInstitutions(prev => (prev && prev.length > 0 ? prev : INITIAL_INSTITUTIONS));
@@ -1817,14 +1821,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             if (currentUser) {
                 const isSystemOrGlobal = (id?: string) => !id || id === 'SYSTEM' || id === 'GLOBAL' || id === 'ALL' || id === 'all';
                 const activeInst = insts?.find(i => i.id === currentUser?.institutionId);
+                const isSuperUser = isSuperAdminUser(currentUser) || currentUser?.role === 'super_admin';
                 const explicitTargetInstId = instOverrideId 
                     ? (!isSystemOrGlobal(instOverrideId) ? instOverrideId : undefined)
-                    : (activeInstitution?.id && !isSystemOrGlobal(activeInstitution.id) 
-                        ? activeInstitution.id 
-                        : (currentUser?.institutionId && !isSystemOrGlobal(currentUser.institutionId) 
-                            ? currentUser.institutionId 
-                            : undefined));
-                const effectiveInstIdFinal: string | undefined = explicitTargetInstId || (currentUser?.role === 'super_admin' ? undefined : (activeInst?.id && !isSystemOrGlobal(activeInst.id) ? activeInst.id : undefined));
+                    : (isSuperUser 
+                        ? undefined 
+                        : (activeInstitution?.id && !isSystemOrGlobal(activeInstitution.id) 
+                            ? activeInstitution.id 
+                            : (currentUser?.institutionId && !isSystemOrGlobal(currentUser.institutionId) 
+                                ? currentUser.institutionId 
+                                : undefined)));
+                const effectiveInstIdFinal: string | undefined = instOverrideId
+                    ? (!isSystemOrGlobal(instOverrideId) ? instOverrideId : undefined)
+                    : (isSuperUser ? undefined : (explicitTargetInstId || (activeInst?.id && !isSystemOrGlobal(activeInst.id) ? activeInst.id : undefined)));
                 
                 console.log("[Data Refresh] Loading institutional data for:", effectiveInstIdFinal || 'GLOBAL/ALL');
             
@@ -2004,7 +2013,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         ...i,
                         moduleStates: (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === i.id)
                     }));
-                    setInstitutions(finalInsts);
+                    setInstitutions(prev => {
+                        if (finalInsts.length <= 2 && prev && prev.length > 2) {
+                            return prev;
+                        }
+                        const prevMap = new Map((prev || []).map(p => [p.id, p]));
+                        finalInsts.forEach(fi => {
+                            prevMap.set(fi.id, { ...(prevMap.get(fi.id) || {}), ...fi });
+                        });
+                        return Array.from(prevMap.values());
+                    });
                 }
 
                 if (demoLeads) setDemoRequests(demoLeads);
@@ -6216,12 +6234,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         demoRequests,
         onUpdateDemoStatus,
         onGenerateReceipt: handleGenerateReceipt,
-        receipts: activeInstitution?.id
-            ? (receipts || []).filter(rec => {
-                const rInst = rec.institutionId || (rec as any).institution_id;
-                return !rInst || rInst === activeInstitution.id;
-            })
-            : receipts,
+        receipts: receipts,
         activityLogLimit,
         setActivityLogLimit,
         transactionLimit,

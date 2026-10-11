@@ -898,34 +898,38 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
         let result = list.filter(inst => {
             if (!inst) return false;
+            const instCreatedAt = inst.createdAt || (inst as any).created_at;
             // Time-based filter
             if (institutionTimeFilter === '7d') {
-                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : now;
+                const created = instCreatedAt ? new Date(instCreatedAt).getTime() : now;
                 return created >= days(7);
             }
             if (institutionTimeFilter === '30d') {
-                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : now;
+                const created = instCreatedAt ? new Date(instCreatedAt).getTime() : now;
                 return created >= days(30);
             }
             if (institutionTimeFilter === '90d') {
-                const created = inst.createdAt ? new Date(inst.createdAt).getTime() : now;
+                const created = instCreatedAt ? new Date(instCreatedAt).getTime() : now;
                 return created >= days(90);
             }
-            if (institutionTimeFilter === 'active') return inst.status === 'active';
+            if (institutionTimeFilter === 'active') return inst.status === 'active' || inst.status === 'trial';
             if (institutionTimeFilter === 'suspended') return inst.status === 'suspended';
             return true;
         });
 
         if (institutionSearchQuery.trim()) {
             const lower = institutionSearchQuery.toLowerCase();
-            result = result.filter(inst =>
-                inst.name?.toLowerCase().includes(lower) ||
-                inst.institutionCode?.toLowerCase().includes(lower)
-            );
+            result = result.filter(inst => {
+                const name = (inst.name || (inst as any).institution_name || '').toLowerCase();
+                const code = (inst.institutionCode || (inst as any).institution_code || (inst as any).code || '').toLowerCase();
+                const id = (inst.id || '').toLowerCase();
+                const email = (inst.email || '').toLowerCase();
+                return name.includes(lower) || code.includes(lower) || id.includes(lower) || email.includes(lower);
+            });
         }
         return result.sort((a, b) => {
-            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const timeA = (a.createdAt || (a as any).created_at) ? new Date(a.createdAt || (a as any).created_at).getTime() : 0;
+            const timeB = (b.createdAt || (b as any).created_at) ? new Date(b.createdAt || (b as any).created_at).getTime() : 0;
             return timeB - timeA;
         });
     }, [institutions, institutionSearchQuery, institutionTimeFilter]);
@@ -2710,18 +2714,21 @@ Please change it after login.`;
                                     const counts = {
                                         all: all.length,
                                         '7d': all.filter(i => {
-                                            const created = i?.createdAt ? new Date(i.createdAt).getTime() : now;
+                                            const c = i?.createdAt || (i as any)?.created_at;
+                                            const created = c ? new Date(c).getTime() : now;
                                             return created >= daysAgo(7);
                                         }).length,
                                         '30d': all.filter(i => {
-                                            const created = i?.createdAt ? new Date(i.createdAt).getTime() : now;
+                                            const c = i?.createdAt || (i as any)?.created_at;
+                                            const created = c ? new Date(c).getTime() : now;
                                             return created >= daysAgo(30);
                                         }).length,
                                         '90d': all.filter(i => {
-                                            const created = i?.createdAt ? new Date(i.createdAt).getTime() : now;
+                                            const c = i?.createdAt || (i as any)?.created_at;
+                                            const created = c ? new Date(c).getTime() : now;
                                             return created >= daysAgo(90);
                                         }).length,
-                                        active: all.filter(i => i?.status === 'active').length,
+                                        active: all.filter(i => i?.status === 'active' || i?.status === 'trial').length,
                                         suspended: all.filter(i => i?.status === 'suspended').length,
                                     };
                                     const tabs: { key: typeof institutionTimeFilter; label: string; color: string }[] = [
@@ -3049,11 +3056,11 @@ Please change it after login.`;
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-lg">
-                                                                {inst.name.charAt(0)}
+                                                                {(inst.name || (inst as any).institution_name || 'T').charAt(0)}
                                                             </div>
                                                             <div>
                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{inst.name}</span>
+                                                                    <span className="text-sm font-black text-slate-900 dark:text-white">{inst.name || (inst as any).institution_name}</span>
                                                                     {(inst.resellerId || (inst as any).reseller_id) && (
                                                                         <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/50">
                                                                             <UserGroupIcon className="w-2.5 h-2.5" />
@@ -3374,10 +3381,10 @@ Please change it after login.`;
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/40 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm">
-                                                                {inst.name.charAt(0)}
+                                                                {(inst.name || (inst as any).institution_name || 'T').charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <div className="text-sm font-bold text-slate-900 dark:text-white">{inst.name}</div>
+                                                                <div className="text-sm font-bold text-slate-900 dark:text-white">{inst.name || (inst as any).institution_name}</div>
                                                                 <div className="text-[10px] text-slate-400 font-mono italic">{inst.institutionCode}</div>
                                                             </div>
                                                         </div>

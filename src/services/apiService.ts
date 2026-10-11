@@ -23,6 +23,7 @@ import type {
     InvoiceClient, CompanyInvoiceSettings,
     SchoolAuthorizedDevice, SchoolRouterProfile
 } from '../types';
+import { isSuperAdminUser } from '../types';
 
 const getSafeEnv = (key: string): string | null => {
     try {
@@ -954,14 +955,14 @@ export const apiService = {
         }
 
         // If an active tenant session is present, always use their token first so tenant queries are properly scoped
-        if (session && session.role !== 'super_admin') {
+        if (session && !isSuperAdminUser(session) && session.role !== 'super_admin') {
             const token = session.id || (session as any)?.userId || (session as any)?.user_id || '';
             if (token && typeof token === 'string' && token.length > 3) return token;
         }
 
         // 3. Try Super Admin session fallback when user is super admin or when no active tenant session exists
         const superAdminSession = localStorage.getItem('eduai_super_admin_session');
-        if (superAdminSession && (!session || session.role === 'super_admin')) {
+        if (superAdminSession && (!session || session.role === 'super_admin' || isSuperAdminUser(session))) {
             try {
                 const parsed = JSON.parse(superAdminSession);
                 if (parsed?.id) return parsed.id;
@@ -2431,7 +2432,7 @@ export const apiService = {
                 if (!effectiveInstId && !isGlobalModule && !isGlobalUserSearch) {
                     const savedInst = ls.get('current_institution') as any;
                     const savedUser = ls.get('current_user') as any;
-                    const isSuper = savedUser?.role === 'super_admin' || savedUser?.role === 'group_admin';
+                    const isSuper = isSuperAdminUser(savedUser) || savedUser?.role === 'super_admin' || savedUser?.role === 'group_admin';
                     if (!isSuper) {
                         effectiveInstId = savedInst?.id || savedUser?.institutionId || savedUser?.institution_id;
                     }
@@ -5905,6 +5906,23 @@ export const apiService = {
         } else {
             localDb.bulkPut('institutions', insts).catch(() => {});
         }
+        if (!Array.isArray(insts)) insts = [];
+        insts = insts.map(raw => {
+            const inst = { ...raw } as any;
+            inst.name = inst.name || inst.institution_name || 'Unnamed Institution';
+            inst.institutionType = inst.institutionType || inst.institution_type || 'Education';
+            inst.institutionCode = inst.institutionCode || inst.institution_code || inst.code || '';
+            inst.countyId = inst.countyId || inst.county_id || '';
+            inst.resellerId = inst.resellerId || inst.reseller_id || '';
+            inst.reseller_id = inst.resellerId;
+            inst.createdAt = inst.createdAt || inst.created_at || '';
+            inst.created_at = inst.createdAt;
+            inst.status = (inst.status || 'active').toLowerCase();
+            inst.trialEndsAt = inst.trialEndsAt || inst.trial_ends_at;
+            inst.subscriptionEndsAt = inst.subscriptionEndsAt || inst.subscription_ends_at;
+            inst.phoneNumber = inst.phoneNumber || inst.phone_number || inst.phone || '';
+            return inst as Institution;
+        });
         try {
             const states = await apiService.fetchModuleRecords<any>('institution_module_states', institutionId).catch(() => []);
             insts.forEach(inst => {

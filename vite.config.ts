@@ -89,12 +89,6 @@ export default defineConfig(({ mode }) => {
                 } catch (e: any) {
                   console.error(`API Middleware Error [${endpoint}]:`, e);
                   if (!res.headersSent) {
-                    if (urlObj.searchParams.get('module') === 'institutions') {
-                      res.statusCode = 200;
-                      res.setHeader('Content-Type', 'application/json');
-                      res.end(JSON.stringify([]));
-                      return;
-                    }
                     res.statusCode = 500;
                     res.setHeader('Content-Type', 'application/json');
                     res.end(JSON.stringify({

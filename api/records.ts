@@ -450,6 +450,7 @@ const MODULE_ALIASES: Record<string, string> = {
 
 const isTableWithoutInstitutionId = (module: string) => {
   return [
+    'institutions',
     'counties', 'constituencies', 'wards', 'political_parties',
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
@@ -1057,7 +1058,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 || getStrParam(req.query.institution)
                 || getStrParam(req.headers['x-institution-id'])
                 || getStrParam(req.headers['x-tenant-id']);
-            const isGroupOrSuperAdmin = user?.role === 'super_admin' || user?.role === 'group_admin';
+            const isSuperAdminRole = (role?: string) => {
+                if (!role) return false;
+                const r = String(role).toLowerCase().trim();
+                return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
+            };
+            const isGroupOrSuperAdmin = isSuperAdminRole(user?.role) || user?.role === 'group_admin' || (user as any)?.is_super_admin === true || (user as any)?.isSuperAdmin === true;
 
             // Security guard: protect user identity records from unauthenticated global platform-wide harvesting
             if (!user && ['users', 'students', 'teachers', 'student_enrollments'].includes(moduleName)) {
@@ -1086,7 +1092,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? user.institutionId
                 : (targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : undefined);
 
-            const shouldSkipTenancy = isGroupOrSuperAdmin && (!targetInstParam || isSystemOrAll(targetInstParam));
+            const shouldSkipTenancy = (isGroupOrSuperAdmin || (moduleName === 'institutions' && !getStrParam(id))) && (!targetInstParam || isSystemOrAll(targetInstParam));
             const reservedParams = ['module', 'id', 'select', 'order', 'limit', 'offset', 'institutionId', 'institution_id', 'countyId', 'action', 'filter', 'page', 'search', '_', 't', 'callback'];
 
             // Fast-path: timetable_settings and exam_timetable_settings are JSONB configs on the institutions table
@@ -1125,7 +1131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cached = _serverModuleMemoryCache.get(moduleName);
                 const ttl = moduleName === 'institutions' ? 60000 : 120000;
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
-                    const reqId = getStrParam(id) || targetInstParam || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
+                    const reqId = getStrParam(id) || (isGroupOrSuperAdmin ? '' : targetInstParam) || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
                     if (reqId && moduleName === 'institutions') {
                         if (user?.role === 'reseller' && !getStrParam(id)) {
                             const resellerId = user.institutionId;
@@ -1261,14 +1267,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } else if (!isTableWithoutInstitutionId(moduleName)) {
                             q = q.or(`institution_id.eq.${user.institutionId},reseller_id.eq.${user.institutionId}`);
                         }
-                    } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
+                    } else if (effectiveTenantInstId && moduleName !== 'institutions' && !isTableWithoutInstitutionId(moduleName)) {
                         const rawId = effectiveTenantInstId.replace(/^inst_/, '');
                         const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
                         const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
                         if (instVariants.length === 1) {
-                            q = q.eq(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants[0]);
+                            q = q.eq('institution_id', instVariants[0]);
                         } else {
-                            q = q.in(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants);
+                            q = q.in('institution_id', instVariants);
                         }
                     }
                     if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
@@ -1278,7 +1284,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-                const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                const isBranchRestrictedUser = user && !isSuperAdminRole(user.role) && user.role !== 'group_admin';
                 
                 if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                     if (moduleName === 'branches') {
@@ -1474,15 +1480,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if (!isTableWithoutInstitutionId(moduleName)) {
                         sqlConditions.push({ sql: `(institution_id::text = $VAL OR reseller_id::text = $VAL)`, vals: [user.institutionId, user.institutionId] });
                     }
-                } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
+                } else if (effectiveTenantInstId && moduleName !== 'institutions' && !isTableWithoutInstitutionId(moduleName)) {
                     const rawId = effectiveTenantInstId.replace(/^inst_/, '');
                     const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
                     const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
-                    const colName = moduleName === 'institutions' ? 'id' : 'institution_id';
                     if (instVariants.length === 1) {
-                        sqlConditions.push({ sql: `"${colName}"::text = $VAL`, val: instVariants[0] });
+                        sqlConditions.push({ sql: `"institution_id"::text = $VAL`, val: instVariants[0] });
                     } else {
-                        sqlConditions.push({ sql: `"${colName}"::text IN ($VAL, $VAL)`, vals: [instVariants[0], instVariants[1]] });
+                        sqlConditions.push({ sql: `"institution_id"::text IN ($VAL, $VAL)`, vals: [instVariants[0], instVariants[1]] });
                     }
                 }
                 if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
@@ -1502,7 +1507,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            const isBranchRestrictedUser = user && !isSuperAdminRole(user.role) && user.role !== 'group_admin';
             if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                 if (moduleName === 'branches') {
                     sqlConditions.push({ sql: `id::text = $VAL`, val: user.branchId });
@@ -2735,6 +2740,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.warn(`[API GET Auto-Enrollment Note]:`, synthErr?.message || synthErr);
                     }
                 }
+            }
+
             if (moduleName === 'pm_deposit_refunds' && Array.isArray(data)) {
                 data = data.map((r: any) => ({
                     ...r,
@@ -3403,13 +3410,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             // Add tenancy if missing (skip for root tables that don't have this column or for super_admin)
-            const skipTenancy = user?.role === 'super_admin' || moduleName === 'institutions' || isTableWithoutInstitutionId(moduleName);
+            const isSuperAdminRolePost = (role?: string) => {
+                if (!role) return false;
+                const r = String(role).toLowerCase().trim();
+                return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
+            };
+            const skipTenancy = isSuperAdminRolePost(user?.role) || (user as any)?.is_super_admin === true || moduleName === 'institutions' || isTableWithoutInstitutionId(moduleName);
             const recordWithTenancy = Array.isArray(recordData) 
                 ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || r.institutionId || user?.institutionId }) }))
                 : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || recordData.institutionId || user?.institutionId }) };
 
             const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            const isBranchRestrictedUser = user && !isSuperAdminRolePost(user.role) && user.role !== 'group_admin';
             
             const appendBranch = (r: any) => {
                 if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName) && moduleName !== 'branches') {
