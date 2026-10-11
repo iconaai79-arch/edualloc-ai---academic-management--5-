@@ -101,7 +101,7 @@ export interface DirectSqlCondition {
 }
 
 // Resilient promise timeout wrapper to prevent any database or async query from hanging
-const executeWithTimeout = async <T>(promise: Promise<T> | any, timeoutMs: number = 8000): Promise<T> => {
+const executeWithTimeout = async <T = any>(promise: Promise<T> | any, timeoutMs: number = 8000): Promise<any> => {
   let timer: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`Statement timeout (${timeoutMs}ms limit)`)), timeoutMs);
@@ -3395,8 +3395,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Fast-path: timetable_settings and exam_timetable_settings are saved to institutions table
             if (moduleName === 'timetable_settings' || moduleName === 'exam_timetable_settings') {
+                const postTargetInstParam = getStrParam(req.query.institutionId)
+                    || getStrParam(req.query.institution_id)
+                    || getStrParam(req.query.institution)
+                    || getStrParam(req.headers?.['x-institution-id'])
+                    || getStrParam(req.headers?.['x-tenant-id']);
                 const targetInst = (recordData && !Array.isArray(recordData) && (recordData.institution_id || recordData.institutionId))
-                    || effectiveTenantInstId || targetInstParam || user?.institutionId;
+                    || (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM' ? user.institutionId : undefined)
+                    || (postTargetInstParam && postTargetInstParam !== 'ALL' && postTargetInstParam !== 'SYSTEM' ? postTargetInstParam : undefined);
                 if (targetInst && targetInst !== 'ALL' && targetInst !== 'SYSTEM') {
                     const payload = Array.isArray(recordData) ? recordData[0] : recordData;
                     const col = moduleName === 'timetable_settings' ? 'timetable_settings' : 'exam_timetable_settings';
@@ -5813,7 +5819,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     { id: curInstId, name: 'Academic Institution', status: 'active' },
                                     { id: clean, name: 'Academic Institution', status: 'active' },
                                     { id: prefixed, name: 'Academic Institution', status: 'active' }
-                                ], { onConflict: 'id' }).catch(() => {});
+                                ], { onConflict: 'id' });
                             } catch (_) {}
 
                             // Also try toggling prefix on currentPayload
@@ -6193,14 +6199,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 currentList.unshift(item);
                             }
                         });
-                        supabase.from('institution_module_states').upsert({
+                        await supabase.from('institution_module_states').upsert({
                             id: `ims_school_remedial_duty_roster_${instId}`,
                             institution_id: instId,
                             module_id: 'school_remedial_duty_roster',
                             status: 'active',
                             data: currentList,
                             updated_at: new Date().toISOString()
-                        }, { onConflict: 'id' }).catch(() => {});
+                        }, { onConflict: 'id' });
                     } catch (_) {}
                 }
             }
@@ -6273,8 +6279,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let currentUpdateData = updateData && typeof updateData === 'object' ? stripUniversalTransientKeys(updateData) : updateData;
 
                 if (moduleName === 'timetable_settings' || moduleName === 'exam_timetable_settings') {
+                    const patchTargetInstParam = getStrParam(req.query.institutionId)
+                        || getStrParam(req.query.institution_id)
+                        || getStrParam(req.query.institution)
+                        || getStrParam(req.headers?.['x-institution-id'])
+                        || getStrParam(req.headers?.['x-tenant-id']);
                     const targetInst = (currentUpdateData && (currentUpdateData.institution_id || currentUpdateData.institutionId))
-                        || effectiveTenantInstId || targetInstParam || user?.institutionId;
+                        || (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM' ? user.institutionId : undefined)
+                        || (patchTargetInstParam && patchTargetInstParam !== 'ALL' && patchTargetInstParam !== 'SYSTEM' ? patchTargetInstParam : undefined);
                     if (targetInst && targetInst !== 'ALL' && targetInst !== 'SYSTEM') {
                         const col = moduleName === 'timetable_settings' ? 'timetable_settings' : 'exam_timetable_settings';
                         await supabase
