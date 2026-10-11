@@ -1755,8 +1755,11 @@ CREATE TABLE IF NOT EXISTS pm_properties (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     address TEXT,
+    town TEXT,
     property_type TEXT NOT NULL,
     total_units INTEGER DEFAULT 0,
+    landlord_id TEXT,
+    commission_rate DECIMAL(5, 2) DEFAULT 0,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

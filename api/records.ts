@@ -2814,6 +2814,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }));
             }
 
+            if (moduleName === 'pm_properties' && Array.isArray(data)) {
+                data = data.map((r: any) => {
+                    if (!r || typeof r !== 'object') return r;
+                    const propType = r.propertyType || r.property_type || 'Apartment';
+                    const totUnits = Number(r.totalUnits !== undefined ? r.totalUnits : r.total_units) || 0;
+                    const commRate = Number(r.commissionRate !== undefined ? r.commissionRate : r.commission_rate) || 0;
+                    const lId = r.landlordId || r.landlord_id || undefined;
+                    return {
+                        ...r,
+                        propertyType: propType,
+                        property_type: propType,
+                        totalUnits: totUnits,
+                        total_units: totUnits,
+                        landlordId: lId,
+                        landlord_id: lId,
+                        commissionRate: commRate,
+                        commission_rate: commRate,
+                        town: r.town || (r.address && r.address.includes(',') ? r.address.split(',').pop()?.trim() : r.town) || '',
+                        institutionId: r.institutionId || r.institution_id,
+                        institution_id: r.institution_id || r.institutionId,
+                        createdAt: r.createdAt || r.created_at,
+                        created_at: r.created_at || r.createdAt
+                    };
+                });
+            }
+
             if ((moduleName === 'school_remedial_sessions' || targetDbTable === 'school_remedial_sessions') && Array.isArray(data)) {
                 data = data.map((r: any) => {
                     if (!r || typeof r !== 'object') return r;
@@ -4832,6 +4858,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normAllocationRequest) : normAllocationRequest(currentPayload);
             }
 
+            // Normalize pm_properties table: map camelCase → snake_case DB columns
+            if (moduleName === 'pm_properties' || targetDbTable === 'pm_properties') {
+                const normProperty = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.propertyType && !c.property_type) { c.property_type = c.propertyType; delete c.propertyType; }
+                    if (c.totalUnits !== undefined && c.total_units === undefined) { c.total_units = c.totalUnits; delete c.totalUnits; }
+                    if (c.landlordId && !c.landlord_id) { c.landlord_id = c.landlordId; delete c.landlordId; }
+                    if (c.commissionRate !== undefined && c.commission_rate === undefined) { c.commission_rate = c.commissionRate; delete c.commissionRate; }
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.createdAt && !c.created_at) { c.created_at = c.createdAt; delete c.createdAt; }
+                    delete c.updatedAt;
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normProperty) : normProperty(currentPayload);
+            }
+
             // Normalize vote_heads: map camelCase → snake_case DB columns and strip un-cached timestamp columns
             if (moduleName === 'vote_heads' || targetDbTable === 'vote_heads') {
                 const normVoteHead = (item: any) => {
@@ -5564,6 +5607,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripInstCol) : stripInstCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if ((moduleName === 'pm_properties' || targetDbTable === 'pm_properties') && offendingCol === 'town') {
+                        // 1. Attempt to add the town column via Direct PG if pool is active
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`ALTER TABLE public.pm_properties ADD COLUMN IF NOT EXISTS town TEXT; NOTIFY pgrst, 'reload schema';`),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        // 2. Preserve town inside address so the user's town value is never lost
+                        const stripPropertyTown = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            if (copy.town) {
+                                if (!copy.address) {
+                                    copy.address = copy.town;
+                                } else if (!String(copy.address).toLowerCase().includes(String(copy.town).toLowerCase())) {
+                                    copy.address = `${copy.address}, ${copy.town}`;
+                                }
+                            }
+                            delete copy.town;
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripPropertyTown) : stripPropertyTown(currentPayload);
                         maxRetries--;
                         continue;
                     }
@@ -6351,6 +6425,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.lastName;
                     delete copy.gradeLevel;
                     delete copy.recordedBy;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+                    currentUpdateData = copy;
+                } else if (moduleName === 'pm_properties' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    if (copy.propertyType && !copy.property_type) { copy.property_type = copy.propertyType; delete copy.propertyType; }
+                    if (copy.totalUnits !== undefined && copy.total_units === undefined) { copy.total_units = copy.totalUnits; delete copy.totalUnits; }
+                    if (copy.landlordId && !copy.landlord_id) { copy.landlord_id = copy.landlordId; delete copy.landlordId; }
+                    if (copy.commissionRate !== undefined && copy.commission_rate === undefined) { copy.commission_rate = copy.commissionRate; delete copy.commissionRate; }
+                    if (copy.institutionId && !copy.institution_id) { copy.institution_id = copy.institutionId; delete copy.institutionId; }
                     delete copy.createdAt;
                     delete copy.updatedAt;
                     currentUpdateData = copy;
@@ -7231,6 +7315,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
                             });
                             delete currentUpdateData[offendingCol];
+                            patchRetries--;
+                            continue;
+                        }
+
+                        if ((moduleName === 'pm_properties' || targetDbTable === 'pm_properties') && offendingCol === 'town') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`ALTER TABLE public.pm_properties ADD COLUMN IF NOT EXISTS town TEXT; NOTIFY pgrst, 'reload schema';`),
+                                        2000
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+
+                            if (currentUpdateData.town) {
+                                if (!currentUpdateData.address) {
+                                    currentUpdateData.address = currentUpdateData.town;
+                                } else if (!String(currentUpdateData.address).toLowerCase().includes(String(currentUpdateData.town).toLowerCase())) {
+                                    currentUpdateData.address = `${currentUpdateData.address}, ${currentUpdateData.town}`;
+                                }
+                            }
+                            delete currentUpdateData.town;
                             patchRetries--;
                             continue;
                         }
