@@ -815,9 +815,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.warn('[KCB IPN] Failed parsing raw body as JSON, falling back to urlencoded:', jsonErr);
                         const params = new URLSearchParams(rawBody);
                         const parsedBody: any = {};
-                        for (const [key, value] of params.entries()) {
+                        params.forEach((value, key) => {
                             parsedBody[key] = value;
-                        }
+                        });
                         body = parsedBody;
                     }
                 } else {
@@ -825,10 +825,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const params = new URLSearchParams(rawBody);
                     const parsedBody: any = {};
                     let hasKeys = false;
-                    for (const [key, value] of params.entries()) {
+                    params.forEach((value, key) => {
                         parsedBody[key] = value;
                         hasKeys = true;
-                    }
+                    });
                     if (hasKeys) {
                         body = parsedBody;
                     } else {
@@ -1001,7 +1001,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 notificationData.payerName ||
                                 primaryData.customerName ||
                                 '';
-        const customerName = (rawCustomerName && !/^(customer|null|none|undefined|bank depositor)$/i.test(rawCustomerName)) ? rawCustomerName : '';
+        let customerName = (rawCustomerName && !/^(customer|null|none|undefined|bank depositor)$/i.test(rawCustomerName)) ? rawCustomerName : '';
 
         const transactionAmount = getParam(body, req.query, 'transactionAmount') ||
                                   getParam(body, req.query, 'amount') ||
@@ -1058,12 +1058,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const messageID = header.messageID || requestId || `MSG_${Date.now()}`;
         const originatorConversationID = header.originatorConversationID || header.conversationID || requestId || '';
         const businessKey = primaryData.businessKey || customerReference || '';
+        const referenceCode = (customerReference || narration || businessKey || '').trim();
 
         // Prioritize real alphanumeric transaction code (e.g. UJ1F48QRBS) over generic timestamp fallback
         const transactionID = transactionReference || notificationData.transactionID || businessKey || `KCB_${Date.now()}`;
         const amount = parseFloat(transactionAmount || notificationData.transactionAmt || notificationData.amount || notificationData.transactionAmount || '0');
         const phone = customerMobileNumber || notificationData.debitMSISDN || '';
-        const payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim() || 'Parent / Depositor';
+        let payerName = customerName || `${notificationData.firstName || ''} ${notificationData.lastName || ''}`.trim() || 'Parent / Depositor';
 
         // Construct normalized flat payload as requested
         const normalizedPayload = {
@@ -1285,7 +1286,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!transaction && amount > 0) {
             // Check if customerReference or narration is an invoice number or admission number
-            const referenceCode = (customerReference || narration || '').trim();
             if (referenceCode) {
                 const { data: invoiceData } = await supabase
                     .from('invoices')

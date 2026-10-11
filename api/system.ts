@@ -216,8 +216,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 console.log("[SQL Engine] Initializing pool...");
                 let Pool;
                 try {
-                    const pgModule = await import('pg');
-                    Pool = pgModule.Pool || (pgModule.default ? (pgModule.default as any).Pool : null);
+                    const pgModule: any = await import('pg');
+                    Pool = pgModule.Pool || pgModule.default?.Pool || null;
                     if (!Pool) throw new Error("Could not find Pool in pg module");
                 } catch (importErr: any) {
                     console.error("[SQL Engine] pg module load failed:", importErr);

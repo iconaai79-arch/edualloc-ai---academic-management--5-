@@ -1011,7 +1011,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // Fetch new balance for accurate notifications
                 const { data: updatedInst } = await supabase
                     .from('institutions')
-                    .select('sms_balance, email')
+                    .select('sms_balance, email, sms_config')
                     .eq('id', transaction.institution_id)
                     .single();
 
@@ -1036,7 +1036,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const emailConfig = settings.email_config || settings.emailConfig;
                 if (emailConfig && updatedInst?.email) {
                     try {
-                        const { default: nodemailer } = await import('nodemailer');
+                        const nodemailerModule: any = await import('nodemailer');
+                        const nodemailer = nodemailerModule.default || nodemailerModule;
                         const transporter = nodemailer.createTransport({
                             host: emailConfig.host,
                             port: Number(emailConfig.port || 587),
@@ -1091,7 +1092,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 // Send SMS confirmation if payerPhoneNumber exists
-                const instSmsConfig = institution?.sms_config || institution?.smsConfig;
+                const instSmsConfig = (updatedInst as any)?.sms_config || (updatedInst as any)?.smsConfig;
                 const sysSmsConfig = settings.sms_config || settings.smsConfig;
                 const payerPhone = metadata.payerPhoneNumber || phoneNumber;
 
@@ -1112,7 +1113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // --- Send SMS Notification with custom finance template & multi-gateway cascade ---
             const { data: instData } = await supabase.from('institutions').select('*').eq('id', transaction.institution_id).maybeSingle();
-            const instSmsConfig = instData?.sms_config || instData?.smsConfig || institution?.sms_config || institution?.smsConfig;
+            const instSmsConfig = instData?.sms_config || instData?.smsConfig;
             const sysSmsConfig = settings.sms_config || settings.smsConfig;
             const payerPhone = metadata.payerPhoneNumber || phoneNumber || transaction.phone_number;
             const isFinancePayment = metadata.type === 'invoice' || metadata.type === 'fee_payment' || Boolean(metadata.studentId) || Boolean(metadata.invoiceId);

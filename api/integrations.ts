@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 import { randomBytes } from 'crypto';
 import { Readable } from 'stream';
 import * as ftp from "basic-ftp";
@@ -2407,7 +2407,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ success: true, resetToken });
         }
         // --- NCBA Bank Helpers (2024 Spec) ---
-        function normalizeNcbaUrl(url?: string): string {
+        const normalizeNcbaUrl = (url?: string): string => {
             if (!url) return 'https://c2bapis.ncbagroup.com';
             let normalized = url.trim().replace(/\/+$/, '');
             if (!normalized.startsWith('http')) normalized = 'https://' + normalized;
@@ -2425,7 +2425,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // that frequently cause '401 Unauthorized' failures in bank gateways.
         const sanitizeNcbaVal = (s: string) => (s || '').replace(/[^\x20-\x7E]/g, '').trim();
         
-        function getNcbaCredentials(config: any) {
+        const getNcbaCredentials = (config: any) => {
             // NCBA 2024 Simplified Model: Uses 10-char Username (clientId) and 32-char Secret Key (clientSecret)
             const id = sanitizeNcbaVal(config.clientId || config.client_id || config.consumerKey || config.consumer_key || '');
             const sec = sanitizeNcbaVal(config.clientSecret || config.client_secret || config.secretKey || config.secret_key || config.consumerSecret || config.consumer_secret || '');
@@ -2433,7 +2433,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return { id, sec };
         }
 
-        async function getNcbaToken(ncbaConfig: any) {
+        const getNcbaToken = async (ncbaConfig: any) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
                 console.log('[NCBA Auth] Mock Mode active. Returning dummy token.');
@@ -2555,7 +2555,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return data.access_token;
         };
 
-        async function initiateNcbaPayment(ncbaConfig: any, amount: number, phone: string) {
+        const initiateNcbaPayment = async (ncbaConfig: any, amount: number, phone: string) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock) {
                 console.log('[NCBA STK] Mock Mode active. Returning successful initiation.');
@@ -2670,7 +2670,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await safeParseJson(res);
         };
 
-        async function queryNcbaStkStatus(ncbaConfig: any, checkoutRequestId: string) {
+        const queryNcbaStkStatus = async (ncbaConfig: any, checkoutRequestId: string) => {
             const isMock = ncbaConfig.isMock === true || ncbaConfig.isMock === 'true';
             if (isMock || (checkoutRequestId && checkoutRequestId.startsWith('mock-'))) {
                 console.log(`[NCBA Query] Mock Mode active for CRID: ${checkoutRequestId}. Returning COMPLETED.`);
@@ -2746,7 +2746,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
         };
 
-        async function generateNcbaQr(ncbaConfig: any, amount: number) {
+        const generateNcbaQr = async (ncbaConfig: any, amount: number) => {
             const token = await getNcbaToken(ncbaConfig);
             const authMethod = (ncbaConfig.authMethod || 'bearer').toLowerCase();
             const { id: cId, sec: cSec } = getNcbaCredentials(ncbaConfig);
@@ -2773,7 +2773,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return await safeParseJson(res);
         };
 
-        function normalizePhoneNCBA(phone: string) {
+        const normalizePhoneNCBA = (phone: string) => {
             let p = phone.replace(/[^\d]/g, '');
             if (p.startsWith('0')) p = '254' + p.substring(1);
             if (p.length === 9) p = '254' + p;
@@ -2797,7 +2797,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         // Internal Helper for Reconciliation
-        async function reconcilePayment(txn: any) {
+        const reconcilePayment = async (txn: any) => {
             if (!txn) return;
             
             // 1. Determine table name immediately
