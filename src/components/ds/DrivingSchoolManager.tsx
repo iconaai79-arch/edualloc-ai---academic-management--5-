@@ -1313,10 +1313,19 @@ const SmartOpeningBalanceImporterModal: React.FC<{
             const admGen = createAdmissionNumberGenerator(settings?.studentIdPrefix, students.map(s => s.admissionNumber || ''));
             const existingByAdm = new Map<string, any>();
             const existingByPhone = new Map<string, any>();
+            const existingByName = new Map<string, any>();
             students.forEach(s => {
-                if (s.admissionNumber) existingByAdm.set(s.admissionNumber.toLowerCase().trim(), s);
-                const pk = phoneKey(s.phone);
+                const sAdm = s.admissionNumber || (s as any).admission_number;
+                if (sAdm) existingByAdm.set(String(sAdm).toLowerCase().trim(), s);
+                const pk = phoneKey(s.phone || (s as any).phoneNumber || (s as any).phone_number);
                 if (pk.length >= 9) existingByPhone.set(pk, s);
+                const sName = (s.fullName || (s as any).full_name || (s as any).name || '').trim().toLowerCase();
+                if (sName) {
+                    existingByName.set(sName, s);
+                    existingByName.set(sName.replace(/\s+/g, ' '), s);
+                    const words = sName.replace(/\s+/g, ' ').split(' ').filter(Boolean).sort().join(' ');
+                    if (words) existingByName.set(`words_${words}`, s);
+                }
             });
 
             let skippedZero = 0;
@@ -1336,16 +1345,27 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                 const pk = phoneKey(phoneVal);
 
                 let studentId = '';
-                const existing = (admRaw && existingByAdm.get(admRaw.toLowerCase())) || (pk.length >= 9 && existingByPhone.get(pk));
+                let resolvedAdmNo = '';
+                const cleanName = nameVal.toLowerCase();
+                const nameWords = cleanName.split(' ').filter(Boolean).sort().join(' ');
+                const existing = (admRaw && existingByAdm.get(admRaw.toLowerCase())) || 
+                                 (pk.length >= 9 && existingByPhone.get(pk)) ||
+                                 existingByName.get(cleanName) ||
+                                 (nameWords ? existingByName.get(`words_${nameWords}`) : null);
 
                 if (existing) {
                     studentId = existing.id;
+                    resolvedAdmNo = existing.admissionNumber || (existing as any).admission_number || admRaw;
+                    if (!existing.admissionNumber && admRaw) {
+                        existing.admissionNumber = admRaw;
+                    }
                 } else {
                     let admVal = admRaw;
                     if (!admVal || admGen.isTaken(admVal)) admVal = admGen.next();
                     else admGen.reserve(admVal);
 
                     studentId = `dss_opb_${stamp}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
+                    resolvedAdmNo = admVal;
                     const newStudent = {
                         id: studentId,
                         fullName: nameVal,
@@ -1357,8 +1377,10 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                     };
                     studentsToCreate.push(newStudent);
                     // Prevent duplicate students if the same person appears twice in the file
-                    existingByAdm.set(admVal.toLowerCase(), newStudent);
+                    existingByAdm.set(admVal.toLowerCase().trim(), newStudent);
                     if (pk.length >= 9) existingByPhone.set(pk, newStudent);
+                    existingByName.set(cleanName, newStudent);
+                    if (nameWords) existingByName.set(`words_${nameWords}`, newStudent);
                 }
 
                 const randomSalt = Math.random().toString(36).substr(2, 4).toUpperCase();
@@ -1367,6 +1389,8 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                     id: invoiceId,
                     studentId,
                     studentName: nameVal,
+                    admissionNumber: resolvedAdmNo || undefined,
+                    admission_number: resolvedAdmNo || undefined,
                     invoiceNumber: `OPB-${stamp.toString().slice(-6)}-${String(rowIdx).padStart(3, '0')}-${randomSalt}`,
                     totalAmount: balanceVal,
                     paidAmount: 0,
@@ -4969,6 +4993,133 @@ END $$;
         name: i.name || (i as any).full_name || (i as any).fullName || '(No Name)',
     })), [instructors]);
 
+    const getStudentForInvoice = useCallback((inv: any) => {
+        if (!inv) return null;
+        const targetId = inv.studentId || (inv as any).student_id;
+        const invName = (inv.studentName || (inv as any).student_name || '').trim().toLowerCase();
+        const invAdm = (inv.admissionNumber || (inv as any).admission_number || (inv as any).studentAdmissionNumber || '').trim().toLowerCase();
+
+        // 1. Direct ID match
+        if (targetId) {
+            const byId = (normalizedStudents || []).find(s => s.id === targetId || (s as any)._id === targetId);
+            if (byId) return byId;
+        }
+
+        // 2. Admission Number match
+        if (invAdm) {
+            const byAdm = (normalizedStudents || []).find(s => 
+                (s.admissionNumber || '').trim().toLowerCase() === invAdm ||
+                ((s as any).admission_number || '').trim().toLowerCase() === invAdm
+            );
+            if (byAdm) return byAdm;
+        }
+        if (targetId) {
+            const byTargetAdm = (normalizedStudents || []).find(s => 
+                (s.admissionNumber || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() ||
+                ((s as any).admission_number || '').trim().toLowerCase() === String(targetId).trim().toLowerCase()
+            );
+            if (byTargetAdm) return byTargetAdm;
+        }
+
+        // 3. Full Name match (exact case-insensitive)
+        if (invName) {
+            const byName = (normalizedStudents || []).find(s => 
+                (s.fullName || '').trim().toLowerCase() === invName ||
+                ((s as any).full_name || '').trim().toLowerCase() === invName
+            );
+            if (byName) return byName;
+
+            // 4. Normalized whitespace name match
+            const cleanInvName = invName.replace(/\s+/g, ' ');
+            const byCleanName = (normalizedStudents || []).find(s => 
+                (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanInvName ||
+                ((s as any).full_name || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanInvName
+            );
+            if (byCleanName) return byCleanName;
+
+            // 5. Word-reordered name match (e.g. "TALAM DAISY JELAGAT" vs "DAISY JELAGAT TALAM")
+            const invWords = cleanInvName.split(' ').filter(Boolean).sort().join(' ');
+            if (invWords) {
+                const byWordOrder = (normalizedStudents || []).find(s => {
+                    const sWords = (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean).sort().join(' ');
+                    return sWords && sWords === invWords;
+                });
+                if (byWordOrder) return byWordOrder;
+            }
+        }
+
+        return null;
+    }, [normalizedStudents]);
+
+    const getInvoiceAdmNo = useCallback((inv: any, resolvedStudent?: any) => {
+        if (!inv) return '-';
+        const student = resolvedStudent !== undefined ? resolvedStudent : getStudentForInvoice(inv);
+        return student?.admissionNumber || 
+               (student as any)?.admission_number || 
+               (student as any)?.admNo || 
+               inv.admissionNumber || 
+               (inv as any)?.admission_number || 
+               (inv as any)?.studentAdmissionNumber || 
+               '-';
+    }, [getStudentForInvoice]);
+
+    const getStudentForPayment = useCallback((pay: any) => {
+        if (!pay) return null;
+        const targetId = pay.studentId || (pay as any).student_id;
+        const payName = (pay.studentName || (pay as any).student_name || '').trim().toLowerCase();
+
+        if (targetId) {
+            const byId = (normalizedStudents || []).find(s => s.id === targetId || (s as any)._id === targetId);
+            if (byId) return byId;
+        }
+
+        const invId = pay.invoiceId || (pay as any).invoice_id;
+        if (invId) {
+            const linkedInv = (invoices || []).find(i => i.id === invId);
+            if (linkedInv) {
+                const studentFromInv = getStudentForInvoice(linkedInv);
+                if (studentFromInv) return studentFromInv;
+            }
+        }
+
+        if (payName) {
+            const byName = (normalizedStudents || []).find(s => 
+                (s.fullName || '').trim().toLowerCase() === payName ||
+                ((s as any).full_name || '').trim().toLowerCase() === payName
+            );
+            if (byName) return byName;
+
+            const cleanPayName = payName.replace(/\s+/g, ' ');
+            const byCleanName = (normalizedStudents || []).find(s => 
+                (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanPayName ||
+                ((s as any).full_name || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanPayName
+            );
+            if (byCleanName) return byCleanName;
+
+            const payWords = cleanPayName.split(' ').filter(Boolean).sort().join(' ');
+            if (payWords) {
+                const byWordOrder = (normalizedStudents || []).find(s => {
+                    const sWords = (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean).sort().join(' ');
+                    return sWords && sWords === payWords;
+                });
+                if (byWordOrder) return byWordOrder;
+            }
+        }
+
+        return null;
+    }, [normalizedStudents, invoices, getStudentForInvoice]);
+
+    const getPaymentAdmNo = useCallback((pay: any, resolvedStudent?: any) => {
+        if (!pay) return '-';
+        const student = resolvedStudent !== undefined ? resolvedStudent : getStudentForPayment(pay);
+        return student?.admissionNumber || 
+               (student as any)?.admission_number || 
+               (student as any)?.admNo || 
+               pay.admissionNumber || 
+               (pay as any)?.admission_number || 
+               '-';
+    }, [getStudentForPayment]);
+
     const filteredStudents = useMemo(() => {
         let list = (normalizedStudents || []).filter(s => 
             (s.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -5687,12 +5838,16 @@ END $$;
     [normalizedInstructors, searchTerm]);
 
     const filteredInvoices = useMemo(() => {
+        const query = invoiceSearch.trim().toLowerCase();
         const list = (invoices || []).filter(inv => {
-            const student = (normalizedStudents || []).find(s => s.id === inv.studentId);
-            const adm = student?.admissionNumber || (student as any)?.admission_number || '';
-            return (inv.studentName || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
-                   (inv.invoiceNumber || '').toLowerCase().includes(invoiceSearch.toLowerCase()) ||
-                   adm.toLowerCase().includes(invoiceSearch.toLowerCase());
+            const student = getStudentForInvoice(inv);
+            const adm = getInvoiceAdmNo(inv, student);
+            const sName = inv.studentName || (inv as any).student_name || student?.fullName || '';
+            const invNo = inv.invoiceNumber || (inv as any).invoice_number || '';
+            return !query ||
+                   sName.toLowerCase().includes(query) ||
+                   invNo.toLowerCase().includes(query) ||
+                   adm.toLowerCase().includes(query);
         });
 
         return [...list].sort((a, b) => {
@@ -5700,7 +5855,7 @@ END $$;
             const timeB = new Date(b.createdAt || (b as any).created_at || b.dueDate || (b as any).due_date || 0).getTime();
             return timeB - timeA;
         });
-    }, [invoices, invoiceSearch, normalizedStudents]);
+    }, [invoices, invoiceSearch, getStudentForInvoice, getInvoiceAdmNo]);
 
     const itemsPerPage = 10;
 
@@ -5719,13 +5874,18 @@ END $$;
     }, [filteredInvoices, invoicePage, totalInvoicePages]);
 
     const filteredPayments = useMemo(() => {
+        const query = paymentSearch.trim().toLowerCase();
         const list = (payments || []).filter(pay => {
-            const student = (normalizedStudents || []).find(s => s.id === pay.studentId);
-            const adm = student?.admissionNumber || (student as any)?.admission_number || '';
-            return (pay.studentName || student?.fullName || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
-                   (pay.receiptNumber || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
-                   (pay.paymentMethod || '').toLowerCase().includes(paymentSearch.toLowerCase()) ||
-                   adm.toLowerCase().includes(paymentSearch.toLowerCase());
+            const student = getStudentForPayment(pay);
+            const adm = getPaymentAdmNo(pay, student);
+            const sName = pay.studentName || (pay as any).student_name || student?.fullName || '';
+            const rcpt = pay.receiptNumber || (pay as any).receipt_number || '';
+            const method = pay.paymentMethod || (pay as any).payment_method || '';
+            return !query ||
+                   sName.toLowerCase().includes(query) ||
+                   rcpt.toLowerCase().includes(query) ||
+                   method.toLowerCase().includes(query) ||
+                   adm.toLowerCase().includes(query);
         });
 
         // Sort from recent to old (newest first)
@@ -5734,7 +5894,7 @@ END $$;
             const timeB = new Date(b.createdAt || (b as any).created_at || b.paymentDate || (b as any).payment_date || 0).getTime();
             return timeB - timeA;
         });
-    }, [payments, normalizedStudents, paymentSearch]);
+    }, [payments, paymentSearch, getStudentForPayment, getPaymentAdmNo]);
 
     const totalPaymentPages = Math.max(1, Math.ceil(filteredPayments.length / itemsPerPage));
     const activePaymentPage = paymentPage > totalPaymentPages ? 1 : paymentPage;
@@ -8205,13 +8365,14 @@ END $$;
                                             </thead>
                                             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                                 {paginatedInvoices.map(invoice => {
-                                                    const student = (normalizedStudents || []).find(s => s.id === invoice.studentId);
-                                                    const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
+                                                    const student = getStudentForInvoice(invoice);
+                                                    const admNo = getInvoiceAdmNo(invoice, student);
+                                                    const studentName = invoice.studentName || (invoice as any).student_name || student?.fullName || '-';
                                                     return (
                                                         <tr key={invoice.id} className="hover:bg-slate-50/50">
-                                                            <td className="px-10 py-6 font-bold">{invoice.invoiceNumber}</td>
-                                                            <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
-                                                            <td className="px-10 py-6 text-sm">{invoice.studentName}</td>
+                                                            <td className="px-10 py-6 font-bold">{invoice.invoiceNumber || (invoice as any).invoice_number}</td>
+                                                            <td className="px-10 py-6 text-xs text-slate-500 font-medium">{admNo}</td>
+                                                            <td className="px-10 py-6 text-sm">{studentName}</td>
                                                         <td className="px-10 py-6 font-bold text-sm">KES {(invoice.totalAmount ?? 0)?.toLocaleString()}</td>
                                                         <td className="px-10 py-6 text-sm text-rose-600 font-bold">KES {(invoice.balance ?? 0)?.toLocaleString()}</td>
                                                         <td className="px-10 py-6">
@@ -8234,11 +8395,13 @@ END $$;
                                                         <td className="px-10 py-6 text-right space-x-2">
                                                             <button 
                                                                 onClick={async () => {
-                                                                    const student = (students || []).find(s => s.id === invoice.studentId);
-                                                                    if (student) {
-                                                                        const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
-                                                                        doc.output('dataurlnewwindow');
-                                                                    }
+                                                                    const fallbackStudent = student || (students || []).find(s => s.id === invoice.studentId) || {
+                                                                        id: invoice.studentId || 'unknown',
+                                                                        fullName: studentName,
+                                                                        admissionNumber: admNo !== '-' ? admNo : ''
+                                                                    };
+                                                                    const doc = await generateDSPDF('invoice', invoice, fallbackStudent as any, settings, currentInstitution);
+                                                                    doc.output('dataurlnewwindow');
                                                                 }}
                                                                 className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
                                                                 title="Preview & Print"
@@ -8265,11 +8428,13 @@ END $$;
                                                             )}
                                                             <button 
                                                                 onClick={async () => {
-                                                                    const student = (students || []).find(s => s.id === invoice.studentId);
-                                                                    if (student) {
-                                                                        const doc = await generateDSPDF('invoice', invoice, student as any, settings, currentInstitution);
-                                                                        doc.save(`${invoice.invoiceNumber}.pdf`);
-                                                                    }
+                                                                    const fallbackStudent = student || (students || []).find(s => s.id === invoice.studentId) || {
+                                                                        id: invoice.studentId || 'unknown',
+                                                                        fullName: studentName,
+                                                                        admissionNumber: admNo !== '-' ? admNo : ''
+                                                                    };
+                                                                    const doc = await generateDSPDF('invoice', invoice, fallbackStudent as any, settings, currentInstitution);
+                                                                    doc.save(`${invoice.invoiceNumber}.pdf`);
                                                                 }}
                                                                 className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
                                                                 title="Download PDF"
@@ -8490,8 +8655,9 @@ END $$;
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                                     {paginatedPayments.map(payment => {
-                                                        const student = (normalizedStudents || []).find(s => s.id === payment.studentId);
-                                                        const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
+                                                        const student = getStudentForPayment(payment);
+                                                        const admNo = getPaymentAdmNo(payment, student);
+                                                        const studentName = payment.studentName || (payment as any).student_name || student?.fullName || '-';
                                                         const isCompleted = payment.status === 'Completed';
                                                         const isVerified = payment.status === 'Verified';
                                                         return (
@@ -8548,8 +8714,8 @@ END $$;
                                                                         </>
                                                                     )}
                                                                 </td>
-                                                                <td className="px-10 py-6 text-xs text-slate-500">{admNo}</td>
-                                                                <td className="px-10 py-6 text-sm">{payment.studentName}</td>
+                                                                <td className="px-10 py-6 text-xs text-slate-500 font-medium">{admNo}</td>
+                                                                <td className="px-10 py-6 text-sm">{studentName}</td>
                                                                 <td className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-indigo-600">{payment.paymentMethod}</td>
                                                                 <td className="px-10 py-6 font-bold text-sm">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
                                                                 <td className="px-10 py-6 text-xs text-slate-500">{new Date(payment.paymentDate).toLocaleDateString()}</td>
@@ -8579,11 +8745,13 @@ END $$;
                                                                     )}
                                                                     <button 
                                                                         onClick={async () => {
-                                                                            const student = (students || []).find(s => s.id === payment.studentId);
-                                                                            if (student) {
-                                                                                const doc = await generateDSPDF('receipt', payment, student as any, settings, currentInstitution, invoices);
-                                                                                doc.save(`${payment.receiptNumber}.pdf`);
-                                                                            }
+                                                                            const fallbackStudent = student || (students || []).find(s => s.id === payment.studentId) || {
+                                                                                id: payment.studentId || 'unknown',
+                                                                                fullName: studentName,
+                                                                                admissionNumber: admNo !== '-' ? admNo : ''
+                                                                            };
+                                                                            const doc = await generateDSPDF('receipt', payment, fallbackStudent as any, settings, currentInstitution, invoices);
+                                                                            doc.save(`${payment.receiptNumber}.pdf`);
                                                                         }}
                                                                         className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
                                                                         title="Download PDF"
@@ -8592,14 +8760,16 @@ END $$;
                                                                     </button>
                                                                     <button 
                                                                         onClick={async () => {
-                                                                            const student = (students || []).find(s => s.id === payment.studentId);
-                                                                            if (student) {
-                                                                                const url = await generateDSThermalReceipt(payment, student as any, currentInstitution, false, invoices);
-                                                                                const win = window.open(url, '_blank');
-                                                                                if (win) {
-                                                                                    win.focus();
-                                                                                    setTimeout(() => win.print(), 500);
-                                                                                }
+                                                                            const fallbackStudent = student || (students || []).find(s => s.id === payment.studentId) || {
+                                                                                id: payment.studentId || 'unknown',
+                                                                                fullName: studentName,
+                                                                                admissionNumber: admNo !== '-' ? admNo : ''
+                                                                            };
+                                                                            const url = await generateDSThermalReceipt(payment, fallbackStudent as any, currentInstitution, false, invoices);
+                                                                            const win = window.open(url, '_blank');
+                                                                            if (win) {
+                                                                                win.focus();
+                                                                                setTimeout(() => win.print(), 500);
                                                                             }
                                                                         }}
                                                                         className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"

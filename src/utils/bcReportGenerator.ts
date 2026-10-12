@@ -82,8 +82,8 @@ export const generateStudentStatement = async (
     doc.text(`Email: ${String(student.email || 'N/A')}`, margin, currentY + 10);
 
     // Summary Box
-    const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || inv.amount || 0), 0);
-    const totalPaid = payments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+    const totalInvoiced = invoices.reduce((sum, inv) => sum + (Number(inv.totalAmount || inv.amount) || 0), 0);
+    const totalPaid = payments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
     const balance = totalInvoiced - totalPaid;
 
     doc.setFillColor(248, 250, 252);
@@ -112,14 +112,14 @@ export const generateStudentStatement = async (
         ...invoices.map(inv => ({
             date: inv.created_at || inv.createdAt || new Date().toISOString(),
             desc: `Invoice #${inv.invoiceNumber || inv.id?.slice(0, 8)}`,
-            debit: inv.totalAmount || inv.amount || 0,
+            debit: Number(inv.totalAmount || inv.amount) || 0,
             credit: 0
         })),
         ...payments.map(pay => ({
             date: pay.created_at || pay.paymentDate || new Date().toISOString(),
             desc: `Payment - Receipt #${pay.receiptNumber || pay.id?.slice(0, 8)} (${pay.paymentMethod || 'M-Pesa'})`,
             debit: 0,
-            credit: pay.amount || 0
+            credit: Number(pay.amount) || 0
         }))
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

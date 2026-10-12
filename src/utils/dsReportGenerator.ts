@@ -83,8 +83,8 @@ export const generateStudentStatement = async (
     doc.text(`ID/Reg No: ${String((student as any).idNumber || (student as any).passportNumber || 'N/A')}`, margin, currentY + 10);
 
     // Summary Box
-    const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-    const totalPaid = payments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+    const totalInvoiced = invoices.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+    const totalPaid = payments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
     const balance = totalInvoiced - totalPaid;
 
     doc.setFillColor(248, 250, 252);
@@ -113,7 +113,7 @@ export const generateStudentStatement = async (
         ...invoices.map(inv => ({
             date: inv.createdAt,
             desc: `Invoice #${inv.invoiceNumber}`,
-            debit: inv.totalAmount,
+            debit: Number(inv.totalAmount) || 0,
             credit: 0,
             type: 'INV'
         })),
@@ -121,7 +121,7 @@ export const generateStudentStatement = async (
             date: pay.paymentDate,
             desc: `Payment - Receipt #${pay.receiptNumber} (${pay.paymentMethod})`,
             debit: 0,
-            credit: pay.amount,
+            credit: Number(pay.amount) || 0,
             type: 'PAY'
         }))
     ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -323,13 +323,13 @@ export const generateBalanceReport = async (
         if (voteHead) {
             sInvoices.forEach(inv => {
                 const item = inv.items?.find(i => i.name.toLowerCase().includes(voteHead.toLowerCase()));
-                if (item) totalInvoiced += item.amount;
+                if (item) totalInvoiced += Number(item.amount) || 0;
             });
-            totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+            totalPaid = sPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
             totalPaid = Math.min(totalPaid, totalInvoiced);
         } else {
-            totalInvoiced = sInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
-            totalPaid = sPayments.reduce((sum, pay) => sum + (pay.amount || 0), 0);
+            totalInvoiced = sInvoices.reduce((sum, inv) => sum + (Number(inv.totalAmount) || 0), 0);
+            totalPaid = sPayments.reduce((sum, pay) => sum + (Number(pay.amount) || 0), 0);
         }
         
         const balance = totalInvoiced - totalPaid;

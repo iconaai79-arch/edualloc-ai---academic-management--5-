@@ -357,7 +357,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             throw new Error("Institution billing suspension");
         }
         
-        let admNumber = data.admissionNumber;
+        let admNumber = data.admissionNumber || data.admission_number;
         if (!admNumber) {
             const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
             const asNum = Number(prefixStr);

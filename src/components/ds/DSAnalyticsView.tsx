@@ -274,177 +274,92 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
     // 1. Financial Stats
+    const totalInvoiced = useMemo(() => {
+        return (invoices || []).reduce((sum: number, inv: DSInvoice) => sum + (Number(inv.totalAmount) || 0), 0);
+    }, [invoices]);
 
-
-
-    const totalInvoiced = useMemo(() => (invoices || []).reduce((sum: number, inv: DSInvoice) => sum + (inv.totalAmount || 0), 0), [invoices]);
-
-
-
-    const totalPaid = useMemo(() => (payments || []).reduce((sum: number, pay: DSPayment) => sum + (pay.amount || 0), 0), [payments]);
-
-
+    const totalPaid = useMemo(() => {
+        const fromPayments = (payments || []).reduce((sum: number, pay: DSPayment) => sum + (Number(pay.amount) || 0), 0);
+        if (fromPayments > 0) return fromPayments;
+        // Fallback to invoice paidAmount if payments list is empty
+        return (invoices || []).reduce((sum: number, inv: DSInvoice) => sum + (Number(inv.paidAmount) || 0), 0);
+    }, [payments, invoices]);
 
     const collectionRate = totalInvoiced > 0 ? (totalPaid / totalInvoiced) * 100 : 0;
 
-
-
-
-
-
-
     // 2. Student Distribution by Category
-
-
-
     const categoryData = useMemo(() => {
-
-
-
         const counts: Record<string, number> = {};
-
-
-
         (students || []).forEach((s: DSStudent) => {
-
-
-
-            const cat = s.licenseTypeInterested || 'Standard';
-
-
-
+            const cat = s.licenseTypeInterested || s.licenseCategory || 'Standard';
             counts[cat] = (counts[cat] || 0) + 1;
-
-
-
         });
-
-
-
         return Object.entries(counts).map(([label, value]) => ({ label, value }));
-
-
-
     }, [students]);
 
-
-
-
-
-
-
     // 3. Lesson Activity over last 7 days
-
-
-
     const dailyLessons = useMemo(() => {
-
-
-
         const last7Days = [...Array(7)].map((_, i) => {
-
-
-
             const d = new Date();
-
-
-
-            d.setDate(d.getDate() - i);
-
-
-
+            d.setDate(d.getDate() - (6 - i));
             return d.toISOString().split('T')[0];
-
-
-
-        }).reverse();
-
-
-
-
-
-
-
-        return last7Days.map(date => {
-
-
-
-            const count = (lessons || []).filter((l: DSLesson) => (l.lessonDate || (l as any).date) === date).length;
-
-
-
-            return { date, count };
-
-
-
         });
 
-
-
+        return last7Days.map(date => {
+            const count = (lessons || []).filter((l: DSLesson) => {
+                const lDate = String(l.lessonDate || (l as any).date || '').slice(0, 10);
+                return lDate === date;
+            }).length;
+            return { date, count };
+        });
     }, [lessons]);
 
+    // Fleet Stats
+    const operationalVehiclesCount = useMemo(() => (vehicles || []).filter(v => v.status === 'Operational').length, [vehicles]);
+    const totalVehiclesCount = (vehicles || []).length;
+    const fleetReadiness = totalVehiclesCount > 0 ? Math.round((operationalVehiclesCount / totalVehiclesCount) * 100) : 0;
 
+    // Practical Lessons Count
+    const practicalLessonsCount = useMemo(() => {
+        return (lessons || []).filter((l: DSLesson) => !l.lessonType || l.lessonType === 'Practical').length;
+    }, [lessons]);
 
+    // Sparklines data for top cards
+    const revenueSparkline = useMemo(() => {
+        const last7Days = [...Array(7)].map((_, i) => {
+            const d = new Date();
+            d.setDate(d.getDate() - (6 - i));
+            return d.toISOString().split('T')[0];
+        });
+        const amounts = last7Days.map(dt =>
+            (payments || [])
+                .filter(p => String(p.paymentDate || (p as any).createdAt || '').slice(0, 10) === dt)
+                .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+        );
+        return amounts.some(a => a > 0) ? amounts : [500, 800, 1200, 600, 2000, 1500, 1800];
+    }, [payments]);
 
-
-
+    const lessonSparkline = useMemo(() => {
+        const counts = dailyLessons.map(d => d.count);
+        return counts.some(c => c > 0) ? counts : [5, 12, 15, 10, 8, 14, 20];
+    }, [dailyLessons]);
 
     // 4. Vehicle Utilization
-
-
-
     const vehicleUsage = useMemo(() => {
-
-
-
         return (vehicles || []).map((v: DSVehicle) => {
-
-
-
             const usageCount = (lessons || []).filter((l: DSLesson) => l.vehicleId === v.id).length;
-
-
-
-            return { label: `${v.make} ${v.model} (${v.plateNumber})`, value: usageCount };
-
-
-
+            const plate = v.plateNumber || v.registrationNumber || v.id;
+            const label = `${v.make || ''} ${v.model || ''} (${plate})`.trim();
+            return { label, value: usageCount };
         }).sort((a: any, b: any) => b.value - a.value).slice(0, 5);
-
-
-
     }, [vehicles, lessons]);
 
-
-
-
-
-
-
     // 5. Instructor Performance
-
-
-
     const instructorStats = useMemo(() => {
-
-
-
         return (instructors || []).map((inst: DSInstructor) => {
-
-
-
             const count = (lessons || []).filter((l: DSLesson) => l.instructorId === inst.id).length;
-
-
-
             return { label: inst.name, value: count };
-
-
-
         }).sort((a: any, b: any) => b.value - a.value).slice(0, 5);
-
-
-
     }, [instructors, lessons]);
 
 
@@ -749,145 +664,75 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-                        <MiniChart data={[500, 800, 1200, 600, 2000, 1500, 1800]} color="#10b981" />
-
-
+                        <MiniChart data={revenueSparkline} color="#10b981" />
 
                     </div>
-
-
 
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Total Revenue</p>
 
-
-
-                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">KES {(totalPaid || 0)?.toLocaleString()}</h3>
-
-
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2 truncate">KES {(totalPaid || 0)?.toLocaleString()}</h3>
 
                     <div className="flex items-center gap-1 text-emerald-600 text-[10px] font-bold">
 
-
-
                         <CheckBadgeIcon className="w-3 h-3" /> {collectionRate.toFixed(1)}% Collection Rate
 
-
-
                     </div>
-
-
 
                 </div>
 
 
 
-
-
-
-
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all group">
 
-
-
                     <div className="flex justify-between items-start mb-6">
-
-
 
                         <div className="p-4 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-3xl group-hover:rotate-12 transition-transform">
 
-
-
                             <CalendarIcon className="w-6 h-6" />
-
-
 
                         </div>
 
-
-
-                        <MiniChart data={[5, 12, 15, 10, 8, 14, 20]} color="#f59e0b" />
-
-
+                        <MiniChart data={lessonSparkline} color="#f59e0b" />
 
                     </div>
 
-
-
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Practical Lessons</p>
 
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{practicalLessonsCount}</h3>
 
-
-                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{(lessons || []).length}</h3>
-
-
-
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conducted this term</p>
-
-
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{(lessons || []).length} Total Scheduled</p>
 
                 </div>
 
 
 
-
-
-
-
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all group">
-
-
 
                     <div className="flex justify-between items-start mb-6">
 
-
-
                         <div className="p-4 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-3xl group-hover:rotate-12 transition-transform">
-
-
 
                             <TruckIcon className="w-6 h-6" />
 
-
-
                         </div>
-
-
 
                         <div className="h-8 flex items-end">
 
-
-
                             <div className="w-16 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
 
-
-
-                                <div className="h-full bg-rose-500 w-[85%]" />
-
-
+                                <div className="h-full bg-rose-500 rounded-full transition-all duration-500" style={{ width: `${fleetReadiness}%` }} />
 
                             </div>
 
-
-
                         </div>
-
-
 
                     </div>
 
-
-
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Fleet Readiness</p>
 
+                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{fleetReadiness}%</h3>
 
-
-                    <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{Math.round(((vehicles || []).filter(v => v.status === 'Operational').length / Math.max((vehicles || []).length, 1)) * 100)}%</h3>
-
-
-
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{(vehicles || []).length} Operational Vehicles</p>
-
-
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{operationalVehiclesCount} of {totalVehiclesCount} Operational Vehicles</p>
 
                 </div>
 
@@ -945,86 +790,30 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 
 
-                        <div className="h-64 flex items-end justify-between gap-4">
-
-
-
+                        <div className="h-64 flex items-end justify-between gap-4 pt-8">
                             {dailyLessons.map((d, i) => {
-
-
-
                                 const max = Math.max(...dailyLessons.map(x => x.count), 1);
-
-
-
                                 const h = (d.count / max) * 100;
-
-
-
                                 return (
-
-
-
-                                    <div key={i} className="flex-1 flex flex-col items-center group">
-
-
-
-                                        <div 
-
-
-
-                                            className="w-full rounded-2xl bg-indigo-600/10 group-hover:bg-indigo-600 transition-all duration-500 relative flex items-end justify-center"
-
-
-
-                                            style={{ height: `${Math.max(h, 5)}%` }}
-
-
-
-                                        >
-
-
-
-                                            <span className="absolute -top-8 text-[10px] font-black text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
-
-
-
-                                                {d.count}
-
-
-
-                                            </span>
-
-
-
+                                    <div key={i} className="flex-1 h-full flex flex-col items-center justify-end group">
+                                        <div className="w-full flex-1 flex items-end justify-center">
+                                            <div 
+                                                className={`w-full rounded-2xl transition-all duration-500 relative flex items-end justify-center cursor-pointer ${
+                                                    d.count > 0 ? 'bg-indigo-600 shadow-md shadow-indigo-600/20' : 'bg-indigo-600/10 group-hover:bg-indigo-600/30'
+                                                }`}
+                                                style={{ height: `${Math.max(h, d.count > 0 ? 15 : 6)}%` }}
+                                            >
+                                                <span className="absolute -top-8 text-[10px] font-black text-indigo-600 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                                    {d.count} {d.count === 1 ? 'lesson' : 'lessons'}
+                                                </span>
+                                            </div>
                                         </div>
-
-
-
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-4">
-
-
-
-                                            {new Date(d.date).toLocaleDateString(undefined, { weekday: 'short' })}
-
-
-
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-3">
+                                            {new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short' })}
                                         </p>
-
-
-
                                     </div>
-
-
-
                                 );
-
-
-
                             })}
-
-
-
                         </div>
 
 
