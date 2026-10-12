@@ -90,7 +90,7 @@ import { ChartPieIcon } from './icons/ChartPieIcon';
 import { ArrowsRightLeftIcon } from './icons/ArrowsRightLeftIcon';
 import { ChatBubbleBottomCenterTextIcon } from './icons/ChatBubbleBottomCenterTextIcon';
 import { BookOpenIcon } from './icons/BookOpenIcon';
-import { useDrivingSchool, DrivingSchoolContext } from '../services/DrivingSchoolContext';
+import { useDrivingSchool, DrivingSchoolContext, DrivingSchoolProvider } from '../services/DrivingSchoolContext';
 import { ChartBarIcon } from './icons/ChartBarIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -3907,20 +3907,22 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 )}
 
                 {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && (isDS || activeScope === 'ds') && (
-                    <DrivingSchoolManager
-                        currentUser={props.currentUser!}
-                        currentInstitution={props.currentInstitution!}
-                        externalTab={
-                            activeTab === 'dashboard' ? 'dashboard' : 
-                            activeTab === 'driving_school' ? 'dashboard' :
-                            activeTab.startsWith('ds_') ? activeTab.replace('ds_', '') as any : 
-                            activeTab as any
-                        }
-                        onRefreshData={props.onRefreshData}
-                        departments={props.departments || []}
-                        rooms={props.rooms || []}
-                        letterheadConfig={props.letterheadConfig}
-                    />
+                    <DrivingSchoolProvider institutionId={props.currentInstitution?.id}>
+                        <DrivingSchoolManager
+                            currentUser={props.currentUser!}
+                            currentInstitution={props.currentInstitution!}
+                            externalTab={
+                                activeTab === 'dashboard' ? 'dashboard' : 
+                                activeTab === 'driving_school' ? 'dashboard' :
+                                activeTab.startsWith('ds_') ? activeTab.replace('ds_', '') as any : 
+                                activeTab as any
+                            }
+                            onRefreshData={props.onRefreshData}
+                            departments={props.departments || []}
+                            rooms={props.rooms || []}
+                            letterheadConfig={props.letterheadConfig}
+                        />
+                    </DrivingSchoolProvider>
                 )}
 
                 {(activeTab === 'beauty_college' || activeTab === 'dashboard' || activeTab.startsWith('bc_')) && (isBC || activeScope === 'bc') && (
@@ -4125,10 +4127,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                 users={props.users || []}
                             />
                         ) : (isDS || activeScope === 'ds') ? (
-                            <DSAnalyticsView 
-                                institution={props.currentInstitution!}
-                                letterheadConfig={props.letterheadConfig}
-                            />
+                            <DrivingSchoolProvider institutionId={props.currentInstitution?.id}>
+                                <DSAnalyticsView 
+                                    institution={props.currentInstitution!}
+                                    letterheadConfig={props.letterheadConfig}
+                                />
+                            </DrivingSchoolProvider>
                         ) : (isBC || activeScope === 'bc') ? (
                             <BCReportsView 
                                 currentUser={props.currentUser!}

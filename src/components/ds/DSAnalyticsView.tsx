@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useContext } from 'react';
 
 
 
@@ -6,7 +6,7 @@ import { DSReportsView } from './DSReportsView';
 
 
 
-import { useDrivingSchool } from '../../services/DrivingSchoolContext';
+import { useDrivingSchool, DrivingSchoolContext, DrivingSchoolProvider } from '../../services/DrivingSchoolContext';
 
 
 
@@ -209,7 +209,7 @@ const MiniChart: React.FC<{ data: number[], color: string }> = ({ data, color })
 
 
 
-export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
+const DSAnalyticsViewInner: React.FC<DSAnalyticsViewProps> = ({
 
 
 
@@ -2194,5 +2194,14 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = ({
 
 };
 
-
-
+export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = (props) => {
+    const context = useContext(DrivingSchoolContext);
+    if (context && context.refreshData) {
+        return <DSAnalyticsViewInner {...props} />;
+    }
+    return (
+        <DrivingSchoolProvider institutionId={props.institution?.id}>
+            <DSAnalyticsViewInner {...props} />
+        </DrivingSchoolProvider>
+    );
+};

@@ -68,11 +68,73 @@ interface DrivingSchoolContextType {
     };
 }
 
+const defaultDrivingSchoolContext: DrivingSchoolContextType = {
+    instructors: [],
+    vehicles: [],
+    students: [],
+    lessons: [],
+    mastery: [],
+    settings: null,
+    invoices: [],
+    payments: [],
+    mpesaTransactions: [],
+    bankTransactions: [],
+    leads: [],
+    expenditures: [],
+    setInstructors: () => {},
+    setVehicles: () => {},
+    setStudents: () => {},
+    setLessons: () => {},
+    setMastery: () => {},
+    setSettings: () => {},
+    setInvoices: () => {},
+    setPayments: () => {},
+    setLeads: () => {},
+    setExpenditures: () => {},
+    addInstructor: async () => {},
+    addVehicle: async () => {},
+    updateVehicle: async () => {},
+    deleteVehicle: async () => {},
+    addStudent: async () => {},
+    verifyStudentPayment: async () => {},
+    updateStudent: async () => {},
+    deleteStudent: async () => {},
+    deleteStudents: async () => {},
+    addLesson: async () => {},
+    addMastery: async () => {},
+    updateSettings: async () => {},
+    addInvoice: async () => {},
+    updateInvoice: async () => {},
+    deleteInvoice: async () => {},
+    addPayment: async () => {},
+    updatePayment: async () => {},
+    deletePayment: async () => {},
+    updateLesson: async () => {},
+    deleteLesson: async () => {},
+    addLead: async () => {},
+    updateLead: async () => {},
+    deleteLead: async () => {},
+    deleteLeads: async () => {},
+    addExpenditure: async () => {},
+    updateExpenditure: async () => {},
+    deleteExpenditure: async () => {},
+    refreshData: async () => {},
+    stats: {
+        totalStudents: 0,
+        activeInstructors: 0,
+        operationalVehicles: 0,
+        pendingLessons: 0,
+    }
+};
+
 export const DrivingSchoolContext = createContext<DrivingSchoolContextType | undefined>(undefined);
 
 export function useDrivingSchool() {
     const context = useContext(DrivingSchoolContext);
-    if (!context) throw new Error('useDrivingSchool must be used within a DrivingSchoolProvider');
+    if (!context) {
+        console.warn('[DrivingSchoolContext] useDrivingSchool called outside of DrivingSchoolProvider, returning safe fallback context.');
+        return defaultDrivingSchoolContext;
+    }
     return context;
 }
 

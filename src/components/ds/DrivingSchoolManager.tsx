@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, useContext } from 'react';
 import Webcam from 'react-webcam';
 import * as XLSX from 'xlsx';
 import { readSpreadsheet, autoMapHeaders, parseAmount, cleanPhone, phoneKey, toIsoDate, createAdmissionNumberGenerator } from './dsExcelImport';
@@ -44,7 +44,7 @@ import {
     generateDSCompletionCertificatePDF
 } from '../../utils/dsPdfGenerator';
 import { useToast } from '../../services/ToastContext';
-import { useDrivingSchool } from '../../services/DrivingSchoolContext';
+import { useDrivingSchool, DrivingSchoolContext, DrivingSchoolProvider } from '../../services/DrivingSchoolContext';
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
 
 import type { 
@@ -3609,7 +3609,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
     );
 };
 
-export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
+const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
     currentUser,
     currentInstitution,
     externalTab,
@@ -12737,4 +12737,14 @@ const PrepaidPaymentVerificationModal: React.FC<{
     );
 };
 
-// Deployment Trigger: 2026-05-12 00:35 UTC
+export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = (props) => {
+    const context = useContext(DrivingSchoolContext);
+    if (context && context.refreshData && context.stats) {
+        return <DrivingSchoolManagerInner {...props} />;
+    }
+    return (
+        <DrivingSchoolProvider institutionId={props.currentInstitution?.id}>
+            <DrivingSchoolManagerInner {...props} />
+        </DrivingSchoolProvider>
+    );
+};
