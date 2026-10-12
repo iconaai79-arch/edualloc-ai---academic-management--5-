@@ -1085,6 +1085,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'ds_dispatch', label: 'Dispatch', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_fleet', label: 'Fleet', icon: <TruckIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_instructors', label: 'Instructors', icon: <AcademicCapIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Staff & Team', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_finance', label: 'Finance', icon: <CurrencyIcon className="w-5 h-5 mr-2" /> },
                 { id: 'ds_broadcaster', label: 'Broadcaster', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
             ];

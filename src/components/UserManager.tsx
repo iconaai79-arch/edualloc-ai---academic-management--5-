@@ -1443,6 +1443,17 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                 <h3 className="text-xl font-semibold">User Management</h3>
                 {canManageUserRecords && (
                     <div className="flex items-center gap-2">
+                        <button 
+                            type="button"
+                            onClick={() => { 
+                                setIsAdding(!isAdding); 
+                                if (!isAdding) resetForm(); 
+                            }} 
+                            className="btn-primary flex items-center gap-2 shadow-sm"
+                        >
+                            <PlusIcon className="w-5 h-5" /> 
+                            {isAdding ? 'Cancel' : (activeTab === 'staff' ? (isDS ? 'Add Staff / Instructor' : 'Add Staff') : (activeTab === 'customer' ? 'Add Customer' : 'Add Student'))}
+                        </button>
                         {activeTab === 'staff' ? (
                             <button onClick={() => setIsImportModalOpen(true)} className="btn-secondary flex items-center gap-2">
                                 <ArrowUpTrayIcon className="w-5 h-5" /> Import
