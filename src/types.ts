@@ -237,6 +237,41 @@ export interface AssignedDeduction {
     referenceNumber?: string;
 }
 
+// ─── Employee Documents Management Types ───
+
+export type EmployeeDocumentCategory =
+    | 'contract'
+    | 'national_id'
+    | 'academic_certificate'
+    | 'kra_pin'
+    | 'social_security'
+    | 'cv_resume'
+    | 'conduct_certificate'
+    | 'medical_report'
+    | 'appraisal'
+    | 'disciplinary'
+    | 'bank_details'
+    | 'other';
+
+export interface EmployeeDocument {
+    id: string;
+    institutionId?: string;
+    userId: string;
+    name: string;
+    category: EmployeeDocumentCategory;
+    fileUrl: string;
+    fileName: string;
+    fileSize?: string;
+    fileType?: string;
+    uploadDate: string;
+    expiryDate?: string;
+    notes?: string;
+    uploadedBy?: string;
+    status?: 'active' | 'expiring_soon' | 'expired' | 'archived';
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 // ─── ZKTeco Biometric Integration Types ───
 
 export interface BiometricDevice {
@@ -396,6 +431,7 @@ export interface User {
     loyaltyPoints?: number;
     autoMarketPlaceUrl?: string;
     metadata?: any;
+    documents?: EmployeeDocument[];
     createdAt?: string;
     admissionNumber?: string;
     admission_number?: string;

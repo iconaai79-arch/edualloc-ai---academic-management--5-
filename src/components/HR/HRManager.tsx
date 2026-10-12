@@ -34,6 +34,7 @@ import {
     DEFAULT_STATUTORY_SETTINGS, 
     type StatutoryPayrollSettings 
 } from './StatutoryTaxSettingsModal';
+import { EmployeeDocumentsModal } from './EmployeeDocumentsModal';
 import { apiService } from '../../services/apiService';
 import { 
     generateStaffPayslipPdf, 
@@ -266,6 +267,26 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const [rosterCurrentPage, setRosterCurrentPage] = useState(1);
     const [rosterItemsPerPage, setRosterItemsPerPage] = useState(10);
     const [showGateQrModal, setShowGateQrModal] = useState(false);
+    const [selectedDocStaff, setSelectedDocStaff] = useState<User | null>(null);
+    const [showDocModal, setShowDocModal] = useState(false);
+
+    const getStaffDocumentCount = (member: User): number => {
+        let m = member.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        const docs = Array.isArray(m.documents) ? m.documents : Array.isArray((member as any).documents) ? (member as any).documents : [];
+        return docs.length;
+    };
+
+    const handleOpenDocuments = (member: User) => {
+        setSelectedDocStaff(member);
+        setShowDocModal(true);
+    };
+
+    const handleDocumentsUpdated = (updatedStaff: User) => {
+        setSelectedDocStaff(updatedStaff);
+    };
 
     const getStaffSalary = (member: User) => {
         let m = member.metadata || {};
@@ -1352,6 +1373,19 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                                 <span>Edit File</span>
                                                             </button>
                                                             <button
+                                                                onClick={() => handleOpenDocuments(member)}
+                                                                className="px-3 py-1.5 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-300 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border border-sky-200 dark:border-sky-800"
+                                                                title="Manage Employee Documents (Contracts, IDs, Certs)"
+                                                            >
+                                                                <DocumentTextIcon className="w-3 h-3" />
+                                                                <span>Docs</span>
+                                                                {getStaffDocumentCount(member) > 0 && (
+                                                                    <span className="px-1.5 py-0.2 bg-sky-600 text-white rounded-full text-[8px] font-black">
+                                                                        {getStaffDocumentCount(member)}
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                            <button
                                                                 onClick={() => {
                                                                     setSelectedStaffId(member.id);
                                                                     setActiveTab('payroll');
@@ -1419,23 +1453,33 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                     </p>
                                                 )}
                                             </div>
-                                            <div className="flex gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+                                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
                                                 <button
                                                     onClick={() => handleOpenEditStaff(member)}
-                                                    className="flex-1 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
+                                                    className="py-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-all flex items-center justify-center gap-1"
+                                                    title="Edit File"
                                                 >
                                                     <PencilIcon className="w-3 h-3" />
-                                                    <span>Edit File</span>
+                                                    <span>Edit</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleOpenDocuments(member)}
+                                                    className="py-2.5 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-100 dark:border-sky-800 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-sky-100 transition-all flex items-center justify-center gap-1"
+                                                    title="Manage Employee Documents"
+                                                >
+                                                    <DocumentTextIcon className="w-3 h-3" />
+                                                    <span>Docs {getStaffDocumentCount(member) > 0 ? `(${getStaffDocumentCount(member)})` : ''}</span>
                                                 </button>
                                                 <button
                                                     onClick={() => {
                                                         setSelectedStaffId(member.id);
                                                         setActiveTab('payroll');
                                                     }}
-                                                    className="flex-1 py-2.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-1"
+                                                    className="py-2.5 bg-white dark:bg-slate-700 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-600 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-1"
+                                                    title="View Pay History"
                                                 >
                                                     <BanknotesIcon className="w-3 h-3" />
-                                                    <span>Pay History</span>
+                                                    <span>Pay</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -2629,6 +2673,33 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 </div>
                             </div>
 
+                            {/* Shortcut to Employee Documents when editing existing staff */}
+                            {editingStaff && (
+                                <div className="p-4 bg-sky-50/70 dark:bg-sky-950/30 rounded-2xl border border-sky-200/80 dark:border-sky-800/80 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 rounded-xl">
+                                            <DocumentTextIcon className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <h5 className="text-xs font-black uppercase tracking-tight text-slate-900 dark:text-white">
+                                                Employee Credentials & Document Files
+                                            </h5>
+                                            <p className="text-[10px] text-slate-500 font-medium">
+                                                {getStaffDocumentCount(editingStaff)} document{getStaffDocumentCount(editingStaff) === 1 ? '' : 's'} on record (Contracts, National IDs, Academic Certs, Tax PIN)
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenDocuments(editingStaff)}
+                                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                                    >
+                                        <DocumentTextIcon className="w-3.5 h-3.5" />
+                                        <span>Manage Documents</span>
+                                    </button>
+                                </div>
+                            )}
+
                             <div className="pt-4 flex gap-3">
                                 <button 
                                     type="submit"
@@ -2873,6 +2944,20 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 institution={institution}
                 settings={statutorySettings}
                 onSaveSettings={handleSaveStatutorySettings}
+            />
+
+            {/* Employee Documents Manager Modal */}
+            <EmployeeDocumentsModal
+                isOpen={showDocModal}
+                onClose={() => {
+                    setShowDocModal(false);
+                    setSelectedDocStaff(null);
+                }}
+                staffMember={selectedDocStaff}
+                institution={institution}
+                currentUser={currentUser}
+                onEditUser={onEditUser}
+                onDocumentsUpdated={handleDocumentsUpdated}
             />
         </div>
     );
