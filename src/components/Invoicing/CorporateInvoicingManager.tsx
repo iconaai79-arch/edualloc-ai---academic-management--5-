@@ -206,15 +206,43 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 } else if (institutionId) {
                     fetched = fetched.filter(i => (i.institutionId || (i as any).institution_id) === institutionId);
                 }
+                const normalizeInvoiceDoc = (inv: any): Invoice => {
+                    let items = inv.items;
+                    if (typeof items === 'string') {
+                        try { items = JSON.parse(items); } catch { items = []; }
+                    }
+                    if (!Array.isArray(items)) items = [];
+                    const normalizedItems = items.map((it: any) => {
+                        const qty = Number(it.quantity) || 1;
+                        const amt = Number(it.amount);
+                        let uPrice = Number(it.unitPrice ?? it.unit_price ?? it.rate ?? it.price);
+                        if (isNaN(uPrice) || uPrice <= 0) {
+                            uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                        }
+                        const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * uPrice);
+                        return {
+                            description: it.description || it.name || '',
+                            quantity: qty,
+                            unitPrice: uPrice,
+                            unit_price: uPrice,
+                            amount: finalAmt
+                        };
+                    });
+                    return {
+                        ...inv,
+                        items: normalizedItems
+                    };
+                };
+
                 const mapById = new Map<string, Invoice>();
                 (initialInvoices || []).forEach(i => {
                     const id = i.institutionId || (i as any).institution_id;
                     const isStudent = !!(i.studentId || (i as any).student_id);
                     if (isGlobal ? ((!id || id === 'GLOBAL') && !isStudent) : (id === institutionId)) {
-                        mapById.set(i.id, i);
+                        mapById.set(i.id, normalizeInvoiceDoc(i));
                     }
                 });
-                fetched.forEach(i => mapById.set(i.id, i));
+                fetched.forEach(i => mapById.set(i.id, normalizeInvoiceDoc(i)));
                 setInvoices(Array.from(mapById.values()));
             }
             if (recRes.status === 'fulfilled' && Array.isArray(recRes.value)) {
@@ -661,7 +689,18 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             institutionId,
             issueDate: invIssueDate,
             dueDate: invDueDate,
-            items: invItems,
+            items: invItems.map(it => {
+                const qty = Number(it.quantity) || 1;
+                const uPrice = Number(it.unitPrice) || 0;
+                const amt = Number(it.amount) || (qty * uPrice);
+                return {
+                    description: it.description || '',
+                    quantity: qty,
+                    unitPrice: uPrice,
+                    unit_price: uPrice,
+                    amount: amt
+                } as any;
+            }),
             subtotal: calculatedSubtotal,
             taxRate: invTaxRate,
             taxAmount: calculatedTaxAmount,
@@ -2800,8 +2839,29 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                         <td className="p-3 font-mono text-slate-400">{idx + 1}</td>
                                                         <td className="p-3 font-bold text-slate-800">{item.description}</td>
                                                         <td className="p-3 text-center font-mono">{item.quantity}</td>
-                                                        <td className="p-3 text-right font-mono">{previewInvoice.currency || formCurrency} {Number(item.unitPrice).toLocaleString()}</td>
-                                                        <td className="p-3 text-right font-mono font-bold">{previewInvoice.currency || formCurrency} {Number(item.amount).toLocaleString()}</td>
+                                                        <td className="p-3 text-right font-mono">
+                                                            {(() => {
+                                                                const qty = Number(item.quantity) || 1;
+                                                                const amt = Number(item.amount);
+                                                                let uPrice = Number(item.unitPrice ?? (item as any).unit_price ?? (item as any).rate ?? (item as any).price);
+                                                                if (isNaN(uPrice) || uPrice <= 0) {
+                                                                    uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                                                                }
+                                                                return `${previewInvoice.currency || formCurrency} ${uPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                                            })()}
+                                                        </td>
+                                                        <td className="p-3 text-right font-mono font-bold">
+                                                            {(() => {
+                                                                const qty = Number(item.quantity) || 1;
+                                                                const amt = Number(item.amount);
+                                                                let uPrice = Number(item.unitPrice ?? (item as any).unit_price ?? (item as any).rate ?? (item as any).price);
+                                                                if (isNaN(uPrice) || uPrice <= 0) {
+                                                                    uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                                                                }
+                                                                const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * uPrice);
+                                                                return `${previewInvoice.currency || formCurrency} ${finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                                            })()}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

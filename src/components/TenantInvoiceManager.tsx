@@ -1262,8 +1262,29 @@ export const TenantInvoiceManager: React.FC<TenantInvoiceManagerProps> = ({
                                                         <tr key={idx} className="text-xs text-slate-700 dark:text-slate-300">
                                                             <td className="px-5 py-3 font-semibold text-slate-800 dark:text-white">{item.description}</td>
                                                             <td className="px-5 py-3 text-center font-mono">{item.quantity}</td>
-                                                            <td className="px-5 py-3 text-right font-mono">{item.unitPrice?.toLocaleString()}</td>
-                                                            <td className="px-5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">{(item.quantity * item.unitPrice)?.toLocaleString()}</td>
+                                                            <td className="px-5 py-3 text-right font-mono">
+                                                                {(() => {
+                                                                    const qty = Number(item.quantity) || 1;
+                                                                    const amt = Number(item.amount);
+                                                                    let uPrice = Number(item.unitPrice ?? item.unit_price ?? item.rate ?? item.price);
+                                                                    if (isNaN(uPrice) || uPrice <= 0) {
+                                                                        uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                                                                    }
+                                                                    return uPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                                                })()}
+                                                            </td>
+                                                            <td className="px-5 py-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                                                {(() => {
+                                                                    const qty = Number(item.quantity) || 1;
+                                                                    const amt = Number(item.amount);
+                                                                    let uPrice = Number(item.unitPrice ?? item.unit_price ?? item.rate ?? item.price);
+                                                                    if (isNaN(uPrice) || uPrice <= 0) {
+                                                                        uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                                                                    }
+                                                                    const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * uPrice);
+                                                                    return finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                                                })()}
+                                                            </td>
                                                         </tr>
                                                     ));
                                                 })()}

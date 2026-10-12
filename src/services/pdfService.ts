@@ -443,13 +443,32 @@ export const generateInvoicePdfDataUri = async (
 
     // Main line items table
     const head = [['#', 'DESCRIPTION / BILLABLE ITEM', 'QTY', `UNIT PRICE (${docCurrency})`, `TOTAL AMOUNT (${docCurrency})`]];
-    const body = (invoice?.items || []).map((item, index) => [
-        index + 1,
-        item.description,
-        item.quantity,
-        `${docCurrency} ${item.unitPrice?.toLocaleString()}.00`,
-        `${docCurrency} ${item.amount?.toLocaleString()}.00`
-    ]);
+    const rawItems: any[] = Array.isArray(invoice?.items) 
+        ? invoice.items 
+        : (typeof (invoice as any)?.items === 'string' 
+            ? (() => { try { return JSON.parse((invoice as any).items); } catch { return []; } })() 
+            : []);
+
+    const body = rawItems.map((item: any, index: number) => {
+        const qty = Number(item.quantity) || 1;
+        const amt = Number(item.amount);
+        let unitPrice = Number(item.unitPrice ?? item.unit_price ?? item.rate ?? item.price);
+        if (isNaN(unitPrice) || unitPrice <= 0) {
+            unitPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+        }
+        const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * unitPrice);
+
+        const formattedUnitPrice = `${docCurrency} ${unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const formattedTotalAmount = `${docCurrency} ${finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        return [
+            index + 1,
+            item.description || item.name || 'Billable Item',
+            qty,
+            formattedUnitPrice,
+            formattedTotalAmount
+        ];
+    });
 
     doc.autoTable({
         head: head,
@@ -475,9 +494,28 @@ export const generateInvoicePdfDataUri = async (
     doc.line(margin, finalY + 5, pageWidth - margin, finalY + 5);
 
     const invCurrency = invoice?.currency || 'KES';
-    const subtotalAmount = Number(invoice?.subtotal) || Number(invoice?.totalAmount) || 0;
-    const taxAmountVal = Number(invoice?.taxAmount) || 0;
+    const subtotalAmount = Number(invoice?.subtotal !== undefined 
+        ? invoice.subtotal 
+        : (rawItems.length > 0 
+            ? rawItems.reduce((sum: number, it: any) => {
+                const qty = Number(it.quantity) || 1;
+                const amt = Number(it.amount);
+                let unitPrice = Number(it.unitPrice ?? it.unit_price ?? it.rate ?? it.price);
+                if (isNaN(unitPrice) || unitPrice <= 0) {
+                    unitPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                }
+                const lineAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * unitPrice);
+                return sum + lineAmt;
+            }, 0)
+            : Number(invoice?.totalAmount || 0))) || 0;
+
     const taxRateVal = invoice?.taxRate !== undefined ? Number(invoice.taxRate) : 0;
+    const taxAmountVal = Number(invoice?.taxAmount !== undefined 
+        ? invoice.taxAmount 
+        : Math.round((subtotalAmount * taxRateVal) / 100)) || 0;
+    const totalAmountVal = Number(invoice?.totalAmount !== undefined 
+        ? invoice.totalAmount 
+        : (subtotalAmount + taxAmountVal)) || 0;
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -485,14 +523,14 @@ export const generateInvoicePdfDataUri = async (
     doc.text('SUBTOTAL:', pageWidth - margin - 75, finalY + 12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${invCurrency} ${subtotalAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+    doc.text(`${invCurrency} ${subtotalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, finalY + 12, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
     doc.text(`VAT / TAX (${taxRateVal}%):`, pageWidth - margin - 75, finalY + 17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${invCurrency} ${taxAmountVal.toLocaleString()}.00`, pageWidth - margin, finalY + 17, { align: 'right' });
+    doc.text(`${invCurrency} ${taxAmountVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, finalY + 17, { align: 'right' });
 
     // Net total paid amount container box
     const totalBoxY = finalY + 21;
@@ -503,7 +541,7 @@ export const generateInvoicePdfDataUri = async (
     doc.setFontSize(9.5);
     doc.setTextColor(79, 70, 229); // Indigo-600 (Primary accent)
     doc.text('TOTAL PAYABLE AMOUNT:', pageWidth - margin - 75, totalBoxY + 7);
-    doc.text(`${invCurrency} ${(invoice?.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+    doc.text(`${invCurrency} ${totalAmountVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
 
     // Payment details / instructions
     const instructionsY = totalBoxY + 20;
@@ -1560,13 +1598,32 @@ export const generateQuotePdfDataUri = async (
 
     // Main line items table
     const head = [['#', 'DESCRIPTION / ESTIMATED ITEM', 'QTY', `UNIT PRICE (${quoteCurrency})`, `TOTAL AMOUNT (${quoteCurrency})`]];
-    const body = (quote?.items || []).map((item, index) => [
-        index + 1,
-        item.description,
-        item.quantity,
-        `${quoteCurrency} ${item.unitPrice?.toLocaleString()}.00`,
-        `${quoteCurrency} ${item.amount?.toLocaleString()}.00`
-    ]);
+    const rawItems: any[] = Array.isArray(quote?.items) 
+        ? quote.items 
+        : (typeof (quote as any)?.items === 'string' 
+            ? (() => { try { return JSON.parse((quote as any).items); } catch { return []; } })() 
+            : []);
+
+    const body = rawItems.map((item: any, index: number) => {
+        const qty = Number(item.quantity) || 1;
+        const amt = Number(item.amount);
+        let unitPrice = Number(item.unitPrice ?? item.unit_price ?? item.rate ?? item.price);
+        if (isNaN(unitPrice) || unitPrice <= 0) {
+            unitPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+        }
+        const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * unitPrice);
+
+        const formattedUnitPrice = `${quoteCurrency} ${unitPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const formattedTotalAmount = `${quoteCurrency} ${finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        return [
+            index + 1,
+            item.description || item.name || 'Estimated Item',
+            qty,
+            formattedUnitPrice,
+            formattedTotalAmount
+        ];
+    });
 
     doc.autoTable({
         head: head,
@@ -1592,14 +1649,23 @@ export const generateQuotePdfDataUri = async (
     doc.line(margin, finalY + 5, pageWidth - margin, finalY + 5);
 
     const subtotal = (quote as any)?.subtotal !== undefined 
-        ? (quote as any).subtotal 
-        : (quote?.items || []).reduce((sum, item) => sum + (item.amount || 0), 0);
-    const taxRate = (quote as any)?.taxRate !== undefined ? (quote as any).taxRate : ((quote as any)?.tax_rate || 0);
+        ? Number((quote as any).subtotal) 
+        : rawItems.reduce((sum: number, it: any) => {
+            const qty = Number(it.quantity) || 1;
+            const amt = Number(it.amount);
+            let unitPrice = Number(it.unitPrice ?? it.unit_price ?? it.rate ?? it.price);
+            if (isNaN(unitPrice) || unitPrice <= 0) {
+                unitPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+            }
+            const lineAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * unitPrice);
+            return sum + lineAmt;
+        }, 0);
+    const taxRate = (quote as any)?.taxRate !== undefined ? Number((quote as any).taxRate) : Number((quote as any)?.tax_rate || 0);
     const taxAmount = (quote as any)?.taxAmount !== undefined 
-        ? (quote as any).taxAmount 
+        ? Number((quote as any).taxAmount) 
         : Math.round((subtotal * taxRate) / 100);
     const finalTotal = (quote as any)?.totalAmount !== undefined && (quote as any)?.taxRate !== undefined 
-        ? (quote as any).totalAmount 
+        ? Number((quote as any).totalAmount) 
         : (subtotal + taxAmount);
 
     doc.setFont('helvetica', 'normal');
@@ -1608,14 +1674,14 @@ export const generateQuotePdfDataUri = async (
     doc.text('SUBTOTAL ESTIMATE:', pageWidth - margin - 75, finalY + 12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${quoteCurrency} ${subtotal.toLocaleString()}.00`, pageWidth - margin, finalY + 12, { align: 'right' });
+    doc.text(`${quoteCurrency} ${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, finalY + 12, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
     doc.text(`ESTIMATED TAX / VAT (${taxRate}%):`, pageWidth - margin - 75, finalY + 17);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
-    doc.text(`${quoteCurrency} ${taxAmount.toLocaleString()}.00`, pageWidth - margin, finalY + 17, { align: 'right' });
+    doc.text(`${quoteCurrency} ${taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, finalY + 17, { align: 'right' });
 
     // Net total paid amount container box
     const totalBoxY = finalY + 21;
@@ -1626,7 +1692,7 @@ export const generateQuotePdfDataUri = async (
     doc.setFontSize(9.5);
     doc.setTextColor(79, 70, 229); // Indigo-600 (Primary accent)
     doc.text('TOTAL ESTIMATED AMOUNT:', pageWidth - margin - 75, totalBoxY + 7);
-    doc.text(`${quoteCurrency} ${finalTotal.toLocaleString()}.00`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
+    doc.text(`${quoteCurrency} ${finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, totalBoxY + 7, { align: 'right' });
 
     // Stamp / Authorized Signature
     const sigBaseY = pageHeight - 55;

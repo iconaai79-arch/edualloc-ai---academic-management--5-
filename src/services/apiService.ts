@@ -172,6 +172,32 @@ function toSnakeCase(obj: any): any {
     Object.keys(obj).forEach(key => {
         if (key === 'isImpersonated') return; // Skip internal session-only flags
         let val = obj[key];
+        if (key === 'items') {
+            let parsedVal = val;
+            if (typeof parsedVal === 'string') {
+                try { parsedVal = JSON.parse(parsedVal); } catch {}
+            }
+            if (Array.isArray(parsedVal)) {
+                newObj.items = parsedVal.map((it: any) => {
+                    if (typeof it !== 'object' || it === null) return it;
+                    const snakeItem = toSnakeCase(it);
+                    const qty = Number(snakeItem.quantity) || 1;
+                    const amt = Number(snakeItem.amount);
+                    let uPrice = Number(snakeItem.unit_price ?? snakeItem.unitPrice ?? it.rate ?? it.price);
+                    if (isNaN(uPrice) || uPrice <= 0) {
+                        uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                    }
+                    const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * uPrice);
+                    return {
+                        ...snakeItem,
+                        unit_price: uPrice,
+                        unitPrice: uPrice,
+                        amount: finalAmt
+                    };
+                });
+                return;
+            }
+        }
         const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
         if (PROTECTED_KEYS.has(key) || PROTECTED_KEYS.has(snakeKey)) {
             newObj[snakeKey] = val;
@@ -187,9 +213,36 @@ export function toCamelCase(obj: any): any {
     if (Array.isArray(obj)) return obj.map((item: any) => toCamelCase(item));
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
+        let val = obj[key];
+        if (key === 'items') {
+            let parsedVal = val;
+            if (typeof parsedVal === 'string') {
+                try { parsedVal = JSON.parse(parsedVal); } catch {}
+            }
+            if (Array.isArray(parsedVal)) {
+                newObj.items = parsedVal.map((it: any) => {
+                    if (typeof it !== 'object' || it === null) return it;
+                    const camelItem = toCamelCase(it);
+                    const qty = Number(camelItem.quantity) || 1;
+                    const amt = Number(camelItem.amount);
+                    let uPrice = Number(camelItem.unitPrice ?? camelItem.unit_price ?? it.rate ?? it.price);
+                    if (isNaN(uPrice) || uPrice <= 0) {
+                        uPrice = (!isNaN(amt) && qty > 0) ? (amt / qty) : 0;
+                    }
+                    const finalAmt = (!isNaN(amt) && amt > 0) ? amt : (qty * uPrice);
+                    return {
+                        ...camelItem,
+                        unitPrice: uPrice,
+                        unit_price: uPrice,
+                        amount: finalAmt
+                    };
+                });
+                return;
+            }
+        }
         const camelKey = key.replace(/_([a-z0-9])/g, (_, letter) => letter.toUpperCase());
         if (PROTECTED_KEYS.has(key) || PROTECTED_KEYS.has(camelKey)) {
-            newObj[camelKey] = obj[key];
+            newObj[camelKey] = val;
         } else {
             newObj[camelKey] = toCamelCase(obj[key]);
         }
