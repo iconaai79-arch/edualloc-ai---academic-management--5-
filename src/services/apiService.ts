@@ -3240,6 +3240,8 @@ export const apiService = {
                 delete item.licenseTypeInterested;
                 delete item.preferred_lesson_hours;
                 delete item.preferredLessonHours;
+                delete item.skip_welcome_sms;
+                delete item.skipWelcomeSms;
             }
             if (module === 'ds_vehicles') {
                 delete item.assigned_instructor_id;

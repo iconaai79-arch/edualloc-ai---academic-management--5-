@@ -449,6 +449,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 paymentStatus: isPrepaid ? 'unpaid' : 'paid',
                 createdAt: new Date().toISOString()
             };
+            delete (newStudent as any).skipWelcomeSms;
+            delete (newStudent as any).skip_welcome_sms;
             
             await apiService.saveModuleRecord('ds_students', newStudent);
 
@@ -485,8 +487,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             } else {
                 success("Student enrolled successfully");
 
-                // Automated Welcome Credentials via SMS
-                if (data.phone && data.phone.trim().length >= 9) {
+                // Automated Welcome Credentials via SMS (can be suppressed for bulk imports)
+                if (!data.skipWelcomeSms && data.phone && data.phone.trim().length >= 9) {
                     try {
                         const companySettings = await apiService.fetchCompanySettings().catch(() => null);
                         const portalTitle = inst.name || 'Driving School';
@@ -509,7 +511,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to enroll student");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, info]);
+    }, [institutionId, onRefresh, success, error, info, students, settings]);
 
     const verifyStudentPayment = useCallback(async (studentId: string) => {
         if (!institutionId) return;

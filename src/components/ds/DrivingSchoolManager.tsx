@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import * as XLSX from 'xlsx';
+import { readSpreadsheet, autoMapHeaders, parseAmount, cleanPhone, phoneKey, toIsoDate, createAdmissionNumberGenerator } from './dsExcelImport';
 import { authenticateWebAuthn, captureUsbFingerprint, registerWebAuthn, verifyUsbFingerprint } from '../../utils/biometrics';
 import { PdfViewer } from '../PdfViewer';
 import { 
@@ -93,93 +94,216 @@ interface DrivingSchoolManagerProps {
     letterheadConfig?: LetterheadConfig;
 }
 
-const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data: any[]) => Promise<void> }> = ({ onClose, onImport }) => {
+export interface DSImportResult {
+    created: number;
+    failed: number;
+    invoicesSaved: number;
+    invoicesFailed: number;
+    errors: string[];
+}
+
+const STUDENT_IMPORT_FIELDS = ['admissionNumber', 'openingBalance', 'phone', 'email', 'idNumber', 'enrollmentDate', 'licenseTypeInterested', 'fullName'];
+
+const SmartStudentImporterModal: React.FC<{
+    onClose: () => void;
+    onImport: (studentsToCreate: any[], invoicesToCreate: any[]) => Promise<DSImportResult>;
+    settings: DSSettings | null;
+    students: DSStudent[];
+}> = ({ onClose, onImport, settings, students }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [step, setStep] = useState<'upload' | 'map'>('upload');
-    const { error: toastError, success: toastSuccess } = useToast();
+    const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+    const [rawData, setRawData] = useState<any[]>([]);
+    const [selectedVoteId, setSelectedVoteId] = useState<string>('');
+    const [sendWelcomeSms, setSendWelcomeSms] = useState<boolean>(false);
+    const { error: toastError, success: toastSuccess, info: toastInfo } = useToast();
 
-    // Mock detected headers from the uploaded spreadsheet
-    const detectedHeaders = ['Name', 'Email Address', 'Phone Number', 'National ID', 'License Category', 'Date Enrolled'];
-
-    // State to hold user field mappings
     const [mappings, setMappings] = useState<Record<string, string>>({
-        fullName: 'Name',
-        email: 'Email Address',
-        phone: 'Phone Number',
-        idNumber: 'National ID',
-        licenseTypeInterested: 'License Category',
-        enrollmentDate: 'Date Enrolled'
+        fullName: '',
+        phone: '',
+        email: '',
+        idNumber: '',
+        admissionNumber: '',
+        licenseTypeInterested: '',
+        enrollmentDate: '',
+        openingBalance: ''
     });
 
-    // Mock spreadsheet row values based on detectedHeaders
-    const mockRows = [
-        ['John Doe', 'john@example.com', '0711223344', '33445566', 'Class C1', '2026-05-20'],
-        ['Jane Smith', 'jane@example.com', '0722334455', '88776655', 'Class B', '2026-05-22']
-    ];
+    const votesList: any[] = (settings as any)?.votes || [];
 
-    // Compute preview data dynamically based on active mappings
+    const handleFileSelect = async (selectedFile: File) => {
+        setFile(selectedFile);
+        try {
+            const { headers, rows } = await readSpreadsheet(selectedFile);
+            if (!headers.length || !rows.length) {
+                toastError("No header row or data rows were found in the spreadsheet.");
+                setFile(null);
+                return;
+            }
+            setDetectedHeaders(headers);
+            setRawData(rows);
+            setMappings(autoMapHeaders(headers, STUDENT_IMPORT_FIELDS));
+            setStep('map');
+        } catch (err: any) {
+            toastError("Failed to parse sheet: " + (err?.message || err));
+            setFile(null);
+        }
+    };
+
+    const getVal = (row: any, key: string) => (mappings[key] ? row[mappings[key]] : '');
+    const getStr = (row: any, key: string) => String(getVal(row, key) ?? '').replace(/\s+/g, ' ').trim();
+
     const previewData = useMemo(() => {
-        return mockRows.map(row => {
-            const mappedRecord: any = {};
-            const keys = ['fullName', 'email', 'phone', 'idNumber', 'licenseTypeInterested', 'enrollmentDate'];
-            keys.forEach(key => {
-                const mappedHeaderName = mappings[key];
-                const headerIndex = detectedHeaders.indexOf(mappedHeaderName);
-                mappedRecord[key] = headerIndex !== -1 ? row[headerIndex] : '—';
-            });
-            return mappedRecord;
-        });
-    }, [mappings]);
+        return rawData.slice(0, 5).map(row => ({
+            fullName: getStr(row, 'fullName') || '—',
+            phone: cleanPhone(getVal(row, 'phone')) || '—',
+            admissionNumber: getStr(row, 'admissionNumber') || 'Auto',
+            licenseTypeInterested: getStr(row, 'licenseTypeInterested') || '—',
+            openingBalance: parseAmount(getVal(row, 'openingBalance'))
+        }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rawData, mappings]);
+
+    const rowsWithBalance = useMemo(() => {
+        if (!mappings.openingBalance) return 0;
+        return rawData.filter(r => parseAmount(r[mappings.openingBalance]) > 0).length;
+    }, [rawData, mappings.openingBalance]);
+
+    const needsVote = rowsWithBalance > 0 && votesList.length > 0;
 
     const handleImport = async () => {
         if (!file) return;
+        if (!mappings.fullName) {
+            toastError("Full Name column must be mapped.");
+            return;
+        }
+        if (needsVote && !selectedVoteId) {
+            toastError("Select the target Votehead for the opening balances.");
+            return;
+        }
+
         setIsProcessing(true);
         try {
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            // Build the final dataset based on the user's mapped choices
-            const finalData = mockRows.map(row => {
-                const record: any = {};
-                const keys = ['fullName', 'email', 'phone', 'idNumber', 'licenseTypeInterested', 'enrollmentDate'];
-                keys.forEach(key => {
-                    const mappedHeaderName = mappings[key];
-                    const headerIndex = detectedHeaders.indexOf(mappedHeaderName);
-                    record[key] = headerIndex !== -1 ? row[headerIndex] : '';
-                });
-                return record;
+            const admGen = createAdmissionNumberGenerator(settings?.studentIdPrefix, students.map(s => s.admissionNumber || ''));
+            const existingByAdm = new Map<string, DSStudent>();
+            const existingByPhone = new Map<string, DSStudent>();
+            students.forEach(s => {
+                if (s.admissionNumber) existingByAdm.set(s.admissionNumber.toLowerCase().trim(), s);
+                const pk = phoneKey(s.phone);
+                if (pk.length >= 9) existingByPhone.set(pk, s);
             });
-            await onImport(finalData);
-            toastSuccess("Students imported successfully!");
+
+            const targetVote = votesList.find((v: any) => v.id === selectedVoteId);
+            const voteName = targetVote ? (targetVote.voteName || targetVote.vote_name) : 'Opening Balance';
+
+            const studentsToCreate: any[] = [];
+            const invoicesToCreate: any[] = [];
+            const seenPhones = new Set<string>();
+            let alreadyExists = 0;
+            let emptyRows = 0;
+            const stamp = Date.now();
+
+            rawData.forEach((row, idx) => {
+                const fullName = getStr(row, 'fullName');
+                if (!fullName) { emptyRows++; return; }
+
+                const phone = cleanPhone(getVal(row, 'phone'));
+                const pk = phoneKey(phone);
+                let admissionNumber = getStr(row, 'admissionNumber');
+
+                const existing = (admissionNumber && existingByAdm.get(admissionNumber.toLowerCase())) || (pk.length >= 9 && existingByPhone.get(pk));
+                if (existing || (pk.length >= 9 && seenPhones.has(pk)) || (admissionNumber && admGen.isTaken(admissionNumber))) {
+                    alreadyExists++;
+                    return;
+                }
+                if (pk.length >= 9) seenPhones.add(pk);
+                if (admissionNumber) admGen.reserve(admissionNumber);
+                else admissionNumber = admGen.next();
+
+                const studentId = `dss_imp_${stamp}_${idx}_${Math.random().toString(36).substr(2, 5)}`;
+                const enrollmentDate = toIsoDate(getVal(row, 'enrollmentDate'));
+                const student: any = {
+                    id: studentId,
+                    fullName,
+                    admissionNumber,
+                    phone: phone || undefined,
+                    email: getStr(row, 'email') || undefined,
+                    idNumber: getStr(row, 'idNumber') || undefined,
+                    licenseTypeInterested: getStr(row, 'licenseTypeInterested') || undefined,
+                    enrollmentDate: enrollmentDate || undefined,
+                    skipWelcomeSms: !sendWelcomeSms
+                };
+                studentsToCreate.push(student);
+
+                const balance = parseAmount(getVal(row, 'openingBalance'));
+                if (balance > 0) {
+                    const salt = Math.random().toString(36).substr(2, 4).toUpperCase();
+                    invoicesToCreate.push({
+                        id: `dsi_opb_${stamp}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
+                        studentId,
+                        studentName: fullName,
+                        invoiceNumber: `OPB-${stamp.toString().slice(-6)}-${String(idx + 1).padStart(3, '0')}-${salt}`,
+                        totalAmount: balance,
+                        paidAmount: 0,
+                        balance,
+                        status: 'Pending',
+                        items: [{
+                            name: `Opening Balance - ${voteName}`,
+                            amount: balance,
+                            ...(selectedVoteId ? { voteHeadId: selectedVoteId } : {})
+                        }],
+                        isOpeningBalance: true,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+            });
+
+            if (studentsToCreate.length === 0) {
+                toastError(alreadyExists > 0
+                    ? `Nothing to import — all ${alreadyExists} students already exist.`
+                    : "No valid rows found. Check that the Full Name column is mapped correctly.");
+                return;
+            }
+
+            toastInfo(`Importing ${studentsToCreate.length} students… please keep this window open.`);
+            const result = await onImport(studentsToCreate, invoicesToCreate);
+
+            const parts = [`${result.created} students imported`];
+            if (result.invoicesSaved) parts.push(`${result.invoicesSaved} opening balances posted`);
+            if (alreadyExists) parts.push(`${alreadyExists} already existed (skipped)`);
+            if (emptyRows) parts.push(`${emptyRows} rows without a name skipped`);
+            if (result.failed || result.invoicesFailed) {
+                toastError(`${parts.join(', ')}. ${result.failed} students and ${result.invoicesFailed} balances failed — see console for details.`);
+                console.warn('[DS Import] Failures:', result.errors);
+            } else {
+                toastSuccess(parts.join(', ') + '.');
+            }
             onClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error("Import failed:", err);
-            toastError("Failed to import students. Please check your file format.");
+            toastError("Failed to import students: " + (err?.message || 'unknown error'));
         } finally {
             setIsProcessing(false);
         }
     };
 
-    const handleFileSelect = (selectedFile: File) => {
-        setFile(selectedFile);
-        setStep('map');
-    };
-
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20">
-                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[92vh] rounded-[3rem] shadow-2xl overflow-hidden animate-scale-in border border-white/20 flex flex-col">
+                <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
                     <div>
                         <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Smart Student Importer</h3>
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
                             {step === 'upload' ? 'Bulk onboard students from Excel/CSV' : 'Map fields and columns'}
                         </p>
                     </div>
-                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 transition-colors">
+                    <button onClick={onClose} className="p-3 bg-slate-100 dark:bg-slate-800 rounded-2xl hover:bg-slate-200 transition-colors" title="Close Importer">
                         <XIcon className="w-5 h-5 text-slate-500" />
                     </button>
                 </div>
                 
-                <div className="p-8">
+                <div className="p-8 overflow-y-auto flex-grow">
                     {step === 'upload' ? (
                         <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-12 hover:border-indigo-500 transition-colors group cursor-pointer text-center">
                             <input 
@@ -189,6 +313,7 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
                                 id="excel-upload"
                                 onChange={(e) => {
                                     if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                                    e.target.value = '';
                                 }}
                             />
                             <label htmlFor="excel-upload" className="cursor-pointer">
@@ -207,32 +332,38 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
                                 </div>
                                 <div className="flex-1">
                                     <h4 className="font-bold text-slate-900 dark:text-white text-xs tracking-tight">{file?.name}</h4>
-                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">{(file ? file.size / 1024 : 0).toFixed(1)} KB • Mapping Headers</p>
+                                    <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mt-0.5">
+                                        {(file ? file.size / 1024 : 0).toFixed(1)} KB • {rawData.length} rows • {detectedHeaders.length} columns detected
+                                    </p>
                                 </div>
-                                <button onClick={() => { setFile(null); setStep('upload'); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
+                                <button onClick={() => { setFile(null); setStep('upload'); setRawData([]); setDetectedHeaders([]); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest">Change</button>
                             </div>
 
                             {/* Mapping Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
                                     { key: 'fullName', label: 'Full Name *', desc: 'Candidate legal name' },
-                                    { key: 'phone', label: 'Phone Number *', desc: 'Primary SMS target' },
+                                    { key: 'phone', label: 'Phone Number', desc: 'Primary SMS target' },
+                                    { key: 'admissionNumber', label: 'Admission Number', desc: 'Auto-generated if empty' },
+                                    { key: 'openingBalance', label: 'Opening Balance', desc: 'Outstanding fees (KES)' },
                                     { key: 'email', label: 'Email Address', desc: 'Tuition receipt copy destination' },
                                     { key: 'idNumber', label: 'National ID / Passport', desc: 'NTSA compliance lookup' },
                                     { key: 'licenseTypeInterested', label: 'License Class', desc: 'Enrolled category' },
                                     { key: 'enrollmentDate', label: 'Enrollment Date', desc: 'Admission date' }
                                 ].map(field => (
-                                    <div key={field.key} className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                    <div key={field.key} className={`p-4 rounded-xl border flex flex-col gap-2 ${mappings[field.key] ? 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/40' : 'bg-slate-50 dark:bg-slate-800/30 border-slate-100 dark:border-slate-800/40'}`}>
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{field.label}</label>
                                                 <p className="text-[9px] text-slate-400 font-medium mt-0.5">{field.desc}</p>
                                             </div>
+                                            {mappings[field.key] && <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Matched</span>}
                                         </div>
                                         <div className="relative">
                                             <select
                                                 value={mappings[field.key] || ''}
                                                 onChange={(e) => setMappings(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                                title={field.label}
                                                 className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
                                             >
                                                 <option value="">-- Ignore Field --</option>
@@ -245,17 +376,62 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
                                 ))}
                             </div>
 
+                            {rowsWithBalance > 0 && (
+                                <div className="bg-indigo-50/60 dark:bg-indigo-900/10 p-5 rounded-[2rem] border border-indigo-100 dark:border-indigo-900/40 flex flex-col gap-2 animate-fade-in">
+                                    <label className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest">
+                                        Opening Balance Votehead {needsVote ? '*' : ''} • {rowsWithBalance} students with balances
+                                    </label>
+                                    {votesList.length > 0 ? (
+                                        <select
+                                            value={selectedVoteId}
+                                            onChange={e => setSelectedVoteId(e.target.value)}
+                                            title="Opening balance votehead"
+                                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500 font-bold text-xs text-slate-800 dark:text-slate-200 appearance-none cursor-pointer"
+                                        >
+                                            <option value="">-- Select Target Votehead --</option>
+                                            {votesList.map((v: any) => (
+                                                <option key={v.id} value={v.id}>{v.voteName || v.vote_name}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <p className="text-[10px] text-slate-500 font-medium">No voteheads configured — balances will be posted as a general "Opening Balance" invoice.</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Welcome SMS Option */}
+                            <label className="flex items-center gap-3.5 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800/60 cursor-pointer select-none group transition-colors hover:bg-slate-100/60 dark:hover:bg-slate-800/60">
+                                <input
+                                    type="checkbox"
+                                    checked={sendWelcomeSms}
+                                    onChange={(e) => setSendWelcomeSms(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 dark:border-slate-700 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Send Welcome SMS with portal login credentials</span>
+                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${sendWelcomeSms ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                            {sendWelcomeSms ? 'Uses SMS Credits' : 'SMS Off (Recommended for Bulk)'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                        Sends SMS with portal URL and temporary password to students with valid phone numbers. Leave unchecked to avoid SMS charges during bulk onboarding.
+                                    </p>
+                                </div>
+                            </label>
+
                             {/* real-time preview table */}
                             <div className="space-y-2">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Real-time Mapped Row Preview</h4>
-                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-x-auto bg-slate-50 dark:bg-slate-900">
                                     <table className="w-full text-left text-xs border-collapse">
                                         <thead>
                                             <tr className="bg-slate-100 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                                                 <th className="p-3">Full Name</th>
                                                 <th className="p-3">Phone</th>
-                                                <th className="p-3">ID / Pass</th>
+                                                <th className="p-3">ADM No</th>
                                                 <th className="p-3">Category</th>
+                                                <th className="p-3 text-right">Balance</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -263,8 +439,9 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
                                                 <tr key={idx} className="text-slate-700 dark:text-slate-300">
                                                     <td className="p-3 font-semibold">{row.fullName}</td>
                                                     <td className="p-3">{row.phone}</td>
-                                                    <td className="p-3">{row.idNumber}</td>
+                                                    <td className="p-3 font-mono">{row.admissionNumber}</td>
                                                     <td className="p-3 font-bold text-indigo-600 dark:text-indigo-400">{row.licenseTypeInterested}</td>
+                                                    <td className="p-3 text-right font-bold">{row.openingBalance ? `KES ${row.openingBalance.toLocaleString()}` : '—'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -275,17 +452,17 @@ const SmartStudentImporterModal: React.FC<{ onClose: () => void; onImport: (data
                             <div className="pt-2">
                                 <button 
                                     onClick={handleImport}
-                                    disabled={isProcessing || !mappings.fullName || !mappings.phone}
+                                    disabled={isProcessing || !mappings.fullName || (needsVote && !selectedVoteId)}
                                     className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
                                 >
-                                    {isProcessing ? 'Processing Mapped Data...' : 'Run Smart Importer'}
+                                    {isProcessing ? 'Importing Students...' : `Import ${rawData.length} Rows`}
                                 </button>
                             </div>
                         </div>
                     )}
                 </div>
                 
-                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 shrink-0">
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported formats: .xlsx, .csv, .xls</p>
                     <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Cancel</button>
                 </div>
@@ -1055,7 +1232,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
 
 const SmartOpeningBalanceImporterModal: React.FC<{
     onClose: () => void;
-    onImport: (studentsToCreate: any[], invoicesToCreate: any[]) => Promise<void>;
+    onImport: (studentsToCreate: any[], invoicesToCreate: any[]) => Promise<DSImportResult>;
     settings: DSSettings | null;
     students: DSStudent[];
 }> = ({ onClose, onImport, settings, students }) => {
@@ -1065,6 +1242,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
     const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
     const [rawData, setRawData] = useState<any[]>([]);
     const [selectedVoteId, setSelectedVoteId] = useState<string>('');
+    const [sendWelcomeSms, setSendWelcomeSms] = useState<boolean>(false);
     const { error: toastError, success: toastSuccess } = useToast();
 
     const [mappings, setMappings] = useState<Record<string, string>>({
@@ -1075,42 +1253,30 @@ const SmartOpeningBalanceImporterModal: React.FC<{
         balance: ''
     });
 
-    const handleFileSelect = (selectedFile: File) => {
+    const handleFileSelect = async (selectedFile: File) => {
         setFile(selectedFile);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = new Uint8Array(e.target?.result as ArrayBuffer);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const sheetData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                
-                if (sheetData.length === 0) {
-                    toastError("Spreadsheet is empty.");
-                    return;
-                }
-
-                const headers = sheetData[0].filter((h: any) => h !== null && h !== '');
-                setDetectedHeaders(headers);
-
-                const newMappings = {
-                    fullName: headers.find((h: any) => /name|full/i.test(String(h))) || '',
-                    phone: headers.find((h: any) => /phone|mobile|tel/i.test(String(h))) || '',
-                    email: headers.find((h: any) => /mail/i.test(String(h))) || '',
-                    admissionNumber: headers.find((h: any) => /adm|number|reg/i.test(String(h))) || '',
-                    balance: headers.find((h: any) => /bal|amount|open/i.test(String(h))) || ''
-                };
-                setMappings(newMappings);
-
-                const rowsJson = XLSX.utils.sheet_to_json(worksheet);
-                setRawData(rowsJson);
-                setStep('map');
-            } catch (err: any) {
-                toastError("Failed to parse sheet: " + err.message);
+        try {
+            const { headers, rows } = await readSpreadsheet(selectedFile);
+            if (!headers.length || !rows.length) {
+                toastError("No header row or data rows were found in the spreadsheet.");
+                setFile(null);
+                return;
             }
-        };
-        reader.readAsArrayBuffer(selectedFile);
+            setDetectedHeaders(headers);
+            const auto = autoMapHeaders(headers, ['admissionNumber', 'openingBalance', 'phone', 'email', 'fullName']);
+            setMappings({
+                fullName: auto.fullName,
+                phone: auto.phone,
+                email: auto.email,
+                admissionNumber: auto.admissionNumber,
+                balance: auto.openingBalance
+            });
+            setRawData(rows);
+            setStep('map');
+        } catch (err: any) {
+            toastError("Failed to parse sheet: " + (err?.message || err));
+            setFile(null);
+        }
     };
 
     const previewData = useMemo(() => {
@@ -1120,7 +1286,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                 phone: row[mappings.phone] || '—',
                 email: row[mappings.email] || '—',
                 admissionNumber: row[mappings.admissionNumber] || '—',
-                balance: Number(row[mappings.balance]) || 0
+                balance: parseAmount(row[mappings.balance])
             };
         });
     }, [rawData, mappings]);
@@ -1144,90 +1310,64 @@ const SmartOpeningBalanceImporterModal: React.FC<{
             const targetVote = votesList.find((v: any) => v.id === selectedVoteId);
             const voteName = targetVote ? (targetVote.voteName || (targetVote as any).vote_name) : 'Opening Balance';
 
-            // Calculate starting sequential admission number just in case some are empty
-            const prefixStr = (settings?.studentIdPrefix || 'ADM-').trim();
-            const asNum = Number(prefixStr);
-            let nextAdmNum = 0;
-            const isNumericPrefix = !isNaN(asNum) && prefixStr !== '';
-            
-            if (isNumericPrefix) {
-                let maxVal = asNum;
-                students.forEach(s => {
-                    if (s.admissionNumber) {
-                        const sNum = Number(s.admissionNumber.trim());
-                        if (!isNaN(sNum) && sNum > maxVal) {
-                            maxVal = sNum;
-                        }
-                    }
-                });
-                nextAdmNum = maxVal + 1;
-            } else {
-                let maxNum = 0;
-                students.forEach(s => {
-                    if (s.admissionNumber && s.admissionNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
-                        const remainder = s.admissionNumber.slice(prefixStr.length).trim();
-                        const match = remainder.match(/\d+/);
-                        if (match) {
-                            const num = parseInt(match[0], 10);
-                            if (!isNaN(num) && num > maxNum) {
-                                maxNum = num;
-                            }
-                        }
-                    }
-                });
-                nextAdmNum = maxNum + 1;
-            }
+            const admGen = createAdmissionNumberGenerator(settings?.studentIdPrefix, students.map(s => s.admissionNumber || ''));
+            const existingByAdm = new Map<string, any>();
+            const existingByPhone = new Map<string, any>();
+            students.forEach(s => {
+                if (s.admissionNumber) existingByAdm.set(s.admissionNumber.toLowerCase().trim(), s);
+                const pk = phoneKey(s.phone);
+                if (pk.length >= 9) existingByPhone.set(pk, s);
+            });
 
+            let skippedZero = 0;
             let rowIdx = 0;
+            const stamp = Date.now();
             for (const row of rawData) {
-                const nameVal = row[mappings.fullName];
-                const balanceVal = Number(row[mappings.balance]) || 0;
-                if (!nameVal || balanceVal === 0) continue;
+                const nameVal = String(row[mappings.fullName] ?? '').replace(/\s+/g, ' ').trim();
+                const balanceVal = parseAmount(row[mappings.balance]);
+                if (!nameVal) continue;
+                if (balanceVal <= 0) { skippedZero++; continue; }
 
                 rowIdx++;
 
-                const phoneVal = mappings.phone ? String(row[mappings.phone] || '') : '';
-                const emailVal = mappings.email ? String(row[mappings.email] || '') : '';
-                
-                let admVal = mappings.admissionNumber ? String(row[mappings.admissionNumber] || '').trim() : '';
-                if (!admVal) {
-                    if (isNumericPrefix) {
-                        admVal = String(nextAdmNum);
-                    } else {
-                        admVal = `${prefixStr}${String(nextAdmNum).padStart(3, '0')}`;
-                    }
-                    nextAdmNum++;
-                }
+                const phoneVal = mappings.phone ? cleanPhone(row[mappings.phone]) : '';
+                const emailVal = mappings.email ? String(row[mappings.email] ?? '').trim() : '';
+                const admRaw = mappings.admissionNumber ? String(row[mappings.admissionNumber] ?? '').trim() : '';
+                const pk = phoneKey(phoneVal);
 
                 let studentId = '';
-                const existing = students.find((s: any) => 
-                    (phoneVal && s.phone === phoneVal) || 
-                    (admVal && s.admissionNumber === admVal)
-                );
+                const existing = (admRaw && existingByAdm.get(admRaw.toLowerCase())) || (pk.length >= 9 && existingByPhone.get(pk));
 
                 if (existing) {
                     studentId = existing.id;
                 } else {
-                    studentId = `dss_opb_${Date.now()}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
+                    let admVal = admRaw;
+                    if (!admVal || admGen.isTaken(admVal)) admVal = admGen.next();
+                    else admGen.reserve(admVal);
+
+                    studentId = `dss_opb_${stamp}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
                     const newStudent = {
                         id: studentId,
                         fullName: nameVal,
                         phone: phoneVal || undefined,
                         email: emailVal || undefined,
-                        admissionNumber: admVal || undefined,
+                        admissionNumber: admVal,
                         status: 'Enrolled',
-                        openingBalance: balanceVal
+                        skipWelcomeSms: !sendWelcomeSms
                     };
                     studentsToCreate.push(newStudent);
+                    // Prevent duplicate students if the same person appears twice in the file
+                    existingByAdm.set(admVal.toLowerCase(), newStudent);
+                    if (pk.length >= 9) existingByPhone.set(pk, newStudent);
                 }
 
                 const randomSalt = Math.random().toString(36).substr(2, 4).toUpperCase();
-                const invoiceId = `dsi_opb_${Date.now()}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
+                const invoiceId = `dsi_opb_${stamp}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
                 const invoice = {
                     id: invoiceId,
                     studentId,
                     studentName: nameVal,
-                    invoiceNumber: `OPB-${Date.now().toString().slice(-6)}-${String(rowIdx).padStart(3, '0')}-${randomSalt}`,
+                    invoiceNumber: `OPB-${stamp.toString().slice(-6)}-${String(rowIdx).padStart(3, '0')}-${randomSalt}`,
                     totalAmount: balanceVal,
                     paidAmount: 0,
                     balance: balanceVal,
@@ -1243,8 +1383,19 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                 invoicesToCreate.push(invoice);
             }
 
-            await onImport(studentsToCreate, invoicesToCreate);
-            toastSuccess(`Import completed! Created ${studentsToCreate.length} new students and ${invoicesToCreate.length} invoices.`);
+            if (invoicesToCreate.length === 0) {
+                toastError(`No balances to import. ${skippedZero} rows had a zero/unreadable balance — check the Balance column mapping.`);
+                return;
+            }
+
+            const result = await onImport(studentsToCreate, invoicesToCreate);
+            const msg = `Created ${result.created} new students and posted ${result.invoicesSaved} opening balances.${skippedZero ? ` ${skippedZero} zero-balance rows skipped.` : ''}`;
+            if (result.failed || result.invoicesFailed) {
+                toastError(`${msg} ${result.failed} students and ${result.invoicesFailed} balances failed — see console for details.`);
+                console.warn('[DS Opening Balance Import] Failures:', result.errors);
+            } else {
+                toastSuccess(msg);
+            }
             onClose();
         } catch (err: any) {
             toastError("Failed to complete import: " + err.message);
@@ -1346,6 +1497,27 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Welcome SMS Option */}
+                            <label className="flex items-center gap-3.5 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800/60 cursor-pointer select-none group transition-colors hover:bg-slate-100/60 dark:hover:bg-slate-800/60">
+                                <input
+                                    type="checkbox"
+                                    checked={sendWelcomeSms}
+                                    onChange={(e) => setSendWelcomeSms(e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 dark:border-slate-700 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Send Welcome SMS with portal credentials for newly created students</span>
+                                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${sendWelcomeSms ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
+                                            {sendWelcomeSms ? 'Uses SMS Credits' : 'SMS Off (Recommended)'}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                        If any student in the file does not exist yet and is newly registered, sends portal credentials. Existing matched students will not receive an SMS.
+                                    </p>
+                                </div>
+                            </label>
 
                             <div className="space-y-2">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Row Preview</h4>
@@ -3464,6 +3636,43 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = ({
         if (onRefreshDataProp) await onRefreshDataProp().catch(() => {});
         if (refreshData) await refreshData().catch(() => {});
     }, [onRefreshDataProp, refreshData]);
+
+    // Shared by the Student and Opening Balance importers. Each record is saved independently so a
+    // single failure (e.g. duplicate admission number) does not abort the rest of the import, and
+    // opening-balance invoices are only posted for students that were actually saved.
+    const importStudentsWithBalances = useCallback(async (studentsToCreate: any[], invoicesToCreate: any[]): Promise<DSImportResult> => {
+        const failedStudentIds = new Set<string>();
+        const errors: string[] = [];
+        let created = 0;
+        for (const s of studentsToCreate) {
+            try {
+                await onAddStudent(s);
+                created++;
+            } catch (err: any) {
+                console.error('[DS Import] Failed to create student', s.fullName, err);
+                failedStudentIds.add(s.id);
+                errors.push(`${s.fullName}: ${err?.message || 'failed'}`);
+            }
+        }
+        let invoicesSaved = 0;
+        let invoicesFailed = 0;
+        for (const inv of invoicesToCreate) {
+            if (failedStudentIds.has(inv.studentId)) {
+                invoicesFailed++;
+                continue;
+            }
+            try {
+                await onAddInvoice(inv);
+                invoicesSaved++;
+            } catch (err: any) {
+                console.error('[DS Import] Failed to post opening balance for', inv.studentName, err);
+                invoicesFailed++;
+                errors.push(`${inv.studentName} (balance): ${err?.message || 'failed'}`);
+            }
+        }
+        await refreshData?.().catch(() => {});
+        return { created, failed: failedStudentIds.size, invoicesSaved, invoicesFailed, errors };
+    }, [onAddStudent, onAddInvoice, refreshData]);
 
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase' | 'dispatch'>(() => {
         try {
@@ -11606,12 +11815,9 @@ END $$;
                 {isImportModalOpen && (
                     <SmartStudentImporterModal 
                         onClose={() => setIsImportModalOpen(false)}
-                        onImport={async (data) => {
-                            for (const s of data) {
-                                await onAddStudent(s);
-                            }
-                            success(`Successfully imported ${data.length} students`);
-                        }}
+                        settings={settings}
+                        students={students}
+                        onImport={importStudentsWithBalances}
                     />
                 )}
 
@@ -11629,15 +11835,7 @@ END $$;
                         onClose={() => setIsOpeningBalanceModalOpen(false)}
                         settings={settings}
                         students={students}
-                        onImport={async (studentsToCreate, invoicesToCreate) => {
-                            for (const s of studentsToCreate) {
-                                await onAddStudent(s);
-                            }
-                            for (const inv of invoicesToCreate) {
-                                await onAddInvoice(inv);
-                            }
-                            await refreshData();
-                        }}
+                        onImport={importStudentsWithBalances}
                     />
                 )}
 
