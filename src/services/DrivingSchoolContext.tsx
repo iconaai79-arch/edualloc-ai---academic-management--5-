@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, useMemo } from 'react';
-import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction, DSLead, DSExpenditure } from '../types';
+import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, MpesaTransaction, BankTransaction, DSLead, DSExpenditure, Branch } from '../types';
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
 import { generateDSPDF } from '../utils/dsPdfGenerator';
@@ -17,6 +17,24 @@ interface DrivingSchoolContextType {
     bankTransactions: BankTransaction[];
     leads: DSLead[];
     expenditures: DSExpenditure[];
+    
+    // Branch Multi-Tenancy & Scoping
+    branches: Branch[];
+    activeBranchId: string;
+    setActiveBranchId: (branchId: string) => void;
+    isUserBranchLocked: boolean;
+    userAssignedBranchId: string | null;
+    addBranch: (data: Partial<Branch>) => Promise<Branch | void>;
+    updateBranch: (data: Partial<Branch>) => Promise<void>;
+    deleteBranch: (id: string) => Promise<void>;
+    rawStudents: DSStudent[];
+    rawInstructors: DSInstructor[];
+    rawVehicles: DSVehicle[];
+    rawLessons: DSLesson[];
+    rawInvoices: DSInvoice[];
+    rawPayments: DSPayment[];
+    rawLeads: DSLead[];
+    rawExpenditures: DSExpenditure[];
     
     // Setters (used for hydration from main loadData)
     setInstructors: React.Dispatch<React.SetStateAction<DSInstructor[]>>;
@@ -81,6 +99,22 @@ const defaultDrivingSchoolContext: DrivingSchoolContextType = {
     bankTransactions: [],
     leads: [],
     expenditures: [],
+    branches: [],
+    activeBranchId: 'ALL',
+    setActiveBranchId: () => {},
+    isUserBranchLocked: false,
+    userAssignedBranchId: null,
+    addBranch: async () => {},
+    updateBranch: async () => {},
+    deleteBranch: async () => {},
+    rawStudents: [],
+    rawInstructors: [],
+    rawVehicles: [],
+    rawLessons: [],
+    rawInvoices: [],
+    rawPayments: [],
+    rawLeads: [],
+    rawExpenditures: [],
     setInstructors: () => {},
     setVehicles: () => {},
     setStudents: () => {},
@@ -138,22 +172,179 @@ export function useDrivingSchool() {
     return context;
 }
 
-export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionId: string | undefined }> = ({ children, institutionId }) => {
+export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionId: string | undefined, currentUser?: any }> = ({ children, institutionId, currentUser }) => {
     const { success, error, info } = useToast();
     
-    const [instructors, setInstructors] = useState<DSInstructor[]>([]);
-    const [vehicles, setVehicles] = useState<DSVehicle[]>([]);
-    const [students, setStudents] = useState<DSStudent[]>([]);
-    const [lessons, setLessons] = useState<DSLesson[]>([]);
+    const [rawInstructors, setInstructors] = useState<DSInstructor[]>([]);
+    const [rawVehicles, setVehicles] = useState<DSVehicle[]>([]);
+    const [rawStudents, setStudents] = useState<DSStudent[]>([]);
+    const [rawLessons, setLessons] = useState<DSLesson[]>([]);
     const [mastery, setMastery] = useState<DSSkillMastery[]>([]);
     const [settings, setSettings] = useState<DSSettings | null>(null);
-    const [invoices, setInvoices] = useState<DSInvoice[]>([]);
-    const [payments, setPayments] = useState<DSPayment[]>([]);
+    const [rawInvoices, setInvoices] = useState<DSInvoice[]>([]);
+    const [rawPayments, setPayments] = useState<DSPayment[]>([]);
     const [mpesaTransactions, setMpesaTransactions] = useState<MpesaTransaction[]>([]);
     const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([]);
-    const [leads, setLeads] = useState<DSLead[]>([]);
-    const [expenditures, setExpenditures] = useState<DSExpenditure[]>([]);
+    const [rawLeads, setLeads] = useState<DSLead[]>([]);
+    const [rawExpenditures, setExpenditures] = useState<DSExpenditure[]>([]);
+    
+    // Branches & Multi-Tenancy Scoping
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [activeBranchId, setActiveBranchIdState] = useState<string>('ALL');
     const [isLoading, setIsLoading] = useState(false);
+
+    const userAssignedBranchId = useMemo(() => {
+        return currentUser?.branchId || currentUser?.branch_id || null;
+    }, [currentUser]);
+
+    const isUserBranchLocked = useMemo(() => {
+        if (!userAssignedBranchId) return false;
+        const role = (currentUser?.role || '').toLowerCase();
+        const isSuperOrDev = role.includes('developer') || role.includes('super_admin') || role.includes('super admin');
+        return !isSuperOrDev;
+    }, [userAssignedBranchId, currentUser]);
+
+    useEffect(() => {
+        if (!institutionId) return;
+        if (isUserBranchLocked && userAssignedBranchId) {
+            setActiveBranchIdState(userAssignedBranchId);
+            return;
+        }
+        const saved = localStorage.getItem(`ds_active_branch_${institutionId}`);
+        if (saved) {
+            setActiveBranchIdState(saved);
+        } else {
+            setActiveBranchIdState('ALL');
+        }
+    }, [institutionId, isUserBranchLocked, userAssignedBranchId]);
+
+    const setActiveBranchId = useCallback((branchId: string) => {
+        if (isUserBranchLocked && userAssignedBranchId) {
+            setActiveBranchIdState(userAssignedBranchId);
+            return;
+        }
+        setActiveBranchIdState(branchId);
+        if (institutionId) {
+            try {
+                localStorage.setItem(`ds_active_branch_${institutionId}`, branchId);
+            } catch (e) {}
+        }
+    }, [institutionId, isUserBranchLocked, userAssignedBranchId]);
+
+    const defaultBranchId = useMemo(() => branches[0]?.id || `br_main_${institutionId}`, [branches, institutionId]);
+
+    const matchesBranch = useCallback((itemBranchId?: string) => {
+        if (activeBranchId === 'ALL') return true;
+        const effectiveBranchId = itemBranchId || defaultBranchId;
+        return effectiveBranchId === activeBranchId;
+    }, [activeBranchId, defaultBranchId]);
+
+    const students = useMemo(() => {
+        return rawStudents.filter(s => matchesBranch(s.branchId || s.branch_id));
+    }, [rawStudents, matchesBranch]);
+
+    const instructors = useMemo(() => {
+        return rawInstructors.filter(i => matchesBranch(i.branchId || i.branch_id));
+    }, [rawInstructors, matchesBranch]);
+
+    const vehicles = useMemo(() => {
+        return rawVehicles.filter(v => matchesBranch(v.branchId || v.branch_id));
+    }, [rawVehicles, matchesBranch]);
+
+    const lessons = useMemo(() => {
+        return rawLessons.filter(l => matchesBranch(l.branchId || l.branch_id));
+    }, [rawLessons, matchesBranch]);
+
+    const invoices = useMemo(() => {
+        return rawInvoices.filter(inv => matchesBranch(inv.branchId || inv.branch_id));
+    }, [rawInvoices, matchesBranch]);
+
+    const payments = useMemo(() => {
+        return rawPayments.filter(p => matchesBranch(p.branchId || p.branch_id));
+    }, [rawPayments, matchesBranch]);
+
+    const leads = useMemo(() => {
+        return rawLeads.filter(ld => matchesBranch(ld.branchId || ld.branch_id));
+    }, [rawLeads, matchesBranch]);
+
+    const expenditures = useMemo(() => {
+        return rawExpenditures.filter(e => matchesBranch(e.branchId || e.branch_id));
+    }, [rawExpenditures, matchesBranch]);
+
+    const resolveBranchIdToUse = useCallback((explicitBranchId?: string) => {
+        if (explicitBranchId) return explicitBranchId;
+        if (activeBranchId !== 'ALL') return activeBranchId;
+        if (userAssignedBranchId) return userAssignedBranchId;
+        return defaultBranchId;
+    }, [activeBranchId, userAssignedBranchId, defaultBranchId]);
+
+    const addBranch = useCallback(async (data: Partial<Branch>) => {
+        if (!institutionId) return;
+        try {
+            const id = data.id || `br_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+            const newBranch: Branch = {
+                id,
+                institutionId,
+                name: data.name || 'New Branch',
+                location: data.location || '',
+                code: data.code || '',
+                phone: data.phone || '',
+                email: data.email || '',
+                managerUserId: data.managerUserId || data.manager_user_id,
+                manager_user_id: data.managerUserId || data.manager_user_id,
+                isActive: data.isActive ?? data.is_active ?? true,
+                is_active: data.isActive ?? data.is_active ?? true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('branches', newBranch);
+            setBranches(prev => {
+                const exists = prev.some(b => b.id === newBranch.id);
+                return exists ? prev.map(b => b.id === newBranch.id ? newBranch : b) : [...prev, newBranch];
+            });
+            success('Branch created successfully');
+            return newBranch;
+        } catch (err) {
+            error('Failed to create branch');
+            throw err;
+        }
+    }, [institutionId, success, error]);
+
+    const updateBranch = useCallback(async (data: Partial<Branch>) => {
+        if (!institutionId || !data.id) return;
+        try {
+            const updated = {
+                ...data,
+                updated_at: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('branches', updated);
+            setBranches(prev => prev.map(b => b.id === data.id ? { ...b, ...updated } : b));
+            success('Branch updated successfully');
+        } catch (err) {
+            error('Failed to update branch');
+            throw err;
+        }
+    }, [institutionId, success, error]);
+
+    const deleteBranch = useCallback(async (id: string) => {
+        if (!institutionId) return;
+        if (id.startsWith('br_main_') || branches.length <= 1) {
+            error('Cannot delete the primary/default branch.');
+            return;
+        }
+        if (!window.confirm('Are you sure you want to delete this branch? Associated records will become unassigned.')) return;
+        try {
+            await apiService.deleteModuleRecord('branches', id);
+            setBranches(prev => prev.filter(b => b.id !== id));
+            if (activeBranchId === id) {
+                setActiveBranchId('ALL');
+            }
+            success('Branch removed successfully');
+        } catch (err) {
+            error('Failed to delete branch');
+            throw err;
+        }
+    }, [institutionId, branches.length, activeBranchId, setActiveBranchId, success, error]);
 
     const loadDSData = useCallback(async () => {
         if (!institutionId) {
@@ -163,7 +354,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         setIsLoading(true);
         console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
-            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone] = await Promise.all([
+            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone, dsBranches] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, { limit: 5000 }).catch(() => []),
@@ -178,6 +369,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<any>('ds_license_categories', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, { limit: 5000 }).catch(() => []),
                 apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords<Branch>('branches', institutionId).catch(() => []),
             ]);
 
             console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);
@@ -187,6 +379,22 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setStudents(dsStud || []);
             setLessons(dsLess || []);
             setMastery(dsMast || []);
+
+            let loadedBranches = (dsBranches || []).filter((b: any) => (b.institutionId || (b as any).institution_id) === institutionId);
+            if (loadedBranches.length === 0) {
+                const defaultBranch: Branch = {
+                    id: `br_main_${institutionId}`,
+                    institutionId,
+                    name: 'Main Campus / HQ',
+                    location: 'Main Location',
+                    code: 'MAIN',
+                    isActive: true,
+                    is_active: true
+                };
+                loadedBranches = [defaultBranch];
+                apiService.saveModuleRecord('branches', defaultBranch).catch(() => {});
+            }
+            setBranches(loadedBranches);
 
             // Safely consolidate embedded cache columns with standalone DB rows and preserve local state if backend strips newly added columns
             setSettings(prev => {
@@ -310,6 +518,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const userId = `u_${Date.now()}`;
             const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
             const userEmail = data.email || `${userId}@ds.local`;
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
 
             // 1. Register central user account for portal login
             try {
@@ -320,6 +529,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     password: generatedPassword,
                     role: 'driving_instructor',
                     institutionId,
+                    branchId: branchIdToUse,
+                    branch_id: branchIdToUse,
                     status: 'active'
                 } as any);
 
@@ -332,6 +543,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     password: generatedPassword,
                     role: 'driving_instructor',
                     institutionId,
+                    branchId: branchIdToUse,
+                    branch_id: branchIdToUse,
                     status: 'active'
                 } as any);
             } catch (e) {
@@ -339,7 +552,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             const instId = `inst_${Date.now()}`;
-            await apiService.saveModuleRecord('ds_instructors', { ...data, id: instId, userId, institutionId });
+            await apiService.saveModuleRecord('ds_instructors', { ...data, id: instId, userId, institutionId, branchId: branchIdToUse, branch_id: branchIdToUse });
             success("Instructor added successfully");
 
             // Automated Welcome Credentials via SMS
@@ -366,15 +579,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to add instructor");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error]);
 
     const addVehicle = useCallback(async (data: any) => {
         try {
             const isUpdate = !!data.id;
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
             await apiService.saveModuleRecord('ds_vehicles', { 
                 ...data, 
                 id: data.id || `vh_${Date.now()}`, 
-                institutionId 
+                institutionId,
+                branchId: branchIdToUse,
+                branch_id: branchIdToUse
             });
             success(isUpdate ? "Vehicle updated successfully" : "Vehicle registered successfully");
             await onRefresh();
@@ -382,7 +598,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error(data.id ? "Failed to update vehicle" : "Failed to register vehicle");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error]);
 
     const updateVehicle = addVehicle;
 
@@ -469,6 +685,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const isPrepaid = billingModel === 'prepaid_student';
             const userStatus = isPrepaid ? 'inactive' : 'active';
 
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
+
             // 1. Create platform user account so they appear in global student views
             try {
                 await apiService.registerUser({
@@ -478,6 +696,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     password: generatedPassword,
                     role: 'student',
                     institutionId,
+                    branchId: branchIdToUse,
+                    branch_id: branchIdToUse,
                     status: userStatus
                 } as any);
 
@@ -490,6 +710,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     password: generatedPassword,
                     role: 'student',
                     institutionId,
+                    branchId: branchIdToUse,
+                    branch_id: branchIdToUse,
                     status: userStatus
                 } as any);
             } catch (e) {
@@ -505,6 +727,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 id: newId, 
                 userId,
                 institutionId,
+                branchId: branchIdToUse,
+                branch_id: branchIdToUse,
                 status: isPrepaid ? 'Pending Payment' : 'Enrolled',
                 courseDurationDays: duration,
                 remainingDays: duration,
@@ -573,7 +797,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to enroll student");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, info, students, settings]);
+    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error, info, students, settings]);
 
     const verifyStudentPayment = useCallback(async (studentId: string) => {
         if (!institutionId) return;
@@ -864,7 +1088,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addLesson = useCallback(async (data: any) => {
         try {
-            const lesson = { ...data, id: `less_${Date.now()}`, institutionId, status: 'Scheduled' };
+            const studentBranch = data.studentId ? rawStudents.find(s => s.id === data.studentId)?.branchId : undefined;
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id || studentBranch);
+            const lesson = { ...data, id: `less_${Date.now()}`, institutionId, branchId: branchIdToUse, branch_id: branchIdToUse, status: 'Scheduled' };
             await apiService.saveModuleRecord('ds_lessons', lesson);
             success("Lesson scheduled successfully");
             
@@ -876,7 +1102,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to schedule lesson");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, sendLessonNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawStudents, onRefresh, success, error, sendLessonNotification]);
 
     const updateLesson = useCallback(async (data: any) => {
         try {
@@ -937,9 +1163,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const addLead = useCallback(async (data: Partial<DSLead>) => {
         if (!institutionId) return;
         try {
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
             const payload: DSLead = {
                 id: `lead_${Date.now()}`,
                 institutionId,
+                branchId: branchIdToUse,
+                branch_id: branchIdToUse,
                 fullName: data.fullName || 'Walk-in Client',
                 phone: data.phone || '',
                 email: data.email || '',
@@ -962,7 +1191,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to record walk-in enquiry lead.");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error]);
+    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error]);
 
     const updateLead = useCallback(async (data: Partial<DSLead>) => {
         if (!institutionId || !data.id) return;
@@ -1228,10 +1457,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const totalSponsor = Number(data.sponsorAmount || 0);
             const initialBalance = Math.max(0, (data.totalAmount || 0) - totalDiscount - totalSponsor);
             const isOpeningBalance = Boolean(data.isOpeningBalance);
+            const studentBranch = data.studentId ? rawStudents.find(s => s.id === data.studentId)?.branchId : undefined;
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id || studentBranch);
             const inv: any = {
                 ...data,
                 id: data.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 institutionId,
+                branchId: branchIdToUse,
+                branch_id: branchIdToUse,
                 invoiceNumber: invNumber,
                 items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
                 status: initialBalance <= 0 ? 'Fully Paid' : 'Pending',
@@ -1256,7 +1489,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to generate invoice");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawStudents, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
 
     const recalculateInvoicePayments = useCallback((invoice: DSInvoice, invoicePayments: DSPayment[]) => {
         let updatedPaidAmount = 0;
@@ -1368,17 +1601,23 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
             }
 
+            const invoice = rawInvoices.find(inv => inv.id === data.invoiceId);
+            const invoiceBranch = invoice?.branchId || invoice?.branch_id;
+            const studentBranch = data.studentId ? rawStudents.find(s => s.id === data.studentId)?.branchId : undefined;
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id || invoiceBranch || studentBranch);
+
             const pay = { 
                 ...data, 
                 id: `pay_${Date.now()}`, 
                 institutionId,
+                branchId: branchIdToUse,
+                branch_id: branchIdToUse,
                 receiptNumber: recNumber,
                 status: data.status || 'Completed',
                 paymentDate: new Date().toISOString()
             };
 
             // Automatic Payment Distribution Logic
-            const invoice = invoices.find(inv => inv.id === data.invoiceId);
             let summary = '';
             
             if (invoice) {
@@ -1447,7 +1686,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to record payment");
             throw err;
         }
-    }, [institutionId, onRefresh, success, error, students, settings, invoices, payments, sendDocumentNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawInvoices, rawStudents, onRefresh, success, error, students, settings, invoices, payments, sendDocumentNotification]);
 
     const updatePayment = useCallback(async (data: any) => {
         if (!institutionId || !data.id) return;
@@ -1551,9 +1790,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const addExpenditure = useCallback(async (data: Partial<DSExpenditure>) => {
         if (!institutionId) return;
         try {
+            const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
             const record: DSExpenditure = {
                 id: `dsexp_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
                 institutionId,
+                branchId: branchIdToUse,
+                branch_id: branchIdToUse,
                 description: data.description || '',
                 category: data.category || 'Other',
                 amount: data.amount || 0,
@@ -1573,7 +1815,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error('Failed to save expenditure');
             throw err;
         }
-    }, [institutionId, success, error]);
+    }, [institutionId, resolveBranchIdToUse, success, error]);
 
     const updateExpenditure = useCallback(async (data: Partial<DSExpenditure>) => {
         if (!institutionId || !data.id) return;
@@ -1610,6 +1852,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const value = {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         mpesaTransactions, bankTransactions, leads, expenditures,
+        branches, activeBranchId, setActiveBranchId, isUserBranchLocked, userAssignedBranchId,
+        addBranch, updateBranch, deleteBranch,
+        rawStudents, rawInstructors, rawVehicles, rawLessons, rawInvoices, rawPayments, rawLeads, rawExpenditures,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads, setExpenditures,
         addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
         addExpenditure, updateExpenditure, deleteExpenditure,

@@ -1358,13 +1358,13 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                 placeholder="Search by number, client, item..."
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white w-full md:w-64"
+                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 w-full md:w-64"
                             />
                             {activeTab === 'invoices' && (
                                 <select
                                     value={statusFilter}
                                     onChange={e => setStatusFilter(e.target.value)}
-                                    className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                    className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                 >
                                     <option value="all">All Statuses</option>
                                     <option value="pending">Awaiting Payment</option>
@@ -1377,7 +1377,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             <select
                                 value={clientFilter}
                                 onChange={e => setClientFilter(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                             >
                                 <option value="all">All Clients</option>
                                 {clients.map(c => (
@@ -1532,12 +1532,12 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                 placeholder="Search by receipt #, ref, customer, or purpose..."
                                 value={receiptSearchQuery}
                                 onChange={e => setReceiptSearchQuery(e.target.value)}
-                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white w-full md:w-80"
+                                className="px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 w-full md:w-80"
                             />
                             <select
                                 value={receiptMethodFilter}
                                 onChange={e => setReceiptMethodFilter(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                             >
                                 <option value="all">All Channels</option>
                                 <option value="M-Pesa">M-Pesa</option>
@@ -1772,11 +1772,11 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             <select
                                 value={statementClientId}
                                 onChange={e => setStatementClientId(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                             >
-                                <option value="">-- Choose Corporate Client --</option>
+                                <option value="" className="text-slate-500 dark:text-slate-400">-- Choose Corporate Client --</option>
                                 {clients.map(c => (
-                                    <option key={c.id} value={c.id}>{c.clientName}</option>
+                                    <option key={c.id} value={c.id} className="text-slate-900 dark:text-white">{c.clientName}</option>
                                 ))}
                             </select>
                             <button
@@ -1905,7 +1905,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formInvoicePrefix}
                                         onChange={e => setFormInvoicePrefix(e.target.value)}
                                         placeholder="e.g. INV-"
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                     <div className="flex items-center gap-1.5 pt-1">
                                         <span className="text-[10px] text-slate-400 font-bold">Next #:</span>
@@ -1914,7 +1914,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             min="1"
                                             value={formInvoiceNextNumber}
                                             onChange={e => setFormInvoiceNextNumber(Number(e.target.value))}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -1929,7 +1929,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formQuotePrefix}
                                         onChange={e => setFormQuotePrefix(e.target.value)}
                                         placeholder="e.g. QUO-"
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                     <div className="flex items-center gap-1.5 pt-1">
                                         <span className="text-[10px] text-slate-400 font-bold">Next #:</span>
@@ -1938,7 +1938,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             min="1"
                                             value={formQuoteNextNumber}
                                             onChange={e => setFormQuoteNextNumber(Number(e.target.value))}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -1953,7 +1953,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formReceiptPrefix}
                                         onChange={e => setFormReceiptPrefix(e.target.value)}
                                         placeholder="e.g. REC-"
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                     <div className="flex items-center gap-1.5 pt-1">
                                         <span className="text-[10px] text-slate-400 font-bold">Next #:</span>
@@ -1962,7 +1962,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             min="1"
                                             value={formReceiptNextNumber}
                                             onChange={e => setFormReceiptNextNumber(Number(e.target.value))}
-                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1 text-xs font-mono font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                         />
                                     </div>
                                 </div>
@@ -1972,7 +1972,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     <select
                                         value={formCurrency}
                                         onChange={e => setFormCurrency(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     >
                                         <option value="KES">KES - Kenyan Shilling</option>
                                         <option value="USD">USD - US Dollar</option>
@@ -2014,7 +2014,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formHeaderImageUrl}
                                         onChange={e => setFormHeaderImageUrl(e.target.value)}
                                         placeholder="https://... or uploaded image data"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                     <p className="text-[10px] text-slate-400">Full-width top banner image displayed across all PDF invoices and quotations.</p>
                                 </div>
@@ -2037,7 +2037,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formFooterImageUrl}
                                         onChange={e => setFormFooterImageUrl(e.target.value)}
                                         placeholder="https://... or uploaded image data"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                     <p className="text-[10px] text-slate-400">Bottom decorative banner displayed at the base of every page.</p>
                                 </div>
@@ -2060,7 +2060,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formLogoUrl}
                                         onChange={e => setFormLogoUrl(e.target.value)}
                                         placeholder="https://... or uploaded logo data"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                     <p className="text-[10px] text-slate-400">High-resolution logo embedded in document headers and receipts.</p>
                                 </div>
@@ -2092,7 +2092,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formStampUrl}
                                         onChange={e => setFormStampUrl(e.target.value)}
                                         placeholder="https://... or leave empty to use automatic Kenyan Official Rubber Stamp"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                     <p className="text-[10px] text-slate-400">
                                         Official Kenyan double-ring rubber stamp with red dater, postal box, and institutional verification seal.
@@ -2158,7 +2158,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     type="number"
                                     value={formDefaultTaxRate}
                                     onChange={e => setFormDefaultTaxRate(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -2167,7 +2167,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     type="number"
                                     value={formDefaultTermsDays}
                                     onChange={e => setFormDefaultTermsDays(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                 />
                             </div>
                         </div>
@@ -2183,7 +2183,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formBankName}
                                         onChange={e => setFormBankName(e.target.value)}
                                         placeholder="e.g. KCB Bank / Equity Bank"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -2193,7 +2193,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formAccountName}
                                         onChange={e => setFormAccountName(e.target.value)}
                                         placeholder="e.g. ACME Solutions Ltd"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                 </div>
                                 <div>
@@ -2203,7 +2203,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formAccountNumber}
                                         onChange={e => setFormAccountNumber(e.target.value)}
                                         placeholder="e.g. 1234567890"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -2220,7 +2220,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formMpesaPaybill}
                                         onChange={e => setFormMpesaPaybill(e.target.value)}
                                         placeholder="e.g. 522522"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                 </div>
                                 <div>
@@ -2230,7 +2230,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         value={formMpesaTill}
                                         onChange={e => setFormMpesaTill(e.target.value)}
                                         placeholder="e.g. 987654"
-                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                 </div>
                             </div>
@@ -2244,7 +2244,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     rows={2}
                                     value={formNotesTemplate}
                                     onChange={e => setFormNotesTemplate(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
                             <div>
@@ -2253,7 +2253,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     rows={2}
                                     value={formTermsTemplate}
                                     onChange={e => setFormTermsTemplate(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
                         </div>
@@ -2313,37 +2313,37 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             {/* Client & Date Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Select Client</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Select Client</label>
                                     <select
                                         required
                                         value={invClientId}
                                         onChange={e => setInvClientId(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     >
-                                        <option value="">-- Choose Client --</option>
+                                        <option value="" className="text-slate-500 dark:text-slate-400">-- Choose Client --</option>
                                         {clients.map(c => (
-                                            <option key={c.id} value={c.id}>{c.clientName}</option>
+                                            <option key={c.id} value={c.id} className="text-slate-900 dark:text-white">{c.clientName}</option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Issue Date</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Issue Date</label>
                                     <input
                                         type="date"
                                         required
                                         value={invIssueDate}
                                         onChange={e => setInvIssueDate(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">{isQuoteMode ? 'Valid Until' : 'Due Date'}</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">{isQuoteMode ? 'Valid Until' : 'Due Date'}</label>
                                     <input
                                         type="date"
                                         required
                                         value={invDueDate}
                                         onChange={e => setInvDueDate(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -2351,11 +2351,11 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             {/* Line Items Table */}
                             <div className="space-y-2 pt-2">
                                 <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Line Items &amp; Services</label>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Line Items &amp; Services</label>
                                     <button
                                         type="button"
                                         onClick={handleAddLineItem}
-                                        className="text-xs text-indigo-600 font-bold hover:underline"
+                                        className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
                                     >
                                         + Add Item
                                     </button>
@@ -2370,7 +2370,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 required
                                                 value={item.description}
                                                 onChange={e => handleUpdateLineItem(idx, 'description', e.target.value)}
-                                                className="flex-grow bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                                className="flex-grow bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                             />
                                             <input
                                                 type="number"
@@ -2379,7 +2379,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 required
                                                 value={item.quantity}
                                                 onChange={e => handleUpdateLineItem(idx, 'quantity', e.target.value)}
-                                                className="w-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white text-center"
+                                                className="w-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-center"
                                             />
                                             <input
                                                 type="number"
@@ -2388,7 +2388,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 required
                                                 value={item.unitPrice}
                                                 onChange={e => handleUpdateLineItem(idx, 'unitPrice', e.target.value)}
-                                                className="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white text-right"
+                                                className="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-right"
                                             />
                                             <span className="w-24 text-right font-mono font-bold text-xs text-slate-800 dark:text-slate-200">
                                                 {formCurrency} {Number(item.amount).toLocaleString()}
@@ -2420,7 +2420,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             type="number"
                                             value={invTaxRate}
                                             onChange={e => setInvTaxRate(Number(e.target.value))}
-                                            className="w-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1 text-center font-mono text-[11px]"
+                                            className="w-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1 text-center font-mono text-[11px] font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-600"
                                         />
                                     </span>
                                     <span className="font-mono font-bold">{formCurrency} {calculatedTaxAmount.toLocaleString()}</span>
@@ -2431,7 +2431,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         type="number"
                                         value={invDiscount}
                                         onChange={e => setInvDiscount(Number(e.target.value))}
-                                        className="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-right font-mono text-[11px]"
+                                        className="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5 text-right font-mono text-[11px] font-bold text-slate-900 dark:text-white outline-none focus:border-indigo-600"
                                     />
                                 </div>
                                 <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between text-sm font-black text-slate-900 dark:text-white">
@@ -2490,7 +2490,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     required
                                     value={payAmount}
                                     onChange={e => setPayAmount(Number(e.target.value))}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm font-mono font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                 />
                             </div>
 
@@ -2500,7 +2500,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     <select
                                         value={payMethod}
                                         onChange={e => setPayMethod(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     >
                                         <option value="M-Pesa">M-Pesa Paybill/Till</option>
                                         <option value="Bank Transfer">Bank Electronic Transfer</option>
@@ -2516,7 +2516,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         required
                                         value={payDate}
                                         onChange={e => setPayDate(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
                                     />
                                 </div>
                             </div>
@@ -2528,7 +2528,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     placeholder="e.g. QAB8921JK3 / Cheque 00412"
                                     value={payRef}
                                     onChange={e => setPayRef(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
 
@@ -2574,7 +2574,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     placeholder="e.g. Acme Corporation Ltd"
                                     value={clientName}
                                     onChange={e => setClientName(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
 
@@ -2586,7 +2586,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         placeholder="e.g. Jane Doe"
                                         value={clientContactPerson}
                                         onChange={e => setClientContactPerson(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                 </div>
                                 <div>
@@ -2596,7 +2596,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         placeholder="e.g. P051234567Z"
                                         value={clientTaxPin}
                                         onChange={e => setClientTaxPin(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono uppercase outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-mono uppercase outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                 </div>
                             </div>
@@ -2609,7 +2609,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         placeholder="accounts@client.com"
                                         value={clientEmail}
                                         onChange={e => setClientEmail(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                 </div>
                                 <div>
@@ -2619,7 +2619,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         placeholder="0712345678"
                                         value={clientPhone}
                                         onChange={e => setClientPhone(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                     />
                                 </div>
                             </div>
@@ -2631,7 +2631,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     placeholder="e.g. Westlands Commercial Center, Nairobi"
                                     value={clientAddress}
                                     onChange={e => setClientAddress(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 dark:text-white"
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
 

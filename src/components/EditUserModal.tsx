@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { User, Role, Department, UserUpdateData, Institution, Constituency, County } from '../types';
+import type { User, Role, Department, UserUpdateData, Institution, Constituency, County, Branch } from '../types';
 import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
@@ -16,9 +16,10 @@ interface EditUserModalProps {
   fixedDepartmentId?: string;
   isCoop?: boolean;
   isSuperAdmin?: boolean;
+  branches?: Branch[];
 }
 
-export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments, onClose, onSave, currentInstitution, fixedDepartmentId, isCoop: isCoopProp, isSuperAdmin = false }) => {
+export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments, onClose, onSave, currentInstitution, fixedDepartmentId, isCoop: isCoopProp, isSuperAdmin = false, branches: propsBranches }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -30,10 +31,28 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
   const [customPermissions, setCustomPermissions] = useState<Record<string, boolean>>({});
 
+  const [branches, setBranches] = useState<Branch[]>(propsBranches || []);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+
   const [constituencies, setConstituencies] = useState<Constituency[]>([]);
   const [counties, setCounties] = useState<County[]>([]);
   const [selectedConstituency, setSelectedConstituency] = useState('');
   const [selectedCounty, setSelectedCounty] = useState('');
+
+  useEffect(() => {
+    if (propsBranches && propsBranches.length > 0) {
+      setBranches(propsBranches);
+    } else if (currentInstitution?.id) {
+      apiService.fetchModuleRecords<Branch>('branches', currentInstitution.id)
+        .then(res => {
+          const instBranches = (res || []).filter((b: any) =>
+            (b.institutionId || b.institution_id) === currentInstitution.id
+          );
+          setBranches(instBranches);
+        })
+        .catch(console.error);
+    }
+  }, [propsBranches, currentInstitution?.id]);
 
   const needsDepartment = useMemo(() => {
     return roles.some(r => ROLES_REQUIRING_DEPARTMENT.includes(r)) && 
@@ -109,6 +128,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       } else {
         setSelectedCounty('');
       }
+
+      setSelectedBranchId(user.branchId || (user as any).branch_id || '');
     }
   }, [user, fixedDepartmentId, selectableRoles]);
 
@@ -198,7 +219,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         driverType: roles.includes('driver') ? driverType : undefined,
         institutionId: finalInstitutionId,
         countyId: finalCountyId,
-        customPermissions
+        customPermissions,
+        branchId: selectedBranchId ? selectedBranchId : null,
+        branch_id: selectedBranchId ? selectedBranchId : null,
       });
       onClose();
     } catch (err: any) {
@@ -348,6 +371,31 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                           <option key={dept.id} value={dept.id}>{dept.name}</option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {branches.length > 0 && (
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">
+                        🏢 Assigned Campus / Branch
+                      </label>
+                      <select
+                        value={selectedBranchId}
+                        onChange={(e) => setSelectedBranchId(e.target.value)}
+                        className="form-select font-medium"
+                      >
+                        <option value="">All Branches / HQ (Universal School-Wide Access)</option>
+                        {branches.map(b => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} {b.code ? `(${b.code})` : ''} {b.location ? `— ${b.location}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-slate-400 font-medium mt-1 ml-1">
+                        {selectedBranchId
+                          ? 'Restricts this user’s session view and record creation to this campus.'
+                          : 'Grants universal access across all branches and campuses.'}
+                      </p>
                     </div>
                   )}
 

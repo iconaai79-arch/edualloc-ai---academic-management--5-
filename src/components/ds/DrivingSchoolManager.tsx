@@ -1593,7 +1593,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
 
 const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], payments: DSPayment[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[], rooms?: any[], leads?: DSLead[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, payments, onSave, settings, initialData, currentInstitution, departments, rooms, leads = [] }) => {
     const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
-    const { mpesaTransactions } = useDrivingSchool();
+    const { mpesaTransactions, branches, activeBranchId, isUserBranchLocked, userAssignedBranchId } = useDrivingSchool();
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [previewPdf, setPreviewPdf] = useState<string | null>(null);
     const [scoringStudent, setScoringStudent] = useState<DSStudent | null>(null);
@@ -1750,8 +1750,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
 
     const [formData, setFormData] = useState<any>(() => {
         const isEditing = initialData && initialData.id;
-        const base = isEditing ? initialData : {
+        const defaultBranch = activeBranchId !== 'ALL' ? activeBranchId : (userAssignedBranchId || branches[0]?.id || '');
+        const base = isEditing ? {
             ...(initialData || {}),
+            branchId: initialData?.branchId || initialData?.branch_id || defaultBranch,
+            branch_id: initialData?.branchId || initialData?.branch_id || defaultBranch
+        } : {
+            ...(initialData || {}),
+            branchId: initialData?.branchId || initialData?.branch_id || defaultBranch,
+            branch_id: initialData?.branchId || initialData?.branch_id || defaultBranch,
             status: type === 'student' ? 'Enrolled' : type === 'lead' ? 'New Enquiry' : type === 'instructor' ? 'Active' : type === 'vehicle' ? 'Operational' : 'Scheduled',
             admissionNumber: type === 'student' ? (initialData?.admissionNumber || nextAdmissionNumber) : undefined,
             invoiceNumber: type === 'invoice' ? (initialData?.invoiceNumber || nextInvoiceNumber) : undefined,
@@ -2074,6 +2081,29 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                 <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
                     <div className="p-8 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {branches && branches.length > 1 && type !== 'broadcast' && (
+                            <div className="space-y-2 col-span-1 md:col-span-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center justify-between">
+                                    <span>Branch / Campus</span>
+                                    {isUserBranchLocked && <span className="text-[9px] text-amber-500 font-bold lowercase">(locked to assigned branch)</span>}
+                                </label>
+                                <select
+                                    disabled={isUserBranchLocked}
+                                    value={formData.branchId || ''}
+                                    onChange={e => setFormData({ ...formData, branchId: e.target.value, branch_id: e.target.value })}
+                                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100 disabled:opacity-60"
+                                >
+                                    {type === 'fee_structure' && (
+                                        <option value="">All Branches (Global Fee Structure)</option>
+                                    )}
+                                    {branches.map(b => (
+                                        <option key={b.id} value={b.id}>
+                                            {b.name} {b.code ? `(${b.code})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         {type === 'student' && (
                             <>
                                 <div className="space-y-2">
@@ -3653,7 +3683,10 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         addExpenditure: onAddExpenditure,
         updateExpenditure: onUpdateExpenditure,
         deleteExpenditure: onDeleteExpenditure,
-        sendLessonNotification
+        sendLessonNotification,
+        branches, activeBranchId, setActiveBranchId, isUserBranchLocked, userAssignedBranchId,
+        addBranch: onAddBranch, updateBranch: onUpdateBranch, deleteBranch: onDeleteBranch,
+        rawStudents, rawInstructors, rawVehicles, rawLessons, rawInvoices, rawPayments, rawLeads, rawExpenditures
     } = useDrivingSchool();
     
     const onRefreshData = useCallback(async () => {
@@ -3857,7 +3890,9 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
     const [auditStatusFilter, setAuditStatusFilter] = useState<'all' | 'Completed' | 'Verified' | 'Pending Confirmation' | 'Pending Deletion'>('all');
     const [auditDateFrom, setAuditDateFrom] = useState('');
     const [auditDateTo, setAuditDateTo] = useState('');
-    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk'>('categories');
+    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk' | 'branches'>('categories');
+    const [editingBranch, setEditingBranch] = useState<Partial<Branch> | null>(null);
+    const [showBranchModal, setShowBranchModal] = useState(false);
     // Expenditure state
     const [expSearch, setExpSearch] = useState('');
     const [expCategoryFilter, setExpCategoryFilter] = useState<string>('all');
@@ -4531,6 +4566,7 @@ END $$;
             const lessonsToSave: any[] = [];
 
             for (const student of eligibleStudents) {
+                const studentBranch = student.branchId || (student as any).branch_id;
                 // Robust duplicate prevention: check if student already has a lesson scheduled for tomorrow
                 const existingLessonsTomorrow = (lessons || []).filter(l => l.studentId === student.id && l.lessonDate === dateStr);
                 if (existingLessonsTomorrow.length > 0) {
@@ -4563,14 +4599,35 @@ END $$;
                     end.setHours(h, m + duration, 0, 0);
                     const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
 
-                    // Assign instructor based on type
+                    // Assign instructor based on type and student's branch
                     const instructor = type === 'Theory' 
-                        ? (instructors || []).find(i => i.instructorType === 'Theory Trainer')
-                        : (instructors || []).find(i => i.instructorType === 'Driving Instructor' || !i.instructorType);
+                        ? (instructors || []).find(i => {
+                            if (i.instructorType !== 'Theory Trainer') return false;
+                            if (studentBranch) {
+                                const iBranch = i.branchId || (i as any).branch_id;
+                                if (iBranch && iBranch !== studentBranch) return false;
+                            }
+                            return true;
+                        })
+                        : (instructors || []).find(i => {
+                            if (i.instructorType && i.instructorType !== 'Driving Instructor') return false;
+                            if (studentBranch) {
+                                const iBranch = i.branchId || (i as any).branch_id;
+                                if (iBranch && iBranch !== studentBranch) return false;
+                            }
+                            return true;
+                        });
                     
                     let vehicle: any = undefined;
                     if (type === 'Practical') {
-                        const operationalVehicles = (vehicles || []).filter(v => v.status === 'Operational');
+                        const operationalVehicles = (vehicles || []).filter(v => {
+                            if (v.status !== 'Operational') return false;
+                            if (studentBranch) {
+                                const vBranch = v.branchId || (v as any).branch_id;
+                                if (vBranch && vBranch !== studentBranch) return false;
+                            }
+                            return true;
+                        });
                         const busySet = assignedVehiclesBySlot[currentTime] || new Set<string>();
                         
                         // Attempt to assign the instructor's default vehicle first if operational and not busy
@@ -4604,6 +4661,8 @@ END $$;
                     lessonsToSave.push({
                         id: uniqueLessonId,
                         studentId: student.id,
+                        branchId: studentBranch,
+                        branch_id: studentBranch,
                         instructorId: instructor?.id || null,
                         vehicleId: vehicle?.id || null,
                         roomId: defaultRoom?.id || null,
@@ -4753,6 +4812,7 @@ END $$;
                 let currentTime = slot.startTime || '08:00';
                 if (!currentTime.includes(':')) currentTime = '08:00';
                 
+                const studentBranch = student.branchId || (student as any).branch_id;
                 for (const type of sequence) {
                     const duration = type === 'Theory' 
                         ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
@@ -4767,11 +4827,34 @@ END $$;
                     const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
 
                     const instructor = type === 'Theory' 
-                        ? instructors.find(inst => inst.instructorType === 'Theory Trainer')
-                        : instructors.find(inst => inst.instructorType === 'Driving Instructor' || !inst.instructorType);
+                        ? (instructors || []).find(inst => {
+                            if (inst.instructorType !== 'Theory Trainer') return false;
+                            if (studentBranch) {
+                                const iBranch = inst.branchId || (inst as any).branch_id;
+                                if (iBranch && iBranch !== studentBranch) return false;
+                            }
+                            return true;
+                        })
+                        : (instructors || []).find(inst => {
+                            if (inst.instructorType && inst.instructorType !== 'Driving Instructor') return false;
+                            if (studentBranch) {
+                                const iBranch = inst.branchId || (inst as any).branch_id;
+                                if (iBranch && iBranch !== studentBranch) return false;
+                            }
+                            return true;
+                        });
                     
+                    const branchVehicles = (vehicles || []).filter(v => {
+                        if (v.status !== 'Operational') return false;
+                        if (studentBranch) {
+                            const vBranch = v.branchId || (v as any).branch_id;
+                            if (vBranch && vBranch !== studentBranch) return false;
+                        }
+                        return true;
+                    });
+
                     const vehicle = type === 'Practical' 
-                        ? (vehicles.find(v => v.id === instructor?.assignedVehicleId) || vehicles.find(v => v.status === 'Operational'))
+                        ? (branchVehicles.find(v => v.id === instructor?.assignedVehicleId) || branchVehicles[0])
                         : undefined;
 
                     const defaultRoom = type === 'Theory' ? (rooms || [])[0] : undefined;
@@ -4781,6 +4864,8 @@ END $$;
                     lessonsToSave.push({
                         id: uniqueLessonId,
                         studentId: student.id,
+                        branchId: studentBranch,
+                        branch_id: studentBranch,
                         instructorId: instructor?.id || null,
                         vehicleId: vehicle?.id || null,
                         roomId: defaultRoom?.id || null,
@@ -4902,7 +4987,14 @@ END $$;
                     const pEndMin = String(pEndTime.getMinutes()).padStart(2, '0');
                     const pEndStr = `${pEndHr}:${pEndMin}`;
 
-                    let pVehicle = operationalVehicles.find(v => isCarAvailableAt(v.id, activeLessons, pStartStr, pEndStr, todayStr)) || null;
+                    const lessonBranch = lesson.branchId || (lesson as any).branch_id;
+                    let pVehicle = operationalVehicles.find(v => {
+                        if (lessonBranch) {
+                            const vBranch = v.branchId || (v as any).branch_id;
+                            if (vBranch && vBranch !== lessonBranch) return false;
+                        }
+                        return isCarAvailableAt(v.id, activeLessons, pStartStr, pEndStr, todayStr);
+                    }) || null;
 
                     if (pVehicle) {
                         await apiService.saveModuleRecord('ds_lessons', {
@@ -6176,6 +6268,44 @@ END $$;
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
+                            {/* Branch Multi-Tenancy Switcher */}
+                            {branches && branches.length > 0 && (
+                                <div className="flex items-center">
+                                    {isUserBranchLocked ? (
+                                        <div className="flex items-center gap-2 px-4 py-3 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl">
+                                            <span className="text-sm">📍</span>
+                                            <div className="flex flex-col">
+                                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Assigned Branch</span>
+                                                <span className="text-xs font-black text-indigo-900 dark:text-indigo-200">
+                                                    {branches.find(b => b.id === userAssignedBranchId)?.name || 'My Branch'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/90 rounded-2xl border border-slate-200 dark:border-slate-700/70 shadow-sm hover:border-indigo-400 transition-colors">
+                                            <span className="text-sm">📍</span>
+                                            <div className="flex flex-col pr-1">
+                                                <span className="text-[8px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest">Branch Scoping</span>
+                                                <select
+                                                    id="ds-branch-scope-select"
+                                                    value={activeBranchId}
+                                                    onChange={(e) => setActiveBranchId(e.target.value)}
+                                                    className="bg-transparent text-xs font-black text-slate-900 dark:text-white focus:outline-none cursor-pointer pr-4"
+                                                >
+                                                    <option value="ALL" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                                                        All Branches ({branches.length})
+                                                    </option>
+                                                    {branches.map(b => (
+                                                        <option key={b.id} value={b.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                                                            {b.name} {b.code ? `(${b.code})` : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             {activeTab === 'broadcaster' && (
                                 <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
@@ -6291,6 +6421,100 @@ END $$;
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{stat.label}</p>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* Multi-Branch Comparative Performance Strip */}
+                {activeTab === 'dashboard' && activeBranchId === 'ALL' && branches.length > 1 && (
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm space-y-6 animate-fade-in">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-lg">📍</span>
+                                    <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        Branch & Campus Breakdown
+                                    </h4>
+                                    <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                                        {branches.length} Campuses Active
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-medium mt-1">
+                                    Cross-campus comparison for student enrollment, revenue collection, daily lesson volume, and fleet utilization.
+                                </p>
+                            </div>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                                Consolidated HQ View
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {branches.map(b => {
+                                const bStudents = (rawStudents || []).filter(s => (s.branchId || s.branch_id || `br_main_${currentInstitution?.id}`) === b.id);
+                                const bEnrolled = bStudents.filter(s => s.status === 'Enrolled').length;
+                                const bVehicles = (rawVehicles || []).filter(v => (v.branchId || v.branch_id || `br_main_${currentInstitution?.id}`) === b.id);
+                                const bOperationalFleet = bVehicles.filter(v => v.status === 'Operational').length;
+                                const bPayments = (rawPayments || []).filter(p => (p.branchId || p.branch_id || `br_main_${currentInstitution?.id}`) === b.id && (p.status === 'Completed' || p.status === 'Verified'));
+                                const bRevenue = bPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const bTodayLessons = (rawLessons || []).filter(l => (l.branchId || l.branch_id || `br_main_${currentInstitution?.id}`) === b.id && l.lessonDate === todayStr).length;
+
+                                return (
+                                    <div
+                                        key={b.id}
+                                        className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 hover:border-indigo-400 transition-all space-y-4 group"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                                        {b.code || 'MAIN'}
+                                                    </span>
+                                                    <h5 className="font-black text-sm text-slate-900 dark:text-white truncate">
+                                                        {b.name}
+                                                    </h5>
+                                                </div>
+                                                {b.location && (
+                                                    <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                                                        📍 {b.location}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveBranchId(b.id);
+                                                    success(`Scoped view to ${b.name}`);
+                                                }}
+                                                className="px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-indigo-600 hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shrink-0 text-slate-700 dark:text-slate-300"
+                                            >
+                                                Focus ➔
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-center">
+                                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <p className="text-xs font-black text-indigo-600 dark:text-indigo-400">{bEnrolled}</p>
+                                                <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">Active Students</p>
+                                            </div>
+                                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <p className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                                    KES {bRevenue >= 1000 ? `${(bRevenue / 1000).toFixed(0)}k` : bRevenue.toLocaleString()}
+                                                </p>
+                                                <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">Revenue</p>
+                                            </div>
+                                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <p className="text-xs font-black text-amber-600 dark:text-amber-400">{bTodayLessons}</p>
+                                                <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">Lessons Today</p>
+                                            </div>
+                                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
+                                                <p className="text-xs font-black text-slate-900 dark:text-white">{bOperationalFleet} / {bVehicles.length}</p>
+                                                <p className="text-[8px] font-black uppercase tracking-wider text-slate-400">Fleet Active</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 
@@ -6578,9 +6802,16 @@ END $$;
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
-                                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-0.5">
-                                                                        {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
-                                                                    </p>
+                                                                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
+                                                                            {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
+                                                                        </p>
+                                                                        {activeBranchId === 'ALL' && branches.length > 1 && (
+                                                                            <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                                📍 {branches.find(b => b.id === (student.branchId || (student as any).branch_id))?.name || 'Main Campus'}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
                                                                         {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : ''}
                                                                     </p>
@@ -7307,7 +7538,14 @@ END $$;
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-bold text-slate-900 dark:text-white">{lead.fullName}</p>
-                                                                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">Enquired: {new Date(lead.createdAt).toLocaleDateString()}</p>
+                                                                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                                        <p className="text-[10px] font-medium text-slate-400">Enquired: {new Date(lead.createdAt).toLocaleDateString()}</p>
+                                                                        {activeBranchId === 'ALL' && branches.length > 1 && (
+                                                                            <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                                📍 {branches.find(b => b.id === (lead.branchId || (lead as any).branch_id))?.name || 'Main Campus'}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -7806,7 +8044,12 @@ END $$;
                                                         </span>
                                                     </td>
                                                     <td className="px-10 py-6 font-bold text-sm print:px-4 print:py-3 print:text-xs">
-                                                        {normalizedStudents.find(s => s.id === lesson.studentId)?.fullName || 'Unknown Student'}
+                                                        <div>{normalizedStudents.find(s => s.id === lesson.studentId)?.fullName || 'Unknown Student'}</div>
+                                                        {activeBranchId === 'ALL' && branches.length > 1 && (
+                                                            <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 mt-0.5 print:hidden">
+                                                                📍 {branches.find(b => b.id === (lesson.branchId || (lesson as any).branch_id))?.name || 'Main Campus'}
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td className="px-10 py-6 text-sm print:px-4 print:py-3 print:text-xs">
                                                         {normalizedInstructors.find(i => i.id === lesson.instructorId)?.name || 'Unassigned'}
@@ -8037,7 +8280,14 @@ END $$;
                                             <CalendarDaysIcon className="w-4 h-4" />
                                         </button>
                                     </div>
-                                    <p className="text-indigo-600 font-black text-sm mt-1">{vehicle.plateNumber}</p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-indigo-600 font-black text-sm mt-1">{vehicle.plateNumber}</p>
+                                        {activeBranchId === 'ALL' && branches.length > 1 && (
+                                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                📍 {branches.find(b => b.id === (vehicle.branchId || (vehicle as any).branch_id))?.name || 'Main Campus'}
+                                            </span>
+                                        )}
+                                    </div>
                                     
                                     <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
                                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Assigned Driver</label>
@@ -8208,6 +8458,13 @@ END $$;
                                                 {instructor.name.charAt(0)}
                                             </div>
                                             <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">{instructor.name}</h4>
+                                            {activeBranchId === 'ALL' && branches.length > 1 && (
+                                                <div className="mt-1">
+                                                    <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                        📍 {branches.find(b => b.id === (instructor.branchId || (instructor as any).branch_id))?.name || 'Main Campus'}
+                                                    </span>
+                                                </div>
+                                            )}
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 mb-4">{instructor.specialization || 'Master Instructor'}</p>
                                             <div className="flex items-center justify-center gap-1 text-amber-400 mb-6">
                                                 {[...Array(5)].map((_, i) => (
@@ -10142,7 +10399,8 @@ END $$;
                                         { id: 'numbering', label: 'Document Numbering', icon: ListIcon },
                                         { id: 'fees', label: 'Fee Structures', icon: CreditCardIcon },
                                         { id: 'slots', label: 'Lesson Hours', icon: ClockIcon },
-                                        { id: 'kiosk', label: 'Kiosk & QR Code', icon: PrinterIcon }
+                                        { id: 'kiosk', label: 'Kiosk & QR Code', icon: PrinterIcon },
+                                        { id: 'branches', label: 'Branches & Campuses', icon: BuildingOfficeIcon }
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -11553,9 +11811,297 @@ END $$;
                                         </div>
                                     );
                                 })()}
+
+                                {settingsSubTab === 'branches' && (
+                                    <div className="space-y-8 animate-fade-in">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2.5rem] border border-slate-100 dark:border-slate-800">
+                                            <div>
+                                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-3">
+                                                    <span>Branches & Campuses</span>
+                                                    <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-xs font-black rounded-full">
+                                                        {branches.length} Registered
+                                                    </span>
+                                                </h4>
+                                                <p className="text-xs font-medium text-slate-400 mt-1">
+                                                    Manage multi-branch locations, branch managers, contact details, and branch-scoped operations.
+                                                </p>
+                                            </div>
+                                            {!isUserBranchLocked && (
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingBranch({
+                                                            name: '',
+                                                            code: '',
+                                                            location: '',
+                                                            phone: '',
+                                                            email: '',
+                                                            isActive: true
+                                                        });
+                                                        setShowBranchModal(true);
+                                                    }}
+                                                    className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shrink-0"
+                                                >
+                                                    <PlusIcon className="w-4 h-4" />
+                                                    Register Branch
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {branches.map(branch => {
+                                                const branchStudents = (rawStudents || []).filter(s => (s.branchId || s.branch_id || `br_main_${currentInstitution?.id}`) === branch.id);
+                                                const branchVehicles = (rawVehicles || []).filter(v => (v.branchId || v.branch_id || `br_main_${currentInstitution?.id}`) === branch.id);
+                                                const branchInstructors = (rawInstructors || []).filter(i => (i.branchId || i.branch_id || `br_main_${currentInstitution?.id}`) === branch.id);
+                                                const isPrimary = branch.id.startsWith('br_main_') || branch.code === 'MAIN';
+
+                                                return (
+                                                    <div
+                                                        key={branch.id}
+                                                        className={`p-6 rounded-[2rem] border transition-all duration-200 bg-white dark:bg-slate-900 shadow-sm space-y-5 ${
+                                                            activeBranchId === branch.id
+                                                                ? 'border-indigo-500 ring-2 ring-indigo-500/20'
+                                                                : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="space-y-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                                                                        {branch.code || 'BRANCH'}
+                                                                    </span>
+                                                                    {isPrimary && (
+                                                                        <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[9px] font-black rounded-md uppercase">
+                                                                            HQ / Primary
+                                                                        </span>
+                                                                    )}
+                                                                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                                                                        branch.isActive !== false
+                                                                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                                            : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
+                                                                    }`}>
+                                                                        {branch.isActive !== false ? 'Active' : 'Inactive'}
+                                                                    </span>
+                                                                </div>
+                                                                <h5 className="text-base font-black text-slate-900 dark:text-white truncate mt-1">
+                                                                    {branch.name}
+                                                                </h5>
+                                                                {branch.location && (
+                                                                    <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium truncate">
+                                                                        <span>📍</span>
+                                                                        <span>{branch.location}</span>
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Contact Info */}
+                                                        <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+                                                            {branch.phone && (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold text-slate-400 text-[10px] uppercase">Phone:</span>
+                                                                    <span className="font-bold text-slate-700 dark:text-slate-300">{branch.phone}</span>
+                                                                </div>
+                                                            )}
+                                                            {branch.email && (
+                                                                <div className="flex items-center gap-2 truncate">
+                                                                    <span className="font-bold text-slate-400 text-[10px] uppercase">Email:</span>
+                                                                    <span className="font-bold text-slate-700 dark:text-slate-300 truncate">{branch.email}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Metrics Strip */}
+                                                        <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl text-center">
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white">{branchStudents.length}</p>
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Students</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white">{branchVehicles.length}</p>
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Vehicles</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-900 dark:text-white">{branchInstructors.length}</p>
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Staff</p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Action Buttons */}
+                                                        {!isUserBranchLocked && (
+                                                            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setActiveBranchId(branch.id);
+                                                                        success(`Switched view scope to ${branch.name}`);
+                                                                    }}
+                                                                    className={`px-3 py-1.5 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all ${
+                                                                        activeBranchId === branch.id
+                                                                            ? 'bg-indigo-600 text-white'
+                                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                                                    }`}
+                                                                >
+                                                                    {activeBranchId === branch.id ? 'Active Scope' : 'Select Branch'}
+                                                                </button>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingBranch(branch);
+                                                                            setShowBranchModal(true);
+                                                                        }}
+                                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                                                        title="Edit Branch"
+                                                                    >
+                                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    {!isPrimary && branches.length > 1 && (
+                                                                        <button
+                                                                            onClick={() => onDeleteBranch(branch.id)}
+                                                                            className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl text-slate-400 hover:text-rose-600 transition-colors"
+                                                                            title="Delete Branch"
+                                                                        >
+                                                                            <XIcon className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
+
+                {showBranchModal && editingBranch && (
+                    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-6">
+                            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        {editingBranch.id ? 'Edit Branch' : 'Register New Branch'}
+                                    </h3>
+                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">Driving School Multi-Tenancy</p>
+                                </div>
+                                <button
+                                    onClick={() => { setShowBranchModal(false); setEditingBranch(null); }}
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+                                >
+                                    <XIcon className="w-5 h-5 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <form
+                                onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    if (!editingBranch.name?.trim()) {
+                                        toastError("Branch name is required.");
+                                        return;
+                                    }
+                                    try {
+                                        if (editingBranch.id) {
+                                            await onUpdateBranch(editingBranch);
+                                        } else {
+                                            await onAddBranch(editingBranch);
+                                        }
+                                        setShowBranchModal(false);
+                                        setEditingBranch(null);
+                                    } catch (err) {
+                                        console.error("Failed to save branch:", err);
+                                    }
+                                }}
+                                className="space-y-4"
+                            >
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Branch Name *</label>
+                                    <input
+                                        required
+                                        type="text"
+                                        value={editingBranch.name || ''}
+                                        onChange={e => setEditingBranch({ ...editingBranch, name: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="e.g. Nakuru Town Campus"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Branch Code</label>
+                                        <input
+                                            type="text"
+                                            value={editingBranch.code || ''}
+                                            onChange={e => setEditingBranch({ ...editingBranch, code: e.target.value.toUpperCase() })}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-900 dark:text-white uppercase focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="e.g. NKR"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Contact</label>
+                                        <input
+                                            type="tel"
+                                            value={editingBranch.phone || ''}
+                                            onChange={e => setEditingBranch({ ...editingBranch, phone: e.target.value })}
+                                            className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="07XX XXX XXX"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location / Street Address</label>
+                                    <input
+                                        type="text"
+                                        value={editingBranch.location || ''}
+                                        onChange={e => setEditingBranch({ ...editingBranch, location: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="e.g. Kenyatta Avenue, 3rd Floor"
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Official Email</label>
+                                    <input
+                                        type="email"
+                                        value={editingBranch.email || ''}
+                                        onChange={e => setEditingBranch({ ...editingBranch, email: e.target.value })}
+                                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="branch@drivingschool.co.ke"
+                                    />
+                                </div>
+
+                                <div className="flex items-center gap-3 pt-2">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={editingBranch.isActive !== false}
+                                            onChange={e => setEditingBranch({ ...editingBranch, isActive: e.target.checked, is_active: e.target.checked })}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Branch is Active & Operational</span>
+                                    </label>
+                                </div>
+
+                                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowBranchModal(false); setEditingBranch(null); }}
+                                        className="px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-2xl font-black text-[10px] uppercase tracking-wider"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-wider shadow-lg shadow-indigo-600/20"
+                                    >
+                                        {editingBranch.id ? 'Save Changes' : 'Create Branch'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
 
                 </div>
@@ -12743,7 +13289,7 @@ export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = (props)
         return <DrivingSchoolManagerInner {...props} />;
     }
     return (
-        <DrivingSchoolProvider institutionId={props.currentInstitution?.id}>
+        <DrivingSchoolProvider institutionId={props.currentInstitution?.id} currentUser={props.currentUser}>
             <DrivingSchoolManagerInner {...props} />
         </DrivingSchoolProvider>
     );

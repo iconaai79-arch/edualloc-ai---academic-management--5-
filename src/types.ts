@@ -407,8 +407,8 @@ export interface User {
     studentClass?: string;
     supervisedClass?: string;
     isClassSupervisor?: boolean;
-    branchId?: string;
-    branch_id?: string;
+    branchId?: string | null;
+    branch_id?: string | null;
     permissions?: string[];
     customPermissions?: Record<string, boolean>;
     secondaryPhone?: string;
@@ -629,6 +629,13 @@ export interface Branch {
     institutionId?: string;
     name: string;
     location?: string;
+    code?: string;
+    phone?: string;
+    email?: string;
+    managerUserId?: string;
+    manager_user_id?: string;
+    isActive?: boolean;
+    is_active?: boolean;
     linked_institution_id?: string;
     linkedInstitutionId?: string;
     created_at?: string;
@@ -2637,6 +2644,8 @@ export interface UserUpdateData {
     countyId?: string;
     permissions?: string[];
     customPermissions?: Record<string, boolean>;
+    branchId?: string | null;
+    branch_id?: string | null;
 }
 
 export type UserMappingField = 'name' | 'email' | 'phoneNumber' | 'staffId' | 'role' | 'roles' | 'departmentName' | 'expertise' | 'gender';
@@ -4979,6 +4988,8 @@ export interface LawAgreement {
 export interface DSInstructor {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     name: string;
     email?: string;
     phone?: string;
@@ -4994,6 +5005,8 @@ export interface DSInstructor {
 export interface DSVehicle {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     make: string;
     model: string;
     plateNumber: string;
@@ -5012,6 +5025,8 @@ export interface DSVehicle {
 export interface DSLead {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     fullName: string;
     phone: string;
     email?: string;
@@ -5030,6 +5045,8 @@ export interface DSLead {
 export interface DSStudent {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     userId?: string;
     admissionNumber?: string;
     fullName: string;
@@ -5077,6 +5094,8 @@ export interface TenantBill {
 export interface DSLesson {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     studentId: string;
     instructorId?: string;
     vehicleId?: string;
@@ -5188,6 +5207,8 @@ export interface DSInvoiceItem extends DSFeeItem {
 export interface DSFeeStructure {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     className: string;
     description?: string;
     items: DSFeeItem[];
@@ -5199,6 +5220,8 @@ export interface DSFeeStructure {
 export interface DSInvoice {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     studentId: string;
     studentName: string;
     feeStructureId?: string;
@@ -5221,6 +5244,8 @@ export interface DSInvoice {
 export interface DSPayment {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     invoiceId: string;
     studentId: string;
     studentName?: string;
@@ -5245,6 +5270,8 @@ export interface DSPayment {
 export interface DSExpenditure {
     id: string;
     institutionId: string;
+    branchId?: string;
+    branch_id?: string;
     description: string;
     category: 'Fuel' | 'Maintenance' | 'Salaries' | 'Rent' | 'Utilities' | 'Marketing' | 'Equipment' | 'Insurance' | 'Other';
     amount: number;

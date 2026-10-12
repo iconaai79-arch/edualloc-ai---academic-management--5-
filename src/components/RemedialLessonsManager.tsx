@@ -8152,28 +8152,39 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return 0;
         }
 
-        const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours)) ? s.hours : (s.durationHours ?? s.duration_hours ?? 1);
-        const sHours = Math.max(0.1, Number(rawHours) || 1);
-        const sDate = s.date || s.startTime ? new Date(s.date || s.startTime) : null;
+        // Bug fix: use explicit fallback chain; don't inflate 0-hour sessions to 1
+        const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours))
+            ? s.hours
+            : (typeof s.durationHours === 'number' && !isNaN(s.durationHours))
+                ? s.durationHours
+                : (typeof s.duration_hours === 'number' && !isNaN(s.duration_hours))
+                    ? s.duration_hours
+                    : 1;
+        const sHours = Math.max(0, Number(rawHours) || 0);
+        // Bug fix: add parentheses to fix operator precedence — previously parsed as s.date || (s.startTime ? ...)
+        const sDate = (s.date || s.startTime) ? new Date(s.date || s.startTime) : null;
         const dayIdx = sDate && !isNaN(sDate.getTime()) ? sDate.getDay() : -1;
+        const isSaturday = dayIdx === 6 || s.dayOfWeek === 'Saturday';
+        const isSunday = dayIdx === 0 || s.dayOfWeek === 'Sunday';
         const isWeekend = Boolean(
             s.isWeekend ||
             s.is_weekend ||
-            s.dayOfWeek === 'Saturday' ||
-            s.dayOfWeek === 'Sunday' ||
-            dayIdx === 0 ||
-            dayIdx === 6
+            isSaturday ||
+            isSunday
         );
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const dayName = s.dayOfWeek || (dayIdx >= 0 ? dayNames[dayIdx] : '');
 
         // Check if teacher has a duty record for this session
         const isDuty = Boolean(s.isDutyLesson || s.is_duty_lesson);
+        // Bug fix: match Saturday/Sunday duty records precisely by dayIdx, not by isWeekend
+        // Previously, a Sunday-only duty record could match a Saturday session (and vice versa)
+        // because both share isWeekend=true
         const dutyRecord = weekendDutyRoster.find(d =>
             d.teacherId === s.teacherId && (
                 (d.dutyType === 'weekday' && (d.weekdayDay === dayName || d.weekdayDay?.toLowerCase() === dayName?.toLowerCase())) ||
-                ((dayIdx === 6 || isWeekend) && (d.saturdayAllocated || d.dutyType === 'weekend')) ||
-                ((dayIdx === 0 || isWeekend) && (d.sundayAllocated || d.dutyType === 'weekend'))
+                (isSaturday && (d.saturdayAllocated || d.dutyType === 'weekend')) ||
+                (isSunday && (d.sundayAllocated || d.dutyType === 'weekend'))
             )
         );
 
