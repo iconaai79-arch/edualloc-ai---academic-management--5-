@@ -781,6 +781,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (recipient) {
                     try {
                         let query = supabase.from('users').select('*');
+                        if (institutionIdOverride && institutionIdOverride !== 'SYSTEM' && institutionIdOverride !== 'GLOBAL') {
+                            query = query.or(`institution_id.eq.${institutionIdOverride},institutionId.eq.${institutionIdOverride}`);
+                        }
                         if ((action === 'sendSms' || (action === 'forgotPassword' && method === 'phone'))) {
                             const digits = recipient.replace(/\D/g, '');
                             if (digits.length >= 9) {
@@ -793,7 +796,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         } else {
                             query = query.ilike('email', recipient.trim());
                         }
-                        const { data } = await query.maybeSingle();
+                        const { data } = await query.limit(1).maybeSingle();
                         targetUser = data;
                     } catch (lookupErr: any) {
                         console.warn(`[Auth Bridge] User lookup error for ${action} (${recipient}):`, lookupErr?.message);
@@ -1226,11 +1229,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return res.status(403).json({ success: false, message: 'Permission denied: Only administrative accounts can send system emails.' });
             }
 
-            const instId = institutionIdOverride || user.user_metadata?.institutionId || user.institution_id || user.institutionId;
+            const instId = (institutionIdOverride && institutionIdOverride !== 'SYSTEM' && institutionIdOverride !== 'GLOBAL')
+                ? institutionIdOverride
+                : (user.institution_id || user.institutionId || user.user_metadata?.institutionId ||
+                   (user.role === 'super_admin' ? (paramsMap.institutionId || paramsMap.institution_id || 'SYSTEM') : 'SYSTEM'));
+
+            let instEmailConfig: any = null;
+            if (instId && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
+                try {
+                    const { data: instData } = await supabase
+                        .from('institutions')
+                        .select('email_config, emailConfig')
+                        .eq('id', instId)
+                        .maybeSingle();
+                    if (instData) {
+                        instEmailConfig = instData.email_config || instData.emailConfig;
+                    }
+                } catch (_) {}
+            }
+
             const branding = await getBranding(instId);
 
-            const rawConfig = bodyConfig || settings.email_config || settings.emailConfig;
-            const emailConfig = (rawConfig && rawConfig.host && rawConfig.username && !isPlaceholderPass(rawConfig.password) && rawConfig.username !== 'info@eduai.co.ke')
+            const hasValidEmailCreds = (c: any) => Boolean(
+                c && c.host && c.username && !isPlaceholderPass(c.password) && c.username !== 'info@eduai.co.ke'
+            );
+
+            const rawConfig = (bodyConfig && hasValidEmailCreds(bodyConfig))
+                ? bodyConfig
+                : (instEmailConfig && hasValidEmailCreds(instEmailConfig))
+                    ? instEmailConfig
+                    : (settings.email_config || settings.emailConfig);
+
+            const emailConfig = (rawConfig && hasValidEmailCreds(rawConfig))
                 ? rawConfig
                 : DEFAULT_PLATFORM_SMTP;
 
@@ -1247,7 +1277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 attachments: paramsMap.attachments
             };
 
-            const result = await sendEmailViaSmtp(mailOptions, bodyConfig, instId, branding);
+            const result = await sendEmailViaSmtp(mailOptions, rawConfig, instId, branding);
             return res.status(200).json(result);
         }
 

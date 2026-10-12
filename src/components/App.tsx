@@ -9560,13 +9560,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                 const u = matchedUsers[0];
                                 if (u) {
-                                    let inst = institutions.find(i => i.id === u.institutionId);
+                                    const targetInstId = u.institutionId || (u as any).institution_id;
+                                    let inst = institutions.find(i => i.id === targetInstId);
                                     
                                     // Institutional Discovery: If institution not in local cache, fetch it
-                                    if (!inst && u.institutionId && !isClientOffline) {
-                                        console.log(`[Login Discovery] Institution ${u.institutionId} not in local state. Fetching...`);
+                                    if (!inst && targetInstId && !isClientOffline) {
+                                        console.log(`[Login Discovery] Institution ${targetInstId} not in local state. Fetching...`);
                                         try {
-                                            const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: u.institutionId } });
+                                            const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: targetInstId } });
                                             if (discovered && Array.isArray(discovered) && discovered.length > 0) {
                                                 inst = discovered[0];
                                                 console.log(`[Login Discovery] Found institution: ${inst?.name}`);
@@ -9613,30 +9614,36 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
                                         const timestampText = `${formattedDate} at ${formattedTime}`;
 
-                                        const portalName = activeBranding.displayName || inst?.name || 'EduAI';
+                                        const portalName = inst?.name || activeBranding.displayName || 'EduAI';
                                         const otpMessage = `Your ${portalName} Verification Code is: ${otp}. Sent on ${timestampText}. Do not share this code with anyone.`;
-                                        console.log(`[Login] OTP Triggered for ${u.email} (Role: ${u.role}, Inst: ${u.institutionId})`);
+                                        console.log(`[Login] OTP Triggered for ${u.email} (Role: ${u.role}, Inst: ${targetInstId})`);
 
-                                        // Dispatch to both channels with improved error reporting and explicit authToken (User ID)
-                                        const emailCfg = inst?.emailConfig || companyDetails.emailConfig;
-                                        const smsCfg = inst?.smsConfig || companyDetails.smsConfig;
+                                        // Strictly follow tenant configurations (sms_config and email_config)
+                                        const tenantSmsConfig = inst?.smsConfig || (inst as any)?.sms_config;
+                                        const tenantEmailConfig = inst?.emailConfig || (inst as any)?.email_config;
+
+                                        const effectiveSmsCfg = tenantSmsConfig || companyDetails.smsConfig;
+                                        const rawEmailCfg = tenantEmailConfig || companyDetails.emailConfig;
+                                        const effectiveEmailCfg = inst ? getInstitutionEmailConfig(inst, rawEmailCfg) : rawEmailCfg;
 
                                         const userPhone = u.phoneNumber || (u as any).phone_number || (u as any).phone || '';
                                         const userEmail = u.email || '';
                                         const formattedPhone = formatPhoneNumber(userPhone);
-                                        const targetInstId = u.institutionId || (u as any).institution_id || inst?.id || 'GLOBAL';
 
                                         Promise.all([
-                                            userEmail ? apiService.sendEmail(userEmail, 'Verification Code', otpMessage, emailCfg, u.id) : Promise.resolve({ success: true }),
-                                            formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, smsCfg, 1, targetInstId, u.id, true) : Promise.resolve({ success: true })
+                                            userEmail ? apiService.sendEmail(userEmail, `${portalName} - Verification Code`, otpMessage, effectiveEmailCfg, u.id, undefined, targetInstId) : Promise.resolve({ success: true }),
+                                            formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, effectiveSmsCfg, 1, targetInstId, u.id, true) : Promise.resolve({ success: true })
                                         ]).then((results: any) => {
-                                            const smsResult = (results[1] || results[0]);
+                                            const emailResult = results[0];
+                                            const smsResult = results[1];
                                             if (smsResult && smsResult.success === false) {
                                                 console.error("[OTP] SMS Dispatch Failure:", smsResult.message);
-                                                // Alert super admins of gateway failures immediately
                                                 if (u.role === 'super_admin') {
-                                                    toastError(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. (Email OTP should still be sent)`);
+                                                    toastError(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}. (Email OTP sent)`);
                                                 }
+                                            }
+                                            if (emailResult && emailResult.success === false) {
+                                                console.error("[OTP] Email Dispatch Failure:", emailResult.message);
                                             }
                                         }).catch(err => {
                                             console.error("[OTP] Dispatch Exception:", err);
@@ -9691,7 +9698,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 }
                                 return false;
                             }}
-                            onResendOtp={() => {
+                            onResendOtp={async () => {
                                 if (!otpPendingUser) return;
                                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                                 setCurrentOtp(otp);
@@ -9700,27 +9707,50 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
                                 const timestampText = `${formattedDate} at ${formattedTime}`;
 
-                                const instForOtp = institutions.find(i => i.id === otpPendingUser.institutionId);
-                                const portalName = activeBranding.displayName || instForOtp?.name || 'EduAI';
+                                const targetInstId = otpPendingUser.institutionId || (otpPendingUser as any).institution_id;
+                                let instForOtp = institutions.find(i => i.id === targetInstId);
+                                if (!instForOtp && targetInstId && !isClientOffline) {
+                                    try {
+                                        const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: targetInstId } });
+                                        if (discovered && Array.isArray(discovered) && discovered.length > 0) {
+                                            instForOtp = discovered[0];
+                                            setInstitutions(prev => [...(prev || []), instForOtp!]);
+                                        }
+                                    } catch (_) {}
+                                }
+
+                                const portalName = instForOtp?.name || activeBranding.displayName || 'EduAI';
                                 const otpMessage = `Your New ${portalName} Verification Code is: ${otp}. Sent on ${timestampText}. Do not share this code with anyone.`;
                                 console.log(`[Login] OTP Resend triggered for ${otpPendingUser.email}`);
 
-                                // Dispatch with reporting and explicit authToken (User ID)
-                                const emailCfg = instForOtp?.emailConfig || companyDetails.emailConfig;
-                                const smsCfg = instForOtp?.smsConfig || companyDetails.smsConfig;
+                                // Strictly follow tenant configurations (sms_config and email_config)
+                                const tenantSmsConfig = instForOtp?.smsConfig || (instForOtp as any)?.sms_config;
+                                const tenantEmailConfig = instForOtp?.emailConfig || (instForOtp as any)?.email_config;
+
+                                const effectiveSmsCfg = tenantSmsConfig || companyDetails.smsConfig;
+                                const rawEmailCfg = tenantEmailConfig || companyDetails.emailConfig;
+                                const effectiveEmailCfg = instForOtp ? getInstitutionEmailConfig(instForOtp, rawEmailCfg) : rawEmailCfg;
 
                                 const userPhone = otpPendingUser.phoneNumber || (otpPendingUser as any).phone_number || (otpPendingUser as any).phone || '';
                                 const userEmail = otpPendingUser.email || '';
                                 const formattedPhone = formatPhoneNumber(userPhone);
-                                const targetInstId = otpPendingUser.institutionId || (otpPendingUser as any).institution_id || instForOtp?.id || 'GLOBAL';
 
                                 Promise.all([
-                                    userEmail ? apiService.sendEmail(userEmail, 'New Verification Code', otpMessage, emailCfg, otpPendingUser.id) : Promise.resolve({ success: true }),
-                                    formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, smsCfg, 1, targetInstId, otpPendingUser.id, true) : Promise.resolve({ success: true })
+                                    userEmail ? apiService.sendEmail(userEmail, `${portalName} - New Verification Code`, otpMessage, effectiveEmailCfg, otpPendingUser.id, undefined, targetInstId) : Promise.resolve({ success: true }),
+                                    formattedPhone ? apiService.sendSms(formattedPhone, otpMessage, effectiveSmsCfg, 1, targetInstId, otpPendingUser.id, true) : Promise.resolve({ success: true })
                                 ]).then(results => {
-                                    const smsResult = (results[1] || results[0]) as any;
-                                    if (smsResult && smsResult.success === false) {
-                                        warning(`SMS OTP Delivery Failed: ${smsResult.message || "Unknown error"}.`);
+                                    const emailResult = (results[0] || {}) as any;
+                                    const smsResult = (results[1] || {}) as any;
+                                    const errors: string[] = [];
+                                    if (userEmail && emailResult && emailResult.success === false) {
+                                        errors.push(`Email: ${emailResult.message || 'Failed'}`);
+                                    }
+                                    if (formattedPhone && smsResult && smsResult.success === false) {
+                                        errors.push(`SMS: ${smsResult.message || 'Failed'}`);
+                                    }
+
+                                    if (errors.length > 0) {
+                                        warning(`OTP Delivery Warning: ${errors.join(' | ')}`);
                                     } else {
                                         success("OTP sent successfully via both channels.");
                                     }

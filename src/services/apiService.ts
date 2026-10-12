@@ -6657,7 +6657,7 @@ export const apiService = {
             paymentMethod: 'stk_push'
         }, []);
     },
-    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string, attachments?: any[]): Promise<any> {
+    async sendEmail(recipient: string, subject: string, message: string, config?: EmailConfig, authToken?: string, attachments?: any[], institutionId?: string): Promise<any> {
         if (!recipient || isPlaceholderEmail(recipient)) {
             return { success: true, message: "Skipped sending email to placeholder/dummy local email address.", skipped: true };
         }
@@ -6665,6 +6665,9 @@ export const apiService = {
         if (!_supabase) {
             return { success: false, message: "Database service (Supabase) not initialized. Live Email requires an active backend." };
         }
+
+        const session = apiService.getSession();
+        const effectiveInstId = institutionId || session?.institutionId || (session as any)?.institution_id;
 
         try {
             const { data } = _supabase.auth ? await _supabase.auth.getSession() : { data: { session: null } };
@@ -6685,7 +6688,6 @@ export const apiService = {
                 if (authToken) {
                     token = authToken;
                 } else {
-                    const session = apiService.getSession();
                     if (session?.id) token = session.id;
                 }
             }
@@ -6693,10 +6695,22 @@ export const apiService = {
             let headers: any = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
+            const isOtpMsg = /code|otp|verification|verificaiton|password\s*reset|recovery|pin\b|credential|credentials|login\s*details|temporary\s*password|login\s*credentials|portal\s*access|pass:\s*/i.test(message) || /verification|otp|code/i.test(subject);
+
             const response = await fetch('/api/integrations', {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ action: 'sendEmail', recipient, subject, message, config, attachments })
+                body: JSON.stringify({ 
+                    action: 'sendEmail', 
+                    recipient, 
+                    subject, 
+                    message, 
+                    config, 
+                    attachments,
+                    institutionId: effectiveInstId,
+                    isOtp: isOtpMsg,
+                    isSystemMessage: isOtpMsg
+                })
             });
 
             let resData: any = {};
