@@ -10,12 +10,25 @@
 --   5. Ensure permissive RLS policies and table grants for all client environments.
 
 -- 1. Ensure anchor record 'GLOBAL' exists in public.institutions
-INSERT INTO public.institutions (id, name, status, created_at, updated_at)
-VALUES ('GLOBAL', 'EduAI Global Enterprise Platform', 'active', NOW(), NOW())
-ON CONFLICT (id) DO UPDATE SET 
-    name = COALESCE(public.institutions.name, EXCLUDED.name),
-    status = 'active',
-    updated_at = NOW();
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.institutions WHERE id = 'GLOBAL') THEN
+        INSERT INTO public.institutions (id, name, email, code, status, created_at, updated_at)
+        VALUES (
+            'GLOBAL', 
+            'EduAI Global Enterprise Platform', 
+            'corporate-global@eduai.internal', 
+            'GLOBAL', 
+            'active', 
+            NOW(), 
+            NOW()
+        );
+    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- If institutions table has constraints on email, code, etc., safely ignore
+    -- because foreign keys on billing tables are dropped below.
+    RAISE NOTICE 'Skipped inserting GLOBAL into institutions table: %', SQLERRM;
+END $$;
 
 -- 2. Ensure table invoice_clients exists with all required columns
 CREATE TABLE IF NOT EXISTS public.invoice_clients (
