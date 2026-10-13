@@ -8600,6 +8600,14 @@ export const apiService = {
                 paidByDosName: r.paidByDosName || r.paid_by_dos_name || meta.paidByDosName || meta.paid_by_dos_name || '',
                 paidByDosId: r.paidByDosId || r.paid_by_dos_id || meta.paidByDosId || meta.paid_by_dos_id || '',
                 paidAt: r.paidAt || r.paid_at || meta.paidAt || meta.paid_at || '',
+                notes: r.notes || meta.notes || '',
+                sessionIds: r.sessionIds || r.session_ids || meta.sessionIds || meta.session_ids || [],
+                openingBalanceIncluded: r.openingBalanceIncluded ?? r.opening_balance_included ?? meta.openingBalanceIncluded ?? meta.opening_balance_included ?? 0,
+                earnedAmount: r.earnedAmount ?? r.earned_amount ?? meta.earnedAmount ?? meta.earned_amount ?? 0,
+                headteacherAuthorizedBy: r.headteacherAuthorizedBy || r.headteacher_authorized_by || meta.headteacherAuthorizedBy || meta.headteacher_authorized_by || '',
+                headteacherAuthorizedAt: r.headteacherAuthorizedAt || r.headteacher_authorized_at || meta.headteacherAuthorizedAt || meta.headteacher_authorized_at || '',
+                operationsDisbursedBy: r.operationsDisbursedBy || r.operations_disbursed_by || meta.operationsDisbursedBy || meta.operations_disbursed_by || '',
+                dosDisbursedAt: r.dosDisbursedAt || r.dos_disbursed_at || meta.dosDisbursedAt || meta.dos_disbursed_at || '',
                 metadata: meta
             };
         });
@@ -8617,6 +8625,14 @@ export const apiService = {
             paidByDosName: payload.paidByDosName || payload.paid_by_dos_name,
             paidByDosId: payload.paidByDosId || payload.paid_by_dos_id,
             paidAt: payload.paidAt || payload.paid_at,
+            notes: payload.notes,
+            sessionIds: payload.sessionIds || payload.session_ids,
+            openingBalanceIncluded: payload.openingBalanceIncluded || payload.opening_balance_included,
+            earnedAmount: payload.earnedAmount || payload.earned_amount,
+            headteacherAuthorizedBy: payload.headteacherAuthorizedBy || payload.headteacher_authorized_by,
+            headteacherAuthorizedAt: payload.headteacherAuthorizedAt || payload.headteacher_authorized_at,
+            operationsDisbursedBy: payload.operationsDisbursedBy || payload.operations_disbursed_by,
+            dosDisbursedAt: payload.dosDisbursedAt || payload.dos_disbursed_at
         };
         const existingMeta = typeof payload.metadata === 'object' && payload.metadata !== null ? payload.metadata : {};
         const cleanMeta = Object.fromEntries(Object.entries(metaFields).filter(([_, v]) => v !== undefined && v !== null));

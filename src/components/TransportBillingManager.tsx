@@ -5,7 +5,7 @@ import {
     TrendingUp, Wallet, Calendar, FileText, X, Filter,
     Banknote, BadgeCheck, RotateCcw, Send, Smartphone,
     Printer, Mail, MessageSquare, Check, ExternalLink,
-    ShieldCheck, Sparkles, Phone, QrCode
+    ShieldCheck, Sparkles, Phone, QrCode, UploadCloud
 } from 'lucide-react';
 import { apiService } from '../services/apiService';
 import type { Institution, User as UserType } from '../types';

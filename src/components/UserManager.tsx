@@ -1851,8 +1851,14 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                         <div className="text-sm font-medium text-slate-900 dark:text-white">
                                             {u.name || (u as any).fullName || (u as any).full_name || (u as any).customerName || (u as any).customer_name || (u.email ? u.email.split('@')[0] : 'Unnamed User')}
                                         </div>
-                                        <div className="text-xs text-slate-500 dark:text-slate-400">{u.email}</div>
                                         {u.staffId && <div className="text-[10px] font-mono text-slate-400">ID: {u.staffId}</div>}
+                                        {(u.hourlyRate || (u as any).hourly_rate) && (
+                                            <div className="mt-1 flex items-center gap-1">
+                                                <span className="px-2 py-0.5 text-[9px] font-mono font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 rounded-md border border-amber-200 dark:border-amber-800">
+                                                    KES {Number(u.hourlyRate || (u as any).hourly_rate).toLocaleString()}/hr
+                                                </span>
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-wrap gap-1">

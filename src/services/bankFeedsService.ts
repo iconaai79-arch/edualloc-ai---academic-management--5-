@@ -42,6 +42,8 @@ export interface IngestedTransaction {
     reconciliationConfidence: 'EXACT_ADM' | 'EXACT_PHONE' | 'NAME_MATCH' | 'MANUAL' | 'NONE';
     rawPayload?: Record<string, any>;
     createdAt: string;
+    isAlreadyReconciled?: boolean;
+    smsSent?: boolean;
 }
 
 export interface BankReconciliationMatch {

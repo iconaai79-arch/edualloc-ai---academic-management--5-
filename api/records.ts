@@ -5856,6 +5856,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         continue;
                     }
 
+                    if (moduleName === 'school_remedial_payouts' || targetDbTable === 'school_remedial_payouts') {
+                        // 1. Attempt to add missing columns via Direct PG if pool is active
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS notes TEXT;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS session_ids JSONB DEFAULT '[]'::jsonb;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS headteacher_authorized_by TEXT;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS headteacher_authorized_at TIMESTAMPTZ;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS operations_disbursed_by TEXT;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS dos_disbursed_at TIMESTAMPTZ;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS opening_balance_included NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS earned_amount NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2500
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        // 2. Strip all extended payout columns into metadata in a single batch
+                        const EXTENDED_PAYOUT_COLS = [
+                            'notes', 'session_ids', 'headteacher_authorized_by', 'headteacher_authorized_at',
+                            'operations_disbursed_by', 'operations_manager_name', 'operations_disbursed_at',
+                            'cash_voucher_ref', 'dos_recipient_signature', 'dos_recipient_name', 'dos_recipient_id',
+                            'dos_received_at', 'dos_disbursed_by', 'paid_by_dos_name', 'paid_by_dos_id',
+                            'dos_disbursed_at', 'paid_at', 'teacher_signature_data_url',
+                            'opening_balance_included', 'earned_amount'
+                        ];
+                        const stripPayoutExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            let meta: any = {};
+                            if (typeof copy.metadata === 'object' && copy.metadata !== null) {
+                                meta = { ...copy.metadata };
+                            } else if (typeof copy.metadata === 'string') {
+                                try { meta = JSON.parse(copy.metadata); } catch (_) { meta = {}; }
+                            }
+                            EXTENDED_PAYOUT_COLS.forEach(c => {
+                                if (copy[c] !== undefined && copy[c] !== null && copy[c] !== '') {
+                                    meta[c] = copy[c];
+                                    delete copy[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            } else {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripPayoutExtended) : stripPayoutExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     const stripCol = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
@@ -7449,6 +7508,52 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             ];
                             const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
                             EXTENDED_SESSION_COLS.forEach(c => {
+                                if (currentUpdateData[c] !== undefined && currentUpdateData[c] !== null && currentUpdateData[c] !== '') {
+                                    meta[c] = currentUpdateData[c];
+                                    delete currentUpdateData[c];
+                                }
+                            });
+                            if (offendingCol === 'metadata' || !patchTableSupportsMetadata) {
+                                delete currentUpdateData.metadata;
+                            } else {
+                                currentUpdateData.metadata = meta;
+                            }
+                            patchRetries--;
+                            continue;
+                        }
+
+                        if (moduleName === 'school_remedial_payouts' || targetDbTable === 'school_remedial_payouts') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS notes TEXT;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS session_ids JSONB DEFAULT '[]'::jsonb;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS headteacher_authorized_by TEXT;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS headteacher_authorized_at TIMESTAMPTZ;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS operations_disbursed_by TEXT;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS dos_disbursed_at TIMESTAMPTZ;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS opening_balance_included NUMERIC DEFAULT 0;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS earned_amount NUMERIC DEFAULT 0;
+                                            ALTER TABLE public.school_remedial_payouts ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2500
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+
+                            const EXTENDED_PAYOUT_COLS = [
+                                'notes', 'session_ids', 'headteacher_authorized_by', 'headteacher_authorized_at',
+                                'operations_disbursed_by', 'operations_manager_name', 'operations_disbursed_at',
+                                'cash_voucher_ref', 'dos_recipient_signature', 'dos_recipient_name', 'dos_recipient_id',
+                                'dos_received_at', 'dos_disbursed_by', 'paid_by_dos_name', 'paid_by_dos_id',
+                                'dos_disbursed_at', 'paid_at', 'teacher_signature_data_url',
+                                'opening_balance_included', 'earned_amount'
+                            ];
+                            const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
+                            EXTENDED_PAYOUT_COLS.forEach(c => {
                                 if (currentUpdateData[c] !== undefined && currentUpdateData[c] !== null && currentUpdateData[c] !== '') {
                                     meta[c] = currentUpdateData[c];
                                     delete currentUpdateData[c];

@@ -3,6 +3,7 @@ import type { User, Role, Department, UserUpdateData, Institution, Constituency,
 import { RETAIL_SUBTYPES } from '../constants';
 import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isDSInstitution } from '../utils/roleUtils';
 import { apiService } from '../services/apiService';
+import { BanknotesIcon } from './icons/BanknotesIcon';
 
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher', 'driving_instructor', 'operation_manager', 'operations_manager'];
 
@@ -29,6 +30,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [assignedDepartmentId, setAssignedDepartmentId] = useState('');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>('Male');
   const [driverType, setDriverType] = useState<'staff' | 'private'>('staff');
+  const [hourlyRate, setHourlyRate] = useState<string>('');
+  const [weekendHourlyRate, setWeekendHourlyRate] = useState<string>('');
   const [customPermissions, setCustomPermissions] = useState<Record<string, boolean>>({});
 
   const [branches, setBranches] = useState<Branch[]>(propsBranches || []);
@@ -130,6 +133,12 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
       }
 
       setSelectedBranchId(user.branchId || (user as any).branch_id || '');
+
+      const rawHourly = user.hourlyRate ?? (user as any).hourly_rate ?? user.weekdayHourlyRate ?? (user as any).weekday_hourly_rate ?? user.metadata?.hourlyRate ?? user.metadata?.weekdayHourlyRate;
+      setHourlyRate(rawHourly !== undefined && rawHourly !== null && rawHourly !== '' ? String(rawHourly) : '');
+
+      const rawWeekendHourly = user.weekendHourlyRate ?? (user as any).weekend_hourly_rate ?? user.metadata?.weekendHourlyRate;
+      setWeekendHourlyRate(rawWeekendHourly !== undefined && rawWeekendHourly !== null && rawWeekendHourly !== '' ? String(rawWeekendHourly) : '');
     }
   }, [user, fixedDepartmentId, selectableRoles]);
 
@@ -222,6 +231,19 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
         customPermissions,
         branchId: selectedBranchId ? selectedBranchId : null,
         branch_id: selectedBranchId ? selectedBranchId : null,
+        hourlyRate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+        hourly_rate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+        weekdayHourlyRate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+        weekday_hourly_rate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+        weekendHourlyRate: weekendHourlyRate.trim() !== '' && !isNaN(Number(weekendHourlyRate)) ? Number(weekendHourlyRate) : undefined,
+        weekend_hourly_rate: weekendHourlyRate.trim() !== '' && !isNaN(Number(weekendHourlyRate)) ? Number(weekendHourlyRate) : undefined,
+        metadata: {
+          ...(user.metadata || {}),
+          hourlyRate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+          hourly_rate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+          weekdayHourlyRate: hourlyRate.trim() !== '' && !isNaN(Number(hourlyRate)) ? Number(hourlyRate) : undefined,
+          weekendHourlyRate: weekendHourlyRate.trim() !== '' && !isNaN(Number(weekendHourlyRate)) ? Number(weekendHourlyRate) : undefined,
+        }
       });
       onClose();
     } catch (err: any) {
@@ -311,6 +333,88 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                       <option value="staff">Official Staff</option>
                       <option value="private">Private / Outsourced</option>
                     </select>
+                  </div>
+                )}
+
+                {/* Teacher Hourly Pay Rates & Tariffs (Super Admin Editable) */}
+                {(isSuperAdmin || isEdu || roles.some(r => ['teacher', 'lecturer', 'head_teacher', 'dos', 'staff'].includes(r))) && (
+                  <div className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                          <BanknotesIcon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                            Teacher Hourly Pay Rates (Tariff Overrides)
+                          </label>
+                          <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                            {isSuperAdmin
+                              ? 'Configure custom hourly compensation rates for this educator.'
+                              : 'Custom instructor rate assigned by Super Admin.'}
+                          </p>
+                        </div>
+                      </div>
+                      {isSuperAdmin ? (
+                        <span className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800">
+                          ⚡ Super Admin Authorized
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500">
+                          🔒 Read-Only
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">
+                          Weekday Lesson Rate (KES / hr)
+                        </label>
+                        <div className="relative group">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">
+                            KES
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="50"
+                            value={hourlyRate}
+                            onChange={(e) => setHourlyRate(e.target.value)}
+                            disabled={!isSuperAdmin}
+                            className="form-input pl-12 font-mono font-bold text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                            placeholder="Default (School Tariff)"
+                          />
+                        </div>
+                        <p className="text-[9px] text-slate-400 mt-1 ml-1 font-medium">
+                          Standard weekday remedial & extra session tariff
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">
+                          Weekend Lesson Rate (KES / hr)
+                        </label>
+                        <div className="relative group">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-wider text-slate-400 group-focus-within:text-indigo-600 font-mono select-none">
+                            KES
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="50"
+                            value={weekendHourlyRate}
+                            onChange={(e) => setWeekendHourlyRate(e.target.value)}
+                            disabled={!isSuperAdmin}
+                            className="form-input pl-12 font-mono font-bold text-slate-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                            placeholder="Default (School Weekend Tariff)"
+                          />
+                        </div>
+                        <p className="text-[9px] text-slate-400 mt-1 ml-1 font-medium">
+                          Saturday & Sunday lesson tariff override
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

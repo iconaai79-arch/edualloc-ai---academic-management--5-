@@ -32,7 +32,8 @@ import {
     ListIcon,
     CreditCardIcon,
     PrinterIcon,
-    DownloadIcon
+    DownloadIcon,
+    BuildingOfficeIcon
 } from '../icons';
 import { 
     generateDSPDF, 

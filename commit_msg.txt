@@ -1,10 +1,8 @@
-feat(finance): Kenyan Annual Financial Report PDF and fee amount fix  
-  
-- Add annualReportService.ts: 6-page MOE-compliant PDF (Performance, Position,  
-  Changes in Net Assets, Cash Flows, Budget vs Actual, Notes).  
-  IPSAS Accrual Basis, PFM Act 2012, Basic Education Act 2013.  
-- Add AnnualReportWizard.tsx: wizard UI with auto-fill and PDF download.  
-- Wire Annual Report sub-tab into Fiscal Audit tab (FinanceManager).  
-- Fix fee structure amounts not saving: cast PG DECIMAL strings to Number.  
-- Add migration 260_fix_fee_structures_amount_column.sql.  
-- Fix AutomatedBilling.tsx billing projections for string amounts. 
+feat: super admin teacher hourly rate editing, fix remedial payouts schema cache, and fix icon imports
+
+- Add Super Admin hourly rate editing per teacher across user management and remedial managers
+- Add migrations 475 and 476 for teacher hourly rates and school_remedial_payouts audit columns
+- Update api/records.ts with auto-healing and metadata fallback for school_remedial_payouts
+- Fix missing BuildingOfficeIcon import in DrivingSchoolManager
+- Fix missing UploadCloud import in TransportBillingManager
+- Ensure institution_id is set on Branch entities in DrivingSchoolContext

@@ -431,6 +431,16 @@ export interface User {
     loyaltyPoints?: number;
     autoMarketPlaceUrl?: string;
     metadata?: any;
+    hourlyRate?: number;
+    hourly_rate?: number;
+    weekdayHourlyRate?: number;
+    weekday_hourly_rate?: number;
+    weekendHourlyRate?: number;
+    weekend_hourly_rate?: number;
+    designation?: string;
+    department?: string;
+    firstName?: string;
+    lastName?: string;
     documents?: EmployeeDocument[];
     createdAt?: string;
     admissionNumber?: string;
@@ -2682,6 +2692,13 @@ export interface UserUpdateData {
     customPermissions?: Record<string, boolean>;
     branchId?: string | null;
     branch_id?: string | null;
+    hourlyRate?: number;
+    hourly_rate?: number;
+    weekdayHourlyRate?: number;
+    weekday_hourly_rate?: number;
+    weekendHourlyRate?: number;
+    weekend_hourly_rate?: number;
+    metadata?: any;
 }
 
 export type UserMappingField = 'name' | 'email' | 'phoneNumber' | 'staffId' | 'role' | 'roles' | 'departmentName' | 'expertise' | 'gender';
@@ -6696,6 +6713,10 @@ export interface RemedialSession {
     autoConcludedReason?: string;
     qrToken?: string;
     verifiedAt?: string;
+    isWeekend?: boolean;
+    is_weekend?: boolean;
+    prefectConfirmedBy?: string;
+    prefectConfirmedRole?: string;
     status: RemedialSessionStatus;
     
     // Stage 2: Teacher on Duty Verification & Rejection
@@ -6763,8 +6784,11 @@ export interface RemedialAllocation {
     teacherId: string;
     teacherName?: string;
     dayOfWeek: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Unallocated';
+    day_of_week?: string;
     startTime: string;
     endTime: string;
+    periodNumber?: number;
+    period_number?: number;
     isWeekend?: boolean;
     isUnallocated?: boolean;
     unallocatedReason?: string;
@@ -6866,6 +6890,12 @@ export interface TeacherDayPreference {
     isEligible?: boolean;                // Whether teacher is in the remedial & substitution pool (default: true)
     authorizedSubjects?: string[];       // Specific subjects teacher is authorized to teach/substitute (e.g. ['Mathematics', 'Physics'])
     authorizedGrades?: string[];         // Specific grades/forms teacher is authorized to teach/substitute (e.g. ['Form 3', 'Form 4'])
+    hourlyRate?: number;
+    hourly_rate?: number;
+    weekdayHourlyRate?: number;
+    weekday_hourly_rate?: number;
+    weekendHourlyRate?: number;
+    weekend_hourly_rate?: number;
 }
 
 export interface RemedialTimetableApproval {

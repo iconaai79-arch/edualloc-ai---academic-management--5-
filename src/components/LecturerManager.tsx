@@ -4,6 +4,7 @@ import type {
     CourseLevel, UserMappingField, StaffImportPreviewUser, Institution,
     AllocationRequest, Priority, Subject, UserUpdateData, LetterheadConfig
 } from '../types';
+import { isSuperAdminUser } from '../types';
 import { PlusIcon } from './icons/PlusIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -696,6 +697,7 @@ export const LecturerManager: React.FC<LecturerManagerProps> = (props) => {
                     onClose={() => setEditingUser(null)}
                     onSave={async (id, data) => { await onEditUser(id, data as any); setEditingUser(null); }}
                     currentInstitution={currentInstitution}
+                    isSuperAdmin={isSuperAdminUser(currentUser)}
                 />
             )}
 

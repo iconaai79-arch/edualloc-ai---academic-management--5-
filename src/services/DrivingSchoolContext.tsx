@@ -285,6 +285,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const newBranch: Branch = {
                 id,
                 institutionId,
+                institution_id: institutionId,
                 name: data.name || 'New Branch',
                 location: data.location || '',
                 code: data.code || '',
@@ -385,6 +386,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const defaultBranch: Branch = {
                     id: `br_main_${institutionId}`,
                     institutionId,
+                    institution_id: institutionId,
                     name: 'Main Campus / HQ',
                     location: 'Main Location',
                     code: 'MAIN',

@@ -208,6 +208,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const [editSessionNotes, setEditSessionNotes] = useState<string>('');
     const [isSavingSuperAdminSession, setIsSavingSuperAdminSession] = useState<boolean>(false);
 
+    // Super Admin Teacher Hourly Rate Editing States
+    const [superAdminRateModalTeacher, setSuperAdminRateModalTeacher] = useState<User | null>(null);
+    const [saEditTeacherWeekdayRate, setSaEditTeacherWeekdayRate] = useState<string>('');
+    const [saEditTeacherWeekendRate, setSaEditTeacherWeekendRate] = useState<string>('');
+    const [isSavingTeacherRate, setIsSavingTeacherRate] = useState<boolean>(false);
+    const [teacherRateSearchQuery, setTeacherRateSearchQuery] = useState<string>('');
+
     // Super Admin / School Admin detection for remedial session editing
     const isSuperAdmin = useMemo(() => {
         // 1. Built-in isSuperAdminUser helper
@@ -5940,6 +5947,112 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         onLogAction?.('Auto-assigned sequential teacher codes (01, 02...) for remedial master timetable.');
     };
 
+    // Open Super Admin Edit Teacher Hourly Rate Modal
+    const handleOpenEditTeacherRate = useCallback((teacher: User) => {
+        const pref = teacherPreferences[teacher.id];
+        const currentWd = teacher.hourlyRate ?? teacher.weekdayHourlyRate ?? (teacher as any).hourly_rate ?? (teacher as any).weekday_hourly_rate ?? pref?.hourlyRate ?? pref?.weekdayHourlyRate;
+        const currentWe = teacher.weekendHourlyRate ?? (teacher as any).weekend_hourly_rate ?? pref?.weekendHourlyRate;
+
+        setSaEditTeacherWeekdayRate(currentWd !== undefined && currentWd !== null ? String(currentWd) : '');
+        setSaEditTeacherWeekendRate(currentWe !== undefined && currentWe !== null ? String(currentWe) : '');
+        setSuperAdminRateModalTeacher(teacher);
+    }, [teacherPreferences]);
+
+    // Save Teacher Hourly Rate (Super Admin)
+    const handleSaveTeacherRate = useCallback(async () => {
+        if (!superAdminRateModalTeacher) return;
+        setIsSavingTeacherRate(true);
+        try {
+            const tId = superAdminRateModalTeacher.id;
+            const numWd = saEditTeacherWeekdayRate.trim() !== '' && !isNaN(Number(saEditTeacherWeekdayRate))
+                ? Number(saEditTeacherWeekdayRate)
+                : undefined;
+            const numWe = saEditTeacherWeekendRate.trim() !== '' && !isNaN(Number(saEditTeacherWeekendRate))
+                ? Number(saEditTeacherWeekendRate)
+                : undefined;
+
+            // 1. Update teacherPreferences in local state and rate settings
+            const existingPref = teacherPreferences[tId] || { preferredDays: [] };
+            const nextPrefs = {
+                ...teacherPreferences,
+                [tId]: {
+                    ...existingPref,
+                    teacherId: tId,
+                    teacherName: superAdminRateModalTeacher.name,
+                    hourlyRate: numWd,
+                    hourly_rate: numWd,
+                    weekdayHourlyRate: numWd,
+                    weekday_hourly_rate: numWd,
+                    weekendHourlyRate: numWe,
+                    weekend_hourly_rate: numWe
+                }
+            };
+            setTeacherPreferences(nextPrefs);
+            if (institutionId) {
+                safeLocalStorage.setItem(`remedial_teacher_prefs_${institutionId}`, JSON.stringify(nextPrefs));
+            }
+
+            // 2. Persist to school_remedial_rate_settings
+            const stableId = (rateSetting && rateSetting.id) ? rateSetting.id : `${institutionId}_remedial_rates`;
+            const existingMeta = (rateSetting && typeof rateSetting.metadata === 'object' && rateSetting.metadata !== null) ? rateSetting.metadata : {};
+            const payload = {
+                ...(rateSetting || {}),
+                id: stableId,
+                institutionId,
+                institution_id: institutionId,
+                teacherPreferences: nextPrefs,
+                teacher_preferences: nextPrefs,
+                metadata: {
+                    ...existingMeta,
+                    teacherPreferences: nextPrefs,
+                    teacher_preferences: nextPrefs
+                }
+            };
+            setRateSetting(payload as any);
+            await apiService.saveModuleRecord('school_remedial_rate_settings', payload);
+
+            // 3. Persist directly to public.users table for this teacher
+            const userUpdatePayload = {
+                id: tId,
+                hourlyRate: numWd,
+                hourly_rate: numWd,
+                weekdayHourlyRate: numWd,
+                weekday_hourly_rate: numWd,
+                weekendHourlyRate: numWe,
+                weekend_hourly_rate: numWe,
+                metadata: {
+                    ...((superAdminRateModalTeacher as any).metadata || {}),
+                    hourlyRate: numWd,
+                    hourly_rate: numWd,
+                    weekdayHourlyRate: numWd,
+                    weekendHourlyRate: numWe
+                }
+            };
+            await apiService.updateModuleRecord('users', tId, userUpdatePayload);
+
+            // 4. Update local tenantUsers and fetchedTenantUsers state
+            setFetchedTenantUsers(prev => prev.map(u => u.id === tId ? { ...u, ...userUpdatePayload } : u));
+
+            onLogAction?.(`[Super Admin] Updated hourly rate for teacher ${superAdminRateModalTeacher.name} to KES ${numWd ?? weekdayHourlyRate ?? 1000}/hr (weekend: KES ${numWe ?? weekendHourlyRate ?? 1500}/hr).`);
+            setSuperAdminRateModalTeacher(null);
+        } catch (err: any) {
+            console.error('Failed to save teacher hourly rate:', err);
+            alert('Failed to update teacher hourly rate: ' + (err.message || 'Unknown error'));
+        } finally {
+            setIsSavingTeacherRate(false);
+        }
+    }, [
+        superAdminRateModalTeacher,
+        saEditTeacherWeekdayRate,
+        saEditTeacherWeekendRate,
+        teacherPreferences,
+        institutionId,
+        rateSetting,
+        weekdayHourlyRate,
+        weekendHourlyRate,
+        onLogAction
+    ]);
+
     // Open Edit Allocation Modal
     const handleOpenEditAllocation = (alloc: RemedialAllocation) => {
         setEditingAlloc(alloc);
@@ -8191,7 +8304,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         if (isDuty || dutyRecord) {
             const recRate = dutyRecord?.dutyPayRate ?? dutyRecord?.duty_pay_rate;
             const recType = dutyRecord?.dutyPayType || dutyRecord?.duty_pay_type;
-            if (recRate !== undefined && recRate !== null && recRate !== '') {
+            if (recRate !== undefined && recRate !== null && !isNaN(Number(recRate))) {
                 const numericRecRate = Number(recRate) || 0;
                 return (recType === 'flat' || dutyRecord?.dutyType === 'weekday')
                     ? numericRecRate
@@ -8203,13 +8316,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             }
         }
 
+        const teacherObj = tenantUsers.find(u => u.id === s.teacherId) || teachersList.find(u => u.id === s.teacherId);
+        const pref = teacherPreferences[s.teacherId];
+        const teacherCustomWeekdayRate = Number(
+            teacherObj?.hourlyRate ??
+            teacherObj?.weekdayHourlyRate ??
+            (teacherObj as any)?.hourly_rate ??
+            (teacherObj as any)?.weekday_hourly_rate ??
+            pref?.hourlyRate ??
+            pref?.weekdayHourlyRate
+        );
+        const teacherCustomWeekendRate = Number(
+            teacherObj?.weekendHourlyRate ??
+            (teacherObj as any)?.weekend_hourly_rate ??
+            pref?.weekendHourlyRate
+        );
+
         if (isWeekend) {
-            const numWeekendRate = Number(weekendHourlyRate || 1500) || 1500;
+            const numWeekendRate = (!isNaN(teacherCustomWeekendRate) && teacherCustomWeekendRate > 0)
+                ? teacherCustomWeekendRate
+                : (Number(weekendHourlyRate || 1500) || 1500);
             return Number((sHours * numWeekendRate).toFixed(2));
         }
-        const numWeekdayRate = Number(weekdayHourlyRate || hourlyRate || 1000) || 1000;
+        const numWeekdayRate = (!isNaN(teacherCustomWeekdayRate) && teacherCustomWeekdayRate > 0)
+            ? teacherCustomWeekdayRate
+            : (Number(weekdayHourlyRate || hourlyRate || 1000) || 1000);
         return Number((sHours * numWeekdayRate).toFixed(2));
-    }, [weekendDutyRoster, weekdayDutyFlatRate, weekendHourlyRate, weekdayHourlyRate, hourlyRate]);
+    }, [weekendDutyRoster, weekdayDutyFlatRate, weekendHourlyRate, weekdayHourlyRate, hourlyRate, tenantUsers, teachersList, teacherPreferences]);
 
     // Calculate accrued unpaid earnings per teacher (distinguishing weekday vs weekend rates)
     // Deduplicates active opening balances across stages so an instructor's balance is only attributed once
@@ -8217,9 +8350,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         // Stage 4: Batches awaiting Operations Manager Cash Handover to DOS (All approved & authorized sessions ready for payout)
         // Unifies 'Pending Operations Payout' and 'Approved' sessions, filtered by period (payoutStartDate / payoutEndDate) if selected
         const opsSessions = sessions.filter(s => {
-            const isApprovedStatus = (s.status === 'Pending Operations Payout' || s.status === 'Approved') &&
-                s.status !== 'Cash Issued to DOS' &&
-                s.status !== 'Paid';
+            const isApprovedStatus = s.status === 'Pending Operations Payout' || s.status === 'Approved';
             if (!isApprovedStatus) return false;
             const sDate = s.date || s.startTime?.split('T')[0] || '';
             const matchStart = !payoutStartDate || !sDate || sDate >= payoutStartDate;
@@ -8607,7 +8738,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             if (reportStatusFilter === 'all') {
                 // By default in official payout ledger, exclude rejected sessions and uncompleted draft sessions
                 if (isRejectedSession(s)) return false;
-                if (s.status === 'In Progress' || s.status === 'Started') return false;
+                if ((s.status as string) === 'In Progress' || (s.status as string) === 'Started') return false;
                 return matchStart && matchEnd && matchTeacher;
             } else if (reportStatusFilter === 'Rejected') {
                 return matchStart && matchEnd && matchTeacher && isRejectedSession(s);
@@ -8657,6 +8788,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const rawOpenBal = openBal ? Number(openBal.amount) || 0 : 0;
                 const openBalAmount = openBal ? (openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal) : 0;
 
+                const pref = teacherPreferences[tId];
+                const customWd = Number(u?.hourlyRate ?? u?.weekdayHourlyRate ?? (u as any)?.hourly_rate ?? (u as any)?.weekday_hourly_rate ?? pref?.hourlyRate ?? pref?.weekdayHourlyRate);
+                const customWe = Number(u?.weekendHourlyRate ?? (u as any)?.weekend_hourly_rate ?? pref?.weekendHourlyRate);
+                const effWd = (!isNaN(customWd) && customWd > 0) ? customWd : (weekdayHourlyRate || hourlyRate || 1000);
+                const effWe = (!isNaN(customWe) && customWe > 0) ? customWe : (weekendHourlyRate || 1500);
+
                 teacherMap[tId] = {
                     teacherId: tId,
                     teacherName: s.teacherName || u?.name || 'Unknown Teacher',
@@ -8664,9 +8801,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     weekdayHours: 0,
                     weekendHours: 0,
                     totalHours: 0,
-                    hourlyRate: weekdayHourlyRate || hourlyRate || 1000,
-                    weekendRate: weekendHourlyRate || 1500,
-                    effectiveRate: weekdayHourlyRate || hourlyRate || 1000,
+                    hourlyRate: effWd,
+                    weekendRate: effWe,
+                    effectiveRate: effWd,
                     earnedAmount: 0,
                     openingBalanceAmount: openBalAmount,
                     paidAmount: 0,
@@ -8719,6 +8856,12 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 const rawOpenBal = Number(openBal.amount) || 0;
                 const openBalAmount = openBal.balanceType === 'payable' ? rawOpenBal : -rawOpenBal;
                 const net = Math.max(0, openBalAmount);
+                const pref = teacherPreferences[reportTeacherFilter];
+                const customWd = Number(u?.hourlyRate ?? u?.weekdayHourlyRate ?? (u as any)?.hourly_rate ?? (u as any)?.weekday_hourly_rate ?? pref?.hourlyRate ?? pref?.weekdayHourlyRate);
+                const customWe = Number(u?.weekendHourlyRate ?? (u as any)?.weekend_hourly_rate ?? pref?.weekendHourlyRate);
+                const effWd = (!isNaN(customWd) && customWd > 0) ? customWd : (weekdayHourlyRate || hourlyRate || 1000);
+                const effWe = (!isNaN(customWe) && customWe > 0) ? customWe : (weekendHourlyRate || 1500);
+
                 teacherMap[reportTeacherFilter] = {
                     teacherId: reportTeacherFilter,
                     teacherName: u?.name || 'Selected Instructor',
@@ -8726,9 +8869,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     weekdayHours: 0,
                     weekendHours: 0,
                     totalHours: 0,
-                    hourlyRate: weekdayHourlyRate || hourlyRate || 1000,
-                    weekendRate: weekendHourlyRate || 1500,
-                    effectiveRate: weekdayHourlyRate || hourlyRate || 1000,
+                    hourlyRate: effWd,
+                    weekendRate: effWe,
+                    effectiveRate: effWd,
                     earnedAmount: 0,
                     openingBalanceAmount: openBalAmount,
                     paidAmount: 0,
@@ -8781,7 +8924,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 status: finalStatus
             };
         });
-    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster, computeSessionPayout, openingBalances, isBursarUser, isSuperAdmin]);
+    }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportStatusFilter, weekdayHourlyRate, weekendHourlyRate, hourlyRate, tenantUsers, weekendDutyRoster, computeSessionPayout, openingBalances, isBursarUser, isSuperAdmin, teacherPreferences]);
 
     // 2. Report: Prefect QR Audit Trail Data
     const reportPrefectAuditData = useMemo(() => {
@@ -11278,57 +11421,101 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             </div>
                                         </div>
 
-                                        {/* Teacher Code Pill / Inline Editor */}
-                                        <div className="flex flex-col items-end shrink-0">
-                                            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
-                                                Teacher Code
-                                            </span>
-                                            {isEditingCode ? (
-                                                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-emerald-500">
-                                                    <input
-                                                        type="text"
-                                                        value={tempTeacherCode}
-                                                        onChange={e => setTempTeacherCode(e.target.value)}
-                                                        onKeyDown={e => {
-                                                            if (e.key === 'Enter') handleSaveTeacherCode(teacher.id, tempTeacherCode);
-                                                            if (e.key === 'Escape') setEditingTeacherCodeId(null);
+                                        {/* Teacher Code Pill / Inline Editor & Hourly Tariff Badge */}
+                                        <div className="flex flex-col items-end shrink-0 gap-1.5">
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                                                    Teacher Code
+                                                </span>
+                                                {isEditingCode ? (
+                                                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-emerald-500">
+                                                        <input
+                                                            type="text"
+                                                            value={tempTeacherCode}
+                                                            onChange={e => setTempTeacherCode(e.target.value)}
+                                                            onKeyDown={e => {
+                                                                if (e.key === 'Enter') handleSaveTeacherCode(teacher.id, tempTeacherCode);
+                                                                if (e.key === 'Escape') setEditingTeacherCodeId(null);
+                                                            }}
+                                                            placeholder="01, 02..."
+                                                            autoFocus
+                                                            maxLength={10}
+                                                            className="w-16 px-2 py-1 text-xs font-mono font-black uppercase text-center bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg outline-none border border-slate-300 dark:border-slate-700"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSaveTeacherCode(teacher.id, tempTeacherCode)}
+                                                            className="p-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
+                                                            title="Save Code"
+                                                        >
+                                                            <Check className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditingTeacherCodeId(null)}
+                                                            className="p-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 transition-colors cursor-pointer"
+                                                            title="Cancel"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setEditingTeacherCodeId(teacher.id);
+                                                            setTempTeacherCode(currentCode);
                                                         }}
-                                                        placeholder="01, 02..."
-                                                        autoFocus
-                                                        maxLength={10}
-                                                        className="w-16 px-2 py-1 text-xs font-mono font-black uppercase text-center bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-lg outline-none border border-slate-300 dark:border-slate-700"
-                                                    />
+                                                        className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono font-black text-xs uppercase bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-all shadow-sm cursor-pointer"
+                                                        title="Click to edit teacher code (e.g. 01, 02, TR-01)"
+                                                    >
+                                                        <span>{currentCode || 'NO CODE'}</span>
+                                                        <Pencil className="w-3 h-3 text-emerald-600 dark:text-emerald-400 opacity-60 group-hover:opacity-100 transition-opacity" />
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Teacher Hourly Rate Tariff Badge / Super Admin Editor */}
+                                            {(() => {
+                                                const pref = teacherPreferences[teacher.id];
+                                                const rawWd = pref?.weekdayHourlyRate ?? pref?.hourlyRate ?? teacher.weekdayHourlyRate ?? teacher.hourlyRate ?? (teacher as any).hourly_rate ?? (teacher as any).weekday_hourly_rate;
+                                                const rawWe = pref?.weekendHourlyRate ?? teacher.weekendHourlyRate ?? (teacher as any).weekend_hourly_rate;
+                                                const isCustom = rawWd !== undefined && rawWd !== null;
+                                                const effWd = isCustom ? Number(rawWd) : (rateSetting?.weekdayHourlyRate || 500);
+                                                const effWe = (rawWe !== undefined && rawWe !== null) ? Number(rawWe) : (rateSetting?.weekendHourlyRate || 700);
+
+                                                return (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleSaveTeacherCode(teacher.id, tempTeacherCode)}
-                                                        className="p-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
-                                                        title="Save Code"
+                                                        onClick={() => isSuperAdmin ? handleOpenEditTeacherRate(teacher) : undefined}
+                                                        className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-bold transition-all border ${
+                                                            isCustom
+                                                                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700/60 shadow-xs'
+                                                                : 'bg-slate-50 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                                                        } ${isSuperAdmin ? 'hover:border-amber-500 hover:bg-amber-100/60 dark:hover:bg-amber-900/40 cursor-pointer' : 'cursor-default'}`}
+                                                        title={
+                                                            isSuperAdmin
+                                                                ? `Super Admin: Click to customize hourly rate for ${teacher.name} (Wkday: KES ${effWd.toLocaleString()}, Wkend: KES ${effWe.toLocaleString()})`
+                                                                : `Teacher Hourly Tariff: KES ${effWd.toLocaleString()}/hr (Wkday) / KES ${effWe.toLocaleString()}/hr (Wkend)`
+                                                        }
                                                     >
-                                                        <Check className="w-3.5 h-3.5" />
+                                                        <Banknote className={`w-3 h-3 ${isCustom ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`} />
+                                                        <span className="font-mono font-black">KES {effWd.toLocaleString()}/hr</span>
+                                                        {isCustom ? (
+                                                            <span className="text-[8px] font-black uppercase px-1 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 rounded leading-none">
+                                                                CUSTOM
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[8px] font-semibold uppercase text-slate-400 dark:text-slate-500">
+                                                                DEF
+                                                            </span>
+                                                        )}
+                                                        {isSuperAdmin && (
+                                                            <Pencil className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100 transition-opacity ml-0.5 text-amber-600 dark:text-amber-400" />
+                                                        )}
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditingTeacherCodeId(null)}
-                                                        className="p-1 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-300 transition-colors cursor-pointer"
-                                                        title="Cancel"
-                                                    >
-                                                        <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setEditingTeacherCodeId(teacher.id);
-                                                        setTempTeacherCode(currentCode);
-                                                    }}
-                                                    className="group flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono font-black text-xs uppercase bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition-all shadow-sm cursor-pointer"
-                                                    title="Click to edit teacher code (e.g. 01, 02, TR-01)"
-                                                >
-                                                    <span>{currentCode || 'NO CODE'}</span>
-                                                    <Pencil className="w-3 h-3 text-emerald-600 dark:text-emerald-400 opacity-60 group-hover:opacity-100 transition-opacity" />
-                                                </button>
-                                            )}
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                     {/* Teacher Qualification & Eligibility Bar */}
@@ -17734,6 +17921,156 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                 </div>
                             </div>
 
+                            {/* 1.1 Individual Teacher Hourly Rate Tariffs (Super Admin Override Table) */}
+                            <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                                            <Users className="w-3.5 h-3.5" /> Individual Teacher Hourly Tariffs
+                                            {isSuperAdmin ? (
+                                                <span className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                                    Super Admin Authorized
+                                                </span>
+                                            ) : (
+                                                <span className="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                                    Read-Only
+                                                </span>
+                                            )}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                            Super Admins can define custom hourly rates per teacher that override the school-wide default tariffs.
+                                        </p>
+                                    </div>
+
+                                    {/* Search input */}
+                                    <div className="relative w-full sm:w-64">
+                                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                        <input
+                                            type="text"
+                                            value={teacherRateSearchQuery}
+                                            onChange={e => setTeacherRateSearchQuery(e.target.value)}
+                                            placeholder="Search teachers by name or code..."
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs font-medium outline-none focus:border-indigo-600 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                {(() => {
+                                    const filteredRateTeachers = teachersList.filter(t => {
+                                        if (!teacherRateSearchQuery.trim()) return true;
+                                        const q = teacherRateSearchQuery.toLowerCase();
+                                        const code = (teacherCodes[t.id] || '').toLowerCase();
+                                        const name = (t.name || '').toLowerCase();
+                                        const email = (t.email || '').toLowerCase();
+                                        return name.includes(q) || code.includes(q) || email.includes(q);
+                                    });
+
+                                    const customCount = teachersList.filter(t => {
+                                        const pref = teacherPreferences[t.id];
+                                        return (
+                                            pref?.weekdayHourlyRate !== undefined ||
+                                            pref?.hourlyRate !== undefined ||
+                                            t.weekdayHourlyRate !== undefined ||
+                                            t.hourlyRate !== undefined ||
+                                            (t as any).hourly_rate !== undefined
+                                        );
+                                    }).length;
+
+                                    return (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-1">
+                                                <span>Showing {filteredRateTeachers.length} of {teachersList.length} staff</span>
+                                                <span className="text-amber-600 dark:text-amber-400 font-mono">
+                                                    {customCount} customized tariff{customCount === 1 ? '' : 's'}
+                                                </span>
+                                            </div>
+
+                                            <div className="border border-slate-200/80 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900/90 shadow-xs">
+                                                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                                    {filteredRateTeachers.map(teacher => {
+                                                        const pref = teacherPreferences[teacher.id];
+                                                        const rawWd = pref?.weekdayHourlyRate ?? pref?.hourlyRate ?? teacher.weekdayHourlyRate ?? teacher.hourlyRate ?? (teacher as any).hourly_rate ?? (teacher as any).weekday_hourly_rate;
+                                                        const rawWe = pref?.weekendHourlyRate ?? teacher.weekendHourlyRate ?? (teacher as any).weekend_hourly_rate;
+                                                        const hasCustomRate = rawWd !== undefined && rawWd !== null;
+                                                        const effWd = hasCustomRate ? Number(rawWd) : weekdayHourlyRate;
+                                                        const effWe = (rawWe !== undefined && rawWe !== null) ? Number(rawWe) : weekendHourlyRate;
+                                                        const code = teacherCodes[teacher.id] || 'TR';
+
+                                                        return (
+                                                            <div
+                                                                key={teacher.id}
+                                                                className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                                            >
+                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs">
+                                                                        {teacher.name ? teacher.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : 'TR'}
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                                                                                {teacher.name}
+                                                                            </span>
+                                                                            <span className="px-1.5 py-0.5 rounded-md font-mono text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                                                                {code}
+                                                                            </span>
+                                                                            {hasCustomRate && (
+                                                                                <span className="text-[8px] font-black uppercase px-1.5 py-0.2 bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 rounded">
+                                                                                    CUSTOM TARIFF
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <p className="text-[10px] text-slate-400 truncate">
+                                                                            {teacher.email || teacher.phoneNumber || 'Staff Member'}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-3 shrink-0">
+                                                                    <div className="text-right font-mono">
+                                                                        <div className="text-xs font-black text-slate-900 dark:text-white">
+                                                                            KES {effWd.toLocaleString()}<span className="text-[9px] text-slate-400 font-normal">/hr</span>
+                                                                        </div>
+                                                                        <div className="text-[9px] text-slate-400">
+                                                                            Wkend: KES {effWe.toLocaleString()}/hr
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {isSuperAdmin ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleOpenEditTeacherRate(teacher)}
+                                                                            className="px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                                                                            title={`Edit hourly rate for ${teacher.name}`}
+                                                                        >
+                                                                            <Pencil className="w-3 h-3" />
+                                                                            <span>Edit Rate</span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <div
+                                                                            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400"
+                                                                            title="Only Super Admins can customize per-teacher hourly rates."
+                                                                        >
+                                                                            <Lock className="w-3.5 h-3.5" />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                    {filteredRateTeachers.length === 0 && (
+                                                        <div className="p-8 text-center text-xs text-slate-400 space-y-1">
+                                                            <p className="font-bold">No teachers found</p>
+                                                            <p className="text-[10px]">Try adjusting your search query above.</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+
                             {/* 2. Period Session Timing Windows */}
                             <div className="bg-slate-50 dark:bg-slate-900/60 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -22649,7 +22986,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <option value="">-- Select Director of Studies (DOS) --</option>
                                             {dosUsersList.map(dos => (
                                                 <option key={dos.id} value={dos.id}>
-                                                    {dos.name} {dos.designation ? `(${dos.designation})` : '(Director of Studies)'}
+                                                    {dos.name} {(dos as any).designation ? `(${(dos as any).designation})` : '(Director of Studies)'}
                                                 </option>
                                             ))}
                                             <option value="custom">Other / Enter Name Manually...</option>
@@ -23547,6 +23884,182 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 filename={previewPdfFilename}
                 onClose={() => setPreviewPdfUrl(null)}
             />
+        )}
+
+        {/* Super Admin Edit Teacher Hourly Rate Modal */}
+        {superAdminRateModalTeacher && typeof document !== 'undefined' && createPortal(
+            <div 
+                className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+                onClick={(e) => {
+                    if (e.target === e.currentTarget && !isSavingTeacherRate) setSuperAdminRateModalTeacher(null);
+                }}
+            >
+                <div 
+                    className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col relative my-auto animate-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Modal Header */}
+                    <div className="p-6 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-xs text-white shadow-inner">
+                                <Banknote className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black uppercase tracking-tight flex items-center gap-2">
+                                    Edit Teacher Hourly Rate
+                                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white">
+                                        Super Admin
+                                    </span>
+                                </h3>
+                                <p className="text-[11px] text-amber-100 font-medium truncate max-w-xs">
+                                    Custom payout tariff for {superAdminRateModalTeacher.name}
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setSuperAdminRateModalTeacher(null)}
+                            disabled={isSavingTeacherRate}
+                            className="p-2 text-white/80 hover:text-white rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Modal Body */}
+                    <div className="p-6 space-y-5">
+                        {/* Teacher Overview Card */}
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700/80 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center font-black text-sm shadow-sm shrink-0">
+                                    {superAdminRateModalTeacher.name ? superAdminRateModalTeacher.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : 'TR'}
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        {superAdminRateModalTeacher.name}
+                                    </h4>
+                                    <p className="text-[10px] text-slate-400">
+                                        {superAdminRateModalTeacher.email || superAdminRateModalTeacher.phoneNumber || 'Staff Member'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-[9px] font-black uppercase text-slate-400 block">Teacher Code</span>
+                                <span className="px-2 py-0.5 rounded-lg font-mono text-xs font-black bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 inline-block mt-0.5">
+                                    {teacherCodes[superAdminRateModalTeacher.id] || 'TR'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Rate Inputs */}
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                        Weekday Hourly Rate (KES / hr)
+                                    </label>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        Default: KES {(weekdayHourlyRate || 1000).toLocaleString()}/hr
+                                    </span>
+                                </div>
+                                <div className="relative group">
+                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-black tracking-wider text-slate-400 group-focus-within:text-amber-600 font-mono select-none">
+                                        KES
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="50"
+                                        value={saEditTeacherWeekdayRate}
+                                        onChange={e => setSaEditTeacherWeekdayRate(e.target.value)}
+                                        placeholder={String(weekdayHourlyRate || 1000)}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl pl-14 pr-16 py-3 text-sm font-bold font-mono outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all dark:text-white"
+                                    />
+                                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 select-none">
+                                        / hour
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                        Weekend Hourly Rate (KES / hr)
+                                    </label>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        Default: KES {(weekendHourlyRate || 1500).toLocaleString()}/hr
+                                    </span>
+                                </div>
+                                <div className="relative group">
+                                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-black tracking-wider text-slate-400 group-focus-within:text-amber-600 font-mono select-none">
+                                        KES
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="50"
+                                        value={saEditTeacherWeekendRate}
+                                        onChange={e => setSaEditTeacherWeekendRate(e.target.value)}
+                                        placeholder={String(weekendHourlyRate || 1500)}
+                                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl pl-14 pr-16 py-3 text-sm font-bold font-mono outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 transition-all dark:text-white"
+                                    />
+                                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 select-none">
+                                        / hour
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Reset / Preset Bar */}
+                        <div className="flex items-center justify-between pt-1">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSaEditTeacherWeekdayRate('');
+                                    setSaEditTeacherWeekendRate('');
+                                }}
+                                className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                                <RotateCcw className="w-3 h-3" />
+                                Reset to School Defaults
+                            </button>
+                            <span className="text-[10px] text-slate-400 italic">
+                                Blank inputs fall back to school tariffs
+                            </span>
+                        </div>
+
+                        {/* Security Notice */}
+                        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl text-[10px] text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                            <Shield className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <span>
+                                This override is saved to the teacher's profile and institutional preferences. All remedial sessions, approval payouts, and financial ledgers for this teacher will calculate using these rates.
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setSuperAdminRateModalTeacher(null)}
+                            disabled={isSavingTeacherRate}
+                            className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSaveTeacherRate}
+                            disabled={isSavingTeacherRate}
+                            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2 cursor-pointer"
+                        >
+                            {isSavingTeacherRate ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Save Hourly Tariff
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body
         )}
         </>
     );
