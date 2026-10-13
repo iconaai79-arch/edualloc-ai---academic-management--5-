@@ -19,6 +19,7 @@ import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { PencilIcon } from '../icons/PencilIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { TrashIcon } from '../icons/TrashIcon';
 
 interface CorporateInvoicingManagerProps {
     currentUser: User;
@@ -850,7 +851,25 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             setClientCity('');
             setClientNotes('');
         } catch (err: any) {
-            alert('Failed to save client: ' + err.message);
+            console.error('Failed to save client:', err);
+            alert('Failed to save client: ' + (err?.message || err));
+        }
+    };
+
+    // Delete Client
+    const handleDeleteClient = async (client: InvoiceClient) => {
+        if (!window.confirm(`Are you sure you want to delete corporate client "${client.clientName}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await apiService.deleteInvoiceClient(client.id);
+            setClients(prev => prev.filter(c => c.id !== client.id));
+            onLogAction?.(`Deleted corporate client: ${client.clientName}`);
+            alert(`Client "${client.clientName}" removed successfully.`);
+        } catch (err: any) {
+            console.error('Failed to delete client:', err);
+            alert('Failed to delete client: ' + (err?.message || err));
         }
     };
 
@@ -1719,23 +1738,33 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             <h4 className="font-bold text-sm text-slate-900 dark:text-white">{client.clientName}</h4>
                                             {client.contactPerson && <p className="text-xs text-slate-500 mt-0.5">Attn: {client.contactPerson}</p>}
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                setEditingClient(client);
-                                                setClientName(client.clientName);
-                                                setClientContactPerson(client.contactPerson || '');
-                                                setClientEmail(client.email || '');
-                                                setClientPhone(client.phone || '');
-                                                setClientTaxPin(client.taxPin || '');
-                                                setClientAddress(client.address || '');
-                                                setClientCity(client.city || '');
-                                                setClientNotes(client.notes || '');
-                                                setShowClientModal(true);
-                                            }}
-                                            className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
-                                        >
-                                            <PencilIcon className="w-3.5 h-3.5" />
-                                        </button>
+                                        <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingClient(client);
+                                                    setClientName(client.clientName);
+                                                    setClientContactPerson(client.contactPerson || '');
+                                                    setClientEmail(client.email || '');
+                                                    setClientPhone(client.phone || '');
+                                                    setClientTaxPin(client.taxPin || '');
+                                                    setClientAddress(client.address || '');
+                                                    setClientCity(client.city || '');
+                                                    setClientNotes(client.notes || '');
+                                                    setShowClientModal(true);
+                                                }}
+                                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                                title="Edit Client Profile"
+                                            >
+                                                <PencilIcon className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteClient(client)}
+                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                                title="Delete Client"
+                                            >
+                                                <TrashIcon className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-1 text-xs text-slate-500">

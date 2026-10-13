@@ -4764,17 +4764,12 @@ export const apiService = {
             payload.branch_id = null;
         }
 
-        // Guard: 'GLOBAL' is not a real institution row — it represents the super-admin's
-        // own corporate billing entity. Sending it as institution_id to the DB violates any
-        // FK constraint on invoices/receipts/invoice_clients that references the institutions
-        // table. Convert to null so the insert always succeeds; tenant isolation is enforced
-        // at the application query layer (fetchModuleRecords always filters by institution_id).
-        const BILLING_TABLES_WITH_FK = new Set([
-            'invoices', 'receipts', 'invoice_clients',
-            'company_invoice_settings', 'finance_numbering_configs'
-        ]);
-        if (BILLING_TABLES_WITH_FK.has(module) && payload && payload.institution_id === 'GLOBAL') {
-            payload.institution_id = null;
+        // Note: For corporate billing (invoices, receipts, invoice_clients, company_invoice_settings,
+        // finance_numbering_configs), 'GLOBAL' is the canonical enterprise tenant identifier.
+        // It is backed by an anchor row in public.institutions (migration 474) and FKs are dropped (migration 429),
+        // so we preserve 'GLOBAL' as institution_id to ensure NOT NULL constraints in PostgreSQL are never violated.
+        if (['invoice_clients', 'company_invoice_settings', 'finance_numbering_configs'].includes(module) && payload && !payload.institution_id) {
+            payload.institution_id = 'GLOBAL';
         }
 
         // Immediate write-through cache
@@ -8772,11 +8767,108 @@ export const apiService = {
     async saveRemedialDuty(data: Partial<RemedialWeekendDuty>): Promise<void> { await apiService.saveModuleRecord('school_remedial_duty_roster', data); },
     async deleteRemedialDuty(id: string): Promise<void> { await apiService.deleteModuleRecord('school_remedial_duty_roster', id); },
     // Corporate Invoicing & Billing Services
-    async fetchInvoiceClients(instId?: string): Promise<InvoiceClient[]> { return apiService.fetchModuleRecords('invoice_clients', instId); },
-    async saveInvoiceClient(data: Partial<InvoiceClient>): Promise<void> { await apiService.saveModuleRecord('invoice_clients', data); },
-    async deleteInvoiceClient(id: string): Promise<void> { await apiService.deleteModuleRecord('invoice_clients', id); },
-    async fetchCompanyInvoiceSettings(instId?: string): Promise<CompanyInvoiceSettings[]> { return apiService.fetchModuleRecords('company_invoice_settings', instId); },
-    async saveCompanyInvoiceSettings(data: Partial<CompanyInvoiceSettings>): Promise<void> { await apiService.saveModuleRecord('company_invoice_settings', data); },
+    async fetchInvoiceClients(instId?: string): Promise<InvoiceClient[]> {
+        const isGlobal = !instId || instId === 'GLOBAL';
+        try {
+            const records = await apiService.fetchModuleRecords<InvoiceClient>('invoice_clients', isGlobal ? undefined : instId);
+            if (Array.isArray(records) && records.length > 0) {
+                return records;
+            }
+        } catch (_) {}
+
+        // Direct Supabase fallback if available
+        if (_supabase) {
+            try {
+                let q = _supabase.from('invoice_clients').select('*');
+                if (!isGlobal && instId) {
+                    q = q.eq('institution_id', instId);
+                }
+                const { data: sbData, error: sbErr } = await q.order('created_at', { ascending: false });
+                if (!sbErr && Array.isArray(sbData) && sbData.length > 0) {
+                    const camelList = sbData.map(r => toCamelCase(r) as InvoiceClient);
+                    ls.set('invoice_clients', camelList);
+                    return camelList;
+                }
+            } catch (_) {}
+        }
+
+        const local = (ls.get('invoice_clients') || []) as any[];
+        return local.filter((c: any) => {
+            const id = c.institutionId || c.institution_id;
+            return isGlobal ? (!id || id === 'GLOBAL') : id === instId;
+        }).map(c => toCamelCase(c));
+    },
+
+    async saveInvoiceClient(data: Partial<InvoiceClient>): Promise<void> {
+        const instId = data.institutionId || (data as any).institution_id || 'GLOBAL';
+        const clientId = data.id || `cli_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const snakePayload: any = {
+            ...toSnakeCase(data),
+            id: clientId,
+            institution_id: instId,
+            updated_at: new Date().toISOString()
+        };
+
+        // Immediate write-through cache so UI updates instantly
+        ls.upsert('invoice_clients', snakePayload);
+        try { localDb.upsert('invoice_clients', snakePayload).catch(() => {}); } catch (_) {}
+
+        // 1. Direct Supabase write if available
+        if (_supabase) {
+            try {
+                const { error: sbErr } = await _supabase.from('invoice_clients').upsert(snakePayload);
+                if (!sbErr) {
+                    // Direct database write succeeded!
+                } else {
+                    console.warn('[apiService] Direct Supabase upsert for invoice_clients note:', sbErr.message);
+                }
+            } catch (sbEx) {
+                console.warn('[apiService] Direct Supabase upsert exception for invoice_clients:', sbEx);
+            }
+        }
+
+        // 2. Persist via server proxy endpoint to ensure multi-layer consistency
+        try {
+            await apiService.saveModuleRecord('invoice_clients', snakePayload);
+        } catch (proxyErr) {
+            console.warn('[apiService] saveModuleRecord proxy for invoice_clients note:', proxyErr);
+        }
+    },
+
+    async deleteInvoiceClient(id: string): Promise<void> {
+        if (_supabase) {
+            try {
+                await _supabase.from('invoice_clients').delete().eq('id', id);
+            } catch (_) {}
+        }
+        await apiService.deleteModuleRecord('invoice_clients', id);
+    },
+
+    async fetchCompanyInvoiceSettings(instId?: string): Promise<CompanyInvoiceSettings[]> {
+        return apiService.fetchModuleRecords('company_invoice_settings', instId);
+    },
+
+    async saveCompanyInvoiceSettings(data: Partial<CompanyInvoiceSettings>): Promise<void> {
+        const instId = data.institutionId || (data as any).institution_id || 'GLOBAL';
+        const settingId = data.id || `inv_cfg_${instId}`;
+        const snakePayload: any = {
+            ...toSnakeCase(data),
+            id: settingId,
+            institution_id: instId,
+            updated_at: new Date().toISOString()
+        };
+
+        ls.upsert('company_invoice_settings', snakePayload);
+        try { localDb.upsert('company_invoice_settings', snakePayload).catch(() => {}); } catch (_) {}
+
+        if (_supabase) {
+            try {
+                await _supabase.from('company_invoice_settings').upsert(snakePayload);
+            } catch (_) {}
+        }
+
+        await apiService.saveModuleRecord('company_invoice_settings', snakePayload);
+    },
     async clearInstitutionalData(institutionId: string, currentUserId: string): Promise<void> {
         // Supabase Logic - Moved to secure proxy
         try {

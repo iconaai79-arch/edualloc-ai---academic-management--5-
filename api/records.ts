@@ -1021,12 +1021,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
           'system_settings', 'institution_module_states', 'building_visitor_logs',
+          'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
+          'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
         ].includes(moduleName));
@@ -3463,9 +3465,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
             };
             const skipTenancy = isSuperAdminRolePost(user?.role) || (user as any)?.is_super_admin === true || moduleName === 'institutions' || isTableWithoutInstitutionId(moduleName);
+            const isBillingModule = ['invoice_clients', 'company_invoice_settings', 'finance_numbering_configs', 'invoices', 'receipts'].includes(moduleName);
+            const resolveInstId = (r: any) => {
+                const explicit = r.institution_id || r.institutionId;
+                if (explicit && explicit !== 'null' && explicit !== 'undefined') return explicit;
+                if (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') return user.institutionId;
+                if (isBillingModule) return 'GLOBAL';
+                return skipTenancy ? undefined : (user?.institutionId || 'GLOBAL');
+            };
             const recordWithTenancy = Array.isArray(recordData) 
-                ? recordData.map(r => ({ ...r, ...(skipTenancy ? {} : { institution_id: r.institution_id || r.institutionId || user?.institutionId }) }))
-                : { ...recordData, ...(skipTenancy ? {} : { institution_id: recordData.institution_id || recordData.institutionId || user?.institutionId }) };
+                ? recordData.map(r => ({ ...r, ...(resolveInstId(r) ? { institution_id: resolveInstId(r) } : {}) }))
+                : { ...recordData, ...(resolveInstId(recordData) ? { institution_id: resolveInstId(recordData) } : {}) };
 
             const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
             const isBranchRestrictedUser = user && !isSuperAdminRolePost(user.role) && user.role !== 'group_admin';
@@ -5985,6 +5995,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if ((error.code === '23502' || String(error.message || '').includes('violates not-null constraint') || String(error.message || '').includes('null value in column')) && maxRetries > 0) {
                     const errMsg = String(error.message || '').toLowerCase();
                     console.warn(`[api/records] NOT NULL constraint violation on [${moduleName}]: ${errMsg}. Retrying with auto-remediation (${maxRetries} left)...`);
+
+                    if (errMsg.includes('institution_id')) {
+                        const fixInstitutionId = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            if (!copy.institution_id || copy.institution_id === 'null' || copy.institution_id === 'undefined') {
+                                copy.institution_id = (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') ? user.institutionId : 'GLOBAL';
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(fixInstitutionId) : fixInstitutionId(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
 
                     if ((targetDbTable === 'users' || moduleName === 'users') && errMsg.includes('email')) {
                         // Immediately auto-remediate email to satisfy NOT NULL constraint without running blocking DDL queries that freeze locks
