@@ -2233,6 +2233,233 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         footerNotes: 'Thank you for your continued partnership. For inquiries contact accounts.'
     });
 
+    // ─── Transport & Logistics State for Schools Using Transport ───
+    const [transportInvoices, setTransportInvoices] = useState<any[]>(() => {
+        const instId = props.institution?.id;
+        if (!instId) return [];
+        try {
+            const saved = safeLocalStorage.getItem(`eduai_transport_fee_invoices_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
+
+    const [busRoutes, setBusRoutes] = useState<any[]>(() => {
+        const instId = props.institution?.id;
+        if (!instId) return [];
+        try {
+            const saved = safeLocalStorage.getItem(`eduai_transport_bus_routes_${instId}`);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) return parsed;
+            }
+        } catch (_) {}
+        return [];
+    });
+
+    useEffect(() => {
+        const instId = props.institution?.id;
+        if (!instId) return;
+
+        const loadFromLocal = () => {
+            try {
+                const invSaved = safeLocalStorage.getItem(`eduai_transport_fee_invoices_${instId}`);
+                if (invSaved) {
+                    const parsed = JSON.parse(invSaved);
+                    if (Array.isArray(parsed)) setTransportInvoices(parsed);
+                }
+                const routeSaved = safeLocalStorage.getItem(`eduai_transport_bus_routes_${instId}`);
+                if (routeSaved) {
+                    const parsed = JSON.parse(routeSaved);
+                    if (Array.isArray(parsed)) setBusRoutes(parsed);
+                }
+            } catch (_) {}
+        };
+        loadFromLocal();
+
+        const handleStorage = (e: StorageEvent) => {
+            if (e.key === `eduai_transport_fee_invoices_${instId}` || e.key === `eduai_transport_bus_routes_${instId}`) {
+                loadFromLocal();
+            }
+        };
+        window.addEventListener('storage', handleStorage);
+
+        apiService.fetchTransportLogisticsHub(instId).then((hubData: any) => {
+            if (!hubData) return;
+            const cloudInvs = Array.isArray(hubData.transportInvoices)
+                ? hubData.transportInvoices
+                : (Array.isArray(hubData.transport_invoices) ? hubData.transport_invoices : []);
+            if (cloudInvs.length > 0) {
+                setTransportInvoices(prev => {
+                    const map = new Map<string, any>();
+                    cloudInvs.forEach((i: any) => map.set(String(i.id), i));
+                    prev.forEach((i: any) => map.set(String(i.id), i));
+                    return Array.from(map.values());
+                });
+            }
+            const rawCloudRoutes = Array.isArray(hubData.busRoutes)
+                ? hubData.busRoutes
+                : (Array.isArray(hubData.bus_routes) ? hubData.bus_routes : []);
+            if (rawCloudRoutes.length > 0) {
+                setBusRoutes(rawCloudRoutes);
+            }
+        }).catch(() => {});
+
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+        };
+    }, [props.institution?.id]);
+
+    const isSchoolUsingTransport = useMemo(() => {
+        const inst = props.institution;
+        if (!inst) return false;
+        if (
+            inst.hasTransport === true ||
+            (inst as any).settings?.hasTransport === true ||
+            (inst as any).transportEnabled === true ||
+            (inst as any).isTransportEnabled === true ||
+            (inst as any).enableTransport === true ||
+            (Array.isArray((inst as any).modules) && ((inst as any).modules.includes('transport') || (inst as any).modules.includes('logistics')))
+        ) {
+            return true;
+        }
+        if (busRoutes.length > 0) return true;
+        const instId = inst.id;
+        if (instId) {
+            try {
+                const rawRoutes = safeLocalStorage.getItem(`eduai_transport_bus_routes_${instId}`);
+                if (rawRoutes && JSON.parse(rawRoutes).length > 0) return true;
+            } catch (_) {}
+            try {
+                const rawFees = safeLocalStorage.getItem(`eduai_transport_route_fee_settings_${instId}`);
+                if (rawFees && JSON.parse(rawFees).length > 0) return true;
+            } catch (_) {}
+            try {
+                const rawInvs = safeLocalStorage.getItem(`eduai_transport_fee_invoices_${instId}`);
+                if (rawInvs && JSON.parse(rawInvs).length > 0) return true;
+            } catch (_) {}
+            try {
+                const rawPrefs = safeLocalStorage.getItem(`eduai_student_commute_prefs_${instId}`);
+                if (rawPrefs && Object.keys(JSON.parse(rawPrefs)).length > 0) return true;
+            } catch (_) {}
+        }
+        if (transportInvoices.length > 0) return true;
+        const anyStudentHasTransport = (props.students || []).some((s: any) =>
+            Boolean(
+                s.assignedRouteId ||
+                (s as any).assigned_route_id ||
+                s.metadata?.transportOpeningBalance ||
+                s.metadata?.transport_opening_balance ||
+                s.transportOpeningBalance ||
+                s.metadata?.transportRouteId
+            )
+        );
+        if (anyStudentHasTransport) return true;
+
+        return false;
+    }, [props.institution, busRoutes, transportInvoices, props.students]);
+
+    const busRoutesNameMap = useMemo(() => {
+        const map = new Map<string, string>();
+        busRoutes.forEach((r: any) => {
+            const rId = String(r.id || '').trim();
+            const rName = String(r.name || r.routeName || r.route_name || '').trim();
+            if (rId && rName) {
+                map.set(rId, rName);
+            }
+        });
+        return map;
+    }, [busRoutes]);
+
+    const getStudentTransportOpeningBalance = useCallback((student: any): {
+        amount: number;
+        isCredit: boolean;
+        date?: string;
+        notes?: string;
+        routeName?: string;
+    } => {
+        if (!student || !isSchoolUsingTransport) return { amount: 0, isCredit: false };
+
+        const sId = String(student.id || '').trim().toLowerCase();
+        const cleanSId = cleanId(sId).toLowerCase();
+        const adm = String(studentAdmissionNumber(student) || student.admissionNumber || student.admission_number || student.admNo || (student as any).staffId || '').trim().toLowerCase();
+        const cleanAdm = adm.replace(/^0+/, '');
+        const sName = String(student.name || '').trim().toLowerCase();
+
+        // 1. Check in transportInvoices for an opening balance invoice
+        const opInv = transportInvoices.find((i: any) => {
+            const isOp = i.isOpeningBalance === true ||
+                (i.period && (
+                    String(i.period).toLowerCase().includes('opening') ||
+                    String(i.period).toLowerCase().includes('b/f') ||
+                    String(i.period).toLowerCase().includes('brought forward')
+                )) ||
+                (i.notes && (
+                    String(i.notes).toLowerCase().includes('opening balance') ||
+                    String(i.notes).toLowerCase().includes('b/f') ||
+                    String(i.notes).toLowerCase().includes('brought forward')
+                ));
+            if (!isOp) return false;
+
+            const invStudentId = String(i.studentId || i.student_id || '').trim().toLowerCase();
+            const invCleanId = cleanId(invStudentId).toLowerCase();
+            if (sId && (invStudentId === sId || invCleanId === cleanSId)) return true;
+
+            const invAdm = String(i.admissionNumber || i.admission_number || '').trim().toLowerCase();
+            const invCleanAdm = invAdm.replace(/^0+/, '');
+            if (adm && adm !== '—' && (invAdm === adm || invCleanAdm === cleanAdm)) return true;
+
+            const invName = String(i.studentName || i.student_name || '').trim().toLowerCase();
+            if (sName && invName && (sName === invName || sName.includes(invName) || invName.includes(sName))) return true;
+
+            return false;
+        });
+
+        if (opInv) {
+            const rawAmt = Number(opInv.finalAmount ?? opInv.amount ?? opInv.balance ?? opInv.baseAmount ?? 0);
+            const parsed = parseMoneyAmount(rawAmt);
+            const isCredit = (opInv as any).balanceType === 'credit' || parsed < 0;
+            const resolvedRouteName = opInv.routeName || (opInv.routeId ? busRoutesNameMap.get(String(opInv.routeId)) : '') || '';
+            return {
+                amount: Math.abs(parsed),
+                isCredit,
+                date: opInv.issuedDate || opInv.created_at || opInv.createdAt,
+                notes: opInv.notes || (isCredit ? 'Transport Prepayment Credit' : 'Transport Arrears'),
+                routeName: resolvedRouteName
+            };
+        }
+
+        // 2. Check student metadata or direct properties
+        const metaVal = student.metadata?.transportOpeningBalance ??
+                        student.metadata?.transport_opening_balance ??
+                        student.metadata?.transportBalanceBf ??
+                        student.metadata?.transport_balance_bf ??
+                        student.transportOpeningBalance ??
+                        student.transport_opening_balance ??
+                        student.transportBalanceBf;
+        if (metaVal !== undefined && metaVal !== null && metaVal !== '') {
+            const parsed = parseMoneyAmount(metaVal);
+            if (Math.abs(parsed) > 0) {
+                const routeId = student.assignedRouteId || (student as any).assigned_route_id || student.metadata?.transportRouteId;
+                const resolvedRouteName = routeId ? (busRoutesNameMap.get(String(routeId)) || student.routeName) : (student.routeName || '');
+                return {
+                    amount: Math.abs(parsed),
+                    isCredit: parsed < 0,
+                    notes: parsed < 0 ? 'Transport Prepayment Credit' : 'Transport Arrears',
+                    routeName: resolvedRouteName
+                };
+            }
+        }
+
+        // 3. Fallback: check route name if assigned
+        const studentRouteId = student.assignedRouteId || (student as any).assigned_route_id;
+        const fallbackRoute = studentRouteId ? busRoutesNameMap.get(String(studentRouteId)) : (student.routeName || '');
+        return { amount: 0, isCredit: false, routeName: fallbackRoute };
+    }, [isSchoolUsingTransport, transportInvoices, busRoutesNameMap]);
+
     // Document Numbering Configuration state & defaults
     const DOCUMENT_TYPES = useMemo(() => [
         { type: 'invoice', label: 'Invoice Numbering', defaultPrefix: 'INV-', defaultNextNumber: 1001 },
@@ -3990,7 +4217,9 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
             || companyDetails?.letterheadConfig?.headerImageUrl;
         const instLogo = institution?.logoUrl || institution?.logo_url || companyDetails?.logoUrl;
         const admNo = studentAdmissionNumber(student) || student.admissionNumber || student.admission_number || student.admNo || '—';
-        const studentClass = (student as any).className || studentClassGroup(student) || (student as any).gradeLevel || '—';
+        const rawStudentClass = (student as any).className || studentClassGroup(student) || (student as any).gradeLevel || '—';
+        const routeName = (student as any).routeName || (student as any).assignedRouteName;
+        const studentClass = routeName ? `${rawStudentClass} · Route: ${routeName}` : rawStudentClass;
         const issueDate = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
         const refNumber = `STMT-${new Date().getFullYear()}/${admNo !== '—' ? admNo : (student.id?.slice(-6) || 'GEN')}`;
 
@@ -4721,7 +4950,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 ? 0
                 : rawOpeningBal;
 
-            const totalInvoiced = (openingBal > 0 ? openingBal : 0) + invoicedWithoutOpening;
+            // Transport Opening Balance (for schools using transport)
+            const transportOp = getStudentTransportOpeningBalance(s);
+            const transportDr = (transportOp && !transportOp.isCredit) ? transportOp.amount : 0;
+            const transportCr = (transportOp && transportOp.isCredit) ? transportOp.amount : 0;
+
+            const totalInvoiced = (openingBal > 0 ? openingBal : 0) + transportDr + invoicedWithoutOpening;
             const studentReceipts = allStudentReceipts;
 
             const paid = studentReceipts.reduce((sum, rec) => {
@@ -4729,7 +4963,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return sum + parseMoneyAmount(amt);
             }, 0);
             
-            const totalPaid = (openingBal < 0 ? Math.abs(openingBal) : 0) + paid;
+            const totalPaid = (openingBal < 0 ? Math.abs(openingBal) : 0) + transportCr + paid;
             const netBalance = totalInvoiced - totalPaid;
             const balance = Math.max(0, netBalance);
             const prepayment = Math.max(0, -netBalance);
@@ -4826,6 +5060,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 isGraduated: Boolean(isGraduated),
                 totals: {
                     openingBalance: openingBal,
+                    transportOpeningBalance: transportOp ? (transportOp.isCredit ? -transportOp.amount : transportOp.amount) : 0,
+                    routeName: transportOp?.routeName,
                     invoicedWithoutOpening,
                     invoiced: totalInvoiced,
                     paid: totalPaid,
@@ -4835,7 +5071,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 }
             };
         });
-    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm, effectiveCourses, getStudentClassName, getStudentStream]);
+    }, [mergedStudents, mappedInvoices, mappedReceipts, mergedEnrollments, matchesSelectedBranch, getStudentAdmNumber, cleanId, isSyntheticAdm, effectiveCourses, getStudentClassName, getStudentStream, getStudentTransportOpeningBalance]);
 
     const availableClassesForBalances = useMemo(() => {
         const classesSet = new Set<string>();
@@ -10195,10 +10431,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const balPrevStudentRaw = props.students.find((s: any) => s.id === balPreviewStudentId);
                 const balPrevFinanceRecord = studentFinanceData.find(s => s.id === balPreviewStudentId);
                 const balPrevResolvedAdmNo = studentAdmissionNumber(balPrevStudentRaw || balPrevFinanceRecord);
+                const balPrevTransportOp = getStudentTransportOpeningBalance(balPrevStudentRaw || balPrevFinanceRecord);
+                const balPrevTransportDr = (balPrevTransportOp && !balPrevTransportOp.isCredit) ? balPrevTransportOp.amount : 0;
+                const balPrevTransportCr = (balPrevTransportOp && balPrevTransportOp.isCredit) ? balPrevTransportOp.amount : 0;
+
                 const balPrevStudent = balPrevStudentRaw ? {
                     ...balPrevStudentRaw,
                     admissionNumber: balPrevResolvedAdmNo,
-                    className: (balPrevFinanceRecord as any)?.className || (balPrevStudentRaw as any).className || studentClassGroup(balPrevStudentRaw)
+                    className: (balPrevFinanceRecord as any)?.className || (balPrevStudentRaw as any).className || studentClassGroup(balPrevStudentRaw),
+                    routeName: balPrevTransportOp?.routeName || (balPrevStudentRaw as any).assignedRouteName || (balPrevStudentRaw as any).routeName || (balPrevFinanceRecord as any)?.totals?.routeName
                 } : null;
                 const balPrevInvoices = mappedInvoices.filter((i: any) => 
                     i.studentId === balPreviewStudentId || 
@@ -10272,15 +10513,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const balPrevReceipts = allBalPrevReceipts;
                 const balPrevInvoicesTotal = balPrevInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
                 const balPrevReceiptsTotal = balPrevReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
-                const balPrevTotalInvoiced = (balPrevOpeningBal > 0 ? balPrevOpeningBal : 0) + balPrevInvoicesTotal;
-                const balPrevTotalPaid = (balPrevOpeningBal < 0 ? Math.abs(balPrevOpeningBal) : 0) + balPrevReceiptsTotal;
+                const balPrevTotalInvoiced = (balPrevOpeningBal > 0 ? balPrevOpeningBal : 0) + balPrevTransportDr + balPrevInvoicesTotal;
+                const balPrevTotalPaid = (balPrevOpeningBal < 0 ? Math.abs(balPrevOpeningBal) : 0) + balPrevTransportCr + balPrevReceiptsTotal;
                 const balPrevBalance = balPrevTotalInvoiced - balPrevTotalPaid;
 
                 const balPrevAllEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
-                    ...(Math.abs(balPrevOpeningBal) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: balPrevOpeningBal } }] : []),
+                    ...(Math.abs(balPrevOpeningBal) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: balPrevOpeningBal, isTransport: false } }] : []),
+                    ...(balPrevTransportOp && balPrevTransportOp.amount > 0 ? [{
+                        date: balPrevTransportOp.date || '0001-01-01',
+                        eType: 'opening' as const,
+                        data: {
+                            amount: balPrevTransportOp.amount,
+                            isTransport: true,
+                            isCredit: balPrevTransportOp.isCredit,
+                            notes: balPrevTransportOp.notes,
+                            routeName: balPrevTransportOp.routeName
+                        }
+                    }] : []),
                     ...balPrevInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                     ...balPrevReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                 ].sort((a, b) => {
+                    if (a.eType === 'opening' && b.eType === 'opening') {
+                        if (!a.data?.isTransport && b.data?.isTransport) return -1;
+                        if (a.data?.isTransport && !b.data?.isTransport) return 1;
+                        return 0;
+                    }
                     if (a.eType === 'opening') return -1;
                     if (b.eType === 'opening') return 1;
                     return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
@@ -10290,30 +10547,59 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 const balPrevLedgerChronological = balPrevAllEntries.map(entry => {
                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                     if (entry.eType === 'opening') {
-                        const amt = parseMoneyAmount(entry.data.amount || 0);
-                        if (amt > 0) {
-                            balPrevRunning += amt;
-                            return {
-                                date: formattedDate,
-                                reference: 'B/F',
-                                description: 'Opening Balance Brought Forward (Fee Arrears)',
-                                debit: amt,
-                                credit: 0,
-                                balance: balPrevRunning,
-                                eType: 'invoice' as const
-                            };
+                        if (entry.data?.isTransport) {
+                            const amt = parseMoneyAmount(entry.data.amount || 0);
+                            const routeSuffix = entry.data.routeName ? ` · Route: ${entry.data.routeName}` : '';
+                            if (!entry.data.isCredit && amt > 0) {
+                                balPrevRunning += amt;
+                                return {
+                                    date: formattedDate,
+                                    reference: 'B/F (TR)',
+                                    description: `Opening Balance Brought Forward (Transport Arrears)${routeSuffix}`,
+                                    debit: amt,
+                                    credit: 0,
+                                    balance: balPrevRunning,
+                                    eType: 'invoice' as const
+                                };
+                            } else {
+                                const creditAmt = Math.abs(amt);
+                                balPrevRunning -= creditAmt;
+                                return {
+                                    date: formattedDate,
+                                    reference: 'B/F (TR)',
+                                    description: `Opening Balance Brought Forward (Transport Prepayment Credit)${routeSuffix}`,
+                                    debit: 0,
+                                    credit: creditAmt,
+                                    balance: balPrevRunning,
+                                    eType: 'payment' as const
+                                };
+                            }
                         } else {
-                            const creditAmt = Math.abs(amt);
-                            balPrevRunning -= creditAmt;
-                            return {
-                                date: formattedDate,
-                                reference: 'B/F',
-                                description: 'Opening Balance Brought Forward (Prepayment Credit)',
-                                debit: 0,
-                                credit: creditAmt,
-                                balance: balPrevRunning,
-                                eType: 'payment' as const
-                            };
+                            const amt = parseMoneyAmount(entry.data.amount || 0);
+                            if (amt > 0) {
+                                balPrevRunning += amt;
+                                return {
+                                    date: formattedDate,
+                                    reference: 'B/F',
+                                    description: 'Opening Balance Brought Forward (Fee Arrears)',
+                                    debit: amt,
+                                    credit: 0,
+                                    balance: balPrevRunning,
+                                    eType: 'invoice' as const
+                                };
+                            } else {
+                                const creditAmt = Math.abs(amt);
+                                balPrevRunning -= creditAmt;
+                                return {
+                                    date: formattedDate,
+                                    reference: 'B/F',
+                                    description: 'Opening Balance Brought Forward (Prepayment Credit)',
+                                    debit: 0,
+                                    credit: creditAmt,
+                                    balance: balPrevRunning,
+                                    eType: 'payment' as const
+                                };
+                            }
                         }
                     } else if (entry.eType === 'invoice') {
                         const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
@@ -10458,7 +10744,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                         <div className="mt-3 pt-3 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-3">
                                             <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{balPrevStudent.name}</p></div>
                                             <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{balPrevResolvedAdmNo}</p></div>
-                                            <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</p></div>
+                                            <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}{balPrevStudent.routeName ? ` · Route: ${balPrevStudent.routeName}` : ''}</p></div>
                                             <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balPrevBalance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balPrevBalance > 0 ? `KSh ${balPrevBalance.toLocaleString()} OWING` : balPrevBalance < 0 ? `KSh ${Math.abs(balPrevBalance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
                                         </div>
                                     </div>
@@ -10644,7 +10930,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                                 <div>
                                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">CLASS / STREAM</p>
-                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}</p>
+                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{(balPrevStudent as any).className || studentClassGroup(balPrevStudent)}{balPrevStudent.routeName ? ` (${balPrevStudent.routeName})` : ''}</p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">ACCOUNT STATUS</p>
@@ -10654,7 +10940,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                 </div>
                                             </div>
                                             <div className="flex justify-between items-center pt-2 border-t border-slate-200/60 text-[10px] text-slate-400 font-bold">
-                                                <span>Reference: STMT-{new Date().getFullYear()}/{balPrevResolvedAdmNo}</span>
+                                                <span>Reference: STMT-{new Date().getFullYear()}/{balPrevResolvedAdmNo}{balPrevStudent.routeName ? ` · Route: ${balPrevStudent.routeName}` : ''}</span>
                                                 <span>Issue Date: {new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                                             </div>
                                         </div>
@@ -25443,10 +25729,15 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
 
                                 const resolvedAdmNo = studentAdmissionNumber(selectedStudentRaw || studentFinanceRecord);
 
+                                const stmtTransportOp = getStudentTransportOpeningBalance(selectedStudentRaw || studentFinanceRecord);
+                                const stmtTransportDr = (stmtTransportOp && !stmtTransportOp.isCredit) ? stmtTransportOp.amount : 0;
+                                const stmtTransportCr = (stmtTransportOp && stmtTransportOp.isCredit) ? stmtTransportOp.amount : 0;
+
                                 const selectedStudent = selectedStudentRaw ? {
                                     ...selectedStudentRaw,
                                     admissionNumber: resolvedAdmNo,
-                                    className: (studentFinanceRecord as any)?.className || (selectedStudentRaw as any).className || studentClassGroup(selectedStudentRaw)
+                                    className: (studentFinanceRecord as any)?.className || (selectedStudentRaw as any).className || studentClassGroup(selectedStudentRaw),
+                                    routeName: stmtTransportOp?.routeName || (selectedStudentRaw as any).assignedRouteName || (selectedStudentRaw as any).routeName || (studentFinanceRecord as any)?.totals?.routeName
                                 } : null;
                                 const studentInvoices = mappedInvoices.filter((i: any) => 
                                     i.studentId === stmtStudentId || 
@@ -25506,15 +25797,31 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const studentReceipts = allStudentReceipts;
                                 const invoicesTotal = studentInvoices.reduce((s: number, i: any) => s + parseMoneyAmount(i.totalAmount || (i as any).total_amount || (i as any).amount || 0), 0);
                                 const receiptsTotal = studentReceipts.reduce((s: number, r: any) => s + parseMoneyAmount(r.amountPaid || (r as any).amount_paid || (r as any).amount || 0), 0);
-                                const totalInvoiced = (openingBalForStmt > 0 ? openingBalForStmt : 0) + invoicesTotal;
-                                const totalPaid = (openingBalForStmt < 0 ? Math.abs(openingBalForStmt) : 0) + receiptsTotal;
+                                const totalInvoiced = (openingBalForStmt > 0 ? openingBalForStmt : 0) + stmtTransportDr + invoicesTotal;
+                                const totalPaid = (openingBalForStmt < 0 ? Math.abs(openingBalForStmt) : 0) + stmtTransportCr + receiptsTotal;
                                 const balance = totalInvoiced - totalPaid;
 
                                 const allEntries: Array<{ date: string; eType: 'invoice' | 'payment' | 'opening'; data: any }> = [
-                                    ...(Math.abs(openingBalForStmt) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt } }] : []),
+                                    ...(Math.abs(openingBalForStmt) > 0 ? [{ date: '0001-01-01', eType: 'opening' as const, data: { amount: openingBalForStmt, isTransport: false } }] : []),
+                                    ...(stmtTransportOp && stmtTransportOp.amount > 0 ? [{
+                                        date: stmtTransportOp.date || '0001-01-01',
+                                        eType: 'opening' as const,
+                                        data: {
+                                            amount: stmtTransportOp.amount,
+                                            isTransport: true,
+                                            isCredit: stmtTransportOp.isCredit,
+                                            notes: stmtTransportOp.notes,
+                                            routeName: stmtTransportOp.routeName
+                                        }
+                                    }] : []),
                                     ...studentInvoices.map((i: any) => ({ date: i.issueDate || i.issue_date || i.createdAt || i.created_at || i.date || i.invoiceDate || i.termStartDate || i.timestamp || '', eType: 'invoice' as const, data: i })),
                                     ...studentReceipts.map((r: any) => ({ date: r.paymentDate || r.payment_date || r.date || r.receiptDate || r.createdAt || r.created_at || r.timestamp || '', eType: 'payment' as const, data: r })),
                                 ].sort((a, b) => {
+                                    if (a.eType === 'opening' && b.eType === 'opening') {
+                                        if (!a.data?.isTransport && b.data?.isTransport) return -1;
+                                        if (a.data?.isTransport && !b.data?.isTransport) return 1;
+                                        return 0;
+                                    }
                                     if (a.eType === 'opening') return -1;
                                     if (b.eType === 'opening') return 1;
                                     return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
@@ -25524,30 +25831,59 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                 const ledgerChronological = allEntries.map(entry => {
                                     const formattedDate = formatLedgerDate(entry.date, entry.data);
                                     if (entry.eType === 'opening') {
-                                        const amt = parseMoneyAmount(entry.data.amount || 0);
-                                        if (amt > 0) {
-                                            running += amt;
-                                            return {
-                                                date: formattedDate,
-                                                reference: 'B/F',
-                                                description: 'Opening Balance Brought Forward (Fee Arrears)',
-                                                debit: amt,
-                                                credit: 0,
-                                                balance: running,
-                                                eType: 'invoice' as const
-                                            };
+                                        if (entry.data?.isTransport) {
+                                            const amt = parseMoneyAmount(entry.data.amount || 0);
+                                            const routeSuffix = entry.data.routeName ? ` · Route: ${entry.data.routeName}` : '';
+                                            if (!entry.data.isCredit && amt > 0) {
+                                                running += amt;
+                                                return {
+                                                    date: formattedDate,
+                                                    reference: 'B/F (TR)',
+                                                    description: `Opening Balance Brought Forward (Transport Arrears)${routeSuffix}`,
+                                                    debit: amt,
+                                                    credit: 0,
+                                                    balance: running,
+                                                    eType: 'invoice' as const
+                                                };
+                                            } else {
+                                                const creditAmt = Math.abs(amt);
+                                                running -= creditAmt;
+                                                return {
+                                                    date: formattedDate,
+                                                    reference: 'B/F (TR)',
+                                                    description: `Opening Balance Brought Forward (Transport Prepayment Credit)${routeSuffix}`,
+                                                    debit: 0,
+                                                    credit: creditAmt,
+                                                    balance: running,
+                                                    eType: 'payment' as const
+                                                };
+                                            }
                                         } else {
-                                            const creditAmt = Math.abs(amt);
-                                            running -= creditAmt;
-                                            return {
-                                                date: formattedDate,
-                                                reference: 'B/F',
-                                                description: 'Opening Balance Brought Forward (Prepayment Credit)',
-                                                debit: 0,
-                                                credit: creditAmt,
-                                                balance: running,
-                                                eType: 'payment' as const
-                                            };
+                                            const amt = parseMoneyAmount(entry.data.amount || 0);
+                                            if (amt > 0) {
+                                                running += amt;
+                                                return {
+                                                    date: formattedDate,
+                                                    reference: 'B/F',
+                                                    description: 'Opening Balance Brought Forward (Fee Arrears)',
+                                                    debit: amt,
+                                                    credit: 0,
+                                                    balance: running,
+                                                    eType: 'invoice' as const
+                                                };
+                                            } else {
+                                                const creditAmt = Math.abs(amt);
+                                                running -= creditAmt;
+                                                return {
+                                                    date: formattedDate,
+                                                    reference: 'B/F',
+                                                    description: 'Opening Balance Brought Forward (Prepayment Credit)',
+                                                    debit: 0,
+                                                    credit: creditAmt,
+                                                    balance: running,
+                                                    eType: 'payment' as const
+                                                };
+                                            }
                                         }
                                     } else if (entry.eType === 'invoice') {
                                         const invAmt = parseMoneyAmount(entry.data.totalAmount || (entry.data as any).total_amount || (entry.data as any).amount || 0);
@@ -25772,7 +26108,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                             <div className="mt-6 pt-6 border-t border-white/20 grid grid-cols-2 md:grid-cols-4 gap-4">
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Student</p><p className="font-black text-sm mt-0.5">{selectedStudent.name}</p></div>
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Adm No.</p><p className="font-black text-sm mt-0.5">{studentAdmissionNumber(selectedStudent)}</p></div>
-                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p></div>
+                                                                <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Class</p><p className="font-black text-sm mt-0.5">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}{selectedStudent.routeName ? ` · Route: ${selectedStudent.routeName}` : ''}</p></div>
                                                                 <div><p className="text-indigo-200 text-[10px] uppercase tracking-widest font-black">Balance</p><p className={`font-black text-sm mt-0.5 ${balance > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>{balance > 0 ? `KSh ${balance.toLocaleString()} OWING` : balance < 0 ? `KSh ${Math.abs(balance).toLocaleString()} CREDIT` : '✓ FULLY PAID'}</p></div>
                                                             </div>
                                                         </div>
@@ -25896,7 +26232,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Class / Stream</p>
-                                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}</p>
+                                                                    <p className="font-black text-slate-900 text-xs sm:text-sm">{(selectedStudent as any).className || studentClassGroup(selectedStudent)}{selectedStudent.routeName ? ` (${selectedStudent.routeName})` : ''}</p>
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Account Status</p>

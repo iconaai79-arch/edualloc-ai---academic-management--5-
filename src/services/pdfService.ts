@@ -11681,6 +11681,7 @@ export const generateStudentStatementPdfDataUri = async (
     const admNo = resolveStudentAdmissionNo(student);
     const dateStr = new Date().toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' });
     const studentClass = student?.className || student?.gradeLevel || '—';
+    const studentRoute = student?.routeName || student?.assignedRouteName || student?.route;
 
     const rightMargin = pageWidth - margin - 10;
 
@@ -11696,7 +11697,8 @@ export const generateStudentStatementPdfDataUri = async (
     doc.setTextColor(30, 41, 59);
     doc.text(String(student?.name || 'N/A'), margin + 8, yPos + 14);
     doc.text(String(admNo), margin + 60, yPos + 14);
-    doc.text(String(studentClass), margin + 105, yPos + 14);
+    const classWithRoute = studentRoute ? `${studentClass} (${studentRoute})` : String(studentClass);
+    doc.text(classWithRoute, margin + 105, yPos + 14);
 
     const balText = summary.balance > 0 ? `KSh ${summary.balance.toLocaleString()} OWING` : summary.balance < 0 ? `KSh ${Math.abs(summary.balance).toLocaleString()} CREDIT` : 'FULLY PAID';
     doc.setTextColor(summary.balance > 0 ? 225 : 16, summary.balance > 0 ? 29 : 185, summary.balance > 0 ? 72 : 129);
@@ -11705,7 +11707,7 @@ export const generateStudentStatementPdfDataUri = async (
 
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(`Reference: STMT-${new Date().getFullYear()}/${admNo}`, margin + 8, yPos + 24);
+    doc.text(`Reference: STMT-${new Date().getFullYear()}/${admNo}${studentRoute ? ` · Route: ${studentRoute}` : ''}`, margin + 8, yPos + 24);
     doc.text(`Issue Date: ${dateStr}`, rightMargin, yPos + 24, { align: 'right' });
 
     yPos += 36;
