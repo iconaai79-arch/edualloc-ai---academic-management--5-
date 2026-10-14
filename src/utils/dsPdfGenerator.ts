@@ -37,6 +37,7 @@ export const generateDSPDF = async (
     const doc = new jsPDF() as any;
     const margin = 20;
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
 
     // Fetch system-wide default company settings to support global letterhead fallback
     const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
@@ -120,7 +121,6 @@ export const generateDSPDF = async (
     ]);
 
     let currentY = 25;
-    const instName = institution?.name && !institution.name.toLowerCase().includes('law firm') ? institution.name : (settings?.schoolName || 'Driving School');
 
     if (headerImg) {
         const imgWidth = pageWidth - (margin * 2);
@@ -500,7 +500,6 @@ export const generateDSPDF = async (
     }
 
     // Official Verification / Sign-off block
-    const pageHeight = doc.internal.pageSize.getHeight();
     let signY = renderYAfterTable + (type === 'receipt' && associatedInvoice ? 56 : 46);
     if (signY + 28 > pageHeight - 20) {
         doc.addPage();
@@ -550,7 +549,6 @@ export const generateDSPDF = async (
 
     // Footer Layout & Page Numbers
     const pageCount = doc.internal.getNumberOfPages();
-    const pageHeight = doc.internal.pageSize.getHeight();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         if (footerImg) {
