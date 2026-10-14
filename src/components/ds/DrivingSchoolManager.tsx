@@ -1592,7 +1592,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
     );
 };
 
-const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], payments: DSPayment[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[], rooms?: any[], leads?: DSLead[] }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, payments, onSave, settings, initialData, currentInstitution, departments, rooms, leads = [] }) => {
+const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => void, students: DSStudent[], instructors: DSInstructor[], vehicles: DSVehicle[], lessons: DSLesson[], invoices: DSInvoice[], payments: DSPayment[], onSave: (data: any) => Promise<void>, settings: DSSettings | null, initialData?: any, currentInstitution?: any, departments?: any[], rooms?: any[], leads?: DSLead[], currentUser?: User }> = ({ type, onClose, students, instructors, vehicles, lessons, invoices, payments, onSave, settings, initialData, currentInstitution, departments, rooms, leads = [], currentUser }) => {
     const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
     const { mpesaTransactions, branches, activeBranchId, isUserBranchLocked, userAssignedBranchId } = useDrivingSchool();
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -1772,7 +1772,7 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
             if (type === 'vehicle') return { ...base, transmission: 'Manual', capacity: 1 };
             if (type === 'instructor') return { ...base, rating: 5, instructorType: 'Driving Instructor' };
             if (type === 'invoice') return { ...base, items: [{ name: 'Tuition Fee', amount: 0, priority: 1 }], totalAmount: 0, paidAmount: 0, balance: 0, status: 'Pending', createdAt: new Date().toISOString() };
-            if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa', status: 'Completed' };
+            if (type === 'payment') return { ...base, paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'M-Pesa', status: 'Completed', receivedBy: initialData?.receivedBy || currentUser?.name || currentUser?.email || 'Accounts' };
             if (type === 'fee_structure') {
                 return { 
                     className: 'CLASS C1', 
@@ -3310,6 +3310,16 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                         <option value="Completed">Completed</option>
                                     </select>
                                     <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest ml-1">All payments require director/super admin audit verification regardless of status</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Issued / Received By</label>
+                                    <input 
+                                        type="text" 
+                                        value={formData.receivedBy || ''} 
+                                        onChange={e => setFormData({...formData, receivedBy: e.target.value})} 
+                                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold text-slate-900 dark:text-slate-100" 
+                                        placeholder="e.g. Cashier / Accounts Name" 
+                                    />
                                 </div>
  
                                 {(formData.paymentMethod === 'M-Pesa' || formData.paymentMethod === 'Bank') && (
@@ -9010,7 +9020,7 @@ END $$;
                                                                                 fullName: studentName,
                                                                                 admissionNumber: admNo !== '-' ? admNo : ''
                                                                             };
-                                                                            const doc = await generateDSPDF('receipt', payment, fallbackStudent as any, settings, currentInstitution, invoices);
+                                                                            const doc = await generateDSPDF('receipt', payment, fallbackStudent as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email);
                                                                             doc.save(`${payment.receiptNumber}.pdf`);
                                                                         }}
                                                                         className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
@@ -9025,7 +9035,7 @@ END $$;
                                                                                 fullName: studentName,
                                                                                 admissionNumber: admNo !== '-' ? admNo : ''
                                                                             };
-                                                                            const url = await generateDSThermalReceipt(payment, fallbackStudent as any, currentInstitution, false, invoices);
+                                                                            const url = await generateDSThermalReceipt(payment, fallbackStudent as any, currentInstitution, false, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, settings);
                                                                             const win = window.open(url, '_blank');
                                                                             if (win) {
                                                                                 win.focus();
@@ -9275,7 +9285,7 @@ END $$;
                                                                         {isPendingDeletion && (
                                                                             <button onClick={async () => { if (window.confirm(`Confirm deletion of payment ${payment.receiptNumber}?`)) { setIsActionLoading(true); try { await onDeletePayment(payment.id); success(`Payment ${payment.receiptNumber} deleted.`); } catch (err: any) { toastError(err.message || 'Failed to delete'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><TrashIcon className="w-3 h-3" /> Delete</button>
                                                                         )}
-                                                                        <button onClick={async () => { const s = (students || []).find(st => st.id === payment.studentId); if (s) { const doc = await generateDSPDF('receipt', payment, s as any, settings, currentInstitution, invoices); doc.save(`${payment.receiptNumber}.pdf`); } }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                                                                        <button onClick={async () => { const s = (students || []).find(st => st.id === payment.studentId); if (s) { const doc = await generateDSPDF('receipt', payment, s as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email); doc.save(`${payment.receiptNumber}.pdf`); } }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
                                                                     </td>
                                                                 </tr>
                                                             );
@@ -12113,6 +12123,7 @@ END $$;
                     <DrivingSchoolActionModal 
                         type={actionModal.type}
                         initialData={actionModal.initialData}
+                        currentUser={currentUser}
                         onClose={() => {
                             setActionModal({ type: null });
                             if (enrollWizard.student) {

@@ -5109,6 +5109,7 @@ export interface DSStudent {
     phone?: string;
     licenseTypeInterested?: string;
     licenseCategory?: string;
+    courseType?: string;
     preferredInstructorId?: string;
     theoryProgressPercent: number;
     practicalProgressPercent: number;
@@ -5209,6 +5210,7 @@ export interface DSLessonSlot {
 export interface DSSettings {
     id: string;
     institutionId: string;
+    schoolName?: string;
     lessonPricePractical?: number;
     lessonPriceTheory?: number;
     feeStructures?: DSFeeStructure[];

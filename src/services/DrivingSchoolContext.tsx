@@ -1402,7 +1402,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const fileName = `${docNumber}.pdf`;
 
             try {
-                const doc = await generateDSPDF(type, data, student as any, settings, inst);
+                const doc = await generateDSPDF(type, data, student as any, settings, inst, invoices, (data as any)?.receivedBy);
                 const pdfBlob = doc.output('blob');
                 pdfBase64 = doc.output('datauristring').split(',')[1];
                 const storagePath = `driving_school/${type}s/${fileName}`;
@@ -1450,7 +1450,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         } catch (err) {
             console.error(`[DS Automation] Critical failure in notification workflow:`, err);
         }
-    }, [institutionId, students, settings, resolveInstitutionConfig]);
+    }, [institutionId, students, settings, invoices, resolveInstitutionConfig]);
 
     const addInvoice = useCallback(async (data: any) => {
         try {
@@ -1662,7 +1662,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 branch_id: branchIdToUse,
                 receiptNumber: recNumber,
                 status: data.status || 'Completed',
-                paymentDate: new Date().toISOString()
+                receivedBy: data.receivedBy || data.issuedBy || data.recordedBy || 'Accounts',
+                paymentDate: data.paymentDate || new Date().toISOString()
             };
 
             // Automatic Payment Distribution Logic

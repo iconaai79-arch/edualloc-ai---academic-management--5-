@@ -30,7 +30,8 @@ export const generateDSPDF = async (
     student: DSStudent,
     settings: DSSettings | null,
     institution: any,
-    invoicesList?: DSInvoice[]
+    invoicesList?: DSInvoice[],
+    issuingUser?: string
 ) => {
     const doc = new jsPDF() as any;
     const margin = 20;
@@ -39,19 +40,35 @@ export const generateDSPDF = async (
     // Fetch system-wide default company settings to support global letterhead fallback
     const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
 
-    // Letterhead Support cascade: Institution -> System Default
-    const letterheadUrl = institution?.letterheadConfig?.headerImageUrl || institution?.letterheadUrl || companyDetails?.letterheadConfig?.headerImageUrl || (companyDetails as any)?.letterheadUrl || (companyDetails as any)?.logoUrl;
+    // Letterhead banner image URL (if institution configured a full header banner)
+    const headerBannerUrl = institution?.letterheadConfig?.headerImageUrl || 
+                            institution?.letterheadUrl || 
+                            companyDetails?.letterheadConfig?.headerImageUrl ||
+                            null;
+
+    // Dedicated School Logo URL
+    const logoUrl = institution?.logoUrl || 
+                    institution?.logo_url || 
+                    institution?.logo || 
+                    (institution?.letterheadConfig as any)?.logoUrl || 
+                    (settings as any)?.logoUrl || 
+                    (settings as any)?.logo || 
+                    companyDetails?.logoUrl || 
+                    (companyDetails as any)?.logo_url ||
+                    null;
 
     // Footer Support cascade: Institution -> System Default
     const footerUrl = institution?.letterheadConfig?.footerImageUrl || institution?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl;
     const footerText = institution?.letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || '';
 
-    const [headerImg, footerImg] = await Promise.all([
-        loadImage(letterheadUrl),
+    const [headerImg, logoImg, footerImg] = await Promise.all([
+        loadImage(headerBannerUrl),
+        loadImage(logoUrl),
         loadImage(footerUrl)
     ]);
 
-    let currentY = 30;
+    let currentY = 25;
+    const instName = institution?.name && !institution.name.toLowerCase().includes('law firm') ? institution.name : (settings?.schoolName || 'Driving School');
 
     if (headerImg) {
         const imgWidth = pageWidth - (margin * 2);
@@ -62,83 +79,169 @@ export const generateDSPDF = async (
             const finalHeight = maxHeight;
             const finalWidth = (headerImg.width * finalHeight) / headerImg.height;
             const xPos = (pageWidth - finalWidth) / 2;
-            doc.addImage(headerImg, 'JPEG', xPos, 15, finalWidth, finalHeight);
-            currentY = finalHeight + 30; // extra space below letterhead
+            doc.addImage(headerImg, 'JPEG', xPos, 12, finalWidth, finalHeight);
+            currentY = finalHeight + 22;
         } else {
-            doc.addImage(headerImg, 'JPEG', margin, 15, imgWidth, imgHeight);
-            currentY = imgHeight + 30; // extra space below letterhead
+            doc.addImage(headerImg, 'JPEG', margin, 12, imgWidth, imgHeight);
+            currentY = imgHeight + 22;
         }
+    } else if (logoImg) {
+        // TOP LOGO DISPLAY: Place logo at top-left with school details right beside it
+        const maxLogoW = 32;
+        const maxLogoH = 26;
+        let lw = maxLogoW;
+        let lh = maxLogoH;
+        if (logoImg.width && logoImg.height) {
+            const ratio = logoImg.width / logoImg.height;
+            if (ratio >= 1) {
+                lw = Math.min(36, logoImg.width);
+                lh = lw / ratio;
+                if (lh > maxLogoH) {
+                    lh = maxLogoH;
+                    lw = lh * ratio;
+                }
+            } else {
+                lh = maxLogoH;
+                lw = lh * ratio;
+            }
+        }
+        doc.addImage(logoImg, 'PNG', margin, 14, lw, lh);
 
+        const textX = margin + lw + 8;
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(instName, textX, 22);
+
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(100);
+        if (institution?.address) {
+            doc.text(institution.address, textX, 28);
+        }
+        const contacts = [
+            institution?.phone ? `Tel: ${institution.phone}` : null,
+            institution?.email ? `Email: ${institution.email}` : null
+        ].filter(Boolean).join(' | ');
+        if (contacts) {
+            doc.text(contacts, textX, 33);
+        }
+        currentY = Math.max(38, 14 + lh + 10);
     } else {
         // Fallback Header
         doc.setFontSize(22);
-        doc.setTextColor(79, 70, 229); // Indigo-600
-        doc.text(institution?.name || 'Driving School', margin, currentY);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(79, 70, 229);
+        doc.text(instName, margin, currentY);
 
-        doc.setFontSize(10);
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
         doc.setTextColor(100);
-        doc.text(institution?.address || '', margin, currentY + 8);
-        doc.text(institution?.phone || '', margin, currentY + 13);
-        doc.text(institution?.email || '', margin, currentY + 18);
-        currentY += 30;
+        doc.text(institution?.address || 'Driving School & Training Academy', margin, currentY + 7);
+        doc.text([institution?.phone, institution?.email].filter(Boolean).join(' | '), margin, currentY + 12);
+        currentY += 24;
     }
+
+    // Resolve Issuing User Name
+    const issuingUserName = issuingUser || 
+        (data as any)?.receivedBy || 
+        (data as any)?.issuedBy || 
+        (data as any)?.recordedBy || 
+        (data as any)?.auditedBy || 
+        (data as any)?.created_by || 
+        (data as any)?.userName || 
+        (data as any)?.metadata?.receivedBy || 
+        (data as any)?.metadata?.issuedBy || 
+        (data as any)?.metadata?.userName || 
+        'Accounts Officer';
 
     // Lookup associated invoice if type is receipt
     let associatedInvoice: DSInvoice | null = null;
     if (type === 'receipt') {
         const pay = data as DSPayment;
-        if (invoicesList) {
-            associatedInvoice = invoicesList.find(inv => inv.id === pay.invoiceId) || null;
-        } else if (institution?.id) {
+        if (invoicesList && invoicesList.length > 0) {
+            associatedInvoice = invoicesList.find(inv => inv.id === pay.invoiceId) || 
+                                invoicesList.find(inv => inv.studentId === pay.studentId || (student && inv.studentId === student.id)) || 
+                                null;
+        }
+        if (!associatedInvoice && institution?.id) {
             const fetched = await apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institution.id).catch(() => []);
-            associatedInvoice = fetched?.find(inv => inv.id === pay.invoiceId) || null;
+            if (Array.isArray(fetched) && fetched.length > 0) {
+                associatedInvoice = fetched.find(inv => inv.id === pay.invoiceId) || 
+                                    fetched.find(inv => inv.studentId === pay.studentId || (student && inv.studentId === student.id)) || 
+                                    null;
+            }
         }
     }
 
-    // Document Type & Number — always placed BELOW the header with clear spacing
-    doc.setFontSize(28);
+    // Document Type & Number
+    doc.setFontSize(26);
     doc.setFont(undefined, 'bold');
-    doc.setTextColor(30, 41, 59); // Slate-800
-    const title = type === 'invoice' ? 'INVOICE' : 'RECEIPT';
+    doc.setTextColor(30, 41, 59);
+    const title = type === 'invoice' ? 'INVOICE' : 'OFFICIAL RECEIPT';
     const number = type === 'invoice' ? (data as DSInvoice).invoiceNumber : (data as DSPayment).receiptNumber;
-    doc.text(title, pageWidth - margin, currentY + 5, { align: 'right' });
+    doc.text(title, pageWidth - margin, currentY + 4, { align: 'right' });
 
     doc.setFont(undefined, 'normal');
-    doc.setFontSize(12);
-    doc.text(`#${number}`, pageWidth - margin, currentY + 15, { align: 'right' });
+    doc.setFontSize(11);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`#${number}`, pageWidth - margin, currentY + 13, { align: 'right' });
 
     // Bill To / Paid By — anchored relative to title block
-    const billBlockY = currentY + 30;
+    const billBlockY = currentY + 24;
     doc.setFontSize(9);
     doc.setTextColor(100);
     doc.setFont(undefined, 'bold');
-    doc.text(type === 'invoice' ? 'BILL TO:' : 'PAID BY:', margin, billBlockY);
+    doc.text(type === 'invoice' ? 'BILL TO:' : 'PAID BY (STUDENT):', margin, billBlockY);
     doc.setFont(undefined, 'normal');
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
-    doc.text(student.fullName, margin, billBlockY + 8);
-    doc.setFontSize(10);
+    doc.text(student.fullName, margin, billBlockY + 7);
+    doc.setFontSize(9);
     doc.setTextColor(100);
-    let detailY = billBlockY + 14;
+    let detailY = billBlockY + 13;
     if (student.admissionNumber) {
         doc.text(`Adm: ${student.admissionNumber}`, margin, detailY);
-        detailY += 5;
+        detailY += 4.5;
     }
     if (student.enrollmentDate) {
         doc.text(`Enrolled: ${new Date(student.enrollmentDate).toLocaleDateString()}`, margin, detailY);
-        detailY += 5;
+        detailY += 4.5;
     }
     doc.text(student.phone || 'N/A', margin, detailY);
-    doc.text(student.email || 'N/A', margin, detailY + 5);
+    if (student.email) {
+        doc.text(student.email, margin, detailY + 4.5);
+    }
 
-    // Date (right-aligned beside the title)
+    // Right-aligned Metadata (Date, Issued By, Ref)
     doc.setFontSize(9);
     doc.setTextColor(100);
     doc.setFont(undefined, 'bold');
-    doc.text('DATE:', pageWidth - margin - 40, billBlockY);
+    doc.text('DATE:', pageWidth - margin - 50, billBlockY);
     doc.setFont(undefined, 'normal');
     doc.setTextColor(30, 41, 59);
     doc.text(new Date().toLocaleDateString(), pageWidth - margin, billBlockY, { align: 'right' });
+
+    if (type === 'receipt') {
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.setFont(undefined, 'bold');
+        doc.text('ISSUED BY:', pageWidth - margin - 50, billBlockY + 7);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(30, 41, 59);
+        doc.text(issuingUserName, pageWidth - margin, billBlockY + 7, { align: 'right' });
+
+        const pay = data as DSPayment;
+        if (pay.transactionReference) {
+            doc.setFontSize(9);
+            doc.setTextColor(100);
+            doc.setFont(undefined, 'bold');
+            doc.text('REF NO:', pageWidth - margin - 50, billBlockY + 14);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(30, 41, 59);
+            doc.text(pay.transactionReference, pageWidth - margin, billBlockY + 14, { align: 'right' });
+        }
+    }
 
     // Table
     let tableHead: string[] = [];
@@ -150,58 +253,102 @@ export const generateDSPDF = async (
         const itemsList = Array.isArray(inv.items) ? inv.items : (typeof inv.items === 'string' ? JSON.parse(inv.items) : []);
         tableData = itemsList.map((item: any) => [
             item.name,
-            item.amount?.toLocaleString(),
-            (item.paidAmount || 0)?.toLocaleString(),
-            (item.amount - (item.paidAmount || 0))?.toLocaleString()
+            Number(item.amount || 0).toLocaleString(),
+            Number(item.paidAmount || 0).toLocaleString(),
+            Math.max(0, Number(item.amount || 0) - Number(item.paidAmount || 0)).toLocaleString()
         ]);
         if (inv.notes) {
             tableData.push(['Notes', inv.notes, '', '']);
         }
     } else {
         const pay = data as DSPayment;
-        tableHead = ['Payment Detail', 'Value'];
+        tableHead = ['Payment Information', 'Details'];
         tableData = [
-            ['Payment Method', pay.paymentMethod],
-            ['Reference', pay.transactionReference || 'N/A'],
-            ['Date', new Date(pay.paymentDate)?.toLocaleString()],
-            ['Amount Paid', `KES ${pay.amount?.toLocaleString()}`]
+            ['Payment Method', pay.paymentMethod || 'Cash'],
+            ['Transaction Reference', pay.transactionReference || 'N/A'],
+            ['Payment Date', new Date(pay.paymentDate || Date.now()).toLocaleString()],
+            ['Amount Paid (This Receipt)', `KES ${Number(pay.amount || 0).toLocaleString()}.00`],
+            ['Issued / Received By', issuingUserName]
         ];
     }
 
     autoTable(doc, {
-        startY: currentY + 75,  // enough clearance below bill-to block
+        startY: currentY + 68,
         head: [tableHead],
         body: tableData,
         theme: 'striped',
         headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 10, cellPadding: 5 },
+        styles: { fontSize: 9.5, cellPadding: 4.5 },
         margin: { left: margin, right: margin }
     });
 
     let renderYAfterTable = (doc as any).lastAutoTable.finalY || 150;
 
-    // Render Votes Breakdown for Receipts if associated invoice exists
-    const associatedInvoiceItems = associatedInvoice ? (Array.isArray(associatedInvoice.items) ? associatedInvoice.items : (typeof associatedInvoice.items === 'string' ? JSON.parse(associatedInvoice.items) : [])) : [];
-    if (type === 'receipt' && associatedInvoice && associatedInvoiceItems.length > 0) {
-        renderYAfterTable += 12;
+    // Render Votes Breakdown with Updated Balances per Vote for Receipts
+    let rawItems: any[] = [];
+    if (associatedInvoice) {
+        rawItems = Array.isArray(associatedInvoice.items) 
+            ? associatedInvoice.items 
+            : (typeof associatedInvoice.items === 'string' ? JSON.parse(associatedInvoice.items) : []);
+    }
+    if (rawItems.length === 0 && settings?.feeStructures && settings.feeStructures.length > 0) {
+        const studentCourse = (student.licenseTypeInterested || student.courseType || (student as any).licenseCategory || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matchedFS = settings.feeStructures.find(fs => {
+            const norm = (fs.className || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === studentCourse || norm.includes(studentCourse) || studentCourse.includes(norm);
+        }) || settings.feeStructures[0];
+
+        if (matchedFS && matchedFS.items) {
+            rawItems = Array.isArray(matchedFS.items) ? matchedFS.items : (typeof matchedFS.items === 'string' ? JSON.parse(matchedFS.items) : []);
+        }
+    }
+
+    if (type === 'receipt' && rawItems.length > 0) {
+        const totalCumulativePaid = associatedInvoice 
+            ? Number(associatedInvoice.paidAmount || (data as DSPayment).amount || 0)
+            : Number((data as DSPayment).amount || 0);
+
+        let remainingToDistribute = totalCumulativePaid;
+        const sortedItems = [...rawItems].sort((a: any, b: any) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
+
+        const votesWithBalances = sortedItems.map((item: any) => {
+            const allocated = Number(item.amount || 0);
+            const paid = Math.min(remainingToDistribute, allocated);
+            remainingToDistribute = Math.max(0, remainingToDistribute - paid);
+            const balance = Math.max(0, allocated - paid);
+            return {
+                name: item.name || 'Fee Item',
+                allocated,
+                paid,
+                balance
+            };
+        });
+
+        renderYAfterTable += 10;
         doc.setFontSize(11);
         doc.setTextColor(30, 41, 59);
         doc.setFont(undefined, 'bold');
-        doc.text("VOTES BREAKDOWN (FEE ALLOCATION)", margin, renderYAfterTable);
+        doc.text("VOTES BREAKDOWN (FEE ALLOCATION & BALANCES)", margin, renderYAfterTable);
 
-        const votesData = associatedInvoiceItems.map((item: any) => [
-            item.name,
-            `KES ${item.amount?.toLocaleString()}`,
-            `KES ${(item.paidAmount || 0)?.toLocaleString()}`,
-            `KES ${(item.amount - (item.paidAmount || 0))?.toLocaleString()}`
+        const votesTableData = votesWithBalances.map(v => [
+            v.name,
+            `KES ${v.allocated.toLocaleString()}`,
+            `KES ${v.paid.toLocaleString()}`,
+            `KES ${v.balance.toLocaleString()}`
         ]);
+
+        const totalAlloc = votesWithBalances.reduce((sum, v) => sum + v.allocated, 0);
+        const totalPaid = votesWithBalances.reduce((sum, v) => sum + v.paid, 0);
+        const totalBal = votesWithBalances.reduce((sum, v) => sum + v.balance, 0);
 
         autoTable(doc, {
             startY: renderYAfterTable + 4,
-            head: [['Vote Item', 'Allocated', 'Paid', 'Balance']],
-            body: votesData,
+            head: [['Vote Head / Item', 'Allocated', 'Paid to Date', 'Balance Remaining']],
+            body: votesTableData,
+            foot: [['TOTAL', `KES ${totalAlloc.toLocaleString()}`, `KES ${totalPaid.toLocaleString()}`, `KES ${totalBal.toLocaleString()}`]],
             theme: 'grid',
-            headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105], fontStyle: 'bold' },
+            headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: 'bold' },
             styles: { fontSize: 9, cellPadding: 4 },
             margin: { left: margin, right: margin }
         });
@@ -210,40 +357,66 @@ export const generateDSPDF = async (
     }
 
     // Totals
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setTextColor(30, 41, 59);
-    const totalLabel = type === 'invoice' ? 'INVOICE TOTAL:' : 'PAYMENT TOTAL:';
+    const totalLabel = type === 'invoice' ? 'INVOICE TOTAL:' : 'AMOUNT RECEIVED (THIS RECEIPT):';
     const totalValue = type === 'invoice' ? (data as DSInvoice).totalAmount : (data as DSPayment).amount;
 
-    doc.text(totalLabel, pageWidth - margin - 85, renderYAfterTable + 20);
-    doc.setFontSize(16);
-    doc.text(`KES ${totalValue?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 20, { align: 'right' });
+    doc.text(totalLabel, pageWidth - margin - 90, renderYAfterTable + 18);
+    doc.setFontSize(15);
+    doc.setFont(undefined, 'bold');
+    doc.text(`KES ${Number(totalValue || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 18, { align: 'right' });
 
     if (type === 'invoice') {
         doc.setFontSize(10);
         doc.setTextColor(100);
-        doc.text('AMOUNT PAID:', pageWidth - margin - 85, renderYAfterTable + 30);
+        doc.setFont(undefined, 'normal');
+        doc.text('AMOUNT PAID:', pageWidth - margin - 90, renderYAfterTable + 28);
         doc.setTextColor(30, 41, 59);
-        doc.text(`KES ${(data as DSInvoice).paidAmount?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 30, { align: 'right' });
+        doc.text(`KES ${Number((data as DSInvoice).paidAmount || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 28, { align: 'right' });
 
-        doc.setFontSize(12);
+        doc.setFontSize(11);
         doc.setFont(undefined, 'bold');
-        doc.text('BALANCE DUE:', pageWidth - margin - 85, renderYAfterTable + 42);
-        doc.setTextColor(220, 38, 38); // Red-600
-        doc.text(`KES ${(data as DSInvoice).balance?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
+        doc.text('BALANCE DUE:', pageWidth - margin - 90, renderYAfterTable + 38);
+        doc.setTextColor(220, 38, 38);
+        doc.text(`KES ${Number((data as DSInvoice).balance || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 38, { align: 'right' });
     } else if (type === 'receipt' && associatedInvoice) {
         doc.setFontSize(10);
         doc.setTextColor(100);
-        doc.text('INVOICE TOTAL:', pageWidth - margin - 85, renderYAfterTable + 30);
+        doc.setFont(undefined, 'normal');
+        doc.text('TOTAL INVOICE ALLOCATED:', pageWidth - margin - 90, renderYAfterTable + 28);
         doc.setTextColor(30, 41, 59);
-        doc.text(`KES ${associatedInvoice.totalAmount?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 30, { align: 'right' });
+        doc.text(`KES ${Number(associatedInvoice.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 28, { align: 'right' });
 
-        doc.setFontSize(12);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('CUMULATIVE PAID TO DATE:', pageWidth - margin - 90, renderYAfterTable + 36);
+        doc.setTextColor(30, 41, 59);
+        doc.text(`KES ${Number(associatedInvoice.paidAmount || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 36, { align: 'right' });
+
+        doc.setFontSize(11);
         doc.setFont(undefined, 'bold');
-        doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 85, renderYAfterTable + 42);
-        doc.setTextColor(220, 38, 38); // Red-600
-        doc.text(`KES ${associatedInvoice.balance?.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 42, { align: 'right' });
+        doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 90, renderYAfterTable + 46);
+        doc.setTextColor(220, 38, 38);
+        doc.text(`KES ${Number(associatedInvoice.balance || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 46, { align: 'right' });
     }
+
+    // Official Receipt Verification / Sign-off block
+    const signY = renderYAfterTable + (type === 'receipt' && associatedInvoice ? 58 : 48);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(71, 85, 105);
+    doc.text("OFFICIAL RECEIPT VERIFICATION", margin, signY);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100);
+    doc.text(`Issued By: ${issuingUserName}`, margin, signY + 6);
+    doc.text(`Print Date: ${new Date().toLocaleString()}`, margin, signY + 11);
+    doc.text("Acknowledgement: Payment received in full validity.", margin, signY + 16);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.line(pageWidth - margin - 65, signY + 12, pageWidth - margin, signY + 12);
+    doc.text("Authorized Signature & Stamp", pageWidth - margin - 65, signY + 17);
 
     // Footer Layout & Page Numbers
     const pageCount = doc.internal.getNumberOfPages();
@@ -266,7 +439,7 @@ export const generateDSPDF = async (
             doc.addImage(footerImg, 'PNG', xPos, yPos, finalWidth, finalHeight);
         }
 
-        const copyrightText = footerText || 'Thank you for choosing our Driving School!';
+        const copyrightText = footerText || `Thank you for choosing ${instName}!`;
         doc.setFontSize(8);
         doc.setFont('helvetica', 'italic');
         doc.setTextColor(150, 150, 150);
@@ -284,26 +457,61 @@ export const generateDSThermalReceipt = async (
     student: DSStudent,
     institution: any,
     isReprint: boolean = false,
-    invoicesList?: DSInvoice[]
+    invoicesList?: DSInvoice[],
+    issuingUser?: string,
+    settings?: DSSettings | null
 ): Promise<string> => {
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: [80, 150]
+        format: [80, 175]
     }) as any;
 
     const margin = 5;
     const pageWidth = doc.internal.pageSize.getWidth();
-    let yPos = 10;
+    let yPos = 8;
 
     const centerText = (text: string, y: number) => {
         const textWidth = doc.getTextWidth(text);
         doc.text(text, (pageWidth - textWidth) / 2, y);
     };
 
-    doc.setFontSize(14);
+    // Load logo if available
+    const companyDetails = await apiService.fetchCompanySettings().catch(() => null);
+    const logoUrl = institution?.logoUrl || 
+                    institution?.logo_url || 
+                    institution?.logo || 
+                    (institution?.letterheadConfig as any)?.logoUrl || 
+                    (settings as any)?.logoUrl || 
+                    companyDetails?.logoUrl || 
+                    null;
+    const logoImg = await loadImage(logoUrl);
+
+    if (logoImg) {
+        const maxW = 20;
+        const maxH = 16;
+        let lw = maxW;
+        let lh = maxH;
+        if (logoImg.width && logoImg.height) {
+            const ratio = logoImg.width / logoImg.height;
+            if (ratio >= 1) {
+                lw = maxW;
+                lh = lw / ratio;
+            } else {
+                lh = maxH;
+                lw = lh * ratio;
+            }
+        }
+        const lx = (pageWidth - lw) / 2;
+        doc.addImage(logoImg, 'PNG', lx, yPos, lw, lh);
+        yPos += lh + 3;
+    }
+
+    const instName = institution?.name && !institution.name.toLowerCase().includes('law firm') ? institution.name : (settings?.schoolName || 'Driving School');
+
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    centerText(institution?.name || 'Driving School', yPos);
+    centerText(instName, yPos);
     yPos += 5;
 
     doc.setFontSize(8);
@@ -318,28 +526,42 @@ export const generateDSThermalReceipt = async (
     doc.setLineDashPattern([1, 1], 0);
     doc.line(margin, yPos, pageWidth - margin, yPos);
     doc.setLineDashPattern([], 0);
-    yPos += 6;
+    yPos += 5;
 
     let associatedInvoice: DSInvoice | null = null;
-    if (invoicesList) {
-        associatedInvoice = invoicesList.find(inv => inv.id === payment.invoiceId) || null;
-    } else if (institution?.id) {
-        const fetched = await apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institution.id).catch(() => []);
-        associatedInvoice = fetched?.find(inv => inv.id === payment.invoiceId) || null;
+    if (invoicesList && invoicesList.length > 0) {
+        associatedInvoice = invoicesList.find(inv => inv.id === payment.invoiceId) || 
+                            invoicesList.find(inv => inv.studentId === payment.studentId || (student && inv.studentId === student.id)) || 
+                            null;
     }
+    if (!associatedInvoice && institution?.id) {
+        const fetched = await apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institution.id).catch(() => []);
+        if (Array.isArray(fetched) && fetched.length > 0) {
+            associatedInvoice = fetched.find(inv => inv.id === payment.invoiceId) || 
+                                fetched.find(inv => inv.studentId === payment.studentId || (student && inv.studentId === student.id)) || 
+                                null;
+        }
+    }
+
+    const issuingUserName = issuingUser || 
+        payment.receivedBy || 
+        (payment as any).issuedBy || 
+        (payment as any).recordedBy || 
+        (payment as any).auditedBy || 
+        'Accounts Officer';
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     if (isReprint) {
         centerText("*** REPRINT ***", yPos);
-        yPos += 6;
+        yPos += 5;
     }
-    centerText("PAYMENT RECEIPT", yPos);
+    centerText("OFFICIAL PAYMENT RECEIPT", yPos);
     yPos += 6;
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${new Date(payment.paymentDate)?.toLocaleString()}`, margin, yPos);
+    doc.text(`Date: ${new Date(payment.paymentDate || Date.now())?.toLocaleString()}`, margin, yPos);
     yPos += 4;
     doc.text(`Receipt #: ${payment.receiptNumber}`, margin, yPos);
     yPos += 4;
@@ -348,60 +570,109 @@ export const generateDSThermalReceipt = async (
         yPos += 4;
         doc.text(`Adm: ${student.admissionNumber}`, margin, yPos);
     }
-    yPos += 6;
+    yPos += 4;
+    doc.text(`Issued By: ${issuingUserName}`, margin, yPos);
+    yPos += 5;
 
     doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 6;
+    yPos += 5;
 
     doc.setFont('helvetica', 'bold');
     doc.text("Description", margin, yPos);
     doc.text("Amount", pageWidth - margin, yPos, { align: 'right' });
-    yPos += 5;
+    yPos += 4.5;
 
     doc.setFont('helvetica', 'normal');
     doc.text(payment.paymentMethod || 'Payment', margin, yPos);
-    doc.text(`Kes ${payment.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 8;
+    doc.text(`Kes ${Number(payment.amount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 7;
 
-    const thermalInvoiceItems = associatedInvoice ? (Array.isArray(associatedInvoice.items) ? associatedInvoice.items : (typeof associatedInvoice.items === 'string' ? JSON.parse(associatedInvoice.items) : [])) : [];
-    if (associatedInvoice && thermalInvoiceItems.length > 0) {
-        doc.setFontSize(7);
+    // Votes Breakdown & Updated Balances
+    let rawItems: any[] = [];
+    if (associatedInvoice) {
+        rawItems = Array.isArray(associatedInvoice.items) 
+            ? associatedInvoice.items 
+            : (typeof associatedInvoice.items === 'string' ? JSON.parse(associatedInvoice.items) : []);
+    }
+    if (rawItems.length === 0 && settings?.feeStructures && settings.feeStructures.length > 0) {
+        const studentCourse = (student.licenseTypeInterested || student.courseType || (student as any).licenseCategory || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const matchedFS = settings.feeStructures.find(fs => {
+            const norm = (fs.className || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return norm === studentCourse || norm.includes(studentCourse) || studentCourse.includes(norm);
+        }) || settings.feeStructures[0];
+
+        if (matchedFS && matchedFS.items) {
+            rawItems = Array.isArray(matchedFS.items) ? matchedFS.items : (typeof matchedFS.items === 'string' ? JSON.parse(matchedFS.items) : []);
+        }
+    }
+
+    if (rawItems.length > 0) {
+        doc.setFontSize(7.5);
         doc.setFont('helvetica', 'bold');
-        doc.text("--- Votes Breakdown ---", margin, yPos);
+        doc.text("--- Votes Breakdown & Balances ---", margin, yPos);
         yPos += 4;
-        doc.setFont('helvetica', 'normal');
-        thermalInvoiceItems.forEach((it: any) => {
-            doc.text(`${it.name}`, margin, yPos);
-            doc.text(`Kes ${it.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+
+        const totalCumulativePaid = associatedInvoice 
+            ? Number(associatedInvoice.paidAmount || payment.amount || 0)
+            : Number(payment.amount || 0);
+
+        let rem = totalCumulativePaid;
+        const sorted = [...rawItems].sort((a: any, b: any) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
+
+        sorted.forEach((it: any) => {
+            const allocated = Number(it.amount || 0);
+            const paid = Math.min(rem, allocated);
+            rem = Math.max(0, rem - paid);
+            const bal = Math.max(0, allocated - paid);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${it.name || 'Fee Item'}`, margin, yPos);
+            doc.text(`Alloc: Kes ${allocated.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+            yPos += 3.5;
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Paid: Kes ${paid.toLocaleString()} | Bal: Kes ${bal.toLocaleString()}`, margin + 2, yPos);
             yPos += 4;
         });
-        yPos += 4;
+        yPos += 2;
     }
 
     doc.setLineDashPattern([1, 1], 0);
     doc.line(margin, yPos, pageWidth - margin, yPos);
     doc.setLineDashPattern([], 0);
+    yPos += 5;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text("TOTAL PAID (NOW):", margin, yPos);
+    doc.text(`Kes ${Number(payment.amount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 6;
 
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text("TOTAL PAID:", margin, yPos);
-    doc.text(`Kes ${payment.amount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 8;
-
     if (associatedInvoice) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text("Total Invoiced:", margin, yPos);
+        doc.text(`Kes ${Number(associatedInvoice.totalAmount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 4;
+
+        doc.text("Total Paid to Date:", margin, yPos);
+        doc.text(`Kes ${Number(associatedInvoice.paidAmount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 4;
+
         doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
         doc.text("OUTSTANDING BAL:", margin, yPos);
-        doc.text(`Kes ${associatedInvoice.balance?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
-        yPos += 8;
+        doc.text(`Kes ${Number(associatedInvoice.balance || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 7;
     }
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     centerText("Thank you for your payment!", yPos);
-    yPos += 5;
+    yPos += 4.5;
     doc.setFontSize(7);
-    centerText("Powered by EduAi Automation", yPos);
+    centerText(`Served / Issued By: ${issuingUserName}`, yPos);
+    yPos += 4;
+    centerText(`Powered by ${instName}`, yPos);
 
     return doc.output('bloburl');
 };
