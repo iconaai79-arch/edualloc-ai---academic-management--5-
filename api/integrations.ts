@@ -3107,7 +3107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const studentPhone = studentData.phone || txn.phone_number;
                     if (smsConfig && studentPhone && studentPhone.trim().length >= 9) {
                         try {
-                            const portalTitle = inst?.name || 'Driving School';
+                            const portalTitle = (inst?.name && !inst.name.toLowerCase().includes('law firm')) ? inst.name : 'Driving School';
                             const portalUrl = 'https://eduai.co.ke';
                             const smsMsg = `Payment Verified! Welcome to ${portalTitle}. Your Driving School account is now active.\nPortal: ${portalUrl}\nUser ID: ${studentPhone}`;
                             

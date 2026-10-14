@@ -1859,7 +1859,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (smsConfig && studentPhone && studentPhone.trim().length >= 9) {
                             try {
                                 const { data: inst } = await supabase.from('institutions').select('name').eq('id', instId).maybeSingle();
-                                const portalTitle = inst?.name || 'Driving School';
+                                const portalTitle = (inst?.name && !inst.name.toLowerCase().includes('law firm')) ? inst.name : 'Driving School';
                                 const portalUrl = `https://${req.headers['x-forwarded-host'] || req.headers.host || 'eduai.co.ke'}`;
                                 const smsMsg = `Payment Verified via KCB! Welcome to ${portalTitle}. Your Driving School account is now active.\nPortal: ${portalUrl}\nUser ID: ${studentPhone}`;
                                 

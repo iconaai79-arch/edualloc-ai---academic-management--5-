@@ -1135,7 +1135,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cached = _serverModuleMemoryCache.get(moduleName);
                 const ttl = moduleName === 'institutions' ? 60000 : 120000;
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
-                    const reqId = getStrParam(id) || (isGroupOrSuperAdmin ? '' : targetInstParam) || (!shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
+                    const explicitInstFilter = targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : '';
+                    const reqId = getStrParam(id) || explicitInstFilter || (!isGroupOrSuperAdmin && !shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
                     if (reqId && moduleName === 'institutions') {
                         if (user?.role === 'reseller' && !getStrParam(id)) {
                             const resellerId = user.institutionId;
@@ -1148,7 +1149,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             });
                             return res.status(200).json(matched);
                         }
-                        const matched = cached.data.filter((i: any) => i && i.id === reqId);
+                        const cleanReq = (val?: string) => val ? String(val).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+                        const normReq = cleanReq(reqId);
+                        const matched = cached.data.filter((i: any) => i && (i.id === reqId || (normReq && cleanReq(i.id) === normReq)));
                         if (matched.length > 0) {
                             return res.status(200).json(matched);
                         }

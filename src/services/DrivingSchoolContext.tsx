@@ -515,10 +515,61 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const refreshData = loadDSData;
     const onRefresh = refreshData;
 
+    const resolveInstitutionConfig = useCallback(async (instId?: string) => {
+        let matchedInst: any = null;
+        try {
+            if (instId) {
+                const insts = await apiService.fetchModuleRecords('institutions', instId);
+                if (Array.isArray(insts) && insts.length > 0) {
+                    matchedInst = insts.find((i: any) => 
+                        i && (
+                            i.id === instId || 
+                            i.id === `inst_${instId}` || 
+                            instId === `inst_${i.id}` || 
+                            String(i.id).toLowerCase() === String(instId).toLowerCase()
+                        )
+                    );
+                    if (!matchedInst && insts.length === 1) {
+                        matchedInst = insts[0];
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn("[DS Automation] Failed to fetch institution config:", e);
+        }
+
+        // Secondary fallback to current_institution in local storage
+        if (!matchedInst) {
+            try {
+                const stored = localStorage.getItem('current_institution');
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    if (parsed && (parsed.id === instId || !instId || parsed.id === `inst_${instId}` || instId === `inst_${parsed.id}`)) {
+                        matchedInst = parsed;
+                    }
+                }
+            } catch (_) {}
+        }
+
+        let resolvedName = matchedInst?.name || settings?.schoolName || 'Driving School';
+        // Strictly sanitize: ensure a driving school welcome message never leaks a "Law Firm" tenant name
+        if (!resolvedName || resolvedName.toLowerCase().includes('law firm')) {
+            resolvedName = settings?.schoolName || 'Driving School';
+        }
+
+        return {
+            ...(matchedInst || {}),
+            name: resolvedName,
+            smsConfig: matchedInst?.smsConfig || (matchedInst as any)?.sms_config
+        };
+    }, [settings?.schoolName]);
+
     const addInstructor = useCallback(async (data: any) => {
         try {
+            const inst = await resolveInstitutionConfig(institutionId);
+            const portalTitle = inst.name || settings?.schoolName || 'Driving School';
             const userId = `u_${Date.now()}`;
-            const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
+            const generatedPassword = Math.floor(100000 + Math.random() * 900000).toString();
             const userEmail = data.email || `${userId}@ds.local`;
             const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
 
@@ -534,7 +585,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     branchId: branchIdToUse,
                     branch_id: branchIdToUse,
                     status: 'active'
-                } as any);
+                } as any, portalTitle);
 
                 // Persist phone number directly to bypass generic SMS dispatchers
                 await apiService.saveUser({
@@ -560,10 +611,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             // Automated Welcome Credentials via SMS
             if (data.phone && data.phone.trim().length >= 9) {
                 try {
-                    const insts = await apiService.fetchModuleRecords('institutions', institutionId);
-                    const inst = insts?.[0] || { name: 'Driving School' };
                     const companySettings = await apiService.fetchCompanySettings().catch(() => null);
-                    const portalTitle = inst.name || 'Driving School';
                     const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
 
                     const portalUrl = window.location.origin;
@@ -581,7 +629,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to add instructor");
             throw err;
         }
-    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error]);
+    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error, resolveInstitutionConfig, settings?.schoolName]);
 
     const addVehicle = useCallback(async (data: any) => {
         try {
@@ -620,11 +668,10 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const addStudent = useCallback(async (data: any) => {
         if (!institutionId) return;
 
-        // Fetch institution configuration
-        let inst: any = { name: 'Driving School' };
+        // Fetch institution configuration safely
+        let inst: any = { name: settings?.schoolName || 'Driving School' };
         try {
-            const insts = await apiService.fetchModuleRecords('institutions', institutionId);
-            if (insts && insts[0]) inst = insts[0];
+            inst = await resolveInstitutionConfig(institutionId);
         } catch (e) {
             console.warn("Failed to fetch institution config in addStudent:", e);
         }
@@ -681,13 +728,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
         try {
             const userId = data.userId || `u_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-            const generatedPassword = Math.random().toString(36).slice(-8).toUpperCase();
+            // Generate 6-digit numeric temporary password for full compatibility with kiosk touchscreens and portal logins
+            const generatedPassword = Math.floor(100000 + Math.random() * 900000).toString();
             const userEmail = data.email || `${userId}@ds.local`;
             
             const isPrepaid = billingModel === 'prepaid_student';
             const userStatus = isPrepaid ? 'inactive' : 'active';
 
             const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id);
+            const portalTitle = inst.name || settings?.schoolName || 'Driving School';
 
             // 1. Create platform user account so they appear in global student views
             try {
@@ -701,7 +750,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     branchId: branchIdToUse,
                     branch_id: branchIdToUse,
                     status: userStatus
-                } as any);
+                } as any, portalTitle);
 
                 // Ensure the phone number is correctly persisted on the user record directly
                 await apiService.saveUser({
@@ -779,7 +828,6 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 if (!data.skipWelcomeSms && data.phone && data.phone.trim().length >= 9) {
                     try {
                         const companySettings = await apiService.fetchCompanySettings().catch(() => null);
-                        const portalTitle = inst.name || 'Driving School';
                         const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
 
                         const portalUrl = window.location.origin;
@@ -799,7 +847,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to enroll student");
             throw err;
         }
-    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error, info, students, settings]);
+    }, [institutionId, resolveBranchIdToUse, onRefresh, success, error, info, students, settings, resolveInstitutionConfig]);
 
     const verifyStudentPayment = useCallback(async (studentId: string) => {
         if (!institutionId) return;
@@ -968,10 +1016,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
 
         try {
-            const insts = await apiService.fetchModuleRecords('institutions', institutionId);
-            const inst = insts?.[0] || { name: 'Driving School' };
+            const inst = await resolveInstitutionConfig(institutionId);
             const companySettings = await apiService.fetchCompanySettings().catch(() => null);
-            const portalTitle = inst.name || 'Driving School';
+            const portalTitle = inst.name || settings?.schoolName || 'Driving School';
             const activeSmsConfig = companySettings?.smsConfig || inst.smsConfig;
 
             // 1. Notification for Student
@@ -1042,7 +1089,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         } catch (err) {
             console.error("[DS Automation] Lesson notification critical failure:", err);
         }
-    }, [institutionId, students, instructors, vehicles, settings]);
+    }, [institutionId, students, instructors, vehicles, settings, resolveInstitutionConfig]);
 
     const checkUpcomingLessons = useCallback(async () => {
         if (!lessons.length) return;
@@ -1341,8 +1388,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             console.log(`[DS Automation] Preparing notifications for ${type} #${data.invoiceNumber || data.receiptNumber}`);
             
             // Fetch institution details
-            const insts = await apiService.fetchModuleRecords('institutions', institutionId);
-            const inst = insts?.[0] || { name: 'Driving School' };
+            const inst = await resolveInstitutionConfig(institutionId);
             const companySettings = await apiService.fetchCompanySettings().catch(() => null);
             const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
 
@@ -1404,7 +1450,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         } catch (err) {
             console.error(`[DS Automation] Critical failure in notification workflow:`, err);
         }
-    }, [institutionId, students, settings]);
+    }, [institutionId, students, settings, resolveInstitutionConfig]);
 
     const addInvoice = useCallback(async (data: any) => {
         try {
