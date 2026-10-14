@@ -51,6 +51,7 @@ $$;
 
 CREATE TABLE IF NOT EXISTS institutions (
     id TEXT PRIMARY KEY,
+    institution_id TEXT,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
     phone_number TEXT,

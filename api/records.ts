@@ -3501,18 +3501,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const r = String(role).toLowerCase().trim();
                 return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
             };
-            const skipTenancy = isSuperAdminRolePost(user?.role) || (user as any)?.is_super_admin === true || moduleName === 'institutions' || isTableWithoutInstitutionId(moduleName);
+            const isInstOrNoInstTable = moduleName === 'institutions' || targetDbTable === 'institutions' || isTableWithoutInstitutionId(moduleName);
+            const skipTenancy = isSuperAdminRolePost(user?.role) || (user as any)?.is_super_admin === true || isInstOrNoInstTable;
             const isBillingModule = ['invoice_clients', 'company_invoice_settings', 'finance_numbering_configs', 'invoices', 'receipts'].includes(moduleName);
             const resolveInstId = (r: any) => {
+                if (isInstOrNoInstTable) return undefined;
                 const explicit = r.institution_id || r.institutionId;
                 if (explicit && explicit !== 'null' && explicit !== 'undefined') return explicit;
                 if (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') return user.institutionId;
                 if (isBillingModule) return 'GLOBAL';
                 return skipTenancy ? undefined : (user?.institutionId || 'GLOBAL');
             };
-            const recordWithTenancy = Array.isArray(recordData) 
-                ? recordData.map(r => ({ ...r, ...(resolveInstId(r) ? { institution_id: resolveInstId(r) } : {}) }))
-                : { ...recordData, ...(resolveInstId(recordData) ? { institution_id: resolveInstId(recordData) } : {}) };
+            const stripInstField = (r: any) => {
+                if (!r || typeof r !== 'object') return r;
+                const copy = { ...r };
+                delete copy.institution_id;
+                delete copy.institutionId;
+                return copy;
+            };
+            const recordWithTenancy = isInstOrNoInstTable
+                ? (Array.isArray(recordData) ? recordData.map(stripInstField) : stripInstField(recordData))
+                : (Array.isArray(recordData) 
+                    ? recordData.map(r => ({ ...r, ...(resolveInstId(r) ? { institution_id: resolveInstId(r) } : {}) }))
+                    : { ...recordData, ...(resolveInstId(recordData) ? { institution_id: resolveInstId(recordData) } : {}) });
 
             const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
             const isBranchRestrictedUser = user && !isSuperAdminRolePost(user.role) && user.role !== 'group_admin';
@@ -3645,6 +3656,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanInstitution = (inst: any) => {
                     if (!inst || typeof inst !== 'object') return inst;
                     const copy = { ...inst };
+                    delete copy.institution_id;
+                    delete copy.institutionId;
                     delete copy.student_count;
                     delete copy.studentCount;
                     delete copy.active_users_count;
@@ -5218,6 +5231,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const normInstitution = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
                     const c = { ...item };
+                    delete c.institution_id;
+                    delete c.institutionId;
                     if (c.isSuspendedForBilling !== undefined) {
                         if (c.is_suspended_for_billing === undefined) c.is_suspended_for_billing = Boolean(c.isSuspendedForBilling);
                         delete c.isSuspendedForBilling;
@@ -5320,6 +5335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     delete c.createdAt;
                     delete c.updatedAt;
+                    delete c.institution_id;
+                    delete c.institutionId;
                     return c;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInstitution) : normInstitution(currentPayload);
@@ -5820,6 +5837,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
                             });
                             delete copy[offendingCol];
+                            delete copy.institution_id;
+                            delete copy.institutionId;
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripInstCol) : stripInstCol(currentPayload);
@@ -7502,6 +7521,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                     delete copy.createdAt;
                     delete copy.updatedAt;
+                    delete copy.institution_id;
+                    delete copy.institutionId;
                     currentUpdateData = copy;
                 } else if ((moduleName === 'vote_heads' || targetDbTable === 'vote_heads') && currentUpdateData && typeof currentUpdateData === 'object') {
                     const c = { ...currentUpdateData };
@@ -7763,6 +7784,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 }
                             });
                             delete currentUpdateData[offendingCol];
+                            delete currentUpdateData.institution_id;
+                            delete currentUpdateData.institutionId;
                             patchRetries--;
                             continue;
                         }

@@ -3960,6 +3960,12 @@ export const apiService = {
                 }
             });
 
+            // Institutions normalization: prevent spurious institution_id / institutionId columns
+            if (module === 'institutions') {
+                delete item.institution_id;
+                delete item.institutionId;
+            }
+
             // HIS Queue Calls normalization
             if (module === 'his_queue_calls') {
                 if (!item.patient_id || item.patient_id === '') item.patient_id = null;
@@ -4054,6 +4060,10 @@ export const apiService = {
         if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
             if (payload.id === id) {
                 delete payload.id;
+            }
+            if (module === 'institutions') {
+                delete (payload as any).institution_id;
+                delete (payload as any).institutionId;
             }
         }
 
@@ -4773,6 +4783,11 @@ export const apiService = {
             payload.branch_id = null;
         }
 
+        if (module === 'institutions' && payload && typeof payload === 'object') {
+            delete (payload as any).institution_id;
+            delete (payload as any).institutionId;
+        }
+
         // Note: For corporate billing (invoices, receipts, invoice_clients, company_invoice_settings,
         // finance_numbering_configs), 'GLOBAL' is the canonical enterprise tenant identifier.
         // It is backed by an anchor row in public.institutions (migration 474) and FKs are dropped (migration 429),
@@ -5490,6 +5505,10 @@ export const apiService = {
             payload.forEach((item: any) => {
                 if (item && item.branch_id && (item.branch_id.startsWith('inst_') || item.branch_id === item.institution_id)) {
                     item.branch_id = null;
+                }
+                if (module === 'institutions' && item && typeof item === 'object') {
+                    delete item.institution_id;
+                    delete item.institutionId;
                 }
             });
         }
