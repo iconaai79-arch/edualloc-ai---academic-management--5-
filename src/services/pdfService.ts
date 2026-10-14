@@ -1741,6 +1741,34 @@ export const generateDSQuotationPdfDataUri = async (
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
     const doc = new lib.jsPDF();
+
+    // Concurrently load logo and stamp
+    let stampImg: HTMLImageElement | null = null;
+    try {
+        const stampUrl = institution?.letterheadConfig?.stampImageUrl || (institution as any)?.stampImageUrl || (institution as any)?.stamp_image_url;
+        if (stampUrl) {
+            stampImg = await loadImage(stampUrl);
+        }
+        if (!stampImg && institution?.letterheadConfig?.showStamp !== false) {
+            const dateToStamp = new Date();
+            const resolvedStampConfig = institution?.letterheadConfig?.stampConfig || {
+                department: 'ADMISSIONS & BILLING',
+                showStars: true,
+                shape: 'circle',
+                mode: 'auto',
+                rotationAngle: -4,
+                inkColor: '#0047AB',
+                daterColor: '#DC2626'
+            } as any;
+            const stampDataUri = await generateStampDataUri(resolvedStampConfig, dateToStamp, institution);
+            if (stampDataUri) {
+                stampImg = await loadImage(stampDataUri);
+            }
+        }
+    } catch (stampErr) {
+        console.warn('[pdfService] Failed to generate stamp for DS quotation:', stampErr);
+    }
+
     const logoImg = await loadImage(logoUrl);
     const tableStartY = createPdfWithLetterhead(doc, 'FEE STRUCTURE QUOTATION', companyDetails, institution, logoImg);
     const margin = 14;
@@ -1786,20 +1814,56 @@ export const generateDSQuotationPdfDataUri = async (
         body: body,
         startY: tableStartY + 10,
         theme: 'striped',
-        headStyles: { fillColor: [79, 70, 229] },
-        didDrawPage: (data: any) => {
-            const finalY = data.cursor.y;
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('TOTAL ESTIMATED FEES:', pageWidth - margin - 60, finalY + 15);
-            doc.text(`KES ${baseFeeAmount?.toLocaleString()}`, pageWidth - margin, finalY + 15, { align: 'right' });
-            
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(100, 100, 100);
-            doc.text('Note: Fees are subject to official NTSA compliance policies and registration rules.', margin, finalY + 25);
-        }
+        headStyles: { fillColor: [79, 70, 229] }
     });
+
+    const finalY = ((doc as any).lastAutoTable?.finalY || (tableStartY + 50)) + 12;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('TOTAL ESTIMATED FEES:', pageWidth - margin - 65, finalY);
+    doc.text(`KES ${baseFeeAmount?.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Note: Fees are subject to official NTSA compliance policies and registration rules. Valid for 30 days.', margin, finalY + 10);
+
+    // Official Verification / Stamp block
+    const signY = finalY + 24;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('OFFICIAL QUOTATION VERIFICATION', margin, signY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Issued By: Admissions & Accounts Officer`, margin, signY + 5.5);
+    doc.text(`Print Date: ${new Date().toLocaleString()}`, margin, signY + 10.5);
+    doc.text('Acknowledgement: Quotation valid for 30 calendar days from issue date.', margin, signY + 15.5);
+
+    doc.setDrawColor(203, 213, 225);
+    doc.line(pageWidth - margin - 60, signY + 12, pageWidth - margin, signY + 12);
+    doc.setFontSize(7.5);
+    doc.text('Authorized Signature & Stamp', pageWidth - margin - 60, signY + 17);
+
+    // Embed Stamp Image
+    if (stampImg) {
+        try {
+            const stampSize = 32;
+            const stampAspect = stampImg.height > 0 ? stampImg.width / stampImg.height : 1;
+            const stampW = stampAspect >= 1 ? stampSize : stampSize * stampAspect;
+            const stampH = stampAspect >= 1 ? stampSize / stampAspect : stampSize;
+            const stampDrawX = pageWidth - margin - 52;
+            const stampDrawY = signY - stampH + 11;
+            let format = 'PNG';
+            if (stampImg.src?.startsWith('data:image/jpeg') || stampImg.src?.startsWith('data:image/jpg')) format = 'JPEG';
+            doc.addImage(stampImg, format, stampDrawX, stampDrawY, stampW, stampH);
+        } catch (imgErr) {
+            console.warn('[pdfService] Could not embed stamp image in quotation:', imgErr);
+        }
+    }
 
     return doc.output('datauristring');
 };

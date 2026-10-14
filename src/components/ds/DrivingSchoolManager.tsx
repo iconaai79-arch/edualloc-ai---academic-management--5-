@@ -7662,6 +7662,45 @@ END $$;
                                                                     Quote SMS
                                                                 </button>
                                                                 <button
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            const targetCat = (licenseCategories || []).find(c => c.name === lead.licenseTypeInterested || c.code === lead.licenseTypeInterested);
+                                                                            const feeAmt = lead.quotedAmount || targetCat?.price || 14500;
+                                                                            const fallbackCompany = { 
+                                                                                name: currentInstitution?.name || 'Driving School', 
+                                                                                address: currentInstitution?.location || 'Campus', 
+                                                                                phone: currentInstitution?.phoneNumber || '', 
+                                                                                email: currentInstitution?.email || '', 
+                                                                                pinNo: '' 
+                                                                            };
+                                                                            const pdfDataUri = await pdfService.generateDSQuotationPdfDataUri(
+                                                                                lead,
+                                                                                targetCat,
+                                                                                feeAmt,
+                                                                                currentInstitution || { name: 'Driving School', id: 'ds' } as any,
+                                                                                fallbackCompany as any,
+                                                                                currentInstitution?.logoUrl || null
+                                                                            );
+                                                                            const win = window.open();
+                                                                            if (win) {
+                                                                                win.document.write(`<iframe src="${pdfDataUri}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                                                                            } else {
+                                                                                const link = document.createElement('a');
+                                                                                link.href = pdfDataUri;
+                                                                                link.download = `Quotation_${(lead.fullName || 'Client').replace(/\s+/g, '_')}.pdf`;
+                                                                                link.click();
+                                                                            }
+                                                                        } catch (err: any) {
+                                                                            toastError("Failed to open Quotation PDF: " + err.message);
+                                                                        }
+                                                                    }}
+                                                                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                                    title="Download & View Stamped Quotation PDF"
+                                                                >
+                                                                    <DownloadIcon className="w-3 h-3 text-indigo-500" />
+                                                                    Quote PDF
+                                                                </button>
+                                                                <button
                                                                     onClick={() => {
                                                                         setActionModal({
                                                                             type: 'student',
@@ -8670,7 +8709,7 @@ END $$;
                                                                         fullName: studentName,
                                                                         admissionNumber: admNo !== '-' ? admNo : ''
                                                                     };
-                                                                    const doc = await generateDSPDF('invoice', invoice, fallbackStudent as any, settings, currentInstitution);
+                                                                    const doc = await generateDSPDF('invoice', invoice, fallbackStudent as any, settings, currentInstitution, invoices, currentUser?.name || currentUser?.email);
                                                                     doc.output('dataurlnewwindow');
                                                                 }}
                                                                 className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
@@ -8703,7 +8742,7 @@ END $$;
                                                                         fullName: studentName,
                                                                         admissionNumber: admNo !== '-' ? admNo : ''
                                                                     };
-                                                                    const doc = await generateDSPDF('invoice', invoice, fallbackStudent as any, settings, currentInstitution);
+                                                                    const doc = await generateDSPDF('invoice', invoice, fallbackStudent as any, settings, currentInstitution, invoices, currentUser?.name || currentUser?.email);
                                                                     doc.save(`${invoice.invoiceNumber}.pdf`);
                                                                 }}
                                                                 className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DSInvoice, DSPayment, DSStudent, DSSettings, DSLesson, DSInstructor, DSVehicle } from '../types';
 import { apiService } from '../services/apiService';
+import { generateStampDataUri } from './stampGenerator';
 
 // Internal utility to load images safely for PDF insertion
 const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | null> => {
@@ -25,9 +26,9 @@ const loadImage = (url: string | null | undefined): Promise<HTMLImageElement | n
 };
 
 export const generateDSPDF = async (
-    type: 'invoice' | 'receipt',
-    data: DSInvoice | DSPayment,
-    student: DSStudent,
+    type: 'invoice' | 'receipt' | 'quote',
+    data: DSInvoice | DSPayment | any,
+    student: DSStudent | any,
     settings: DSSettings | null,
     institution: any,
     invoicesList?: DSInvoice[],
@@ -61,10 +62,61 @@ export const generateDSPDF = async (
     const footerUrl = institution?.letterheadConfig?.footerImageUrl || institution?.footerImageUrl || companyDetails?.letterheadConfig?.footerImageUrl || (companyDetails as any)?.footerImageUrl;
     const footerText = institution?.letterheadConfig?.footerText || companyDetails?.letterheadConfig?.footerText || '';
 
-    const [headerImg, logoImg, footerImg] = await Promise.all([
+    const instName = institution?.name && !institution.name.toLowerCase().includes('law firm') ? institution.name : (settings?.schoolName || 'Driving School');
+
+    // Dedicated Stamp cascade: Uploaded custom stamp image or authentic auto-generated rubber dater stamp
+    const stampUrl = institution?.letterheadConfig?.stampImageUrl || 
+                     institution?.stampImageUrl || 
+                     institution?.stamp_image_url || 
+                     (settings as any)?.stampImageUrl || 
+                     companyDetails?.letterheadConfig?.stampImageUrl || 
+                     null;
+
+    const dateToStamp = (type === 'receipt' 
+        ? ((data as DSPayment)?.paymentDate || (data as DSPayment)?.date || (data as DSPayment)?.createdAt) 
+        : (type === 'invoice' 
+            ? ((data as DSInvoice)?.dueDate || (data as DSInvoice)?.createdAt) 
+            : ((data as any)?.date || (data as any)?.validUntil || (data as any)?.createdAt))) || new Date();
+
+    const resolveStampImage = async (): Promise<HTMLImageElement | null> => {
+        if (stampUrl) {
+            const loaded = await loadImage(stampUrl);
+            if (loaded) return loaded;
+        }
+        if (institution?.letterheadConfig?.showStamp !== false) {
+            try {
+                const stampDept = type === 'receipt' 
+                    ? 'FINANCE & CASHIER' 
+                    : (type === 'invoice' ? 'ACCOUNTS DEPARTMENT' : 'ADMISSIONS & BILLING');
+                const stampConfig = institution?.letterheadConfig?.stampConfig || {
+                    mode: 'system_generated',
+                    department: stampDept,
+                    institutionName: instName,
+                    addressLine: institution?.address || institution?.location || 'P.O. BOX 1341 - 00100, NAIROBI',
+                    contactPhone: institution?.phoneNumber || institution?.email || 'TEL: 0700000000',
+                    shape: 'circle',
+                    inkColor: '#0047AB',
+                    daterColor: '#DC2626',
+                    showStars: true,
+                    showDate: true,
+                    rotationAngle: -4
+                };
+                const stampDataUri = await generateStampDataUri(stampConfig as any, dateToStamp, institution);
+                if (stampDataUri) {
+                    return await loadImage(stampDataUri);
+                }
+            } catch (stampErr) {
+                console.warn('[dsPdfGenerator] Failed generating stamp:', stampErr);
+            }
+        }
+        return null;
+    };
+
+    const [headerImg, logoImg, footerImg, stampImg] = await Promise.all([
         loadImage(headerBannerUrl),
         loadImage(logoUrl),
-        loadImage(footerUrl)
+        loadImage(footerUrl),
+        resolveStampImage()
     ]);
 
     let currentY = 25;
@@ -178,8 +230,12 @@ export const generateDSPDF = async (
     doc.setFontSize(26);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(30, 41, 59);
-    const title = type === 'invoice' ? 'INVOICE' : 'OFFICIAL RECEIPT';
-    const number = type === 'invoice' ? (data as DSInvoice).invoiceNumber : (data as DSPayment).receiptNumber;
+    const title = type === 'invoice' ? 'INVOICE' : (type === 'quote' ? 'QUOTATION' : 'OFFICIAL RECEIPT');
+    const number = type === 'invoice' 
+        ? (data as DSInvoice).invoiceNumber 
+        : (type === 'quote' 
+            ? ((data as any).quoteNumber || (data as any).quotationNumber || (data as any).id || 'DS-QUOTE') 
+            : (data as DSPayment).receiptNumber);
     doc.text(title, pageWidth - margin, currentY + 4, { align: 'right' });
 
     doc.setFont(undefined, 'normal');
@@ -187,16 +243,19 @@ export const generateDSPDF = async (
     doc.setTextColor(71, 85, 105);
     doc.text(`#${number}`, pageWidth - margin, currentY + 13, { align: 'right' });
 
-    // Bill To / Paid By — anchored relative to title block
+    // Bill To / Paid By / Prospective Client — anchored relative to title block
     const billBlockY = currentY + 24;
     doc.setFontSize(9);
     doc.setTextColor(100);
     doc.setFont(undefined, 'bold');
-    doc.text(type === 'invoice' ? 'BILL TO:' : 'PAID BY (STUDENT):', margin, billBlockY);
+    const clientHeader = type === 'invoice' 
+        ? 'BILL TO:' 
+        : (type === 'quote' ? 'PROSPECTIVE CLIENT:' : 'PAID BY (STUDENT):');
+    doc.text(clientHeader, margin, billBlockY);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
-    doc.text(student.fullName, margin, billBlockY + 7);
+    doc.text(student.fullName || (data as any).clientName || 'Valued Client', margin, billBlockY + 7);
     doc.setFontSize(9);
     doc.setTextColor(100);
     let detailY = billBlockY + 13;
@@ -208,9 +267,9 @@ export const generateDSPDF = async (
         doc.text(`Enrolled: ${new Date(student.enrollmentDate).toLocaleDateString()}`, margin, detailY);
         detailY += 4.5;
     }
-    doc.text(student.phone || 'N/A', margin, detailY);
-    if (student.email) {
-        doc.text(student.email, margin, detailY + 4.5);
+    doc.text(student.phone || (data as any).phone || 'N/A', margin, detailY);
+    if (student.email || (data as any).email) {
+        doc.text(student.email || (data as any).email, margin, detailY + 4.5);
     }
 
     // Right-aligned Metadata (Date, Issued By, Ref)
@@ -222,15 +281,15 @@ export const generateDSPDF = async (
     doc.setTextColor(30, 41, 59);
     doc.text(new Date().toLocaleDateString(), pageWidth - margin, billBlockY, { align: 'right' });
 
-    if (type === 'receipt') {
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.setFont(undefined, 'bold');
-        doc.text('ISSUED BY:', pageWidth - margin - 50, billBlockY + 7);
-        doc.setFont(undefined, 'normal');
-        doc.setTextColor(30, 41, 59);
-        doc.text(issuingUserName, pageWidth - margin, billBlockY + 7, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.setFont(undefined, 'bold');
+    doc.text('ISSUED BY:', pageWidth - margin - 50, billBlockY + 7);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(30, 41, 59);
+    doc.text(issuingUserName, pageWidth - margin, billBlockY + 7, { align: 'right' });
 
+    if (type === 'receipt') {
         const pay = data as DSPayment;
         if (pay.transactionReference) {
             doc.setFontSize(9);
@@ -241,6 +300,16 @@ export const generateDSPDF = async (
             doc.setTextColor(30, 41, 59);
             doc.text(pay.transactionReference, pageWidth - margin, billBlockY + 14, { align: 'right' });
         }
+    } else if (type === 'quote') {
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.setFont(undefined, 'bold');
+        doc.text('VALID UNTIL:', pageWidth - margin - 50, billBlockY + 14);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(30, 41, 59);
+        const validDate = new Date();
+        validDate.setDate(validDate.getDate() + 30);
+        doc.text(validDate.toLocaleDateString(), pageWidth - margin, billBlockY + 14, { align: 'right' });
     }
 
     // Table
@@ -260,6 +329,29 @@ export const generateDSPDF = async (
         if (inv.notes) {
             tableData.push(['Notes', inv.notes, '', '']);
         }
+    } else if (type === 'quote') {
+        tableHead = ['#', 'Fee Item Description', 'Category', 'Amount (KES)'];
+        let quoteItems = Array.isArray((data as any).items) 
+            ? (data as any).items 
+            : (typeof (data as any).items === 'string' ? JSON.parse((data as any).items) : []);
+        const catName = student.licenseTypeInterested || (data as any).categoryName || 'Standard Course';
+        const totalFee = Number((data as any).totalAmount || (data as any).quotedAmount || (data as any).amount || 14500);
+        if (quoteItems.length === 0) {
+            const pdl = Math.min(1450, Math.floor(totalFee * 0.1));
+            const testFee = Math.min(2500, Math.floor(totalFee * 0.15));
+            const tuition = totalFee - pdl - testFee;
+            quoteItems = [
+                { name: 'Standard Tuition & Instruction Fee', amount: tuition },
+                { name: 'NTSA PDL (Provisional Driving License) Processing', amount: pdl },
+                { name: 'Practical & Theory Test Booking Fee', amount: testFee }
+            ];
+        }
+        tableData = quoteItems.map((item: any, idx: number) => [
+            idx + 1,
+            item.name || item.description || 'Instruction Item',
+            catName,
+            Number(item.amount || 0).toLocaleString()
+        ]);
     } else {
         const pay = data as DSPayment;
         tableHead = ['Payment Information', 'Details'];
@@ -359,8 +451,14 @@ export const generateDSPDF = async (
     // Totals
     doc.setFontSize(13);
     doc.setTextColor(30, 41, 59);
-    const totalLabel = type === 'invoice' ? 'INVOICE TOTAL:' : 'AMOUNT RECEIVED (THIS RECEIPT):';
-    const totalValue = type === 'invoice' ? (data as DSInvoice).totalAmount : (data as DSPayment).amount;
+    const totalLabel = type === 'invoice' 
+        ? 'INVOICE TOTAL:' 
+        : (type === 'quote' ? 'TOTAL ESTIMATED FEES:' : 'AMOUNT RECEIVED (THIS RECEIPT):');
+    const totalValue = type === 'invoice' 
+        ? (data as DSInvoice).totalAmount 
+        : (type === 'quote' 
+            ? ((data as any).totalAmount || (data as any).quotedAmount || (data as any).amount || 14500) 
+            : (data as DSPayment).amount);
 
     doc.text(totalLabel, pageWidth - margin - 90, renderYAfterTable + 18);
     doc.setFontSize(15);
@@ -401,22 +499,54 @@ export const generateDSPDF = async (
         doc.text(`KES ${Number(associatedInvoice.balance || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 46, { align: 'right' });
     }
 
-    // Official Receipt Verification / Sign-off block
-    const signY = renderYAfterTable + (type === 'receipt' && associatedInvoice ? 58 : 48);
+    // Official Verification / Sign-off block
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let signY = renderYAfterTable + (type === 'receipt' && associatedInvoice ? 56 : 46);
+    if (signY + 28 > pageHeight - 20) {
+        doc.addPage();
+        signY = 25;
+    }
+    const verifTitle = type === 'receipt' 
+        ? "OFFICIAL RECEIPT VERIFICATION" 
+        : (type === 'invoice' ? "OFFICIAL INVOICE VERIFICATION" : "OFFICIAL QUOTATION VERIFICATION");
     doc.setFontSize(9);
     doc.setFont(undefined, 'bold');
     doc.setTextColor(71, 85, 105);
-    doc.text("OFFICIAL RECEIPT VERIFICATION", margin, signY);
+    doc.text(verifTitle, margin, signY);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(100);
     doc.text(`Issued By: ${issuingUserName}`, margin, signY + 6);
     doc.text(`Print Date: ${new Date().toLocaleString()}`, margin, signY + 11);
-    doc.text("Acknowledgement: Payment received in full validity.", margin, signY + 16);
+    const ackText = type === 'receipt' 
+        ? "Acknowledgement: Payment received in full validity." 
+        : (type === 'invoice' 
+            ? "Payment Terms: Complete settlement via official Paybill/Bank details." 
+            : "Validity Notice: Quotation valid for 30 calendar days from issue date.");
+    doc.text(ackText, margin, signY + 16);
 
     doc.setDrawColor(203, 213, 225);
     doc.line(pageWidth - margin - 65, signY + 12, pageWidth - margin, signY + 12);
     doc.text("Authorized Signature & Stamp", pageWidth - margin - 65, signY + 17);
+
+    // Embed Official Stamp overlay over signature line
+    if (stampImg) {
+        try {
+            const stampSize = 34; // 34mm realistic rubber stamp
+            const stampAspect = stampImg.height > 0 ? stampImg.width / stampImg.height : 1;
+            const stampW = stampAspect >= 1 ? stampSize : stampSize * stampAspect;
+            const stampH = stampAspect >= 1 ? stampSize / stampAspect : stampSize;
+            const stampDrawX = pageWidth - margin - 58;
+            const stampDrawY = signY - stampH + 11;
+            let format = 'PNG';
+            if (stampImg.src?.startsWith('data:image/jpeg') || stampImg.src?.startsWith('data:image/jpg')) {
+                format = 'JPEG';
+            }
+            doc.addImage(stampImg, format, stampDrawX, stampDrawY, stampW, stampH);
+        } catch (imgErr) {
+            console.warn('[dsPdfGenerator] Could not embed stamp image:', imgErr);
+        }
+    }
 
     // Footer Layout & Page Numbers
     const pageCount = doc.internal.getNumberOfPages();
@@ -668,7 +798,12 @@ export const generateDSThermalReceipt = async (
     doc.setFontSize(8);
     doc.setFont('helvetica', 'italic');
     centerText("Thank you for your payment!", yPos);
-    yPos += 4.5;
+    yPos += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    centerText("[ OFFICIAL STAMP & VERIFIED ]", yPos);
+    yPos += 3.5;
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     centerText(`Served / Issued By: ${issuingUserName}`, yPos);
     yPos += 4;
