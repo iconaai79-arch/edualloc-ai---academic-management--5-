@@ -2196,7 +2196,7 @@ const DSAnalyticsViewInner: React.FC<DSAnalyticsViewProps> = ({
 
 export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = (props) => {
     const context = useContext(DrivingSchoolContext);
-    if (context && context.refreshData) {
+    if (context) {
         return <DSAnalyticsViewInner {...props} />;
     }
     return (

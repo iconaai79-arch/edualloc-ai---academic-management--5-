@@ -1472,6 +1472,7 @@ export function MCHMaternityCWCView({ patients = [], institutionId, userName }: 
                                 gestationWeeks,
                                 birthWeightKg,
                                 currentWeightKg,
+                                admissionReason: reason,
                                 reasonForAdmission: reason,
                                 incubatorCribNumber,
                                 phototherapyActive: phototherapy,

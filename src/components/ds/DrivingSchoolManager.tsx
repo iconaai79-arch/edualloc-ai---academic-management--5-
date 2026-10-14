@@ -49,7 +49,7 @@ import { useDrivingSchool, DrivingSchoolContext, DrivingSchoolProvider } from '.
 import { AppErrorBoundary } from '../common/AppErrorBoundary';
 
 import type { 
-    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig, DSLead, DSExpenditure 
+    User, DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSettings, DSInvoice, DSPayment, DSFeeStructure, DSFeeItem, LetterheadConfig, DSLead, DSExpenditure, Branch 
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
@@ -7664,7 +7664,7 @@ END $$;
                                                                 <button
                                                                     onClick={async () => {
                                                                         try {
-                                                                            const targetCat = (licenseCategories || []).find(c => c.name === lead.licenseTypeInterested || c.code === lead.licenseTypeInterested);
+                                                                            const targetCat = (settings?.licenseCategories || []).find((c: any) => c.name === lead.licenseTypeInterested || c.code === lead.licenseTypeInterested);
                                                                             const feeAmt = lead.quotedAmount || targetCat?.price || 14500;
                                                                             const fallbackCompany = { 
                                                                                 name: currentInstitution?.name || 'Driving School', 
@@ -13338,7 +13338,7 @@ const PrepaidPaymentVerificationModal: React.FC<{
 
 export const DrivingSchoolManager: React.FC<DrivingSchoolManagerProps> = (props) => {
     const context = useContext(DrivingSchoolContext);
-    if (context && context.refreshData && context.stats) {
+    if (context) {
         return <DrivingSchoolManagerInner {...props} />;
     }
     return (

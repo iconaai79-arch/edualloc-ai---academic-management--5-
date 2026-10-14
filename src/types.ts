@@ -486,6 +486,12 @@ export interface StudentEnrollment {
     leadershipPosition?: string;
     status: 'Enrolled' | 'Active' | 'Graduated' | 'Suspended' | 'Dropped';
     enrollmentDate: string;
+    studentId?: string;
+    parentPhone?: string;
+    phoneNumber?: string;
+    firstName?: string;
+    lastName?: string;
+    stream?: string;
     metadata: {
         dateOfBirth?: string;
         dob?: string;
@@ -728,6 +734,7 @@ export interface Institution {
     checkinRadiusMeters?: number;
     scheduleProfiles?: ScheduleProfile[];
     aiModelTier?: 'free' | 'premium';
+    hasTransport?: boolean;
     streamDefinitions?: string[];
     countyId?: string;
     subCounty?: string;
@@ -2085,6 +2092,7 @@ export interface Invoice {
     terms?: string;
     discountAmount?: number;
     amountPaid?: number;
+    paidAmount?: number;
     balance?: number;
     currency?: string;
 }
@@ -5186,6 +5194,7 @@ export interface DSLicenseCategory {
     name: string;
     description?: string;
     baseFee?: number;
+    price?: number;
     isActive?: boolean;
     parentCategory?: string;
     dailyProgram?: Array<{ day: number; topic: string; objective?: string }>;
@@ -7424,14 +7433,16 @@ export interface HISNBUAdmission {
     motherId?: string;
     motherName?: string;
     admissionDate: string;
-    admissionReason: string; // Prematurity, Low Birth Weight, Neonatal Sepsis, Jaundice / Hyperbilirubinemia, Birth Asphyxia
+    admissionReason?: string; // Prematurity, Low Birth Weight, Neonatal Sepsis, Jaundice / Hyperbilirubinemia, Birth Asphyxia
     birthWeightKg: number;
     currentWeightKg: number;
     gestationWeeks?: number;
     incubatorBay?: string;
     incubatorCribNumber?: string;
     phototherapyActive: boolean;
-    cpapOxygenActive: boolean;
+    cpapOxygenActive?: boolean;
+    kmcCandidate?: boolean;
+    reasonForAdmission?: string;
     feedingMode: 'EBM (Expressed Breast Milk)' | 'Nasogastric Tube' | 'Cup / Spoon' | 'Total Parenteral Nutrition (IV)' | string;
     apgar1Min?: number;
     apgar5Min?: number;

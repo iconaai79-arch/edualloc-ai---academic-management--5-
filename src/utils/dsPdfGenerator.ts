@@ -74,9 +74,9 @@ export const generateDSPDF = async (
                      null;
 
     const dateToStamp = (type === 'receipt' 
-        ? ((data as DSPayment)?.paymentDate || (data as DSPayment)?.date || (data as DSPayment)?.createdAt) 
+        ? ((data as any)?.paymentDate || (data as any)?.date || (data as any)?.createdAt) 
         : (type === 'invoice' 
-            ? ((data as DSInvoice)?.dueDate || (data as DSInvoice)?.createdAt) 
+            ? ((data as any)?.dueDate || (data as any)?.createdAt) 
             : ((data as any)?.date || (data as any)?.validUntil || (data as any)?.createdAt))) || new Date();
 
     const resolveStampImage = async (): Promise<HTMLImageElement | null> => {

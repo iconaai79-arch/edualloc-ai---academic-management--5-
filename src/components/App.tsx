@@ -9709,7 +9709,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                                 const targetInstId = otpPendingUser.institutionId || (otpPendingUser as any).institution_id;
                                 let instForOtp = institutions.find(i => i.id === targetInstId);
-                                if (!instForOtp && targetInstId && !isClientOffline) {
+                                if (!instForOtp && targetInstId && (typeof navigator === 'undefined' || navigator.onLine)) {
                                     try {
                                         const discovered = await apiService.fetchModuleRecords('institutions', undefined, undefined, { filter: { id: targetInstId } });
                                         if (discovered && Array.isArray(discovered) && discovered.length > 0) {

@@ -1250,14 +1250,14 @@ export const isDayAllocation = (allocation: any, targetDay: string): boolean => 
     return false;
 };
 
-export const parseTimeToMinutes = (timeStr?: string): number | null => {
-    if (!timeStr || typeof timeStr !== 'string') return null;
+export const parseTimeToMinutes = (timeStr?: string): number => {
+    if (!timeStr || typeof timeStr !== 'string') return -1;
     const trimmed = timeStr.trim();
-    if (!trimmed.includes(':')) return null;
+    if (!trimmed.includes(':')) return -1;
     const parts = trimmed.split(':');
     const h = parseInt(parts[0], 10);
     const m = parseInt(parts[1], 10);
-    if (isNaN(h) || isNaN(m)) return null;
+    if (isNaN(h) || isNaN(m)) return -1;
     return h * 60 + m;
 };
 
@@ -1333,10 +1333,10 @@ export const matchSlotAllocation = (
     const sStartMin = parseTimeToMinutes(sStartStr);
     const sEndMin = parseTimeToMinutes(sEndStr);
 
-    if (aMin === null) return false;
+    if (aMin < 0) return false;
 
     // 3. Fallback: numerical minute comparison
-    if (sStartMin !== null && sEndMin !== null) {
+    if (sStartMin >= 0 && sEndMin >= 0) {
         if (aMin >= sStartMin && aMin < sEndMin) {
             return true;
         }

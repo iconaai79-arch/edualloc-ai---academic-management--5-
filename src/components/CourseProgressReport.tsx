@@ -46,7 +46,7 @@ export const CourseProgressReport: React.FC<CourseProgressReportProps> = ({
                 const levelSubjects = subjects.filter(s => levelSubjectIds.includes(s.id) || levelSubjectIds.length === 0);
 
                 const subjectProgress = levelSubjects.map(subject => {
-                    const meta = (level.subjectMetadata || []).find(m => m.subjectId === subject.id);
+                    const meta = ((level as any).subjectMetadata || []).find((m: any) => m.subjectId === subject.id);
                     const structure = meta?.lessonStructure || subject.lessonStructure || [];
                     const required = calculateTotalPeriods(structure);
                     const scheduled = allTimetableEntries.filter(entry =>

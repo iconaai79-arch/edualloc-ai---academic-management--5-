@@ -118,7 +118,15 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
     const activeBankAccounts = useMemo(() => {
         const pool = (bankAccounts && bankAccounts.length > 0) ? [...bankAccounts, ...fetchedBankAccounts] : fetchedBankAccounts;
         const seen = new Set<string>();
-        const list: Array<{ id: string; bankName: string; accountNumber: string; accountName: string }> = [];
+        const list: Array<{ 
+            id: string; 
+            bankName: string; 
+            accountNumber: string; 
+            accountName: string;
+            paymentNotificationTemplate?: string;
+            paymentInstructions?: string;
+            enableCustomNotification?: boolean;
+        }> = [];
 
         if ((institution as any)?.coopConfig?.accountNumber) {
             const accNo = (institution as any).coopConfig.accountNumber;

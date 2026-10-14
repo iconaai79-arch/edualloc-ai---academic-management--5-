@@ -280,7 +280,7 @@ export const EmployeeDocumentsModal: React.FC<EmployeeDocumentsModalProps> = ({
             await apiService.updateModuleRecord('users', staffMember.id, { metadata: updatedMeta }).catch(() => null);
 
             // Also dual-save to employee_documents table for SQL indexing & reporting
-            await apiService.createModuleRecord('employee_documents', {
+            await apiService.saveModuleRecord('employee_documents', {
                 id: newDoc.id,
                 institution_id: institution.id,
                 institutionId: institution.id,
