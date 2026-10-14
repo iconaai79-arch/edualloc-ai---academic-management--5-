@@ -136,6 +136,9 @@ const buildCustomPaymentNotification = (params: {
         ? rawTemplate.trim()
         : DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE;
 
+    const rNo = String(receiptNumber || '').trim();
+    const directReceiptUrl = rNo ? `https://eduai.co.ke/?receipt=${encodeURIComponent(rNo)}` : '';
+
     let message = template
         .replace(/\{student_name\}/gi, studentName)
         .replace(/\{adm_no\}/gi, admNo)
@@ -164,6 +167,10 @@ const buildCustomPaymentNotification = (params: {
         .replace(/\{receipt_number\}/gi, receiptNumber || '')
         .replace(/\{receipt_no\}/gi, receiptNumber || '')
         .replace(/\{ref\}/gi, receiptNumber || '')
+        .replace(/\{receipt_url\}/gi, directReceiptUrl)
+        .replace(/\{receipt_link\}/gi, directReceiptUrl)
+        .replace(/\{download_url\}/gi, directReceiptUrl)
+        .replace(/\{short_url\}/gi, directReceiptUrl)
         .replace(/\{bank_name\}/gi, account?.bank_name || account?.bankName || '')
         .replace(/\{account_number\}/gi, account?.account_number || account?.accountNumber || '')
         .replace(/\{account_name\}/gi, account?.account_name || account?.accountName || '');

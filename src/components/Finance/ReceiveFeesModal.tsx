@@ -1386,7 +1386,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                                 currentBalance: currentBalance,
                                 paymentDate: item.rawDate || new Date(),
                                 institutionName: institution?.name || 'School',
-                                receiptNumber: receiptNumber
+                                receiptNumber: receiptNumber,
+                                receiptUrl: `${window.location.origin}/?receipt=${encodeURIComponent(receiptNumber)}`
                             });
 
                             apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId, undefined, true).catch(err => {
@@ -1556,7 +1557,8 @@ export const ReceiveFeesModal: React.FC<ReceiveFeesModalProps> = ({
                         currentBalance: currentBalance,
                         paymentDate: manualDate || new Date(),
                         institutionName: institution?.name || 'School',
-                        receiptNumber: receiptNumber
+                        receiptNumber: receiptNumber,
+                        receiptUrl: `${window.location.origin}/?receipt=${encodeURIComponent(receiptNumber)}`
                     });
                     try {
                         const smsRes = await apiService.sendSms(cleanPhone, smsMsg, institution?.smsConfig, 1, instId, undefined, true);

@@ -11,6 +11,8 @@ Charged: {charged}
 Adjusted: {adjusted}
 Paid: {paid}
 Bal: {balance} as at {timestamp}
+Rcpt: {receipt_no}
+Download Receipt: {receipt_url}
 
 {payment_instructions}`;
 
@@ -77,6 +79,8 @@ export interface PaymentNotificationParams {
     academicTerm?: string;
     academicYear?: string;
     receiptNumber?: string;
+    receiptUrl?: string;
+    shortUrl?: string;
 }
 
 /**
@@ -139,6 +143,13 @@ export function buildCustomPaymentNotification(params: PaymentNotificationParams
         ? account.paymentNotificationTemplate.trim() 
         : DEFAULT_PAYMENT_NOTIFICATION_TEMPLATE;
 
+    // Resolve short receipt download link
+    const origin = typeof window !== 'undefined' && window.location?.origin 
+        ? window.location.origin 
+        : 'https://eduai.co.ke';
+    const rNo = String(receiptNumber || '').trim();
+    const directReceiptUrl = params.receiptUrl || params.shortUrl || (rNo ? `${origin}/?receipt=${encodeURIComponent(rNo)}` : '');
+
     // Replace all variable tokens
     let message = template
         .replace(/\{student_name\}/gi, studentName)
@@ -165,6 +176,10 @@ export function buildCustomPaymentNotification(params: PaymentNotificationParams
         .replace(/\{balance_timestamp\}/gi, `${balanceFormatted} as at ${timestampFormatted}`)
         .replace(/\{receipt_number\}/gi, receiptNumber)
         .replace(/\{receipt_no\}/gi, receiptNumber)
+        .replace(/\{receipt_url\}/gi, directReceiptUrl)
+        .replace(/\{receipt_link\}/gi, directReceiptUrl)
+        .replace(/\{download_url\}/gi, directReceiptUrl)
+        .replace(/\{short_url\}/gi, directReceiptUrl)
         .replace(/\{payment_instructions\}/gi, instructions)
         .replace(/\{account_instructions\}/gi, instructions)
         .replace(/\{instructions\}/gi, instructions)

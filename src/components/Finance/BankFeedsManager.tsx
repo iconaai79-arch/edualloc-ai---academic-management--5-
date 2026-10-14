@@ -1099,7 +1099,8 @@ export const BankFeedsManager: React.FC<BankFeedsManagerProps> = ({
                     currentBalance: currentBalance,
                     paymentDate: paymentDate || new Date(),
                     institutionName: institution?.name || 'School',
-                    receiptNumber: receiptNumber
+                    receiptNumber: receiptNumber,
+                    receiptUrl: `${window.location.origin}/?receipt=${encodeURIComponent(receiptNumber)}`
                 });
 
             const smsCfg = institution?.smsConfig || institution?.sms_config;

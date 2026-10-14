@@ -633,7 +633,8 @@ export const PostManualReceiptModal: React.FC<PostManualReceiptModalProps> = Rea
                     currentBalance: currentBalance,
                     paymentDate: manualPayDate || new Date(),
                     institutionName: notifySchool,
-                    receiptNumber: receiptNumber
+                    receiptNumber: receiptNumber,
+                    receiptUrl: receiptLink
                 });
                 const emailHtml = `<p>Dear ${notifyStudent?.name || 'Parent/Guardian'},</p><p>Payment of <strong>KSh ${amountNum.toLocaleString()}</strong> has been received.</p><p><b>Receipt No:</b> ${receiptNumber}<br/><b>Method:</b> ${manualPayMethod}<br/><b>Ref:</b> ${manualPayReference || 'N/A'}<br/><b>Date:</b> ${manualPayDate}</p><p>Download receipt: <a href="${receiptLink}">${receiptLink}</a></p><p>Thank you,<br/>${notifySchool} Accounts Office</p>`;
 

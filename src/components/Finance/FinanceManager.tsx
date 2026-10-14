@@ -6407,7 +6407,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     currentBalance: currentBalance,
                                     paymentDate: rec.paymentDate || new Date(),
                                     institutionName: bulkSchool,
-                                    receiptNumber: rec.receiptNumber
+                                    receiptNumber: rec.receiptNumber,
+                                    receiptUrl: bLink
                                 });
                                 apiService.sendSms(bPhone, bSms, (props.institution as any).smsConfig, 1, props.institution.id, undefined, true).catch(() => {});
                             }
@@ -19362,7 +19363,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                                                         {[
                                                                             '{student_name}', '{adm_no}', '{class_name}', '{term}', '{academic_year}',
                                                                             '{charged}', '{adjusted}', '{paid}', '{balance}', '{timestamp}',
-                                                                            '{payment_instructions}', '{bank_name}', '{account_number}'
+                                                                            '{receipt_no}', '{receipt_url}', '{payment_instructions}', '{bank_name}', '{account_number}'
                                                                         ].map(token => (
                                                                             <button
                                                                                 key={token}
