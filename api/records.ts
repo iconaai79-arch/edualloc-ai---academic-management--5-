@@ -1,5 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 // Self-contained Supabase service client factory to avoid external lib crashes
 const getSupabase = (req?: VercelRequest) => {
@@ -2125,6 +2126,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 data = records;
             }
 
+            if (moduleName === 'ds_fee_structures') {
+                const records = Array.isArray(data) ? data : [];
+                records.forEach((r: any) => {
+                    if (r && typeof r === 'object') {
+                        if (r.institution_id && !r.institutionId) r.institutionId = r.institution_id;
+                        if (r.class_name && !r.className) r.className = r.class_name;
+                        if (r.branch_id && !r.branchId) r.branchId = r.branch_id;
+                        if (r.total_amount !== undefined && r.totalAmount === undefined) r.totalAmount = Number(r.total_amount) || 0;
+                        if (r.created_at && !r.createdAt) r.createdAt = r.created_at;
+                        if (r.updated_at && !r.updatedAt) r.updatedAt = r.updated_at;
+                        if (!r.description && r.metadata?.description) r.description = r.metadata.description;
+                    }
+                });
+                data = records;
+            }
+
             if (moduleName === 'school_remedial_duty_roster') {
                 let records = Array.isArray(data) ? data : [];
                 const targetInst = targetInstParam || user?.institutionId;
@@ -3102,6 +3119,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (copy.issue_date === undefined) copy.issue_date = copy.invoice_date;
                     delete copy.invoice_date;
                 }
+                if (moduleName === 'ds_invoices') {
+                    if (copy.studentName !== undefined) {
+                        if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                        delete copy.studentName;
+                    }
+                    if (copy.paidAmount !== undefined) {
+                        if (copy.paid_amount === undefined) copy.paid_amount = copy.paidAmount;
+                        delete copy.paidAmount;
+                    }
+                    if (copy.feeStructureId !== undefined) {
+                        if (copy.fee_structure_id === undefined) copy.fee_structure_id = copy.feeStructureId;
+                        delete copy.feeStructureId;
+                    }
+                    if (!copy.student_name || typeof copy.student_name !== 'string' || !copy.student_name.trim() || copy.student_name.trim().toLowerCase() === 'null') {
+                        copy.student_name = copy.name || copy.fullName || copy.student || 'Student';
+                    }
+                }
             }
             if (moduleName === 'visitors') {
                 const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
@@ -3856,6 +3890,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const cleanSmsLog = (log: any) => {
                     if (!log || typeof log !== 'object') return log;
                     const copy = { ...log };
+                    const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                    if (!copy.id || !isValidUUID(copy.id)) {
+                        copy.id = randomUUID();
+                    }
                     const rVal = copy.recipient || copy.recipients || copy.recipient_phone || copy.phone_number || copy.phone || copy.phoneNumber;
                     if (rVal) {
                         copy.recipient = Array.isArray(rVal) ? rVal.filter(Boolean).join(', ') : String(rVal).trim();
@@ -3981,7 +4019,138 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         delete copy.paymentDate;
                     }
 
-                    if (moduleName === 'receipts' || moduleName === 'payments' || moduleName === 'ds_payments') {
+                    if (moduleName === 'ds_invoices') {
+                        if (copy.studentName !== undefined) {
+                            if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                            delete copy.studentName;
+                        }
+                        if (!copy.student_name || typeof copy.student_name !== 'string' || !copy.student_name.trim() || copy.student_name.trim().toLowerCase() === 'null') {
+                            copy.student_name = copy.name || copy.fullName || copy.student || 'Student';
+                        }
+                        if (copy.feeStructureId !== undefined) {
+                            if (copy.fee_structure_id === undefined) copy.fee_structure_id = copy.feeStructureId;
+                            delete copy.feeStructureId;
+                        }
+                        if (copy.paidAmount !== undefined) {
+                            if (copy.paid_amount === undefined) copy.paid_amount = copy.paidAmount;
+                            delete copy.paidAmount;
+                        }
+                        if (copy.totalAmount !== undefined) {
+                            if (copy.total_amount === undefined) copy.total_amount = copy.totalAmount;
+                            delete copy.totalAmount;
+                        }
+                        if (copy.amount !== undefined && copy.total_amount === undefined) {
+                            copy.total_amount = copy.amount;
+                            delete copy.amount;
+                        }
+                        if (copy.invoiceNumber !== undefined) {
+                            if (copy.invoice_number === undefined) copy.invoice_number = copy.invoiceNumber;
+                            delete copy.invoiceNumber;
+                        }
+                        if (copy.dueDate !== undefined) {
+                            if (copy.due_date === undefined) copy.due_date = parseDate(copy.dueDate);
+                            delete copy.dueDate;
+                        }
+                        if (copy.due_date !== undefined) {
+                            copy.due_date = parseDate(copy.due_date);
+                        }
+                        if (copy.className !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.className;
+                            delete copy.className;
+                        }
+                        if (copy.studentClass !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.studentClass;
+                            delete copy.studentClass;
+                        }
+                        if (copy.student_class !== undefined) {
+                            if (copy.class_name === undefined) copy.class_name = copy.student_class;
+                            delete copy.student_class;
+                        }
+                        copy.total_amount = Number(copy.total_amount || 0);
+                        copy.paid_amount = Number(copy.paid_amount || 0);
+                        if (copy.balance === undefined || copy.balance === null) {
+                            copy.balance = Math.max(0, copy.total_amount - copy.paid_amount);
+                        } else {
+                            copy.balance = Number(copy.balance);
+                        }
+                        if (!copy.items || !Array.isArray(copy.items)) {
+                            copy.items = [];
+                        }
+                        if (!copy.status) {
+                            copy.status = copy.balance <= 0 ? 'Fully Paid' : (copy.paid_amount > 0 ? 'Partially Paid' : 'Pending');
+                        }
+
+                        const allowedDsInvoiceCols = new Set([
+                            'id', 'institution_id', 'branch_id', 'student_id', 'student_name',
+                            'fee_structure_id', 'class_name', 'items', 'total_amount',
+                            'paid_amount', 'balance', 'status', 'invoice_number', 'due_date',
+                            'notes', 'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedDsInvoiceCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        return copy;
+                    }
+
+                    if (moduleName === 'ds_payments') {
+                        if (copy.studentName !== undefined) {
+                            if (copy.student_name === undefined) copy.student_name = copy.studentName;
+                            delete copy.studentName;
+                        }
+                        if (copy.invoiceId !== undefined) {
+                            if (copy.invoice_id === undefined) copy.invoice_id = copy.invoiceId;
+                            delete copy.invoiceId;
+                        }
+                        if (copy.receiptNumber !== undefined) {
+                            if (copy.receipt_number === undefined) copy.receipt_number = copy.receiptNumber;
+                            delete copy.receiptNumber;
+                        }
+                        if (copy.paymentMethod !== undefined) {
+                            if (copy.payment_method === undefined) copy.payment_method = copy.paymentMethod;
+                            delete copy.paymentMethod;
+                        }
+                        if (copy.amountPaid !== undefined) {
+                            if (copy.amount === undefined) copy.amount = copy.amountPaid;
+                            delete copy.amountPaid;
+                        }
+                        if (copy.amount_paid !== undefined) {
+                            if (copy.amount === undefined) copy.amount = copy.amount_paid;
+                            delete copy.amount_paid;
+                        }
+                        if (copy.paymentDate !== undefined) {
+                            if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.paymentDate);
+                            delete copy.paymentDate;
+                        }
+                        if (copy.date !== undefined) {
+                            if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.date);
+                            delete copy.date;
+                        }
+                        if (copy.receivedBy !== undefined) {
+                            if (copy.received_by === undefined) copy.received_by = copy.receivedBy;
+                            delete copy.receivedBy;
+                        }
+                        if (copy.transactionReference !== undefined) {
+                            if (copy.transaction_reference === undefined) copy.transaction_reference = copy.transactionReference;
+                            delete copy.transactionReference;
+                        }
+
+                        const allowedDsPaymentCols = new Set([
+                            'id', 'institution_id', 'branch_id', 'invoice_id', 'student_id',
+                            'student_name', 'amount', 'payment_method', 'transaction_reference',
+                            'payment_date', 'receipt_number', 'received_by', 'notes',
+                            'created_at', 'updated_at'
+                        ]);
+                        Object.keys(copy).forEach(k => {
+                            if (!allowedDsPaymentCols.has(k)) {
+                                delete copy[k];
+                            }
+                        });
+                        return copy;
+                    }
+
+                    if (moduleName === 'receipts' || moduleName === 'payments') {
                         if (copy.amount !== undefined && copy.amount_paid === undefined) {
                             copy.amount_paid = copy.amount;
                         }
@@ -4003,7 +4172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete copy.receipt_date;
                         }
                     }
-                    if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
+                    if (moduleName === 'invoices') {
                         if (copy.amount !== undefined && copy.total_amount === undefined) {
                             copy.total_amount = copy.amount;
                         }
@@ -5169,6 +5338,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normVital) : normVital(currentPayload);
             }
 
+            // Normalize ds_fee_structures: map camelCase → snake_case DB columns
+            if (moduleName === 'ds_fee_structures' || targetDbTable === 'ds_fee_structures') {
+                const normDsFeeStructure = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const c = { ...item };
+                    if (c.institutionId && !c.institution_id) { c.institution_id = c.institutionId; delete c.institutionId; }
+                    if (c.className && !c.class_name) { c.class_name = c.className; delete c.className; }
+                    if (c.branchId && !c.branch_id) { c.branch_id = c.branchId; delete c.branchId; }
+                    if (c.totalAmount !== undefined && c.total_amount === undefined) { c.total_amount = Number(c.totalAmount) || 0; delete c.totalAmount; }
+                    if (c.createdAt && !c.created_at) { c.created_at = c.createdAt; delete c.createdAt; }
+                    if (c.updatedAt && !c.updated_at) { c.updated_at = c.updatedAt; delete c.updatedAt; }
+                    return c;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normDsFeeStructure) : normDsFeeStructure(currentPayload);
+            }
+
             // Normalize school_remedial_sessions: map camelCase → snake_case
             if (moduleName === 'school_remedial_sessions' || targetDbTable === 'school_remedial_sessions') {
                 const normSession = (item: any) => {
@@ -5489,6 +5674,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let error: any = null;
             let maxRetries = 2;
             let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
+            let tableRequiresUUID = false;
 
             while (maxRetries >= 0) {
                 // Safety check: if function execution approaches timeout threshold, break immediately for offline fallback
@@ -5567,7 +5753,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const ensureValidId = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         if (!item.id || item.id === 'null' || item.id === 'undefined') {
-                            item.id = `${moduleName}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                            item.id = (tableRequiresUUID || moduleName === 'sms_logs')
+                                ? randomUUID()
+                                : `${moduleName}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                         }
                         return item;
                     };
@@ -5683,6 +5871,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripLessonPlanCol) : stripLessonPlanCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'ds_fee_structures' || targetDbTable === 'ds_fee_structures') {
+                        // 1. Attempt to add missing columns via Direct PG if pool is active and reload PostgREST cache
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS description TEXT;
+                                        ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                                        ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        // 2. Strip un-cached column, preserving description in metadata so user data is never lost
+                        const stripDsFeeStructureCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            if (offendingCol === 'description' && copy.description) {
+                                const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                                meta.description = copy.description;
+                                copy.metadata = meta;
+                            }
+                            delete copy[offendingCol];
+                            if (offendingCol === 'metadata' || !tableSupportsMetadata) {
+                                delete copy.metadata;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripDsFeeStructureCol) : stripDsFeeStructureCol(currentPayload);
                         maxRetries--;
                         continue;
                     }
@@ -6019,30 +6244,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     continue;
                 }
 
-                // Handle invalid input syntax for type uuid (22P02) by removing non-UUID string IDs so DB generates valid UUIDs
+                // Handle invalid input syntax for type uuid (22P02) by replacing non-UUID IDs with valid RFC-4122 UUIDs and nulling offending foreign keys
                 if ((error.code === '22P02' || String(error.message || '').toLowerCase().includes('invalid input syntax for type uuid')) && maxRetries > 0) {
-                    console.warn(`[api/records] UUID syntax mismatch on [${moduleName}]: stripping non-UUID identifiers and retrying (${maxRetries} left)...`);
+                    console.warn(`[api/records] UUID syntax mismatch on [${moduleName}]: resolving non-UUID identifiers and retrying (${maxRetries} left)...`);
+                    tableRequiresUUID = true;
                     const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                    const offendingMatch = String(error.message || '').match(/invalid input syntax for type uuid:\s*"([^"]+)"/i);
+                    const offendingVal = offendingMatch ? offendingMatch[1] : null;
+
                     const stripNonUUIDs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        if (copy.id && !isValidUUID(copy.id)) {
+                        if (copy.id && (!isValidUUID(copy.id) || copy.id === offendingVal)) {
                             if (tableSupportsMetadata) {
                                 const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                                 meta.originalId = copy.id;
                                 copy.metadata = meta;
                             }
-                            delete copy.id;
+                            copy.id = randomUUID();
                         }
-                        ['institution_id', 'institutionId', 'student_id', 'studentId'].forEach(k => {
-                            if (k in copy && copy[k] && !isValidUUID(copy[k])) {
+                        ['institution_id', 'institutionId', 'sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id'].forEach(k => {
+                            if (k in copy && copy[k] && (!isValidUUID(copy[k]) || copy[k] === offendingVal)) {
                                 if (tableSupportsMetadata) {
                                     const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
                                     meta[k] = copy[k];
                                     copy.metadata = meta;
                                 }
+                                copy[k] = null;
                             }
                         });
+                        if (offendingVal) {
+                            Object.keys(copy).forEach(k => {
+                                if (copy[k] === offendingVal && k !== 'id') {
+                                    if (tableSupportsMetadata) {
+                                        const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                                        meta[k] = copy[k];
+                                        copy.metadata = meta;
+                                    }
+                                    copy[k] = null;
+                                }
+                            });
+                        }
                         return copy;
                     };
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripNonUUIDs) : stripNonUUIDs(currentPayload);
@@ -6050,7 +6292,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     continue;
                 }
 
-                // Handle NOT NULL constraint violations (23502) especially on users.email
+                // Handle NOT NULL constraint violations (23502) especially on users.email, student_name, etc.
                 if ((error.code === '23502' || String(error.message || '').includes('violates not-null constraint') || String(error.message || '').includes('null value in column')) && maxRetries > 0) {
                     const errMsg = String(error.message || '').toLowerCase();
                     console.warn(`[api/records] NOT NULL constraint violation on [${moduleName}]: ${errMsg}. Retrying with auto-remediation (${maxRetries} left)...`);
@@ -6083,6 +6325,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(fixUserEmails) : fixUserEmails(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    // Auto-remediate student_name or other column NOT NULL constraints
+                    const colMatch = errMsg.match(/column "([^"]+)"/);
+                    const colName = colMatch ? colMatch[1] : (errMsg.includes('student_name') ? 'student_name' : null);
+                    if (colName) {
+                        const fixNullCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            if (copy[colName] === null || copy[colName] === undefined || copy[colName] === '' || String(copy[colName]).toLowerCase() === 'null') {
+                                if (colName === 'student_name') {
+                                    copy.student_name = copy.studentName || copy.name || copy.fullName || copy.student || 'Student';
+                                } else if (colName === 'items') {
+                                    copy.items = [];
+                                } else if (colName.includes('amount') || colName === 'balance') {
+                                    copy[colName] = 0;
+                                } else if (colName.includes('number') || colName.includes('code')) {
+                                    copy[colName] = `GEN_${Date.now()}`;
+                                } else if (colName === 'institution_id') {
+                                    copy.institution_id = (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') ? user.institutionId : 'GLOBAL';
+                                } else {
+                                    copy[colName] = 'N/A';
+                                }
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(fixNullCol) : fixNullCol(currentPayload);
                         maxRetries--;
                         continue;
                     }
@@ -6548,9 +6819,85 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.preferred_lesson_hours;
                     delete copy.preferredLessonHours;
                     currentUpdateData = copy;
-                } else if (['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments', 'books'].includes(moduleName) && currentUpdateData && typeof currentUpdateData === 'object') {
+                } else if (moduleName === 'ds_invoices' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
-                    if (moduleName === 'invoices' || moduleName === 'ds_invoices') {
+                    if (copy.studentName !== undefined && copy.student_name === undefined) {
+                        copy.student_name = copy.studentName;
+                    }
+                    if (copy.feeStructureId !== undefined && copy.fee_structure_id === undefined) {
+                        copy.fee_structure_id = copy.feeStructureId;
+                    }
+                    if (copy.paidAmount !== undefined && copy.paid_amount === undefined) {
+                        copy.paid_amount = copy.paidAmount;
+                    }
+                    if (copy.totalAmount !== undefined && copy.total_amount === undefined) {
+                        copy.total_amount = copy.totalAmount;
+                    }
+                    if (copy.invoiceNumber !== undefined && copy.invoice_number === undefined) {
+                        copy.invoice_number = copy.invoiceNumber;
+                    }
+                    if (copy.className !== undefined && copy.class_name === undefined) {
+                        copy.class_name = copy.className;
+                    }
+                    if (copy.studentClass !== undefined && copy.class_name === undefined) {
+                        copy.class_name = copy.studentClass;
+                    }
+                    if (copy.student_class !== undefined && copy.class_name === undefined) {
+                        copy.class_name = copy.student_class;
+                    }
+                    if (copy.student_name !== undefined && (!copy.student_name || typeof copy.student_name !== 'string' || !copy.student_name.trim() || copy.student_name.trim().toLowerCase() === 'null')) {
+                        delete copy.student_name;
+                    }
+                    const allowedDsInvoiceCols = new Set([
+                        'id', 'institution_id', 'branch_id', 'student_id', 'student_name',
+                        'fee_structure_id', 'class_name', 'items', 'total_amount',
+                        'paid_amount', 'balance', 'status', 'invoice_number', 'due_date',
+                        'notes', 'created_at', 'updated_at'
+                    ]);
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedDsInvoiceCols.has(k)) {
+                            delete copy[k];
+                        }
+                    });
+                    currentUpdateData = copy;
+                } else if (moduleName === 'ds_payments' && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    if (copy.studentName !== undefined && copy.student_name === undefined) {
+                        copy.student_name = copy.studentName;
+                    }
+                    if (copy.invoiceId !== undefined && copy.invoice_id === undefined) {
+                        copy.invoice_id = copy.invoiceId;
+                    }
+                    if (copy.receiptNumber !== undefined && copy.receipt_number === undefined) {
+                        copy.receipt_number = copy.receiptNumber;
+                    }
+                    if (copy.paymentMethod !== undefined && copy.payment_method === undefined) {
+                        copy.payment_method = copy.paymentMethod;
+                    }
+                    if (copy.amountPaid !== undefined && copy.amount === undefined) {
+                        copy.amount = copy.amountPaid;
+                    }
+                    if (copy.amount_paid !== undefined && copy.amount === undefined) {
+                        copy.amount = copy.amount_paid;
+                    }
+                    if (copy.student_name !== undefined && (!copy.student_name || typeof copy.student_name !== 'string' || !copy.student_name.trim() || copy.student_name.trim().toLowerCase() === 'null')) {
+                        delete copy.student_name;
+                    }
+                    const allowedDsPaymentCols = new Set([
+                        'id', 'institution_id', 'branch_id', 'invoice_id', 'student_id',
+                        'student_name', 'amount', 'payment_method', 'transaction_reference',
+                        'payment_date', 'receipt_number', 'received_by', 'notes',
+                        'created_at', 'updated_at'
+                    ]);
+                    Object.keys(copy).forEach(k => {
+                        if (!allowedDsPaymentCols.has(k)) {
+                            delete copy[k];
+                        }
+                    });
+                    currentUpdateData = copy;
+                } else if (['invoices', 'receipts', 'pm_invoices', 'pm_payments', 'his_invoices', 'his_payments', 'books'].includes(moduleName) && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const copy = { ...currentUpdateData };
+                    if (moduleName === 'invoices') {
                         if (copy.className !== undefined) {
                             if (copy.class_name === undefined) copy.class_name = copy.className;
                             delete copy.className;
@@ -7454,6 +7801,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             continue;
                         }
 
+                        if (moduleName === 'ds_fee_structures' || targetDbTable === 'ds_fee_structures') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS description TEXT;
+                                            ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS branch_id TEXT;
+                                            ALTER TABLE public.ds_fee_structures ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2000
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+
+                            if (offendingCol === 'description' && currentUpdateData.description) {
+                                const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
+                                meta.description = currentUpdateData.description;
+                                currentUpdateData.metadata = meta;
+                            }
+                            delete currentUpdateData[offendingCol];
+                            if (offendingCol === 'metadata' || !patchTableSupportsMetadata) {
+                                delete currentUpdateData.metadata;
+                            }
+                            patchRetries--;
+                            continue;
+                        }
+
                         if (moduleName === 'school_remedial_allocations') {
                             const EXTENDED_ALLOC_COLS = [
                                 'is_joint', 'joint_streams', 'joint_courses', 'joint_label',
@@ -7582,10 +7958,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         patchRetries--;
                         continue;
                     } else if ((error.code === '22P02' || String(error.message || '').toLowerCase().includes('invalid input syntax for type uuid')) && patchRetries > 0) {
-                        console.warn(`[api/records PATCH] UUID syntax mismatch on [${moduleName}]: stripping non-UUID identifiers and retrying...`);
+                        console.warn(`[api/records PATCH] UUID syntax mismatch on [${moduleName}]: resolving non-UUID identifiers and retrying...`);
                         const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                        const offendingMatch = String(error.message || '').match(/invalid input syntax for type uuid:\s*"([^"]+)"/i);
+                        const offendingVal = offendingMatch ? offendingMatch[1] : null;
                         const copy = { ...currentUpdateData };
-                        if (copy.id && !isValidUUID(copy.id)) delete copy.id;
+                        if (copy.id && (!isValidUUID(copy.id) || copy.id === offendingVal)) delete copy.id;
+                        ['institution_id', 'institutionId', 'sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id'].forEach(k => {
+                            if (k in copy && copy[k] && (!isValidUUID(copy[k]) || copy[k] === offendingVal)) {
+                                copy[k] = null;
+                            }
+                        });
+                        if (offendingVal) {
+                            Object.keys(copy).forEach(k => {
+                                if (copy[k] === offendingVal && k !== 'id') {
+                                    copy[k] = null;
+                                }
+                            });
+                        }
                         currentUpdateData = copy;
                         patchRetries--;
                         continue;
@@ -7601,6 +7991,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if ((error.code === '23502' || String(error.message || '').includes('violates not-null constraint') || String(error.message || '').includes('null value in column')) && patchRetries > 0) {
                         console.warn(`[api/records PATCH] NOT NULL constraint note on [${moduleName}]: stripping null column and retrying...`);
                         const copy = { ...currentUpdateData };
+                        const colMatch = String(error.message || '').toLowerCase().match(/column "([^"]+)"/);
+                        if (colMatch && colMatch[1]) {
+                            delete copy[colMatch[1]];
+                        }
                         if ((targetDbTable === 'users' || moduleName === 'users') && String(error.message || '').includes('email')) {
                             delete copy.email;
                         }

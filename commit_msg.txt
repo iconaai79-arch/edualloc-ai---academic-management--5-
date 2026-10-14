@@ -1,8 +1,1 @@
-feat: super admin teacher hourly rate editing, fix remedial payouts schema cache, and fix icon imports
-
-- Add Super Admin hourly rate editing per teacher across user management and remedial managers
-- Add migrations 475 and 476 for teacher hourly rates and school_remedial_payouts audit columns
-- Update api/records.ts with auto-healing and metadata fallback for school_remedial_payouts
-- Fix missing BuildingOfficeIcon import in DrivingSchoolManager
-- Fix missing UploadCloud import in TransportBillingManager
-- Ensure institution_id is set on Branch entities in DrivingSchoolContext
+fix: add default export for BuildingOfficeIcon

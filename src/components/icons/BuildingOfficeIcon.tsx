@@ -6,3 +6,5 @@ export const BuildingOfficeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (prop
   </svg>
 );
 
+export default BuildingOfficeIcon;
+

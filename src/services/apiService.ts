@@ -3185,6 +3185,15 @@ export const apiService = {
             }
 
             if (module === 'sms_logs') {
+                const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                if (!item.id || !isValidUUID(item.id)) {
+                    item.id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                        ? crypto.randomUUID()
+                        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                            const r = Math.random() * 16 | 0;
+                            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                        });
+                }
                 const rVal = item.recipient || item.recipients || item.recipient_phone || item.phone_number;
                 if (rVal) {
                     item.recipient = String(rVal).trim();

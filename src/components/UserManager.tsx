@@ -10,7 +10,7 @@ import type {
 } from '../types';
 import { PayNowModal } from './PayNowModal';
 import { RETAIL_SUBTYPES, VALID_STAFF_ROLES } from '../constants';
-import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isPrimaryInstitution, isSecondaryInstitution } from '../utils/roleUtils';
+import { getRolesForInstitution, formatRoleDisplayName, isSchoolInstitution, isHigherEdInstitution, isEduInstitution, isPrimaryInstitution, isSecondaryInstitution, isDSInstitution } from '../utils/roleUtils';
 import { PlusIcon } from './icons/PlusIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { AcademicCapIcon } from './icons/AcademicCapIcon';
@@ -893,8 +893,9 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         onAddParent, onDeleteParent, onAddTimeOffRequest,
         onUpdateRequest, showOnly, onSendBulkCredentials, onAddTransaction, companyDetails, isRetailAgency: isRetailAgencyProp,
         isCoop: isCoopProp, isPm: isPmProp, isAutoMarket: isAutoMarketProp,
-        isAdding: isAddingProp = false, onAddExtensionRequest, isDS, defaultRole
+        isAdding: isAddingProp = false, onAddExtensionRequest, isDS: isDSProp, defaultRole
     } = props;
+    const isDS = Boolean(isDSProp || isDSInstitution(currentInstitution) || currentInstitution?.institutionType === 'Driving School');
     const isRetailAgency = isRetailAgencyProp ?? (
         RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes((currentInstitution?.businessSubType || '').toLowerCase()) ||
         RETAIL_SUBTYPES.map(s => s.toLowerCase()).includes((currentInstitution?.institutionType || '').toLowerCase()) ||
@@ -1209,6 +1210,13 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             list = list.filter(u => u.departmentId === currentUser.departmentId);
         }
 
+        if (isDS) {
+            const currentInstId = currentInstitution?.id || currentUser?.institutionId;
+            if (currentInstId) {
+                list = list.filter(u => u && (u.institutionId === currentInstId || (u as any).institution_id === currentInstId));
+            }
+        }
+
         return list;
     }, [users, activeTab, searchQuery, institutionFilter, isSuperAdmin, currentUser?.role, currentUser?.departmentId, isRetailAgency, isAutoMarket, isPm, currentInstitution, currentUser?.institutionId, institutionMap, institutions]);
 
@@ -1286,7 +1294,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             }
         }
 
-        let finalInstitutionId = isSuperAdmin ? (destinyInstitutionId || currentInstitution?.id || currentUser?.institutionId || '') : (currentInstitution?.id || currentUser?.institutionId || '');
+        let finalInstitutionId = (isSuperAdmin && !isDS) ? (destinyInstitutionId || currentInstitution?.id || currentUser?.institutionId || '') : (currentInstitution?.id || currentUser?.institutionId || '');
         let finalCountyId = undefined;
 
         if (isSuperAdmin && activeTab === 'staff') {
@@ -1567,7 +1575,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                     <option value="Other">Other</option>
                                 </select>
                             </div>
-                            {isSuperAdmin && (
+                            {isSuperAdmin && !isDS && (
                                 <div>
                                     <label className="block text-sm font-medium mb-1 text-indigo-600 dark:text-indigo-400 font-bold">Destiny Institution</label>
                                     <select
@@ -1817,7 +1825,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             className="w-full bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] pl-12 pr-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none focus:border-blue-500 transition-all text-slate-900 dark:text-white shadow-sm hover:shadow-md"
                         />
                     </div>
-                    {isSuperAdmin && (institutions || []).length > 0 && (
+                    {!isDS && isSuperAdmin && (institutions || []).length > 0 && (
                         <div className="w-full sm:w-64 flex-shrink-0">
                             <select
                                 value={institutionFilter}
@@ -1840,7 +1848,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Name & Details</th>
                                 <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Roles</th>
-                                {isSuperAdmin && <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Institution</th>}
+                                {(!isDS && isSuperAdmin) && <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase">Institution</th>}
                                 <th className="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase">Actions</th>
                             </tr>
                         </thead>
@@ -1869,7 +1877,7 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                             ))}
                                         </div>
                                     </td>
-                                    {isSuperAdmin && (
+                                    {(!isDS && isSuperAdmin) && (
                                         <td className="px-6 py-4">
                                             <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
                                                 {institutionMap.get(u.institutionId) || 'Unknown'}

@@ -2789,12 +2789,20 @@ CREATE TABLE IF NOT EXISTS ds_votes (
 CREATE TABLE IF NOT EXISTS ds_fee_structures (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    branch_id TEXT,
     class_name TEXT NOT NULL,
+    description TEXT,
     items JSONB NOT NULL,
     total_amount DECIMAL(12, 2) NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE ds_fee_structures ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE ds_fee_structures ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE ds_fee_structures ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
 
 CREATE TABLE IF NOT EXISTS ds_invoices (
     id TEXT PRIMARY KEY,
@@ -2904,11 +2912,19 @@ CREATE TABLE IF NOT EXISTS bc_settings (
 CREATE TABLE IF NOT EXISTS bc_fee_structures (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    branch_id TEXT,
     course_id TEXT NOT NULL REFERENCES bc_courses(id) ON DELETE CASCADE,
+    description TEXT,
     items JSONB NOT NULL,
     total_amount DECIMAL(12, 2) NOT NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE bc_fee_structures ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE bc_fee_structures ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE bc_fee_structures ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
 
 CREATE TABLE IF NOT EXISTS bc_invoices (
     id TEXT PRIMARY KEY,
