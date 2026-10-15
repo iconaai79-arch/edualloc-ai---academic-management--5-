@@ -575,30 +575,138 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     };
                 }
             });
-            // Auto-heal and reconcile invoice paid amount, balances, and distributed items against actual payments
+            // Auto-heal students that have missing or empty admissionNumber
+            const existingAdms = new Set<string>();
+            (dsStud || []).forEach(s => {
+                const adm = s.admissionNumber || (s as any).admission_number;
+                if (adm && String(adm).trim() && String(adm).trim() !== '-') {
+                    existingAdms.add(String(adm).trim().toLowerCase());
+                }
+            });
+            const admPrefix = (dsSet?.[0]?.studentIdPrefix || 'ADM-').trim();
+            const isNumericAdmPrefix = !isNaN(Number(admPrefix)) && admPrefix !== '';
+            let nextAdmNum = 1;
+            (dsStud || []).forEach(s => {
+                const adm = s.admissionNumber || (s as any).admission_number;
+                if (adm) {
+                    if (isNumericAdmPrefix) {
+                        const n = Number(String(adm).trim());
+                        if (!isNaN(n) && n >= Number(admPrefix) && n >= nextAdmNum) nextAdmNum = n + 1;
+                    } else if (String(adm).toUpperCase().startsWith(admPrefix.toUpperCase())) {
+                        const match = String(adm).slice(admPrefix.length).match(/\d+/);
+                        if (match) {
+                            const n = parseInt(match[0], 10);
+                            if (!isNaN(n) && n >= nextAdmNum) nextAdmNum = n + 1;
+                        }
+                    }
+                }
+            });
+            const getNextAdm = () => {
+                let cand = '';
+                do {
+                    cand = isNumericAdmPrefix ? String(nextAdmNum) : `${admPrefix}${String(nextAdmNum).padStart(3, '0')}`;
+                    nextAdmNum++;
+                } while (existingAdms.has(cand.toLowerCase()));
+                existingAdms.add(cand.toLowerCase());
+                return cand;
+            };
+
+            const healedStudents = (dsStud || []).map(s => {
+                const rawAdm = s.admissionNumber || (s as any).admission_number;
+                if (!rawAdm || !String(rawAdm).trim() || String(rawAdm).trim() === '-') {
+                    const linkedInv = (dsInvs || []).find(inv => 
+                        (inv.studentId && (inv.studentId === s.id || (inv as any).admissionNumber === s.id)) ||
+                        (inv.studentName && s.fullName && inv.studentName.trim().toLowerCase() === s.fullName.trim().toLowerCase())
+                    );
+                    const invAdm = linkedInv?.admissionNumber || (linkedInv as any)?.admission_number;
+                    const newAdm = (invAdm && String(invAdm).trim() && String(invAdm).trim() !== '-') ? String(invAdm).trim() : getNextAdm();
+                    
+                    console.log(`[DSContext] Auto-healing student ${s.fullName} admissionNumber: -> ${newAdm}`);
+                    const updatedStudent = {
+                        ...s,
+                        admissionNumber: newAdm,
+                        admission_number: newAdm,
+                        updatedAt: new Date().toISOString()
+                    };
+                    apiService.saveModuleRecord('ds_students', updatedStudent).catch(err => {
+                        console.warn('[DSContext] Failed to persist auto-healed student admission number:', err);
+                    });
+                    return updatedStudent;
+                }
+                return s;
+            });
+
+            // Auto-heal and reconcile invoices: admissionNumber, studentName, studentId, and balances
             const healedInvoices = (dsInvs || []).map(inv => {
+                let updatedInv = { ...inv };
+                let modified = false;
+
+                const targetId = inv.studentId || (inv as any).student_id;
+                const invName = (inv.studentName || (inv as any).student_name || '').trim().toLowerCase();
+                const cleanInvName = invName.replace(/\s+/g, ' ');
+                const invWords = cleanInvName.split(' ').filter(Boolean).sort().join(' ');
+
+                const matchedStud = (targetId && healedStudents.find(s => s.id === targetId || (s as any)._id === targetId)) ||
+                                    (invName && healedStudents.find(s => (s.fullName || '').trim().toLowerCase() === invName)) ||
+                                    (cleanInvName && healedStudents.find(s => (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase() === cleanInvName)) ||
+                                    (invWords && healedStudents.find(s => (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean).sort().join(' ') === invWords)) ||
+                                    (cleanInvName.split(' ').length >= 2 ? healedStudents.find(s => {
+                                        const sLower = (s.fullName || '').toLowerCase();
+                                        return cleanInvName.split(' ').filter(w => w.length > 2).every(w => sLower.includes(w));
+                                    }) : null);
+
+                // Heal admissionNumber
+                const currentAdm = inv.admissionNumber || (inv as any).admission_number;
+                if ((!currentAdm || !String(currentAdm).trim() || String(currentAdm).trim() === '-') && matchedStud) {
+                    const studAdm = matchedStud.admissionNumber || (matchedStud as any).admission_number;
+                    if (studAdm && String(studAdm).trim() && String(studAdm).trim() !== '-') {
+                        updatedInv.admissionNumber = String(studAdm).trim();
+                        updatedInv.admission_number = String(studAdm).trim();
+                        modified = true;
+                    }
+                }
+
+                // Heal studentName if missing or generic
+                const rawName = (inv.studentName || (inv as any).student_name || '').trim();
+                if ((!rawName || rawName === '-' || rawName.toLowerCase() === 'student') && matchedStud?.fullName) {
+                    updatedInv.studentName = matchedStud.fullName;
+                    modified = true;
+                }
+
+                // Heal studentId if missing or unlinked
+                if ((!updatedInv.studentId || updatedInv.studentId.startsWith('dss_opb_')) && matchedStud?.id && updatedInv.studentId !== matchedStud.id) {
+                    updatedInv.studentId = matchedStud.id;
+                    modified = true;
+                }
+
                 const linkedPayments = (dsPay || []).filter(p => {
                     if (!p || p.status === 'Pending Deletion' || p.status === 'Cancelled' || p.status === 'Rejected') return false;
-                    if (p.invoiceId && (p.invoiceId === inv.id || p.invoiceId === inv.invoiceNumber)) return true;
+                    if (p.invoiceId && (p.invoiceId === updatedInv.id || p.invoiceId === updatedInv.invoiceNumber)) return true;
                     if (!p.invoiceId) {
-                        if (p.studentId && (p.studentId === inv.studentId || (inv as any).admissionNumber === p.studentId)) return true;
-                        if (p.studentName && inv.studentName && p.studentName.trim().toLowerCase() === inv.studentName.trim().toLowerCase()) return true;
+                        if (p.studentId && (p.studentId === updatedInv.studentId || (updatedInv as any).admissionNumber === p.studentId)) return true;
+                        if (p.studentName && updatedInv.studentName && p.studentName.trim().toLowerCase() === updatedInv.studentName.trim().toLowerCase()) return true;
                     }
                     return false;
                 });
 
                 if (linkedPayments.length > 0) {
-                    const recalculated = recalculateDSInvoicePayments(inv, linkedPayments);
-                    const diffPaid = Math.abs(Number(inv.paidAmount || 0) - recalculated.paidAmount);
-                    const diffBal = Math.abs(Number(inv.balance || 0) - recalculated.balance);
+                    const recalculated = recalculateDSInvoicePayments(updatedInv, linkedPayments);
+                    const diffPaid = Math.abs(Number(updatedInv.paidAmount || 0) - recalculated.paidAmount);
+                    const diffBal = Math.abs(Number(updatedInv.balance || 0) - recalculated.balance);
                     if (diffPaid > 0.05 || diffBal > 0.05) {
-                        console.log(`[DSContext] Auto-healing invoice ${inv.invoiceNumber || inv.id}: paid ${inv.paidAmount} -> ${recalculated.paidAmount}, bal ${inv.balance} -> ${recalculated.balance}`);
-                        apiService.saveModuleRecord('ds_invoices', recalculated).catch(err => {
-                            console.warn('[DSContext] Failed to persist auto-healed invoice:', err);
-                        });
-                        return recalculated;
+                        updatedInv = { ...updatedInv, ...recalculated };
+                        modified = true;
                     }
                 }
+
+                if (modified) {
+                    console.log(`[DSContext] Auto-healing invoice ${updatedInv.invoiceNumber || updatedInv.id}: adm="${updatedInv.admissionNumber}", name="${updatedInv.studentName}"`);
+                    apiService.saveModuleRecord('ds_invoices', updatedInv).catch(err => {
+                        console.warn('[DSContext] Failed to persist auto-healed invoice:', err);
+                    });
+                    return updatedInv;
+                }
+
                 return inv;
             });
 
@@ -610,7 +718,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const targetId = p.studentId || (p as any).student_id;
                 const payAdm = (p.admissionNumber || (p as any).admission_number || '').trim().toLowerCase();
 
-                const matchedStud = (dsStud || []).find(s => 
+                const matchedStud = (healedStudents || []).find(s => 
                     (targetId && (s.id === targetId || (s as any)._id === targetId)) ||
                     (targetId && ((s.admissionNumber || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() || ((s as any).admission_number || '').trim().toLowerCase() === String(targetId).trim().toLowerCase())) ||
                     (payAdm && ((s.admissionNumber || '').trim().toLowerCase() === payAdm || ((s as any).admission_number || '').trim().toLowerCase() === payAdm))
@@ -649,6 +757,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return p;
             });
 
+            setStudents(healedStudents);
             setInvoices(healedInvoices);
             setPayments(healedPayments);
             setMpesaTransactions(dsMpe || []);
@@ -1662,15 +1771,36 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const totalDiscount = Number(data.discountAmount || 0);
             const totalSponsor = Number(data.sponsorAmount || 0);
             const initialBalance = Math.max(0, (data.totalAmount || 0) - totalDiscount - totalSponsor);
-            const isOpeningBalance = Boolean(data.isOpeningBalance);
             const studentBranch = data.studentId ? rawStudents.find(s => s.id === data.studentId)?.branchId : undefined;
             const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id || studentBranch);
+
+            // Robust student and admission number resolution
+            const allStuds = (rawStudents && rawStudents.length > 0 ? rawStudents : students) || [];
+            const linkedStudent = (allStuds || []).find(s => 
+                (data.studentId && (s.id === data.studentId || (s as any)._id === data.studentId)) ||
+                (data.admissionNumber && ((s.admissionNumber || '').trim().toLowerCase() === String(data.admissionNumber).trim().toLowerCase() || ((s as any).admission_number || '').trim().toLowerCase() === String(data.admissionNumber).trim().toLowerCase())) ||
+                (data.studentName && s.fullName && s.fullName.trim().toLowerCase() === data.studentName.trim().toLowerCase())
+            );
+            const rawAdm = data.admissionNumber || (data as any).admission_number || linkedStudent?.admissionNumber || (linkedStudent as any)?.admission_number;
+            const finalAdm = (rawAdm && String(rawAdm).trim() && String(rawAdm).trim() !== '-') ? String(rawAdm).trim() : undefined;
+            const finalStudentId = data.studentId || linkedStudent?.id;
+            const finalStudentName = data.studentName || linkedStudent?.fullName;
+
+            if (linkedStudent && (!linkedStudent.admissionNumber || linkedStudent.admissionNumber === '-') && finalAdm) {
+                const updatedStud = { ...linkedStudent, admissionNumber: finalAdm, admission_number: finalAdm };
+                apiService.saveModuleRecord('ds_students', updatedStud).catch(() => {});
+            }
+
             const inv: any = {
                 ...data,
                 id: data.id || `inv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 institutionId,
                 branchId: branchIdToUse,
                 branch_id: branchIdToUse,
+                studentId: finalStudentId,
+                studentName: finalStudentName,
+                admissionNumber: finalAdm,
+                admission_number: finalAdm,
                 invoiceNumber: invNumber,
                 items: (data.items || []).map((it: any) => ({ ...it, paidAmount: 0 })),
                 status: initialBalance <= 0 ? 'Fully Paid' : 'Pending',

@@ -84,7 +84,7 @@ export const readSpreadsheet = (file: File): Promise<ParsedSheet> => {
 
 /** Field definitions: include patterns (normalized header contains) + exclude patterns. Order = priority. */
 export const DS_FIELD_PATTERNS: Record<string, { include: string[]; exclude?: string[] }> = {
-    admissionNumber: { include: ['admno', 'admissionno', 'admissionnumber', 'admnumber', 'regno', 'regnumber', 'registrationno', 'registrationnumber', 'studentno', 'studentnumber', 'studentid', 'adm', 'reg'], exclude: ['date', 'fee', 'bal', 'phone'] },
+    admissionNumber: { include: ['admno', 'admissionno', 'admissionnumber', 'admnumber', 'admissionnum', 'admnum', 'admissioncode', 'admcode', 'admissionid', 'admid', 'regno', 'regnumber', 'registrationno', 'registrationnumber', 'registrationnum', 'studentno', 'studentnumber', 'studentid', 'studentcode', 'adm', 'reg'], exclude: ['date', 'fee', 'bal', 'phone'] },
     openingBalance: { include: ['openingbalance', 'openingbal', 'openbal', 'balancebf', 'balbf', 'bf', 'arrears', 'outstanding', 'balance', 'bal', 'amountdue', 'owed', 'debt'] },
     phone: { include: ['phone', 'mobile', 'tel', 'contact', 'cell', 'msisdn'], exclude: ['name', 'email'] },
     email: { include: ['email', 'mail'] },

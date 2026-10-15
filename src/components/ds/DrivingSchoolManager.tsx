@@ -244,6 +244,8 @@ const SmartStudentImporterModal: React.FC<{
                         id: `dsi_opb_${stamp}_${idx}_${Math.random().toString(36).substr(2, 5)}`,
                         studentId,
                         studentName: fullName,
+                        admissionNumber,
+                        admission_number: admissionNumber,
                         invoiceNumber: `OPB-${stamp.toString().slice(-6)}-${String(idx + 1).padStart(3, '0')}-${salt}`,
                         totalAmount: balance,
                         paidAmount: 0,
@@ -1233,7 +1235,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
 
 const SmartOpeningBalanceImporterModal: React.FC<{
     onClose: () => void;
-    onImport: (studentsToCreate: any[], invoicesToCreate: any[]) => Promise<DSImportResult>;
+    onImport: (studentsToCreate: any[], invoicesToCreate: any[], studentsToUpdate?: any[]) => Promise<DSImportResult>;
     settings: DSSettings | null;
     students: DSStudent[];
 }> = ({ onClose, onImport, settings, students }) => {
@@ -1305,6 +1307,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
         setIsProcessing(true);
         try {
             const studentsToCreate: any[] = [];
+            const studentsToUpdate: any[] = [];
             const invoicesToCreate: any[] = [];
 
             const votesList = settings?.votes || [];
@@ -1356,13 +1359,33 @@ const SmartOpeningBalanceImporterModal: React.FC<{
 
                 if (existing) {
                     studentId = existing.id;
-                    resolvedAdmNo = existing.admissionNumber || (existing as any).admission_number || admRaw;
-                    if (!existing.admissionNumber && admRaw) {
+                    const currentAdm = existing.admissionNumber || (existing as any).admission_number;
+                    if (currentAdm && String(currentAdm).trim() && String(currentAdm).trim() !== '-') {
+                        resolvedAdmNo = String(currentAdm).trim();
+                        if (admRaw && admRaw !== '-' && admRaw !== resolvedAdmNo) {
+                            resolvedAdmNo = admRaw;
+                            existing.admissionNumber = admRaw;
+                            existing.admission_number = admRaw;
+                            studentsToUpdate.push({ ...existing, admissionNumber: admRaw, admission_number: admRaw });
+                            existingByAdm.set(admRaw.toLowerCase().trim(), existing);
+                        }
+                    } else if (admRaw && admRaw !== '-') {
+                        resolvedAdmNo = admRaw;
                         existing.admissionNumber = admRaw;
+                        existing.admission_number = admRaw;
+                        studentsToUpdate.push({ ...existing, admissionNumber: admRaw, admission_number: admRaw });
+                        existingByAdm.set(admRaw.toLowerCase().trim(), existing);
+                    } else {
+                        const generatedAdm = admGen.next();
+                        resolvedAdmNo = generatedAdm;
+                        existing.admissionNumber = generatedAdm;
+                        existing.admission_number = generatedAdm;
+                        studentsToUpdate.push({ ...existing, admissionNumber: generatedAdm, admission_number: generatedAdm });
+                        existingByAdm.set(generatedAdm.toLowerCase().trim(), existing);
                     }
                 } else {
                     let admVal = admRaw;
-                    if (!admVal || admGen.isTaken(admVal)) admVal = admGen.next();
+                    if (!admVal || admVal === '-' || admGen.isTaken(admVal)) admVal = admGen.next();
                     else admGen.reserve(admVal);
 
                     studentId = `dss_opb_${stamp}_${rowIdx}_${Math.random().toString(36).substr(2, 5)}`;
@@ -1373,6 +1396,7 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                         phone: phoneVal || undefined,
                         email: emailVal || undefined,
                         admissionNumber: admVal,
+                        admission_number: admVal,
                         status: 'Enrolled',
                         skipWelcomeSms: !sendWelcomeSms
                     };
@@ -1413,8 +1437,14 @@ const SmartOpeningBalanceImporterModal: React.FC<{
                 return;
             }
 
-            const result = await onImport(studentsToCreate, invoicesToCreate);
-            const msg = `Created ${result.created} new students and posted ${result.invoicesSaved} opening balances.${skippedZero ? ` ${skippedZero} zero-balance rows skipped.` : ''}`;
+            const result = await onImport(studentsToCreate, invoicesToCreate, studentsToUpdate);
+            let msg = `Created ${result.created} new students and posted ${result.invoicesSaved} opening balances.`;
+            if (studentsToUpdate.length > 0) {
+                msg += ` Updated ${studentsToUpdate.length} student admission numbers.`;
+            }
+            if (skippedZero) {
+                msg += ` ${skippedZero} zero-balance rows skipped.`;
+            }
             if (result.failed || result.invoicesFailed) {
                 toastError(`${msg} ${result.failed} students and ${result.invoicesFailed} balances failed — see console for details.`);
                 console.warn('[DS Opening Balance Import] Failures:', result.errors);
@@ -1747,10 +1777,13 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                 } else if (initialData?.studentId) {
                     const matched = (students || []).find(s => s.id === initialData.studentId || s.admissionNumber === initialData.studentId);
                     if (matched) {
+                        const adm = matched.admissionNumber || (matched as any)?.admission_number || '';
                         setStudentSearch(matched.fullName);
                         setFormData((prev: any) => ({
                             ...prev,
-                            studentName: matched.fullName
+                            studentName: matched.fullName,
+                            admissionNumber: prev.admissionNumber || adm,
+                            admission_number: prev.admission_number || adm
                         }));
                     }
                 }
@@ -1873,18 +1906,24 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                     (matchedStudent.admissionNumber && (inv.studentId === matchedStudent.admissionNumber || (inv as any).admissionNumber === matchedStudent.admissionNumber)) ||
                     (inv.studentName && matchedStudent.fullName && inv.studentName.trim().toLowerCase() === matchedStudent.fullName.trim().toLowerCase())
                 );
+                const adm = matchedStudent.admissionNumber || (matchedStudent as any)?.admission_number || '';
                 setFormData((prev: any) => ({
                     ...prev,
                     studentId: matchedStudent.id,
                     studentName: matchedStudent.fullName,
+                    admissionNumber: adm,
+                    admission_number: adm,
                     invoiceId: firstInvoice?.id || '',
                     amount: firstInvoice?.balance || 0
                 }));
             } else if (type === 'invoice') {
+                const adm = matchedStudent.admissionNumber || (matchedStudent as any)?.admission_number || '';
                 setFormData((prev: any) => ({
                     ...prev,
                     studentId: matchedStudent.id,
-                    studentName: matchedStudent.fullName
+                    studentName: matchedStudent.fullName,
+                    admissionNumber: adm,
+                    admission_number: adm
                 }));
             }
         }
@@ -2822,13 +2861,20 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     </div>
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = (students || []).find(x => x.id === e.target.value);
-                                        setFormData({...formData, studentId: e.target.value, studentName: s?.fullName || ''});
+                                        const adm = s?.admissionNumber || (s as any)?.admission_number || '';
+                                        setFormData({
+                                            ...formData, 
+                                            studentId: e.target.value, 
+                                            studentName: s?.fullName || '',
+                                            admissionNumber: adm,
+                                            admission_number: adm
+                                        });
                                         setStudentSearch(s ? s.fullName : '');
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Student</option>
                                         {(students || [])
-                                            .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || s.admissionNumber?.toLowerCase().includes(studentSearch.toLowerCase()))
-                                            .map(s => <option key={s.id} value={s.id}>{s.fullName} ({s.admissionNumber})</option>)
+                                            .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || (s.admissionNumber || (s as any)?.admission_number || '').toLowerCase().includes(studentSearch.toLowerCase()))
+                                            .map(s => <option key={s.id} value={s.id}>{s.fullName} ({s.admissionNumber || (s as any)?.admission_number || 'No Adm'})</option>)
                                         }
                                     </select>
                                 </div>
@@ -3118,21 +3164,24 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     </div>
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = (students || []).find(x => x.id === e.target.value);
+                                        const adm = s?.admissionNumber || (s as any)?.admission_number || '';
                                         const studentInvoices = (invoices || []).filter(inv => 
                                             (inv.studentId === e.target.value || 
-                                             (s?.admissionNumber && (inv.studentId === s.admissionNumber || (inv as any).admissionNumber === s.admissionNumber)) ||
+                                             (adm && (inv.studentId === adm || (inv as any).admissionNumber === adm || (inv as any).admission_number === adm)) ||
                                              (s?.fullName && inv.studentName?.trim().toLowerCase() === s.fullName.trim().toLowerCase())
                                             ) && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled'
                                         );
                                         const firstInvoice = studentInvoices[0] || (invoices || []).find(inv => 
                                             inv.studentId === e.target.value || 
-                                            (s?.admissionNumber && (inv.studentId === s.admissionNumber || (inv as any).admissionNumber === s.admissionNumber)) ||
+                                            (adm && (inv.studentId === adm || (inv as any).admissionNumber === adm || (inv as any).admission_number === adm)) ||
                                             (s?.fullName && inv.studentName?.trim().toLowerCase() === s.fullName.trim().toLowerCase())
                                         );
                                         setFormData({
                                             ...formData, 
                                             studentId: e.target.value, 
                                             studentName: s?.fullName || '',
+                                            admissionNumber: adm,
+                                            admission_number: adm,
                                             invoiceId: firstInvoice?.id || '',
                                             amount: firstInvoice?.balance || 0
                                         });
@@ -3140,8 +3189,8 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Student</option>
                                         {(students || [])
-                                            .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || s.admissionNumber?.toLowerCase().includes(studentSearch.toLowerCase()))
-                                            .map(s => <option key={s.id} value={s.id}>{s.fullName} ({s.admissionNumber})</option>)
+                                            .filter(s => s.fullName.toLowerCase().includes(studentSearch.toLowerCase()) || (s.admissionNumber || (s as any)?.admission_number || '').toLowerCase().includes(studentSearch.toLowerCase()))
+                                            .map(s => <option key={s.id} value={s.id}>{s.fullName} ({s.admissionNumber || (s as any)?.admission_number || 'No Adm'})</option>)
                                         }
                                     </select>
                                 </div>
@@ -3749,7 +3798,11 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
     // Shared by the Student and Opening Balance importers. Each record is saved independently so a
     // single failure (e.g. duplicate admission number) does not abort the rest of the import, and
     // opening-balance invoices are only posted for students that were actually saved.
-    const importStudentsWithBalances = useCallback(async (studentsToCreate: any[], invoicesToCreate: any[]): Promise<DSImportResult> => {
+    const importStudentsWithBalances = useCallback(async (
+        studentsToCreate: any[], 
+        invoicesToCreate: any[], 
+        studentsToUpdate: any[] = []
+    ): Promise<DSImportResult> => {
         const failedStudentIds = new Set<string>();
         const errors: string[] = [];
         let created = 0;
@@ -3761,6 +3814,19 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
                 console.error('[DS Import] Failed to create student', s.fullName, err);
                 failedStudentIds.add(s.id);
                 errors.push(`${s.fullName}: ${err?.message || 'failed'}`);
+            }
+        }
+        if (Array.isArray(studentsToUpdate) && studentsToUpdate.length > 0) {
+            for (const s of studentsToUpdate) {
+                try {
+                    if (onUpdateStudent) {
+                        await onUpdateStudent(s);
+                    } else {
+                        await apiService.saveModuleRecord('ds_students', s);
+                    }
+                } catch (err: any) {
+                    console.warn('[DS Import] Failed to update existing student admission number', s.fullName, err);
+                }
             }
         }
         let invoicesSaved = 0;
@@ -3781,7 +3847,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         }
         await refreshData?.().catch(() => {});
         return { created, failed: failedStudentIds.size, invoicesSaved, invoicesFailed, errors };
-    }, [onAddStudent, onAddInvoice, refreshData]);
+    }, [onAddStudent, onUpdateStudent, onAddInvoice, refreshData]);
 
     const [internalTab, setInternalTab] = useState<'dashboard' | 'students' | 'leads' | 'lessons' | 'fleet' | 'instructors' | 'finance' | 'broadcaster' | 'settings' | 'reports' | 'portal' | 'showcase' | 'dispatch'>(() => {
         try {
@@ -5150,13 +5216,16 @@ END $$;
     }, [lessons, vehicles, students, instructors, currentInstitution, settings, onRefreshDataProp]);
 
     // Normalization
-    const normalizedStudents = useMemo(() => (students || []).map(s => ({
-        ...s,
-        fullName: s.fullName || (s as any).full_name || (s as any).name || '(No Name)',
-        admissionNumber: s.admissionNumber || (s as any).admission_number || '',
-        idNumber: s.idNumber || (s as any).id_number || '',
-        phone: s.phone || (s as any).phoneNumber || (s as any).phone_number || '',
-    })), [students]);
+    const normalizedStudents = useMemo(() => {
+        const sourceStudents = (rawStudents && rawStudents.length > 0 ? rawStudents : students) || [];
+        return sourceStudents.map(s => ({
+            ...s,
+            fullName: s.fullName || (s as any).full_name || (s as any).name || '(No Name)',
+            admissionNumber: s.admissionNumber || (s as any).admission_number || '',
+            idNumber: s.idNumber || (s as any).id_number || '',
+            phone: s.phone || (s as any).phoneNumber || (s as any).phone_number || '',
+        }));
+    }, [rawStudents, students]);
 
     const normalizedInstructors = useMemo(() => (instructors || []).map(i => ({
         ...i,
@@ -5176,7 +5245,7 @@ END $$;
         }
 
         // 2. Admission Number match
-        if (invAdm) {
+        if (invAdm && invAdm !== '-') {
             const byAdm = (normalizedStudents || []).find(s => 
                 (s.admissionNumber || '').trim().toLowerCase() === invAdm ||
                 ((s as any).admission_number || '').trim().toLowerCase() === invAdm
@@ -5192,7 +5261,7 @@ END $$;
         }
 
         // 3. Full Name match (exact case-insensitive)
-        if (invName) {
+        if (invName && invName !== '-') {
             const byName = (normalizedStudents || []).find(s => 
                 (s.fullName || '').trim().toLowerCase() === invName ||
                 ((s as any).full_name || '').trim().toLowerCase() === invName
@@ -5216,6 +5285,16 @@ END $$;
                 });
                 if (byWordOrder) return byWordOrder;
             }
+
+            // 6. Multi-word subset match (e.g. "JOEL SAMWEL ONYANGO")
+            const words = cleanInvName.split(' ').filter(w => w.length > 2);
+            if (words.length >= 2) {
+                const bySubWords = (normalizedStudents || []).find(s => {
+                    const sLower = (s.fullName || '').toLowerCase();
+                    return words.every(w => sLower.includes(w));
+                });
+                if (bySubWords) return bySubWords;
+            }
         }
 
         return null;
@@ -5224,13 +5303,19 @@ END $$;
     const getInvoiceAdmNo = useCallback((inv: any, resolvedStudent?: any) => {
         if (!inv) return '-';
         const student = resolvedStudent !== undefined ? resolvedStudent : getStudentForInvoice(inv);
-        return student?.admissionNumber || 
+        const candidate = student?.admissionNumber || 
                (student as any)?.admission_number || 
                (student as any)?.admNo || 
                inv.admissionNumber || 
                (inv as any)?.admission_number || 
-               (inv as any)?.studentAdmissionNumber || 
-               '-';
+               (inv as any)?.studentAdmissionNumber;
+        if (candidate && String(candidate).trim() && String(candidate).trim() !== '-') {
+            return String(candidate).trim();
+        }
+        if (student?.id && String(student.id).includes('_') && !String(student.id).startsWith('dss_opb_')) {
+            return `REF: ${String(student.id).split('_')[1]}`;
+        }
+        return '-';
     }, [getStudentForInvoice]);
 
     const getStudentForPayment = useCallback((pay: any) => {
@@ -5296,6 +5381,15 @@ END $$;
                     return sWords && sWords === payWords;
                 });
                 if (byWordOrder) return byWordOrder;
+            }
+
+            const words = cleanPayName.split(' ').filter(w => w.length > 2);
+            if (words.length >= 2) {
+                const bySubWords = (normalizedStudents || []).find(s => {
+                    const sLower = (s.fullName || '').toLowerCase();
+                    return words.every(w => sLower.includes(w));
+                });
+                if (bySubWords) return bySubWords;
             }
         }
 
@@ -12693,7 +12787,16 @@ END $$;
                                         <button
                                             onClick={() => {
                                                 setEnrollWizard(w => ({ ...w, open: false }));
-                                                setActionModal({ type: 'invoice', initialData: { studentId: enrollWizard.student?.id, studentName: enrollWizard.student?.fullName || enrollWizard.student?.name } });
+                                                const adm = enrollWizard.student?.admissionNumber || (enrollWizard.student as any)?.admission_number || '';
+                                                setActionModal({ 
+                                                    type: 'invoice', 
+                                                    initialData: { 
+                                                        studentId: enrollWizard.student?.id, 
+                                                        studentName: enrollWizard.student?.fullName || enrollWizard.student?.name,
+                                                        admissionNumber: adm,
+                                                        admission_number: adm
+                                                    } 
+                                                });
                                             }}
                                             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                                         >
@@ -12792,7 +12895,7 @@ END $$;
                     <SmartStudentImporterModal 
                         onClose={() => setIsImportModalOpen(false)}
                         settings={settings}
-                        students={students}
+                        students={(rawStudents && rawStudents.length > 0 ? rawStudents : students)}
                         onImport={importStudentsWithBalances}
                     />
                 )}
@@ -12800,7 +12903,7 @@ END $$;
                 {isBulkUpdateModalOpen && (
                     <SmartStudentBulkUpdaterModal 
                         onClose={() => setIsBulkUpdateModalOpen(false)}
-                        students={students}
+                        students={(rawStudents && rawStudents.length > 0 ? rawStudents : students)}
                         onUpdateStudent={onUpdateStudent}
                         onRefresh={refreshData}
                     />
@@ -12810,7 +12913,7 @@ END $$;
                     <SmartOpeningBalanceImporterModal 
                         onClose={() => setIsOpeningBalanceModalOpen(false)}
                         settings={settings}
-                        students={students}
+                        students={(rawStudents && rawStudents.length > 0 ? rawStudents : students)}
                         onImport={importStudentsWithBalances}
                     />
                 )}
