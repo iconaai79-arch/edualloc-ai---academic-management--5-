@@ -32,7 +32,8 @@ export const generateDSPDF = async (
     settings: DSSettings | null,
     institution: any,
     invoicesList?: DSInvoice[],
-    issuingUser?: string
+    issuingUser?: string,
+    paymentsList?: DSPayment[]
 ) => {
     const doc = new jsPDF() as any;
     const margin = 20;
@@ -211,17 +212,25 @@ export const generateDSPDF = async (
     let associatedInvoice: DSInvoice | null = null;
     if (type === 'receipt') {
         const pay = data as DSPayment;
+        const matchInvoice = (inv: DSInvoice) => {
+            if (!inv) return false;
+            if (pay.invoiceId && (inv.id === pay.invoiceId || inv.invoiceNumber === pay.invoiceId)) return true;
+            if (pay.studentId && (inv.studentId === pay.studentId || (inv as any).admissionNumber === pay.studentId)) return true;
+            if (student) {
+                if (student.id && inv.studentId === student.id) return true;
+                if (student.admissionNumber && (inv.studentId === student.admissionNumber || (inv as any).admissionNumber === student.admissionNumber)) return true;
+                if (student.fullName && inv.studentName && inv.studentName.trim().toLowerCase() === student.fullName.trim().toLowerCase()) return true;
+            }
+            return false;
+        };
+
         if (invoicesList && invoicesList.length > 0) {
-            associatedInvoice = invoicesList.find(inv => inv.id === pay.invoiceId) || 
-                                invoicesList.find(inv => inv.studentId === pay.studentId || (student && inv.studentId === student.id)) || 
-                                null;
+            associatedInvoice = invoicesList.find(matchInvoice) || null;
         }
         if (!associatedInvoice && institution?.id) {
             const fetched = await apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institution.id).catch(() => []);
             if (Array.isArray(fetched) && fetched.length > 0) {
-                associatedInvoice = fetched.find(inv => inv.id === pay.invoiceId) || 
-                                    fetched.find(inv => inv.studentId === pay.studentId || (student && inv.studentId === student.id)) || 
-                                    null;
+                associatedInvoice = fetched.find(matchInvoice) || null;
             }
         }
     }
@@ -395,11 +404,57 @@ export const generateDSPDF = async (
         }
     }
 
-    if (type === 'receipt' && rawItems.length > 0) {
-        const totalCumulativePaid = associatedInvoice 
-            ? Number(associatedInvoice.paidAmount || (data as DSPayment).amount || 0)
-            : Number((data as DSPayment).amount || 0);
+    // Gather payments pool for accurate cumulative totals & balances on receipts
+    let totalCumulativePaid = 0;
+    let totalInvoiced = 0;
+    let outstandingBal = 0;
 
+    if (type === 'receipt') {
+        const pay = data as DSPayment;
+        let poolOfPayments: DSPayment[] = [];
+        if (paymentsList && paymentsList.length > 0) {
+            poolOfPayments = paymentsList;
+        } else if (institution?.id) {
+            poolOfPayments = await apiService.fetchModuleRecords<DSPayment>('ds_payments', institution.id).catch(() => []);
+        }
+
+        const currentPayTime = new Date(pay.paymentDate || (pay as any).createdAt || Date.now()).getTime();
+
+        const relatedPayments = poolOfPayments.filter(p => {
+            if (!p || p.status === 'Pending Deletion' || p.status === 'Cancelled' || p.status === 'Rejected') return false;
+            const matchesInv = associatedInvoice && (p.invoiceId === associatedInvoice.id || p.invoiceId === associatedInvoice.invoiceNumber);
+            const matchesStudent = (pay.studentId && p.studentId === pay.studentId) || (student && (p.studentId === student.id || p.studentId === student.admissionNumber));
+            if (!matchesInv && !matchesStudent && p.id !== pay.id && p.receiptNumber !== pay.receiptNumber) return false;
+
+            const pTime = new Date(p.paymentDate || (p as any).createdAt || 0).getTime();
+            if (p.id === pay.id || p.receiptNumber === pay.receiptNumber) return true;
+            return pTime <= currentPayTime;
+        });
+
+        if (!relatedPayments.some(p => p.id === pay.id || p.receiptNumber === pay.receiptNumber)) {
+            relatedPayments.push(pay);
+        }
+
+        const sumActualPaid = relatedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        const thisPaymentAmount = Number(pay.amount || 0);
+        totalCumulativePaid = Math.max(sumActualPaid, thisPaymentAmount, Number(associatedInvoice?.paidAmount || 0));
+
+        totalInvoiced = Number(associatedInvoice?.totalAmount || (rawItems.reduce((s: number, it: any) => s + Number(it.amount || 0), 0)) || totalCumulativePaid);
+        const totalDiscounts = Number((associatedInvoice as any)?.discountAmount || (associatedInvoice as any)?.discount_amount || 0);
+        const totalSponsors = Number((associatedInvoice as any)?.sponsorAmount || (associatedInvoice as any)?.sponsor_amount || 0);
+        const netInvoiced = Math.max(0, totalInvoiced - totalDiscounts - totalSponsors);
+        outstandingBal = Math.max(0, netInvoiced - totalCumulativePaid);
+
+        // Self-healing: if associatedInvoice in DB had out-of-sync paidAmount/balance, update it asynchronously
+        if (associatedInvoice && (Math.abs(Number(associatedInvoice.paidAmount || 0) - totalCumulativePaid) > 0.05 || Math.abs(Number(associatedInvoice.balance || 0) - outstandingBal) > 0.05)) {
+            associatedInvoice.paidAmount = totalCumulativePaid;
+            associatedInvoice.balance = outstandingBal;
+            associatedInvoice.status = outstandingBal <= 0 ? 'Fully Paid' : 'Partially Paid';
+            apiService.saveModuleRecord('ds_invoices', associatedInvoice).catch(() => {});
+        }
+    }
+
+    if (type === 'receipt' && rawItems.length > 0) {
         let remainingToDistribute = totalCumulativePaid;
         const sortedItems = [...rawItems].sort((a: any, b: any) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
 
@@ -478,29 +533,29 @@ export const generateDSPDF = async (
         doc.text('BALANCE DUE:', pageWidth - margin - 90, renderYAfterTable + 38);
         doc.setTextColor(220, 38, 38);
         doc.text(`KES ${Number((data as DSInvoice).balance || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 38, { align: 'right' });
-    } else if (type === 'receipt' && associatedInvoice) {
+    } else if (type === 'receipt' && (associatedInvoice || rawItems.length > 0)) {
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.setFont(undefined, 'normal');
         doc.text('TOTAL INVOICE ALLOCATED:', pageWidth - margin - 90, renderYAfterTable + 28);
         doc.setTextColor(30, 41, 59);
-        doc.text(`KES ${Number(associatedInvoice.totalAmount || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 28, { align: 'right' });
+        doc.text(`KES ${totalInvoiced.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 28, { align: 'right' });
 
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text('CUMULATIVE PAID TO DATE:', pageWidth - margin - 90, renderYAfterTable + 36);
         doc.setTextColor(30, 41, 59);
-        doc.text(`KES ${Number(associatedInvoice.paidAmount || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 36, { align: 'right' });
+        doc.text(`KES ${totalCumulativePaid.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 36, { align: 'right' });
 
         doc.setFontSize(11);
         doc.setFont(undefined, 'bold');
         doc.text('OUTSTANDING BALANCE:', pageWidth - margin - 90, renderYAfterTable + 46);
         doc.setTextColor(220, 38, 38);
-        doc.text(`KES ${Number(associatedInvoice.balance || 0).toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 46, { align: 'right' });
+        doc.text(`KES ${outstandingBal.toLocaleString()}.00`, pageWidth - margin, renderYAfterTable + 46, { align: 'right' });
     }
 
     // Official Verification / Sign-off block
-    let signY = renderYAfterTable + (type === 'receipt' && associatedInvoice ? 56 : 46);
+    let signY = renderYAfterTable + (type === 'receipt' && (associatedInvoice || rawItems.length > 0) ? 56 : 46);
     if (signY + 28 > pageHeight - 20) {
         doc.addPage();
         signY = 25;
@@ -587,7 +642,8 @@ export const generateDSThermalReceipt = async (
     isReprint: boolean = false,
     invoicesList?: DSInvoice[],
     issuingUser?: string,
-    settings?: DSSettings | null
+    settings?: DSSettings | null,
+    paymentsList?: DSPayment[]
 ): Promise<string> => {
     const doc = new jsPDF({
         orientation: 'portrait',
@@ -656,18 +712,26 @@ export const generateDSThermalReceipt = async (
     doc.setLineDashPattern([], 0);
     yPos += 5;
 
+    const matchInvoice = (inv: DSInvoice) => {
+        if (!inv) return false;
+        if (payment.invoiceId && (inv.id === payment.invoiceId || inv.invoiceNumber === payment.invoiceId)) return true;
+        if (payment.studentId && (inv.studentId === payment.studentId || (inv as any).admissionNumber === payment.studentId)) return true;
+        if (student) {
+            if (student.id && inv.studentId === student.id) return true;
+            if (student.admissionNumber && (inv.studentId === student.admissionNumber || (inv as any).admissionNumber === student.admissionNumber)) return true;
+            if (student.fullName && inv.studentName && inv.studentName.trim().toLowerCase() === student.fullName.trim().toLowerCase()) return true;
+        }
+        return false;
+    };
+
     let associatedInvoice: DSInvoice | null = null;
     if (invoicesList && invoicesList.length > 0) {
-        associatedInvoice = invoicesList.find(inv => inv.id === payment.invoiceId) || 
-                            invoicesList.find(inv => inv.studentId === payment.studentId || (student && inv.studentId === student.id)) || 
-                            null;
+        associatedInvoice = invoicesList.find(matchInvoice) || null;
     }
     if (!associatedInvoice && institution?.id) {
         const fetched = await apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institution.id).catch(() => []);
         if (Array.isArray(fetched) && fetched.length > 0) {
-            associatedInvoice = fetched.find(inv => inv.id === payment.invoiceId) || 
-                                fetched.find(inv => inv.studentId === payment.studentId || (student && inv.studentId === student.id)) || 
-                                null;
+            associatedInvoice = fetched.find(matchInvoice) || null;
         }
     }
 
@@ -734,15 +798,54 @@ export const generateDSThermalReceipt = async (
         }
     }
 
+    // Gather payments pool for accurate cumulative totals & balances on receipts
+    let poolOfPayments: DSPayment[] = [];
+    if (paymentsList && paymentsList.length > 0) {
+        poolOfPayments = paymentsList;
+    } else if (institution?.id) {
+        poolOfPayments = await apiService.fetchModuleRecords<DSPayment>('ds_payments', institution.id).catch(() => []);
+    }
+
+    const currentPayTime = new Date(payment.paymentDate || (payment as any).createdAt || Date.now()).getTime();
+
+    const relatedPayments = poolOfPayments.filter(p => {
+        if (!p || p.status === 'Pending Deletion' || p.status === 'Cancelled' || p.status === 'Rejected') return false;
+        const matchesInv = associatedInvoice && (p.invoiceId === associatedInvoice.id || p.invoiceId === associatedInvoice.invoiceNumber);
+        const matchesStudent = (payment.studentId && p.studentId === payment.studentId) || (student && (p.studentId === student.id || p.studentId === student.admissionNumber));
+        if (!matchesInv && !matchesStudent && p.id !== payment.id && p.receiptNumber !== payment.receiptNumber) return false;
+
+        const pTime = new Date(p.paymentDate || (p as any).createdAt || 0).getTime();
+        if (p.id === payment.id || p.receiptNumber === payment.receiptNumber) return true;
+        return pTime <= currentPayTime;
+    });
+
+    if (!relatedPayments.some(p => p.id === payment.id || p.receiptNumber === payment.receiptNumber)) {
+        relatedPayments.push(payment);
+    }
+
+    const sumActualPaid = relatedPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const thisPaymentAmount = Number(payment.amount || 0);
+    const totalCumulativePaid = Math.max(sumActualPaid, thisPaymentAmount, Number(associatedInvoice?.paidAmount || 0));
+
+    const totalInvoiced = Number(associatedInvoice?.totalAmount || (rawItems.reduce((s: number, it: any) => s + Number(it.amount || 0), 0)) || totalCumulativePaid);
+    const totalDiscounts = Number((associatedInvoice as any)?.discountAmount || (associatedInvoice as any)?.discount_amount || 0);
+    const totalSponsors = Number((associatedInvoice as any)?.sponsorAmount || (associatedInvoice as any)?.sponsor_amount || 0);
+    const netInvoiced = Math.max(0, totalInvoiced - totalDiscounts - totalSponsors);
+    const outstandingBal = Math.max(0, netInvoiced - totalCumulativePaid);
+
+    // Self-healing: if associatedInvoice in DB had out-of-sync paidAmount/balance, update it asynchronously
+    if (associatedInvoice && (Math.abs(Number(associatedInvoice.paidAmount || 0) - totalCumulativePaid) > 0.05 || Math.abs(Number(associatedInvoice.balance || 0) - outstandingBal) > 0.05)) {
+        associatedInvoice.paidAmount = totalCumulativePaid;
+        associatedInvoice.balance = outstandingBal;
+        associatedInvoice.status = outstandingBal <= 0 ? 'Fully Paid' : 'Partially Paid';
+        apiService.saveModuleRecord('ds_invoices', associatedInvoice).catch(() => {});
+    }
+
     if (rawItems.length > 0) {
         doc.setFontSize(7.5);
         doc.setFont('helvetica', 'bold');
         doc.text("--- Votes Breakdown & Balances ---", margin, yPos);
         yPos += 4;
-
-        const totalCumulativePaid = associatedInvoice 
-            ? Number(associatedInvoice.paidAmount || payment.amount || 0)
-            : Number(payment.amount || 0);
 
         let rem = totalCumulativePaid;
         const sorted = [...rawItems].sort((a: any, b: any) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
@@ -772,24 +875,24 @@ export const generateDSThermalReceipt = async (
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text("TOTAL PAID (NOW):", margin, yPos);
-    doc.text(`Kes ${Number(payment.amount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`Kes ${thisPaymentAmount.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 6;
 
-    if (associatedInvoice) {
+    if (associatedInvoice || rawItems.length > 0) {
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.text("Total Invoiced:", margin, yPos);
-        doc.text(`Kes ${Number(associatedInvoice.totalAmount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(`Kes ${totalInvoiced.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
         yPos += 4;
 
         doc.text("Total Paid to Date:", margin, yPos);
-        doc.text(`Kes ${Number(associatedInvoice.paidAmount || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(`Kes ${totalCumulativePaid.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
         yPos += 4;
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.text("OUTSTANDING BAL:", margin, yPos);
-        doc.text(`Kes ${Number(associatedInvoice.balance || 0).toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+        doc.text(`Kes ${outstandingBal.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
         yPos += 7;
     }
 

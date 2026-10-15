@@ -1853,8 +1853,17 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
 
         if (matchedStudent && formData.studentId !== matchedStudent.id) {
             if (type === 'payment') {
-                const studentInvoices = (invoices || []).filter(inv => inv.studentId === matchedStudent.id && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled');
-                const firstInvoice = studentInvoices[0];
+                const studentInvoices = (invoices || []).filter(inv => 
+                    (inv.studentId === matchedStudent.id || 
+                     (matchedStudent.admissionNumber && (inv.studentId === matchedStudent.admissionNumber || (inv as any).admissionNumber === matchedStudent.admissionNumber)) ||
+                     (inv.studentName && matchedStudent.fullName && inv.studentName.trim().toLowerCase() === matchedStudent.fullName.trim().toLowerCase())
+                    ) && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled'
+                );
+                const firstInvoice = studentInvoices[0] || (invoices || []).find(inv => 
+                    inv.studentId === matchedStudent.id || 
+                    (matchedStudent.admissionNumber && (inv.studentId === matchedStudent.admissionNumber || (inv as any).admissionNumber === matchedStudent.admissionNumber)) ||
+                    (inv.studentName && matchedStudent.fullName && inv.studentName.trim().toLowerCase() === matchedStudent.fullName.trim().toLowerCase())
+                );
                 setFormData((prev: any) => ({
                     ...prev,
                     studentId: matchedStudent.id,
@@ -3100,8 +3109,17 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                     </div>
                                     <select required value={formData.studentId || ''} onChange={e => {
                                         const s = (students || []).find(x => x.id === e.target.value);
-                                        const studentInvoices = (invoices || []).filter(inv => inv.studentId === e.target.value && inv.status !== 'Fully Paid');
-                                        const firstInvoice = studentInvoices[0];
+                                        const studentInvoices = (invoices || []).filter(inv => 
+                                            (inv.studentId === e.target.value || 
+                                             (s?.admissionNumber && (inv.studentId === s.admissionNumber || (inv as any).admissionNumber === s.admissionNumber)) ||
+                                             (s?.fullName && inv.studentName?.trim().toLowerCase() === s.fullName.trim().toLowerCase())
+                                            ) && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled'
+                                        );
+                                        const firstInvoice = studentInvoices[0] || (invoices || []).find(inv => 
+                                            inv.studentId === e.target.value || 
+                                            (s?.admissionNumber && (inv.studentId === s.admissionNumber || (inv as any).admissionNumber === s.admissionNumber)) ||
+                                            (s?.fullName && inv.studentName?.trim().toLowerCase() === s.fullName.trim().toLowerCase())
+                                        );
                                         setFormData({
                                             ...formData, 
                                             studentId: e.target.value, 
@@ -3120,11 +3138,24 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Invoice</label>
-                                    <select required value={formData.invoiceId || ''} onChange={e => setFormData({...formData, invoiceId: e.target.value})} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
+                                    <select required value={formData.invoiceId || ''} onChange={e => {
+                                        const selectedInv = (invoices || []).find(i => i.id === e.target.value);
+                                        setFormData({
+                                            ...formData, 
+                                            invoiceId: e.target.value,
+                                            amount: (!formData.amount || formData.amount === 0) ? (selectedInv?.balance || 0) : formData.amount
+                                        });
+                                    }} className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-indigo-500 font-bold appearance-none text-slate-900 dark:text-slate-100">
                                         <option value="">Select Invoice</option>
-                                        {(invoices || []).filter((inv: any) => !formData.studentId || inv.studentId === formData.studentId).map((inv: any) => (
+                                        {(invoices || []).filter((inv: any) => {
+                                            if (!formData.studentId) return true;
+                                            const currentStudent = (students || []).find(x => x.id === formData.studentId);
+                                            return inv.studentId === formData.studentId || 
+                                                   (currentStudent?.admissionNumber && (inv.studentId === currentStudent.admissionNumber || (inv as any).admissionNumber === currentStudent.admissionNumber)) ||
+                                                   (currentStudent?.fullName && inv.studentName?.trim().toLowerCase() === currentStudent.fullName.trim().toLowerCase());
+                                        }).map((inv: any) => (
                                             <option key={inv.id} value={inv.id}>
-                                                {inv.invoiceNumber} - {inv.studentName} (Bal: {inv.balance?.toLocaleString()})
+                                                {inv.invoiceNumber} - {inv.studentName} (Bal: {Number(inv.balance || 0).toLocaleString()})
                                             </option>
                                         ))}
                                     </select>
@@ -9059,7 +9090,7 @@ END $$;
                                                                                 fullName: studentName,
                                                                                 admissionNumber: admNo !== '-' ? admNo : ''
                                                                             };
-                                                                            const doc = await generateDSPDF('receipt', payment, fallbackStudent as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email);
+                                                                            const doc = await generateDSPDF('receipt', payment, fallbackStudent as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, payments);
                                                                             doc.save(`${payment.receiptNumber}.pdf`);
                                                                         }}
                                                                         className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
@@ -9074,7 +9105,7 @@ END $$;
                                                                                 fullName: studentName,
                                                                                 admissionNumber: admNo !== '-' ? admNo : ''
                                                                             };
-                                                                            const url = await generateDSThermalReceipt(payment, fallbackStudent as any, currentInstitution, false, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, settings);
+                                                                            const url = await generateDSThermalReceipt(payment, fallbackStudent as any, currentInstitution, false, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, settings, payments);
                                                                             const win = window.open(url, '_blank');
                                                                             if (win) {
                                                                                 win.focus();
@@ -9324,7 +9355,7 @@ END $$;
                                                                         {isPendingDeletion && (
                                                                             <button onClick={async () => { if (window.confirm(`Confirm deletion of payment ${payment.receiptNumber}?`)) { setIsActionLoading(true); try { await onDeletePayment(payment.id); success(`Payment ${payment.receiptNumber} deleted.`); } catch (err: any) { toastError(err.message || 'Failed to delete'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><TrashIcon className="w-3 h-3" /> Delete</button>
                                                                         )}
-                                                                        <button onClick={async () => { const s = (students || []).find(st => st.id === payment.studentId); if (s) { const doc = await generateDSPDF('receipt', payment, s as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email); doc.save(`${payment.receiptNumber}.pdf`); } }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                                                                        <button onClick={async () => { const s = (students || []).find(st => st.id === payment.studentId); if (s) { const doc = await generateDSPDF('receipt', payment, s as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, payments); doc.save(`${payment.receiptNumber}.pdf`); } }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
                                                                     </td>
                                                                 </tr>
                                                             );

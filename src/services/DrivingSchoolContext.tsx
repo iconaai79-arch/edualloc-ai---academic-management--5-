@@ -4,6 +4,72 @@ import { apiService } from './apiService';
 import { useToast } from './ToastContext';
 import { generateDSPDF } from '../utils/dsPdfGenerator';
 
+export const recalculateDSInvoicePayments = (
+    invoice: DSInvoice, 
+    invoicePayments: DSPayment[]
+): DSInvoice => {
+    let rawItems: any[] = [];
+    if (Array.isArray(invoice.items)) {
+        rawItems = invoice.items;
+    } else if (typeof invoice.items === 'string') {
+        try {
+            rawItems = JSON.parse(invoice.items);
+        } catch {
+            rawItems = [];
+        }
+    }
+    if (!Array.isArray(rawItems)) rawItems = [];
+
+    const updatedItems = rawItems.map(item => ({
+        ...item,
+        amount: Number(item.amount || 0),
+        priority: Number(item.priority || 99),
+        paidAmount: 0
+    }));
+
+    const validPayments = [...invoicePayments]
+        .filter(p => p && p.status !== 'Pending Deletion' && p.status !== 'Cancelled' && p.status !== 'Rejected')
+        .sort((a, b) => new Date(a.paymentDate || (a as any).createdAt || 0).getTime() - new Date(b.paymentDate || (b as any).createdAt || 0).getTime());
+
+    let totalPaidFromPayments = 0;
+
+    validPayments.forEach(payRecord => {
+        let remainingAmount = Number(payRecord.amount || 0);
+        totalPaidFromPayments += remainingAmount;
+
+        // Sort items by priority for distribution
+        const itemsWithIndices = updatedItems.map((item, idx) => ({ item, idx }));
+        itemsWithIndices.sort((a, b) => a.item.priority - b.item.priority);
+
+        itemsWithIndices.forEach(({ item }) => {
+            if (remainingAmount <= 0) return;
+            const itemBal = Math.max(0, item.amount - (item.paidAmount || 0));
+            const distribution = Math.min(remainingAmount, itemBal);
+            item.paidAmount = (item.paidAmount || 0) + distribution;
+            remainingAmount -= distribution;
+        });
+    });
+
+    const totalInvoiced = Number(invoice.totalAmount || 0);
+    const totalDiscount = Number((invoice as any).discountAmount || (invoice as any).discount_amount || 0);
+    const totalSponsor = Number((invoice as any).sponsorAmount || (invoice as any).sponsor_amount || 0);
+    const netTotal = Math.max(0, totalInvoiced - totalDiscount - totalSponsor);
+    const updatedBalance = Math.max(0, netTotal - totalPaidFromPayments);
+    const newStatus = updatedBalance <= 0 && netTotal > 0 ? 'Fully Paid' : (totalPaidFromPayments > 0 ? 'Partially Paid' : 'Pending');
+
+    const copy: any = {
+        ...invoice,
+        items: updatedItems,
+        paidAmount: totalPaidFromPayments,
+        balance: updatedBalance,
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+    };
+    delete copy.message;
+    delete copy.isOpeningBalance;
+    return copy;
+};
+
 interface DrivingSchoolContextType {
     instructors: DSInstructor[];
     vehicles: DSVehicle[];
@@ -507,7 +573,34 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     };
                 }
             });
-            setInvoices(dsInvs || []);
+            // Auto-heal and reconcile invoice paid amount, balances, and distributed items against actual payments
+            const healedInvoices = (dsInvs || []).map(inv => {
+                const linkedPayments = (dsPay || []).filter(p => {
+                    if (!p || p.status === 'Pending Deletion' || p.status === 'Cancelled' || p.status === 'Rejected') return false;
+                    if (p.invoiceId && (p.invoiceId === inv.id || p.invoiceId === inv.invoiceNumber)) return true;
+                    if (!p.invoiceId) {
+                        if (p.studentId && (p.studentId === inv.studentId || (inv as any).admissionNumber === p.studentId)) return true;
+                        if (p.studentName && inv.studentName && p.studentName.trim().toLowerCase() === inv.studentName.trim().toLowerCase()) return true;
+                    }
+                    return false;
+                });
+
+                if (linkedPayments.length > 0) {
+                    const recalculated = recalculateDSInvoicePayments(inv, linkedPayments);
+                    const diffPaid = Math.abs(Number(inv.paidAmount || 0) - recalculated.paidAmount);
+                    const diffBal = Math.abs(Number(inv.balance || 0) - recalculated.balance);
+                    if (diffPaid > 0.05 || diffBal > 0.05) {
+                        console.log(`[DSContext] Auto-healing invoice ${inv.invoiceNumber || inv.id}: paid ${inv.paidAmount} -> ${recalculated.paidAmount}, bal ${inv.balance} -> ${recalculated.balance}`);
+                        apiService.saveModuleRecord('ds_invoices', recalculated).catch(err => {
+                            console.warn('[DSContext] Failed to persist auto-healed invoice:', err);
+                        });
+                        return recalculated;
+                    }
+                }
+                return inv;
+            });
+
+            setInvoices(healedInvoices);
             setPayments(dsPay || []);
             setMpesaTransactions(dsMpe || []);
             setBankTransactions(dsBnk || []);
@@ -1418,7 +1511,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const fileName = `${docNumber}.pdf`;
 
             try {
-                const doc = await generateDSPDF(type, data, student as any, settings, inst, invoices, (data as any)?.receivedBy);
+                const doc = await generateDSPDF(type, data, student as any, settings, inst, invoices, (data as any)?.receivedBy, payments);
                 const pdfBlob = doc.output('blob');
                 pdfBase64 = doc.output('datauristring').split(',')[1];
                 const storagePath = `driving_school/${type}s/${fileName}`;
@@ -1556,50 +1649,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     }, [institutionId, resolveBranchIdToUse, rawStudents, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
 
     const recalculateInvoicePayments = useCallback((invoice: DSInvoice, invoicePayments: DSPayment[]) => {
-        let updatedPaidAmount = 0;
-        const updatedItems = (invoice.items || []).map(item => ({
-            ...item,
-            paidAmount: 0
-        }));
-
-        const sortedPayments = [...invoicePayments]
-            .filter(p => p.status !== 'Pending Deletion')
-            .sort((a, b) => new Date(a.paymentDate || 0).getTime() - new Date(b.paymentDate || 0).getTime());
-
-        sortedPayments.forEach(payRecord => {
-            let remainingAmount = Number(payRecord.amount);
-            
-            const itemsWithIndices = updatedItems.map((item, idx) => ({ item, idx }));
-            itemsWithIndices.sort((a, b) => (a.item.priority || 99) - (b.item.priority || 99));
-
-            itemsWithIndices.forEach(({ item }) => {
-                const itemBalance = item.amount - (item.paidAmount || 0);
-                if (remainingAmount <= 0) return;
-                
-                const distribution = Math.min(remainingAmount, itemBalance);
-                item.paidAmount = (item.paidAmount || 0) + distribution;
-                remainingAmount -= distribution;
-            });
-
-            updatedPaidAmount += Number(payRecord.amount);
-        });
-
-        const totalDiscount = Number((invoice as any).discountAmount || 0);
-        const totalSponsor = Number((invoice as any).sponsorAmount || 0);
-        const updatedBalance = Math.max(0, invoice.totalAmount - totalDiscount - totalSponsor - updatedPaidAmount);
-        const newStatus = updatedBalance <= 0 ? 'Fully Paid' : (updatedPaidAmount > 0 ? 'Partially Paid' : 'Pending');
-
-        const copy: any = {
-            ...invoice,
-            items: updatedItems,
-            paidAmount: updatedPaidAmount,
-            balance: updatedBalance,
-            status: newStatus,
-            updatedAt: new Date().toISOString()
-        };
-        delete copy.message;
-        delete copy.isOpeningBalance;
-        return copy;
+        return recalculateDSInvoicePayments(invoice, invoicePayments);
     }, []);
 
     const updateInvoice = useCallback(async (data: any) => {
@@ -1615,7 +1665,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const invoicePayments = payments.filter(p => p.invoiceId === data.id);
 
             // Re-apply recalculateInvoicePayments with the updated items and invoice properties
-            const recalculatedInvoice = recalculateInvoicePayments({
+            const recalculatedInvoice = recalculateDSInvoicePayments({
                 ...oldInvoice,
                 ...data,
                 updatedAt: new Date().toISOString()
@@ -1628,7 +1678,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to update invoice");
             throw err;
         }
-    }, [institutionId, invoices, payments, onRefresh, success, error, recalculateInvoicePayments]);
+    }, [institutionId, invoices, payments, onRefresh, success, error]);
 
     const addPayment = useCallback(async (data: any) => {
         try {
@@ -1665,7 +1715,27 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
             }
 
-            const invoice = rawInvoices.find(inv => inv.id === data.invoiceId);
+            // Robust invoice lookup across ID, invoiceNumber, studentId, admissionNumber, or student name
+            let invoice = rawInvoices.find(inv => inv.id === data.invoiceId || (data.invoiceId && inv.invoiceNumber === data.invoiceId));
+            if (!invoice && data.studentId) {
+                const matchedStudent = rawStudents.find(s => s.id === data.studentId || s.admissionNumber === data.studentId);
+                const studentInvs = rawInvoices.filter(inv => 
+                    inv.studentId === data.studentId || 
+                    (matchedStudent?.admissionNumber && (inv.studentId === matchedStudent.admissionNumber || (inv as any).admissionNumber === matchedStudent.admissionNumber)) ||
+                    (data.admissionNumber && (inv.studentId === data.admissionNumber || (inv as any).admissionNumber === data.admissionNumber)) ||
+                    (matchedStudent?.fullName && inv.studentName?.trim().toLowerCase() === matchedStudent.fullName.trim().toLowerCase())
+                );
+                // Prefer invoice with pending balance or latest invoice
+                invoice = studentInvs.find(inv => inv.status !== 'Fully Paid' && Number(inv.balance || 0) > 0) || studentInvs[0];
+            }
+            if (!invoice && institutionId) {
+                const fetchedInvs = await apiService.fetchModuleRecords<DSInvoice>('ds_invoices', institutionId).catch(() => []);
+                if (Array.isArray(fetchedInvs)) {
+                    invoice = fetchedInvs.find(inv => inv.id === data.invoiceId || (data.invoiceId && inv.invoiceNumber === data.invoiceId)) ||
+                              fetchedInvs.find(inv => inv.studentId === data.studentId || (data.admissionNumber && inv.studentId === data.admissionNumber));
+                }
+            }
+
             const invoiceBranch = invoice?.branchId || invoice?.branch_id;
             const studentBranch = data.studentId ? rawStudents.find(s => s.id === data.studentId)?.branchId : undefined;
             const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id || invoiceBranch || studentBranch);
@@ -1676,63 +1746,38 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 institutionId,
                 branchId: branchIdToUse,
                 branch_id: branchIdToUse,
+                invoiceId: invoice?.id || data.invoiceId,
                 receiptNumber: recNumber,
                 status: data.status || 'Completed',
                 receivedBy: data.receivedBy || data.issuedBy || data.recordedBy || 'Accounts',
                 paymentDate: data.paymentDate || new Date().toISOString()
             };
 
-            // Automatic Payment Distribution Logic
             let summary = '';
             
             if (invoice) {
-                // Extra safety: Resolve student details from invoice if missing
+                // Ensure student info is backfilled from invoice if missing
                 if (!pay.studentId) {
                     pay.studentId = invoice.studentId;
                     pay.studentName = invoice.studentName;
                 }
 
-                const amountPaid = Number(data.amount);
-                
-                // Distribution Strategy: Priority-based Settlement
-                let remainingAmount = amountPaid;
+                const allInvoicePayments = [
+                    ...payments.filter(p => (p.invoiceId === invoice.id || (!p.invoiceId && p.studentId === invoice.studentId)) && p.id !== pay.id),
+                    pay
+                ];
+                const recalculatedInvoice = recalculateDSInvoicePayments(invoice, allInvoicePayments);
+
                 const distributions: string[] = [];
-                const sortedItems = [...(invoice.items || [])].sort((a, b) => (a.priority || 99) - (b.priority || 99));
-                
-                const updatedItems = sortedItems.map(item => {
-                    const itemBalance = item.amount - (item.paidAmount || 0);
-                    if (remainingAmount <= 0) return item;
-                    
-                    const distribution = Math.min(remainingAmount, itemBalance);
-                    if (distribution > 0) {
-                        distributions.push(`${item.name}: ${distribution?.toLocaleString()}`);
+                (recalculatedInvoice.items || []).forEach((it: any) => {
+                    if (Number(it.paidAmount || 0) > 0) {
+                        distributions.push(`${it.name}: Kes ${Number(it.paidAmount).toLocaleString()}`);
                     }
-                    remainingAmount -= distribution;
-                    
-                    return {
-                        ...item,
-                        paidAmount: (item.paidAmount || 0) + distribution
-                    };
                 });
 
-                const newPaidAmount = (invoice.paidAmount || 0) + amountPaid;
-                const newBalance = Math.max(0, invoice.totalAmount - newPaidAmount);
-                const newStatus = newBalance <= 0 ? 'Fully Paid' : 'Partially Paid';
+                summary = distributions.join(', ') + (recalculatedInvoice.balance > 0 ? ` | Balance: KES ${recalculatedInvoice.balance?.toLocaleString()}` : ' | Fully Paid');
 
-                summary = distributions.join(', ') + (newBalance > 0 ? ` | Balance: KES ${newBalance?.toLocaleString()}` : ' | Fully Paid');
-
-                const invPayload: any = {
-                    ...invoice,
-                    items: updatedItems,
-                    paidAmount: newPaidAmount,
-                    balance: newBalance,
-                    status: newStatus,
-                    updatedAt: new Date().toISOString()
-                };
-                delete invPayload.message;
-                delete invPayload.isOpeningBalance;
-
-                await apiService.saveModuleRecord('ds_invoices', invPayload);
+                await apiService.saveModuleRecord('ds_invoices', recalculatedInvoice);
             }
 
             await apiService.saveModuleRecord('ds_payments', pay);
@@ -1751,7 +1796,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to record payment");
             throw err;
         }
-    }, [institutionId, resolveBranchIdToUse, rawInvoices, rawStudents, onRefresh, success, error, students, settings, invoices, payments, sendDocumentNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawInvoices, rawStudents, onRefresh, success, error, settings, payments, sendDocumentNotification]);
 
     const updatePayment = useCallback(async (data: any) => {
         if (!institutionId || !data.id) return;
