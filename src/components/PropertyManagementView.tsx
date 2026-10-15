@@ -78,20 +78,26 @@ const Modal: React.FC<{
     title: string;
     children: React.ReactNode;
     maxWidth?: string;
-}> = ({ show, onClose, title, children, maxWidth = "max-w-lg" }) => {
+    footer?: React.ReactNode;
+}> = ({ show, onClose, title, children, maxWidth = "max-w-lg", footer }) => {
     if (!show) return null;
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className={`bg-white dark:bg-slate-900 w-full ${maxWidth} rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300`}>
-                <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
+            <div className={`bg-white dark:bg-slate-900 w-full ${maxWidth} rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-300`}>
+                <div className="p-6 sm:px-8 sm:py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
                     <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-widest uppercase italic">{title}</h3>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
                         <XIcon className="w-6 h-6 text-slate-400" />
                     </button>
                 </div>
-                <div className="p-8 max-h-[70vh] overflow-y-auto">
+                <div className="p-6 sm:p-8 overflow-y-auto flex-1">
                     {children}
                 </div>
+                {footer && (
+                    <div className="p-4 sm:px-8 sm:py-4 border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0">
+                        {footer}
+                    </div>
+                )}
             </div>
         </div>,
         document.body
@@ -10458,32 +10464,73 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </form>
             </Modal>
 
-            <Modal show={showInspectionModal} onClose={() => { setShowInspectionModal(false); setEditingInspection(null); }} title={editingInspection ? "Edit Inspection Form" : "Move-Out Inspection Form"}>
-                <form key={editingInspection?.id || 'new'} onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    const calculatedCost = (parseFloat(inspectionDetails.waterBill as any) || 0) +
-                                           (parseFloat(inspectionDetails.electricityBill as any) || 0) +
-                                           inspectionDetails.items.reduce((sum, item) => sum + (parseFloat(item.amount as any) || 0), 0);
-                    handleSaveInspection({
-                        leaseId: formData.get('leaseId') as string,
-                        tenantId: leases.find(l => l.id === formData.get('leaseId'))?.tenantId || '',
-                        inspectionDate: formData.get('inspectionDate') as string,
-                        inspectedBy: formData.get('inspectedBy') as string,
-                        status: formData.get('status') as any,
-                        structuralCondition: formData.get('structuralCondition') as string,
-                        structuralComments: formData.get('structuralComments') as string,
-                        cleaningCondition: formData.get('cleaningCondition') as string,
-                        cleaningComments: formData.get('cleaningComments') as string,
-                        fittingsCondition: formData.get('fittingsCondition') as string,
-                        fittingsComments: formData.get('fittingsComments') as string,
-                        repairsRequired: JSON.stringify(inspectionDetails),
-                        estimatedRepairCost: calculatedCost,
-                        tenantSignoff: formData.get('tenantSignoff') === 'on',
-                        id: editingInspection?.id,
-                        createdAt: editingInspection?.createdAt
-                    });
-                }} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 no-scrollbar">
+            {(() => {
+                const totalCost = (parseFloat(inspectionDetails.waterBill as any) || 0) +
+                                  (parseFloat(inspectionDetails.electricityBill as any) || 0) +
+                                  inspectionDetails.items.reduce((sum, item) => sum + (parseFloat(item.amount as any) || 0), 0);
+
+                return (
+                    <Modal
+                        show={showInspectionModal}
+                        onClose={() => { setShowInspectionModal(false); setEditingInspection(null); }}
+                        title={editingInspection ? "Edit Inspection Form" : "Move-Out Inspection Form"}
+                        maxWidth="max-w-4xl"
+                        footer={
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimated Total:</span>
+                                    <span className="text-lg font-black text-blue-600 dark:text-blue-400">
+                                        KES {totalCost.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowInspectionModal(false); setEditingInspection(null); }}
+                                        className="px-5 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        form="move-out-inspection-form"
+                                        className="flex-1 sm:flex-none px-8 py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                    >
+                                        <CheckCircleIcon className="w-4 h-4" />
+                                        <span>{editingInspection?.id && !editingInspection.id.startsWith('new_') ? "Save Inspection Report" : "Complete Inspection Form"}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    >
+                        <form
+                            id="move-out-inspection-form"
+                            key={editingInspection?.id || 'new'}
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                const formData = new FormData(e.currentTarget);
+                                const calculatedCost = totalCost;
+                                handleSaveInspection({
+                                    leaseId: formData.get('leaseId') as string,
+                                    tenantId: leases.find(l => l.id === formData.get('leaseId'))?.tenantId || '',
+                                    inspectionDate: formData.get('inspectionDate') as string,
+                                    inspectedBy: formData.get('inspectedBy') as string,
+                                    status: formData.get('status') as any,
+                                    structuralCondition: formData.get('structuralCondition') as string,
+                                    structuralComments: formData.get('structuralComments') as string,
+                                    cleaningCondition: formData.get('cleaningCondition') as string,
+                                    cleaningComments: formData.get('cleaningComments') as string,
+                                    fittingsCondition: formData.get('fittingsCondition') as string,
+                                    fittingsComments: formData.get('fittingsComments') as string,
+                                    repairsRequired: JSON.stringify(inspectionDetails),
+                                    estimatedRepairCost: calculatedCost,
+                                    tenantSignoff: formData.get('tenantSignoff') === 'on',
+                                    id: editingInspection?.id,
+                                    createdAt: editingInspection?.createdAt
+                                });
+                            }}
+                            className="space-y-6 pb-2"
+                        >
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Active Lease</label>
@@ -10771,11 +10818,35 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
                     </div>
 
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
-                        {editingInspection?.id && !editingInspection.id.startsWith('new_') ? "Save Inspection Report" : "Complete Inspection Form"}
-                    </button>
+                    {/* In-form Action Buttons (at end of scrollable content) */}
+                    <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimated Total:</span>
+                            <span className="text-lg font-black text-blue-600 dark:text-blue-400">
+                                KES {totalCost.toLocaleString()}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                            <button
+                                type="button"
+                                onClick={() => { setShowInspectionModal(false); setEditingInspection(null); }}
+                                className="px-5 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="flex-1 sm:flex-none px-8 py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                            >
+                                <CheckCircleIcon className="w-4 h-4" />
+                                <span>{editingInspection?.id && !editingInspection.id.startsWith('new_') ? "Save Inspection Report" : "Complete Inspection Form"}</span>
+                            </button>
+                        </div>
+                    </div>
                 </form>
             </Modal>
+        );
+    })()}
 
             {(() => {
                 const selectedLeaseForRefund = leases.find(l => l.id === (editingRefund?.leaseId || refundSelectedLeaseId));
@@ -10796,9 +10867,45 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     }
                 }
 
+                const initialTotalDeposits = (editingRefund?.originalDeposit ?? originalDeposit) + extraDeposits.electricityDeposit + extraDeposits.waterDeposit + extraDeposits.aobDeposit;
+                const initialDeductions = (editingRefund?.rentArrearsDeduction ?? unpaidRent) + (editingRefund?.damageRepairDeduction ?? damageCost) + (editingRefund?.utilityArrearsDeduction || 0) + (editingRefund?.otherDeductions || 0);
+                const estimatedNetRefund = initialTotalDeposits - initialDeductions;
+
                 return (
-                    <Modal show={showRefundModal} onClose={() => { setShowRefundModal(false); setEditingRefund(null); setRefundSelectedLeaseId(''); }} title={editingRefund ? "Edit Deposit Refund Statement" : "Generate Deposit Refund Statement"}>
-                        <form key={editingRefund?.id || refundSelectedLeaseId || 'new'} onSubmit={(e) => {
+                    <Modal
+                        show={showRefundModal}
+                        onClose={() => { setShowRefundModal(false); setEditingRefund(null); setRefundSelectedLeaseId(''); }}
+                        title={editingRefund ? "Edit Deposit Refund Statement" : "Generate Deposit Refund Statement"}
+                        maxWidth="max-w-4xl"
+                        footer={
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Net Refund Payable:</span>
+                                    <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                        KES {estimatedNetRefund.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowRefundModal(false); setEditingRefund(null); setRefundSelectedLeaseId(''); }}
+                                        className="px-5 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        form="deposit-refund-form"
+                                        className="flex-1 sm:flex-none px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                    >
+                                        <CheckCircleIcon className="w-4 h-4" />
+                                        <span>{editingRefund ? "Save Refund Statement" : "Generate Refund Statement"}</span>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    >
+                        <form id="deposit-refund-form" key={editingRefund?.id || refundSelectedLeaseId || 'new'} onSubmit={(e) => {
                             e.preventDefault();
                             const formData = new FormData(e.currentTarget);
                             const origDep = parseFloat(formData.get('originalDeposit') as string) || 0;
@@ -10839,7 +10946,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 id: editingRefund?.id,
                                 createdAt: editingRefund?.createdAt
                             });
-                        }} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 no-scrollbar">
+                        }} className="space-y-6 pb-4">
                             
                             {!editingRefund && (
                                 <div className="space-y-1">
@@ -10940,9 +11047,31 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 </div>
                             </div>
 
-                            <button type="submit" className="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest mt-4">
-                                {editingRefund ? "Save Refund Statement" : "Generate Refund Statement"}
-                            </button>
+                            {/* In-form Action Buttons (at end of scrollable content) */}
+                            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 dark:border-slate-800">
+                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Net Refund Payable:</span>
+                                    <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                                        KES {estimatedNetRefund.toLocaleString()}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowRefundModal(false); setEditingRefund(null); setRefundSelectedLeaseId(''); }}
+                                        className="px-5 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 sm:flex-none px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                                    >
+                                        <CheckCircleIcon className="w-4 h-4" />
+                                        <span>{editingRefund ? "Save Refund Statement" : "Generate Refund Statement"}</span>
+                                    </button>
+                                </div>
+                            </div>
                         </form>
                     </Modal>
                 );

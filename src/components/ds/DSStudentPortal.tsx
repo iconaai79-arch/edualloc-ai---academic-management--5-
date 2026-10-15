@@ -29,7 +29,12 @@ import {
     ExternalLink,
     ChevronDown,
     MapPin,
-    ArrowRight
+    ArrowRight,
+    Smartphone,
+    MoreVertical,
+    PlusSquare,
+    HelpCircle,
+    Check
 } from 'lucide-react';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { useToast } from '../../services/ToastContext';
@@ -115,6 +120,120 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         const t = setInterval(updateTime, 30000);
         return () => clearInterval(t);
     }, []);
+
+    // PWA Install State & Handlers
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(() => {
+        if (typeof window !== 'undefined') {
+            return (window as any).__deferredInstallPrompt || null;
+        }
+        return null;
+    });
+    const [isInstalled, setIsInstalled] = useState<boolean>(false);
+    const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
+    const [installBannerDismissed, setInstallBannerDismissed] = useState<boolean>(() => {
+        try {
+            return sessionStorage.getItem('ds_install_banner_dismissed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+    const [installTab, setInstallTab] = useState<'auto' | 'android' | 'ios' | 'desktop'>('auto');
+
+    // Device Platform Detection
+    const isIOS = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    }, []);
+    const isAndroid = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return /Android/.test(navigator.userAgent);
+    }, []);
+
+    // PWA Lifecycle & Standalone Detection
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const checkInstalled = () => {
+            return (
+                window.matchMedia('(display-mode: standalone)').matches ||
+                (window.navigator as any).standalone === true ||
+                document.referrer.includes('android-app://')
+            );
+        };
+
+        setIsInstalled(checkInstalled());
+
+        const mediaQuery = window.matchMedia('(display-mode: standalone)');
+        const handleMediaChange = (e: MediaQueryListEvent) => {
+            if (e.matches) setIsInstalled(true);
+        };
+        if (mediaQuery.addEventListener) {
+            mediaQuery.addEventListener('change', handleMediaChange);
+        }
+
+        if ((window as any).__deferredInstallPrompt) {
+            setDeferredPrompt((window as any).__deferredInstallPrompt);
+        }
+
+        const handleBeforeInstall = (e: any) => {
+            e.preventDefault();
+            (window as any).__deferredInstallPrompt = e;
+            setDeferredPrompt(e);
+        };
+
+        const handleAppInstalled = () => {
+            setIsInstalled(true);
+            setDeferredPrompt(null);
+            (window as any).__deferredInstallPrompt = null;
+            success('Driving School App installed successfully! You can now launch it directly from your home screen.');
+        };
+
+        window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+        window.addEventListener('appinstalled', handleAppInstalled);
+
+        return () => {
+            if (mediaQuery.removeEventListener) {
+                mediaQuery.removeEventListener('change', handleMediaChange);
+            }
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+            window.removeEventListener('appinstalled', handleAppInstalled);
+        };
+    }, [success]);
+
+    const handleInstallApp = async () => {
+        const promptEvent = deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt);
+        if (promptEvent) {
+            try {
+                promptEvent.prompt();
+                const choiceResult = await promptEvent.userChoice;
+                if (choiceResult && choiceResult.outcome === 'accepted') {
+                    success('App installation accepted! Launch it directly from your home screen.');
+                    setIsInstalled(true);
+                    setDeferredPrompt(null);
+                    (window as any).__deferredInstallPrompt = null;
+                    setIsInstallModalOpen(false);
+                } else {
+                    toastInfo('App installation was postponed.');
+                }
+            } catch (err) {
+                console.error('Install prompt trigger error:', err);
+                setIsInstallModalOpen(true);
+            }
+        } else {
+            // Direct prompt not available (e.g. iOS Safari, or Chrome with restricted trigger)
+            // Show interactive install bottom sheet guide
+            setIsInstallModalOpen(true);
+        }
+    };
+
+    const dismissInstallBanner = () => {
+        setInstallBannerDismissed(true);
+        try {
+            sessionStorage.setItem('ds_install_banner_dismissed', 'true');
+        } catch {
+            // ignore
+        }
+    };
 
     // Robust matching of student record to logged-in user
     const studentRecord = useMemo<DSStudent | undefined>(() => {
@@ -531,11 +650,26 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                         {isSuperAdminImpersonating && (
                             <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[9px] font-black uppercase tracking-wider">
                                 Super Admin
                             </span>
+                        )}
+                        {!isInstalled ? (
+                            <button
+                                onClick={handleInstallApp}
+                                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-emerald-950/40 transition-all active:scale-95"
+                                title="Install Driving School App"
+                            >
+                                <Smartphone className="w-3.5 h-3.5" />
+                                <span className="hidden xs:inline">Install App</span>
+                                <span className="xs:hidden">Install</span>
+                            </button>
+                        ) : (
+                            <div className="hidden xs:flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-bold">
+                                <CheckCircle2 className="w-3 h-3" /> App Active
+                            </div>
                         )}
                         <button
                             onClick={onLogout}
@@ -584,7 +718,42 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                 </div>
 
                 {/* 3. Main Scrollable Screen Body */}
-                <div className="flex-1 overflow-y-auto px-4 pt-4 space-y-4 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-4 pt-3 space-y-4 custom-scrollbar">
+
+                    {/* Install App Android Banner (Dismissible) */}
+                    {!isInstalled && !installBannerDismissed && (
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/50 via-slate-850 to-teal-950/40 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-lg shadow-emerald-950/30 animate-in fade-in duration-200 shrink-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                                    <Smartphone className="w-5 h-5" />
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <h4 className="text-xs font-black text-white">Install DS Student App</h4>
+                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 uppercase tracking-wider">Fast & Offline</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                        1-tap access on home screen, offline QR scanner & receipts
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                    onClick={handleInstallApp}
+                                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md shadow-emerald-600/30 transition-all active:scale-95"
+                                >
+                                    Install
+                                </button>
+                                <button
+                                    onClick={dismissInstallBanner}
+                                    className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
+                                    title="Dismiss banner"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* ========================================================= */}
                     {/* HUB 1: ATTENDANCE & QR SCANNER (PRIORITY #1)              */}
@@ -1286,6 +1455,58 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 </div>
                             </div>
 
+                            {/* App Installation & Offline Access Card */}
+                            <div className="p-4 rounded-3xl bg-slate-850 border border-slate-800 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                            <Smartphone className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-black text-white uppercase tracking-wider">DS Candidate Mobile App</h4>
+                                            <p className="text-[10px] text-slate-400">Offline receipts, attendance QR, and class reminders</p>
+                                        </div>
+                                    </div>
+                                    {isInstalled ? (
+                                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[9px] font-black uppercase flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3" /> Installed
+                                        </span>
+                                    ) : (
+                                        <button
+                                            onClick={handleInstallApp}
+                                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-md shadow-emerald-950/40"
+                                        >
+                                            Install App
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                                    <div className="p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80">
+                                        <p className="text-[11px] font-black text-emerald-400">Offline</p>
+                                        <p className="text-[9px] text-slate-400 mt-0.5">Receipts & Pass</p>
+                                    </div>
+                                    <div className="p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80">
+                                        <p className="text-[11px] font-black text-indigo-400">1-Tap</p>
+                                        <p className="text-[9px] text-slate-400 mt-0.5">Home Screen</p>
+                                    </div>
+                                    <div className="p-2.5 rounded-2xl bg-slate-900 border border-slate-800/80">
+                                        <p className="text-[11px] font-black text-amber-400">&lt; 3MB</p>
+                                        <p className="text-[9px] text-slate-400 mt-0.5">No App Store</p>
+                                    </div>
+                                </div>
+
+                                {!isInstalled && (
+                                    <button
+                                        onClick={() => setIsInstallModalOpen(true)}
+                                        className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 text-[11px] font-bold border border-slate-800 flex items-center justify-center gap-1.5 transition-colors"
+                                    >
+                                        <HelpCircle className="w-3.5 h-3.5" />
+                                        <span>View Step-by-Step Installation Guide</span>
+                                    </button>
+                                )}
+                            </div>
+
                             {/* Refer-A-Friend Card */}
                             <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-500/30 flex items-center justify-between">
                                 <div>
@@ -1616,6 +1837,183 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
                             >
                                 Done
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Install App Bottom Sheet Modal */}
+                {isInstallModalOpen && (
+                    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in">
+                        <div className="w-full max-w-md bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] border border-slate-800 p-6 space-y-4 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[92vh] overflow-y-auto">
+                            <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-2" />
+
+                            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+                                        <Smartphone className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black text-white uppercase tracking-wider">Install DS Student App</h3>
+                                        <p className="text-[10px] text-slate-400">{currentInstitution.name}</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setIsInstallModalOpen(false)} className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Direct 1-Tap Install Button if Browser Event Captured */}
+                            {(deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt)) && (
+                                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/60 to-teal-950/60 border border-emerald-500/40 space-y-2">
+                                    <p className="text-xs font-black text-white flex items-center gap-1.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Fast 1-Tap Installation Ready
+                                    </p>
+                                    <p className="text-[11px] text-slate-300">
+                                        Your browser supports instant installation. Tap the button below to add the app directly to your device.
+                                    </p>
+                                    <button
+                                        onClick={handleInstallApp}
+                                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <Download className="w-4 h-4" /> Install Now to Home Screen
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Platform-Specific Step-by-Step Guide Switcher */}
+                            <div className="space-y-3">
+                                <div className="p-1 rounded-2xl bg-slate-950 border border-slate-800 flex gap-1">
+                                    <button
+                                        onClick={() => setInstallTab('android')}
+                                        className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${
+                                            (installTab === 'android' || (installTab === 'auto' && isAndroid))
+                                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        Android
+                                    </button>
+                                    <button
+                                        onClick={() => setInstallTab('ios')}
+                                        className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${
+                                            (installTab === 'ios' || (installTab === 'auto' && isIOS))
+                                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        iPhone / iPad
+                                    </button>
+                                    <button
+                                        onClick={() => setInstallTab('desktop')}
+                                        className={`flex-1 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all ${
+                                            (installTab === 'desktop' || (installTab === 'auto' && !isAndroid && !isIOS))
+                                                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                                : 'text-slate-400 hover:text-white'
+                                        }`}
+                                    >
+                                        PC / Mac
+                                    </button>
+                                </div>
+
+                                {/* Android Instructions */}
+                                {(installTab === 'android' || (installTab === 'auto' && isAndroid)) && (
+                                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                                        <div className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase">
+                                            <span>Install via Google Chrome / Samsung Internet</span>
+                                        </div>
+                                        <ol className="space-y-2.5 text-xs text-slate-300">
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                                                <span>Tap the <strong>three vertical dots menu</strong> (<MoreVertical className="w-3.5 h-3.5 inline text-emerald-400" />) in the top-right corner of Chrome.</span>
+                                            </li>
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                                                <span>Select <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</span>
+                                            </li>
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                                                <span>Tap <strong>"Install"</strong> to confirm. The app will launch in full screen with native app performance!</span>
+                                            </li>
+                                        </ol>
+                                    </div>
+                                )}
+
+                                {/* iOS Safari Instructions */}
+                                {(installTab === 'ios' || (installTab === 'auto' && isIOS)) && (
+                                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                                        <div className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase">
+                                            <span>Install via Apple Safari on iPhone / iPad</span>
+                                        </div>
+                                        <ol className="space-y-2.5 text-xs text-slate-300">
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                                                <span>In Safari, tap the <strong>Share button</strong> (<Share2 className="w-3.5 h-3.5 inline text-indigo-400" />) in the bottom toolbar.</span>
+                                            </li>
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                                                <span>Scroll down the action sheet and tap <strong>"Add to Home Screen"</strong> (<PlusSquare className="w-3.5 h-3.5 inline text-emerald-400" />).</span>
+                                            </li>
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                                                <span>Tap <strong>"Add"</strong> in the top right. The Driving School app icon will appear instantly on your home screen!</span>
+                                            </li>
+                                        </ol>
+                                    </div>
+                                )}
+
+                                {/* Desktop / PC / Mac Instructions */}
+                                {(installTab === 'desktop' || (installTab === 'auto' && !isAndroid && !isIOS)) && (
+                                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                                        <div className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase">
+                                            <span>Install on Chrome / Edge / Brave Desktop</span>
+                                        </div>
+                                        <ol className="space-y-2.5 text-xs text-slate-300">
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                                                <span>Look at the right end of the address bar at the top of your browser.</span>
+                                            </li>
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                                                <span>Click the <strong>Install App icon</strong> (<Download className="w-3.5 h-3.5 inline text-emerald-400" />).</span>
+                                            </li>
+                                            <li className="flex items-start gap-2.5">
+                                                <span className="w-5 h-5 rounded-full bg-slate-850 border border-slate-700 text-slate-300 font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                                                <span>Click <strong>"Install"</strong> to add EduAI DS Student Portal to your applications and dock.</span>
+                                            </li>
+                                        </ol>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Features breakdown */}
+                            <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 text-slate-400 text-[11px] space-y-2">
+                                <p className="font-bold text-white uppercase text-[10px] tracking-wider">Why install the app?</p>
+                                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                    <div className="flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>Works offline</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>Instant camera scanner</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>No store account needed</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                        <span>Quick fee receipts</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setIsInstallModalOpen(false)}
+                                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all active:scale-95"
+                            >
+                                Close Guide
                             </button>
                         </div>
                     </div>
