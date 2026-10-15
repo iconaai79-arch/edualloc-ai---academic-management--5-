@@ -5085,6 +5085,7 @@ END $$;
     };
 
     const [searchTerm, setSearchTerm] = useState('');
+    const studentTableContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setSelectedLeadIds([]);
@@ -6960,11 +6961,43 @@ END $$;
                                             </button>
                                         </div>
                                     )}
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left min-w-[1200px]">
+                                    <div className="px-6 py-2.5 bg-slate-50/70 dark:bg-slate-850/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-black text-[9px] uppercase tracking-wider border border-indigo-100 dark:border-indigo-900/40">
+                                                📌 Fixed Fields
+                                            </span>
+                                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">Name, Contact, Category & Status</span>
+                                            <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+                                            <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">Scroll horizontally for Progress, Test Scores & Actions</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => studentTableContainerRef.current?.scrollTo({ left: 0, behavior: 'smooth' })}
+                                                className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 hover:text-indigo-600 hover:border-indigo-300 transition-all shadow-2xs"
+                                                title="Scroll to beginning"
+                                            >
+                                                ◀ Fixed Info
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => studentTableContainerRef.current?.scrollTo({ left: 1000, behavior: 'smooth' })}
+                                                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-xs flex items-center gap-1"
+                                                title="Scroll to Progress, Scores and Actions"
+                                            >
+                                                Progress, Scores & Actions ▶
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div 
+                                        ref={studentTableContainerRef} 
+                                        className="overflow-x-auto scrollbar-thin scrollbar-thumb-indigo-300 dark:scrollbar-thumb-slate-700 scrollbar-track-slate-100 dark:scrollbar-track-slate-850"
+                                        style={{ scrollbarWidth: 'thin', scrollbarColor: '#818cf8 transparent' }}
+                                    >
+                                        <table className="w-full text-left border-separate border-spacing-0 min-w-[1550px]">
                                             <thead>
-                                                <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-50 dark:border-slate-800">
-                                                    <th className="px-6 py-8 w-12 text-center">
+                                                <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                                    <th className="sticky left-0 z-30 bg-white dark:bg-slate-900 px-3 py-6 w-11 min-w-[44px] max-w-[44px] text-center border-b border-slate-100 dark:border-slate-800">
                                                         <input 
                                                             type="checkbox"
                                                             checked={paginatedStudents.length > 0 && paginatedStudents.every(s => selectedStudentIds.includes(s.id))}
@@ -6981,48 +7014,21 @@ END $$;
                                                             title="Select / Deselect all on current page"
                                                         />
                                                     </th>
-                                                    <th className="px-10 py-8">Student</th>
-                                                    <th className="px-10 py-8">Contact</th>
-                                                    <th className="px-10 py-8">Category</th>
-                                                    <th className="px-10 py-8">Preferred Hours</th>
-                                                    <th className="px-10 py-8">Status</th>
-                                                    <th className="px-10 py-8">Fee Status</th>
-                                                    <th className="px-10 py-8 text-right">Progress</th>
-                                                    <th className="px-10 py-8 text-right">Test Scores</th>
-                                                    <th className="px-10 py-8 text-right min-w-[245px]">Actions</th>
+                                                    <th className="sticky left-[44px] z-30 bg-white dark:bg-slate-900 px-6 py-6 w-[250px] min-w-[250px] max-w-[250px] border-b border-slate-100 dark:border-slate-800">Student</th>
+                                                    <th className="sticky left-[294px] z-30 bg-white dark:bg-slate-900 px-5 py-6 w-[160px] min-w-[160px] max-w-[160px] border-b border-slate-100 dark:border-slate-800">Contact</th>
+                                                    <th className="sticky left-[454px] z-30 bg-white dark:bg-slate-900 px-4 py-6 w-[130px] min-w-[130px] max-w-[130px] border-b border-slate-100 dark:border-slate-800">Category</th>
+                                                    <th className="sticky left-[584px] z-30 bg-white dark:bg-slate-900 px-4 py-6 w-[120px] min-w-[120px] max-w-[120px] border-b border-r border-slate-200 dark:border-slate-800 shadow-[6px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[6px_0_16px_-4px_rgba(0,0,0,0.4)]">Status</th>
+                                                    <th className="px-6 py-6 min-w-[140px] border-b border-slate-100 dark:border-slate-800">Preferred Hours</th>
+                                                    <th className="px-6 py-6 min-w-[170px] border-b border-slate-100 dark:border-slate-800">Fee Status</th>
+                                                    <th className="px-6 py-6 text-right min-w-[140px] border-b border-slate-100 dark:border-slate-800">Progress</th>
+                                                    <th className="px-6 py-6 text-right min-w-[190px] border-b border-slate-100 dark:border-slate-800">Test Scores</th>
+                                                    <th className="px-6 py-6 text-right min-w-[280px] border-b border-slate-100 dark:border-slate-800">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                                        {isSuperAdmin && paginatedPayments.length > 0 && paginatedPayments.every(p => selectedPaymentIds.includes(p.id)) && filteredPayments.length > paginatedPayments.length && (
-                                                            <tr>
-                                                                <td colSpan={8} className="px-6 py-2.5 bg-indigo-50/80 dark:bg-indigo-950/40 text-center text-xs font-bold text-indigo-700 dark:text-indigo-300 border-b border-indigo-100 dark:border-indigo-900/30">
-                                                                    {selectedPaymentIds.length < filteredPayments.length ? (
-                                                                        <>
-                                                                            All {paginatedPayments.length} payments on this page are selected.&nbsp;
-                                                                            <button 
-                                                                                onClick={() => setSelectedPaymentIds(filteredPayments.map(p => p.id))}
-                                                                                className="underline font-black hover:text-indigo-900 dark:hover:text-white"
-                                                                            >
-                                                                                Select all {filteredPayments.length} payments across all pages
-                                                                            </button>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            All {filteredPayments.length} payments across all pages are selected.&nbsp;
-                                                                            <button 
-                                                                                onClick={() => setSelectedPaymentIds([])}
-                                                                                className="underline font-black hover:text-indigo-900 dark:hover:text-white"
-                                                                            >
-                                                                                Clear selection
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-                                                                </td>
-                                                            </tr>
-                                                        )}
                                                 {paginatedStudents.map(student => (
-                                                    <tr key={student.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                                                        <td className="px-6 py-8 text-center w-12">
+                                                    <tr key={student.id} className="group hover:bg-slate-50/70 dark:hover:bg-slate-800/60 transition-colors">
+                                                        <td className="sticky left-0 z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 px-3 py-6 text-center w-11 min-w-[44px] max-w-[44px] border-b border-slate-100 dark:border-slate-800/60 transition-colors">
                                                             <input 
                                                                 type="checkbox" 
                                                                 checked={selectedStudentIds.includes(student.id)}
@@ -7036,43 +7042,52 @@ END $$;
                                                                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
                                                             />
                                                         </td>
-                                                        <td className="px-10 py-8">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center font-black text-indigo-600 overflow-hidden">
+                                                        <td className="sticky left-[44px] z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 px-6 py-6 w-[250px] min-w-[250px] max-w-[250px] border-b border-slate-100 dark:border-slate-800/60 transition-colors">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center font-black text-indigo-600 shrink-0 overflow-hidden text-xs">
                                                                     {student.passportPhoto ? (
                                                                         <img src={student.passportPhoto} className="w-full h-full object-cover" alt="Student Passport" />
                                                                     ) : (
                                                                         student.fullName.charAt(0)
                                                                     )}
                                                                 </div>
-                                                                <div>
-                                                                    <p className="font-bold text-slate-900 dark:text-white">{student.fullName}</p>
-                                                                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                                                <div className="min-w-0">
+                                                                    <p className="font-bold text-slate-900 dark:text-white truncate text-xs" title={student.fullName}>{student.fullName}</p>
+                                                                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                                                         <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">
                                                                             {student.admissionNumber || `REF: ${student.id.split('_')[1]}`}
                                                                         </p>
                                                                         {activeBranchId === 'ALL' && branches.length > 1 && (
-                                                                            <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                            <span className="inline-flex items-center gap-0.5 text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                                                                                 📍 {branches.find(b => b.id === (student.branchId || (student as any).branch_id))?.name || 'Main Campus'}
                                                                             </span>
                                                                         )}
                                                                     </div>
-                                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                                                                         {student.idNumber ? `ID: ${student.idNumber}` : student.passportNumber ? `PASS: ${student.passportNumber}` : ''}
                                                                     </p>
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-10 py-8">
-                                                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">{student.phone}</p>
-                                                            <p className="text-[10px] font-medium text-slate-400 mt-1">{student.email}</p>
+                                                        <td className="sticky left-[294px] z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 px-5 py-6 w-[160px] min-w-[160px] max-w-[160px] border-b border-slate-100 dark:border-slate-800/60 transition-colors">
+                                                            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{student.phone}</p>
+                                                            <p className="text-[10px] font-medium text-slate-400 mt-0.5 truncate" title={student.email}>{student.email}</p>
                                                         </td>
-                                                        <td className="px-10 py-8">
-                                                            <span className="text-[10px] font-black uppercase px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg">{student.licenseTypeInterested || 'Class B'}</span>
+                                                        <td className="sticky left-[454px] z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 px-4 py-6 w-[130px] min-w-[130px] max-w-[130px] border-b border-slate-100 dark:border-slate-800/60 transition-colors">
+                                                            <span className="text-[10px] font-black uppercase px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-lg inline-block text-slate-800 dark:text-slate-200">{student.licenseTypeInterested || 'Class B'}</span>
                                                             <p className="text-[10px] font-medium text-slate-400 mt-1">{student.enrollmentDate ? new Date(student.enrollmentDate).toLocaleDateString() : 'No Date'}</p>
                                                         </td>
-                                                        <td className="px-10 py-8">
-                                                            <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg ${
+                                                        <td className="sticky left-[584px] z-20 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-850 px-4 py-6 w-[120px] min-w-[120px] max-w-[120px] border-b border-r border-slate-200 dark:border-slate-800 shadow-[6px_0_12px_-4px_rgba(0,0,0,0.06)] dark:shadow-[6px_0_16px_-4px_rgba(0,0,0,0.4)] transition-colors">
+                                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block text-center ${
+                                                                student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' :
+                                                                student.status === 'Dropped' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400' :
+                                                                'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400'
+                                                            }`}>
+                                                                {student.status || 'Enrolled'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-6 min-w-[140px] border-b border-slate-100 dark:border-slate-800/60">
+                                                            <span className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg inline-block ${
                                                                 student.preferredLessonHours === 'Morning' ? 'bg-amber-50 text-amber-600' :
                                                                 student.preferredLessonHours === 'Noon' ? 'bg-indigo-50 text-indigo-600' :
                                                                 student.preferredLessonHours === 'Evening' ? 'bg-emerald-50 text-emerald-600' :
@@ -7081,16 +7096,7 @@ END $$;
                                                                 {student.preferredLessonHours || 'Not Set'}
                                                             </span>
                                                         </td>
-                                                        <td className="px-10 py-8">
-                                                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                                                student.status === 'Graduated' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400' :
-                                                                student.status === 'Dropped' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400' :
-                                                                'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400'
-                                                            }`}>
-                                                                {student.status || 'Enrolled'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-10 py-8">
+                                                        <td className="px-6 py-6 min-w-[170px] border-b border-slate-100 dark:border-slate-800/60">
                                                             {(() => {
                                                                 const ms = getStudentMilestoneStatus(student.id);
                                                                 if (!ms) return <span className="text-[9px] text-slate-300 font-bold">—</span>;
@@ -7113,12 +7119,13 @@ END $$;
                                                                 );
                                                             })()}
                                                         </td>
-                                                        <td className="px-10 py-8 text-right">
+                                                        <td className="px-6 py-6 text-right min-w-[140px] border-b border-slate-100 dark:border-slate-800/60">
                                                             <div className="w-24 bg-slate-100 dark:bg-slate-800 h-2 rounded-full ml-auto overflow-hidden">
-                                                                <div className="bg-indigo-600 h-full rounded-full" style={{ width: `${(student.practicalProgressPercent || 0)}%` }}></div>
+                                                                <div className="bg-indigo-600 h-full rounded-full transition-all duration-500" style={{ width: `${(student.practicalProgressPercent || 0)}%` }}></div>
                                                             </div>
+                                                            <p className="text-[10px] font-black text-slate-500 mt-1.5 uppercase tracking-wider">{student.practicalProgressPercent || 0}% Complete</p>
                                                         </td>
-                                                        <td className="px-10 py-8 text-right">
+                                                        <td className="px-6 py-6 text-right min-w-[190px] border-b border-slate-100 dark:border-slate-800/60">
                                                             <div className="flex flex-col items-end gap-1">
                                                                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                                                     Theory: <span className={student.theoryTestScore !== undefined && student.theoryTestScore !== null ? "text-indigo-600 font-black" : "text-slate-400 italic"}>
@@ -7143,7 +7150,7 @@ END $$;
                                                                 )}
                                                                 
                                                                 {((student as any).masteredSkills || []).length > 0 && (
-                                                                    <div className="flex flex-wrap gap-1 mt-2 justify-end w-full max-w-[120px]">
+                                                                    <div className="flex flex-wrap gap-1 mt-2 justify-end w-full max-w-[150px]">
                                                                         {((student as any).masteredSkills || []).slice(0, 3).map((skill: string) => (
                                                                             <span key={skill} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[7px] font-black uppercase truncate max-w-full" title={skill}>{skill}</span>
                                                                         ))}
@@ -7154,7 +7161,7 @@ END $$;
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="px-10 py-8 text-right min-w-[245px]">
+                                                        <td className="px-6 py-6 text-right min-w-[280px] border-b border-slate-100 dark:border-slate-800/60">
                                                             <div className="flex justify-end gap-2">
                                                                 {student.status === 'Pending Payment' && (
                                                                     <button 
