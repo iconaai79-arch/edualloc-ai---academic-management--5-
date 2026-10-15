@@ -447,7 +447,8 @@ const MODULE_ALIASES: Record<string, string> = {
   'weighbridge_tickets': 'weighbridge_intake_tickets',
   'milling_weighbridge_tickets': 'weighbridge_intake_tickets',
   'milling_grain_suppliers': 'grain_suppliers',
-  'milling_sale_orders': 'grain_sale_orders'
+  'milling_sale_orders': 'grain_sale_orders',
+  'teacher_checkins': 'teacher_check_ins'
 };
 
 const isTableWithoutInstitutionId = (module: string) => {
@@ -1019,7 +1020,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests'
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1028,7 +1029,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests'
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1226,7 +1227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order(col, { ascending: true });
                 } else if (moduleName === 'activity_log') {
                     q = q.order('timestamp', { ascending: false });
-                } else if (['teacher_check_ins'].includes(moduleName)) {
+                } else if (['teacher_check_ins', 'teacher_checkins'].includes(moduleName)) {
                     q = q.order('check_in_date', { ascending: false });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
@@ -1361,7 +1362,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
                 ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
                     ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
-                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
+                    : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName) 
                         ? 2000 
                         : (['institution_events', 'events', 'event_categories', 'event_pins'].includes(moduleName) 
                             ? 500 
@@ -1397,7 +1398,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         ? 250
                         : (['visitors', 'building_visitor_logs'].includes(moduleName)
                             ? 100
-                            : (['security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
+                            : (['security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes'].includes(moduleName)
                                 ? 250
                                 : (moduleName === 'institutions' ? 500 : 1000)))));
             let data: any[] = [];
@@ -1406,7 +1407,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry'].includes(moduleName) ? 8000 : 5000);
+                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const elapsed = Date.now() - requestStartTime;
@@ -1587,7 +1588,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             } else if (moduleName === 'activity_log') {
                 defaultOrderBy = 'timestamp.desc';
-            } else if (['teacher_check_ins'].includes(moduleName)) {
+            } else if (['teacher_check_ins', 'teacher_checkins'].includes(moduleName)) {
                 defaultOrderBy = 'check_in_date.desc';
             } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records', 'school_remedial_rate_settings'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
@@ -1627,6 +1628,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'academic_years', 'semesters', 'allocation_requests',
                     // Nationwide school registry & directory
                     'school_registry',
+                    // Staff attendance & teacher check-ins
+                    'teacher_check_ins', 'teacher_checkins',
                     // Finance reference tables — small but queried on every finance page load
                     'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions', 'bank_transactions',
                     'finance_numbering_configs', 'bursary_disbursements',
@@ -1859,7 +1862,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)
+                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);

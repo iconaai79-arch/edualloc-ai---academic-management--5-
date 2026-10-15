@@ -772,9 +772,45 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             setLandlords(ls || []);
             setProperties(ps || []);
-            setUnits(un || []);
-            setTenants(tn || []);
-            setLeases(le || []);
+            setUnits((un || []).map((u: any) => ({
+                ...u,
+                id: u.id || u.unit_id || '',
+                unitNumber: u.unitNumber || u.unit_number || '',
+                unitType: u.unitType || u.unit_type || '1BR',
+                propertyId: u.propertyId || u.property_id || '',
+                floorNumber: u.floorNumber !== undefined ? u.floorNumber : (u.floor_number !== undefined ? u.floor_number : 0),
+                rentAmount: Number(u.rentAmount !== undefined ? u.rentAmount : u.rent_amount) || 0,
+                status: u.status || 'Vacant',
+                institutionId: u.institutionId || u.institution_id || institutionId,
+                createdAt: u.createdAt || u.created_at || new Date().toISOString()
+            })));
+            setTenants((tn || []).map((t: any) => ({
+                ...t,
+                id: t.id || t.tenant_id || '',
+                name: t.name || '',
+                phoneNumber: t.phoneNumber || t.phone_number || t.phone || '',
+                email: t.email || '',
+                idNumber: t.idNumber || t.id_number || '',
+                emergencyContactName: t.emergencyContactName || t.emergency_contact_name || '',
+                emergencyContactPhone: t.emergencyContactPhone || t.emergency_contact_phone || '',
+                institutionId: t.institutionId || t.institution_id || institutionId,
+                createdAt: t.createdAt || t.created_at || new Date().toISOString()
+            })));
+            setLeases((le || []).map((l: any) => ({
+                ...l,
+                id: l.id || l.lease_id || '',
+                unitId: l.unitId || l.unit_id || '',
+                tenantId: l.tenantId || l.tenant_id || '',
+                startDate: l.startDate || l.start_date || '',
+                endDate: l.endDate || l.end_date || '',
+                rentAmount: Number(l.rentAmount !== undefined ? l.rentAmount : l.rent_amount) || 0,
+                depositAmount: Number(l.depositAmount !== undefined ? l.depositAmount : l.deposit_amount) || 0,
+                billingCycle: l.billingCycle || l.billing_cycle || 'Monthly',
+                status: l.status || 'Active',
+                leaseNumber: l.leaseNumber || l.lease_number || '',
+                institutionId: l.institutionId || l.institution_id || institutionId,
+                createdAt: l.createdAt || l.created_at || new Date().toISOString()
+            })));
             setPayments(py || []);
             setTickets(tk || []);
             setDisbursements(ds || []);
@@ -1797,10 +1833,121 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }
     };
 
+    const vacateUnitAndTerminateLease = async (options: {
+        unitId?: string;
+        leaseId?: string;
+        tenantId?: string;
+        terminationDate?: string;
+    }) => {
+        const todayStr = options.terminationDate || new Date().toISOString().split('T')[0];
+        
+        // 1. Resolve Lease
+        let targetLease = leases.find(l => 
+            Boolean(options.leaseId && (l.id === options.leaseId || (l as any).lease_id === options.leaseId))
+        );
+        if (!targetLease && options.tenantId) {
+            targetLease = leases.find(l => 
+                (l.tenantId === options.tenantId || (l as any).tenant_id === options.tenantId) &&
+                l.status !== 'Terminated'
+            );
+        }
+        
+        // 2. Resolve Unit ID
+        const targetUnitId = options.unitId 
+            || targetLease?.unitId 
+            || (targetLease as any)?.unit_id;
+            
+        // 3. Terminate Lease(s)
+        if (targetLease) {
+            const updatedLease = {
+                ...targetLease,
+                status: 'Terminated' as const,
+                endDate: todayStr,
+                end_date: todayStr
+            };
+            await apiService.saveModuleRecord('pm_leases', updatedLease).catch(() => {});
+            await apiService.updateModuleRecord('pm_leases', targetLease.id, {
+                status: 'Terminated',
+                endDate: todayStr,
+                end_date: todayStr
+            }).catch(() => {});
+        } else if (options.leaseId) {
+            await apiService.updateModuleRecord('pm_leases', options.leaseId, {
+                status: 'Terminated',
+                endDate: todayStr,
+                end_date: todayStr
+            }).catch(() => {});
+        }
+        
+        // Also terminate any other active leases for this tenant
+        const effectiveTenantId = options.tenantId || targetLease?.tenantId || (targetLease as any)?.tenant_id;
+        if (effectiveTenantId) {
+            const otherActiveLeases = leases.filter(l => 
+                (l.tenantId === effectiveTenantId || (l as any).tenant_id === effectiveTenantId) && 
+                l.status !== 'Terminated' && 
+                l.id !== (targetLease?.id || options.leaseId)
+            );
+            for (const oLease of otherActiveLeases) {
+                await apiService.saveModuleRecord('pm_leases', {
+                    ...oLease,
+                    status: 'Terminated',
+                    endDate: todayStr,
+                    end_date: todayStr
+                }).catch(() => {});
+                await apiService.updateModuleRecord('pm_leases', oLease.id, {
+                    status: 'Terminated',
+                    endDate: todayStr,
+                    end_date: todayStr
+                }).catch(() => {});
+                const oUnitId = oLease.unitId || (oLease as any).unit_id;
+                if (oUnitId) {
+                    const oUnit = units.find(u => u.id === oUnitId || (u as any).unit_id === oUnitId);
+                    if (oUnit) {
+                        await apiService.saveModuleRecord('pm_units', { ...oUnit, status: 'Vacant' }).catch(() => {});
+                    }
+                    await apiService.updateModuleRecord('pm_units', oUnitId, { status: 'Vacant' }).catch(() => {});
+                }
+            }
+            
+            // Mark all open notices for this tenant as Completed
+            const tenantNotices = notices.filter(n => 
+                (n.tenantId === effectiveTenantId || (n as any).tenant_id === effectiveTenantId) && 
+                n.status !== 'Completed'
+            );
+            for (const n of tenantNotices) {
+                await apiService.saveModuleRecord('pm_notices', { ...n, status: 'Completed' as any }).catch(() => {});
+                await apiService.updateModuleRecord('pm_notices', n.id, { status: 'Completed' }).catch(() => {});
+            }
+        }
+        
+        // 4. Update Target Unit status to 'Vacant'
+        if (targetUnitId) {
+            const targetUnit = units.find(u => u.id === targetUnitId || (u as any).unit_id === targetUnitId);
+            if (targetUnit) {
+                await apiService.saveModuleRecord('pm_units', {
+                    ...targetUnit,
+                    status: 'Vacant'
+                }).catch(() => {});
+            }
+            // Direct PATCH to pm_units table in DB
+            await apiService.updateModuleRecord('pm_units', targetUnitId, {
+                status: 'Vacant'
+            }).catch(() => {});
+            
+            // Immediate optimistic UI update
+            setUnits(prev => prev.map(u => 
+                (u.id === targetUnitId || (u as any).unit_id === targetUnitId) 
+                    ? { ...u, status: 'Vacant' } 
+                    : u
+            ));
+        }
+    };
+
     const handleMoveOutLease = async (lease: PMLease) => {
-        const tenant = tenants.find(t => t.id === lease.tenantId);
-        const unit = units.find(u => u.id === lease.unitId);
-        const unitLabel = unit ? `Unit ${unit.unitNumber}` : 'the designated unit';
+        const tenant = tenants.find(t => t.id === (lease.tenantId || (lease as any).tenant_id));
+        const unitId = lease.unitId || (lease as any).unit_id;
+        const unit = units.find(u => u.id === unitId || (u as any).unit_id === unitId);
+        const unitLabel = unit ? `Unit ${unit.unitNumber || (unit as any).unit_number}` : 'the designated unit';
         const tenantName = tenant?.name || 'Resident';
 
         const confirmMsg = `Are you sure you want to move out tenant "${tenantName}" from ${unitLabel}?\n\nThis will automatically:\n1. Mark ${unitLabel} as VACANT immediately\n2. Terminate the active lease agreement\n3. Record move-out date as today`;
@@ -1808,28 +1955,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
         try {
             const todayStr = new Date().toISOString().split('T')[0];
-
-            // 1. Terminate lease
-            await apiService.saveModuleRecord('pm_leases', {
-                ...lease,
-                status: 'Terminated',
-                endDate: todayStr
+            await vacateUnitAndTerminateLease({
+                unitId,
+                leaseId: lease.id,
+                tenantId: lease.tenantId || (lease as any).tenant_id,
+                terminationDate: todayStr
             });
-
-            // 2. Mark unit as Vacant
-            if (unit) {
-                await apiService.saveModuleRecord('pm_units', {
-                    ...unit,
-                    status: 'Vacant'
-                });
-            }
-
-            // 3. Mark any open vacate notices for this tenant as Completed
-            const tenantNotices = notices.filter(n => n.tenantId === lease.tenantId && n.status !== 'Completed');
-            for (const n of tenantNotices) {
-                await apiService.saveModuleRecord('pm_notices', { ...n, status: 'Completed' as any });
-            }
-
             await loadData();
             alert(`Tenant "${tenantName}" has been successfully moved out!\n${unitLabel} is now automatically marked as VACANT.`);
         } catch (e: any) {
@@ -1842,28 +1973,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         if (!window.confirm("Are you sure you want to delete this tenant? All associated active lease records will be terminated and their units automatically made Vacant.")) return;
         try {
             const todayStr = new Date().toISOString().split('T')[0];
-            const tenantLeases = leases.filter(l => l.tenantId === id && l.status === 'Active');
-            for (const l of tenantLeases) {
-                await apiService.saveModuleRecord('pm_leases', {
-                    ...l,
-                    status: 'Terminated',
-                    endDate: todayStr
-                });
-                const unit = units.find(u => u.id === l.unitId);
-                if (unit && unit.status !== 'Vacant') {
-                    await apiService.saveModuleRecord('pm_units', {
-                        ...unit,
-                        status: 'Vacant'
-                    });
-                }
-            }
+            await vacateUnitAndTerminateLease({
+                tenantId: id,
+                terminationDate: todayStr
+            });
             await apiService.deleteModuleRecord('pm_tenants', id);
             await loadData();
             alert("Tenant deleted and associated unit(s) marked as Vacant.");
         } catch (e: any) { alert(e.message || "Failed to delete tenant"); console.error(e); }
     };
 
-    const handleSaveInspection = async (data: Partial<PMInspection>, shouldVacate: boolean = true) => {
+    const handleSaveInspection = async (data: Partial<PMInspection> & { unitId?: string }, shouldVacate: boolean = true) => {
         try {
             const inspectionId = data.id || `insp_${Date.now()}`;
             const inspectionData: PMInspection = {
@@ -1872,7 +1992,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 tenantId: data.tenantId || '',
                 inspectionDate: data.inspectionDate || new Date().toISOString(),
                 inspectedBy: data.inspectedBy || currentUser?.name || 'Inspector',
-                status: data.status || 'Draft',
+                status: data.status || 'Completed',
                 structuralCondition: data.structuralCondition,
                 structuralComments: data.structuralComments,
                 cleaningCondition: data.cleaningCondition,
@@ -1890,44 +2010,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             // Automatically vacate the unit and terminate the lease if inspection is Completed or shouldVacate is true
             if (inspectionData.status === 'Completed' || shouldVacate) {
                 const termDate = inspectionData.inspectionDate ? inspectionData.inspectionDate.split('T')[0] : new Date().toISOString().split('T')[0];
-                const lease = leases.find(l => l.id === inspectionData.leaseId);
-                if (lease) {
-                    if (lease.status === 'Active') {
-                        await apiService.saveModuleRecord('pm_leases', {
-                            ...lease,
-                            status: 'Terminated',
-                            endDate: termDate
-                        });
-                    }
-                    const unit = units.find(u => u.id === lease.unitId);
-                    if (unit && unit.status !== 'Vacant') {
-                        await apiService.saveModuleRecord('pm_units', {
-                            ...unit,
-                            status: 'Vacant'
-                        });
-                    }
-                }
-                if (inspectionData.tenantId) {
-                    const otherActiveLeases = leases.filter(l => l.tenantId === inspectionData.tenantId && l.status === 'Active' && l.id !== inspectionData.leaseId);
-                    for (const oLease of otherActiveLeases) {
-                        await apiService.saveModuleRecord('pm_leases', {
-                            ...oLease,
-                            status: 'Terminated',
-                            endDate: termDate
-                        });
-                        const oUnit = units.find(u => u.id === oLease.unitId);
-                        if (oUnit && oUnit.status !== 'Vacant') {
-                            await apiService.saveModuleRecord('pm_units', {
-                                ...oUnit,
-                                status: 'Vacant'
-                            });
-                        }
-                    }
-                }
-                const tenantNotices = notices.filter(n => n.tenantId === inspectionData.tenantId && n.status !== 'Completed');
-                for (const n of tenantNotices) {
-                    await apiService.saveModuleRecord('pm_notices', { ...n, status: 'Completed' as any });
-                }
+                await vacateUnitAndTerminateLease({
+                    unitId: (data as any).unitId,
+                    leaseId: inspectionData.leaseId,
+                    tenantId: inspectionData.tenantId,
+                    terminationDate: termDate
+                });
             }
 
             setShowInspectionModal(false);
@@ -1973,23 +2061,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             await apiService.saveModuleRecord('pm_deposit_refunds', refundData);
 
             // Automatically terminate lease and make unit Vacant if not already vacant
-            const lease = leases.find(l => l.id === refundData.leaseId);
-            if (lease) {
-                if (lease.status === 'Active') {
-                    await apiService.saveModuleRecord('pm_leases', {
-                        ...lease,
-                        status: 'Terminated',
-                        endDate: refundData.statementDate
-                    });
-                }
-                const unit = units.find(u => u.id === lease.unitId);
-                if (unit && unit.status !== 'Vacant') {
-                    await apiService.saveModuleRecord('pm_units', {
-                        ...unit,
-                        status: 'Vacant'
-                    });
-                }
-            }
+            await vacateUnitAndTerminateLease({
+                leaseId: refundData.leaseId,
+                tenantId: refundData.tenantId,
+                terminationDate: refundData.statementDate
+            });
 
             setShowRefundModal(false);
             setEditingRefund(null);
@@ -2615,12 +2691,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 {unit.status === 'Occupied' && (
                                                     <button
                                                         onClick={() => {
-                                                            const activeLease = leases.find(l => l.unitId === unit.id && l.status === 'Active');
+                                                            const activeLease = leases.find(l => (l.unitId === unit.id || (l as any).unit_id === unit.id) && l.status === 'Active');
                                                             if (activeLease) {
                                                                 handleMoveOutLease(activeLease);
                                                             } else {
-                                                                if (window.confirm(`Mark Unit ${unit.unitNumber} as Vacant?`)) {
-                                                                    apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' }).then(() => loadData());
+                                                                if (window.confirm(`Mark Unit ${unit.unitNumber || (unit as any).unit_number} as Vacant?`)) {
+                                                                    vacateUnitAndTerminateLease({ unitId: unit.id }).then(() => loadData());
                                                                 }
                                                             }
                                                         }}
@@ -2670,12 +2746,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             {unit.status === 'Occupied' && (
                                                 <button
                                                     onClick={() => {
-                                                        const activeLease = leases.find(l => l.unitId === unit.id && l.status === 'Active');
+                                                        const activeLease = leases.find(l => (l.unitId === unit.id || (l as any).unit_id === unit.id) && l.status === 'Active');
                                                         if (activeLease) {
                                                             handleMoveOutLease(activeLease);
                                                         } else {
-                                                            if (window.confirm(`Mark Unit ${unit.unitNumber} as Vacant?`)) {
-                                                                apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' }).then(() => loadData());
+                                                            if (window.confirm(`Mark Unit ${unit.unitNumber || (unit as any).unit_number} as Vacant?`)) {
+                                                                vacateUnitAndTerminateLease({ unitId: unit.id }).then(() => loadData());
                                                             }
                                                         }
                                                     }}
@@ -8207,16 +8283,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             try {
                 const updated = { ...refund, status: 'Approved' as const };
                 await apiService.saveModuleRecord('pm_deposit_refunds', updated);
-                const lease = leases.find(l => l.id === refund.leaseId);
-                if (lease) {
-                    if (lease.status === 'Active') {
-                        await apiService.saveModuleRecord('pm_leases', { ...lease, status: 'Terminated', endDate: new Date().toISOString().split('T')[0] });
-                    }
-                    const unit = units.find(u => u.id === lease.unitId);
-                    if (unit && unit.status !== 'Vacant') {
-                        await apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' });
-                    }
-                }
+                await vacateUnitAndTerminateLease({
+                    leaseId: refund.leaseId,
+                    tenantId: refund.tenantId,
+                    terminationDate: new Date().toISOString().split('T')[0]
+                });
                 await loadData();
                 alert("Deposit refund statement approved! Associated unit marked as Vacant.");
             } catch (e: any) { alert(e.message || "Failed to approve refund"); }
@@ -8226,16 +8297,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             try {
                 const updated = { ...refund, status: 'Paid' as const };
                 await apiService.saveModuleRecord('pm_deposit_refunds', updated);
-                const lease = leases.find(l => l.id === refund.leaseId);
-                if (lease) {
-                    if (lease.status === 'Active') {
-                        await apiService.saveModuleRecord('pm_leases', { ...lease, status: 'Terminated', endDate: new Date().toISOString().split('T')[0] });
-                    }
-                    const unit = units.find(u => u.id === lease.unitId);
-                    if (unit && unit.status !== 'Vacant') {
-                        await apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' });
-                    }
-                }
+                await vacateUnitAndTerminateLease({
+                    leaseId: refund.leaseId,
+                    tenantId: refund.tenantId,
+                    terminationDate: new Date().toISOString().split('T')[0]
+                });
                 await loadData();
                 alert("Deposit refund statement marked as Paid! Associated unit marked as Vacant.");
             } catch (e: any) { alert(e.message || "Failed to mark refund as Paid"); }
@@ -10407,10 +10473,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             )}
 
             {selectedVacateNotice && (() => {
-                const lease = leases.find(l => l.id === selectedVacateNotice.leaseId);
-                const tenant = tenants.find(t => t.id === (lease?.tenantId || selectedVacateNotice.tenantId));
-                const unit = units.find(u => u.id === lease?.unitId);
-                const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
+                const lease = leases.find(l => l.id === selectedVacateNotice.leaseId || (l as any).lease_id === selectedVacateNotice.leaseId) || leases.find(l => (l.tenantId === selectedVacateNotice.tenantId || (l as any).tenant_id === selectedVacateNotice.tenantId) && l.status !== 'Terminated');
+                const tenant = tenants.find(t => t.id === (lease?.tenantId || (lease as any)?.tenant_id || selectedVacateNotice.tenantId));
+                const unit = units.find(u => u.id === (lease?.unitId || (lease as any)?.unit_id));
+                const property = unit ? properties.find(p => p.id === (unit.propertyId || (unit as any).property_id)) : null;
                 
                 let details = { poBox: 'Eldoret', waterAccount: '', electricityAccount: '', bankDetails: { bankName: '', accountName: '', accountNumber: '', branch: '' } };
                 try {
@@ -10437,7 +10503,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 </div>
                                 <div>
                                     <p className="text-[10px] uppercase text-slate-400 tracking-wider">House / Unit Number</p>
-                                    <p className="text-slate-800 dark:text-white mt-0.5">{unit?.unitNumber || '—'}</p>
+                                    <p className="text-slate-800 dark:text-white mt-0.5">{unit?.unitNumber || (unit as any)?.unit_number || '—'}</p>
                                 </div>
                                 <div>
                                     <p className="text-[10px] uppercase text-slate-400 tracking-wider">P.O. Box</p>
@@ -10474,16 +10540,21 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 <button
                                     onClick={async () => {
                                         if (lease) {
-                                            const saved = inspections.find(insp => insp.leaseId === lease.id);
+                                            const saved = inspections.find(insp => insp.leaseId === lease.id || (insp as any).lease_id === lease.id);
                                             if (saved) {
-                                                setEditingInspection(saved);
+                                                setEditingInspection({
+                                                    ...saved,
+                                                    status: saved.status === 'Draft' ? 'Completed' : saved.status,
+                                                    unitId: unit?.id
+                                                } as any);
                                             } else {
                                                 setEditingInspection({
                                                     id: `insp_${Date.now()}`,
                                                     leaseId: lease.id,
-                                                    tenantId: lease.tenantId,
+                                                    tenantId: lease.tenantId || selectedVacateNotice.tenantId,
+                                                    unitId: unit?.id,
                                                     inspectionDate: new Date().toISOString().split('T')[0],
-                                                    status: 'Draft',
+                                                    status: 'Completed',
                                                     structuralCondition: 'Good',
                                                     structuralComments: '',
                                                     cleaningCondition: 'Good',
@@ -10507,7 +10578,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     tenantSignoff: false,
                                                     institutionId: selectedVacateNotice.institutionId,
                                                     createdAt: new Date().toISOString()
-                                                });
+                                                } as any);
                                             }
                                             setShowInspectionModal(true);
                                             setSelectedVacateNotice(null);
@@ -10519,7 +10590,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 >
                                     Conduct Move-Out Inspection
                                 </button>
-                                {lease && lease.status === 'Active' && (
+                                {lease && (
                                     <button
                                         onClick={async () => {
                                             await handleMoveOutLease(lease);
@@ -10740,10 +10811,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 const formData = new FormData(e.currentTarget);
                                 const calculatedCost = totalCost;
                                 const statusVal = (formData.get('status') as any) || 'Completed';
-                                const shouldVacate = statusVal === 'Completed' || formData.get('autoVacateUnit') === 'on';
+                                const autoVacateVal = formData.get('autoVacateUnit');
+                                const shouldVacate = statusVal === 'Completed' || autoVacateVal === 'on' || autoVacateVal === 'true' || autoVacateVal !== null;
+                                const selectedLeaseId = (formData.get('leaseId') as string) || editingInspection?.leaseId || '';
+                                const matchedLease = leases.find(l => l.id === selectedLeaseId || (l as any).lease_id === selectedLeaseId);
+                                const resolvedTenantId = matchedLease?.tenantId || (matchedLease as any)?.tenant_id || editingInspection?.tenantId || '';
+                                const resolvedUnitId = (formData.get('unitId') as string) || (editingInspection as any)?.unitId || matchedLease?.unitId || (matchedLease as any)?.unit_id || '';
+
                                 handleSaveInspection({
-                                    leaseId: formData.get('leaseId') as string,
-                                    tenantId: leases.find(l => l.id === formData.get('leaseId'))?.tenantId || '',
+                                    leaseId: selectedLeaseId,
+                                    tenantId: resolvedTenantId,
+                                    unitId: resolvedUnitId,
                                     inspectionDate: formData.get('inspectionDate') as string,
                                     inspectedBy: formData.get('inspectedBy') as string,
                                     status: statusVal,
@@ -10758,19 +10836,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     tenantSignoff: formData.get('tenantSignoff') === 'on',
                                     id: editingInspection?.id,
                                     createdAt: editingInspection?.createdAt
-                                }, shouldVacate);
+                                } as any, shouldVacate);
                             }}
                             className="space-y-6 pb-2"
                         >
+                            <input type="hidden" name="unitId" defaultValue={(editingInspection as any)?.unitId || ''} />
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Select Active Lease</label>
                             <select name="leaseId" required defaultValue={editingInspection?.leaseId || ''} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
                                 <option value="">Choose Lease...</option>
                                 {leases.map(l => {
-                                    const t = tenants.find(ten => ten.id === l.tenantId);
-                                    const u = units.find(un => un.id === l.unitId);
-                                    return <option key={l.id} value={l.id}>{t?.name || 'Unknown'} - Unit {u?.unitNumber || '—'}</option>;
+                                    const t = tenants.find(ten => ten.id === l.tenantId || ten.id === (l as any).tenant_id);
+                                    const u = units.find(un => un.id === l.unitId || un.id === (l as any).unit_id);
+                                    return <option key={l.id} value={l.id}>{t?.name || 'Unknown'} - Unit {u?.unitNumber || (u as any)?.unit_number || '—'}</option>;
                                 })}
                             </select>
                         </div>
@@ -10799,6 +10878,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             type="checkbox"
                             id="autoVacateUnit"
                             name="autoVacateUnit"
+                            value="on"
                             defaultChecked={true}
                             className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                         />
