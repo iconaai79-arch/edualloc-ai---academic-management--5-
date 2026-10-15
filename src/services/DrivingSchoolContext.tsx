@@ -240,9 +240,18 @@ export function useDrivingSchool() {
     return context;
 }
 
-export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionId: string | undefined, currentUser?: any }> = ({ children, institutionId, currentUser }) => {
+export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionId: string | undefined, currentUser?: any }> = ({ children, institutionId, currentUser: propsUser }) => {
     const { success, error, info } = useToast();
     
+    const currentUser = useMemo(() => {
+        if (propsUser) return propsUser;
+        try {
+            const saved = localStorage.getItem('current_user') || localStorage.getItem('eduai_current_user');
+            if (saved) return JSON.parse(saved);
+        } catch (_) {}
+        return undefined;
+    }, [propsUser]);
+
     const [rawInstructors, setInstructors] = useState<DSInstructor[]>([]);
     const [rawVehicles, setVehicles] = useState<DSVehicle[]>([]);
     const [rawStudents, setStudents] = useState<DSStudent[]>([]);
@@ -267,19 +276,33 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const isUserBranchLocked = useMemo(() => {
         if (!userAssignedBranchId) return false;
-        const role = (currentUser?.role || '').toLowerCase();
-        const isSuperOrDev = role.includes('developer') || 
-                             role.includes('super_admin') || 
-                             role.includes('super admin') || 
-                             Boolean(currentUser?.isImpersonated) || 
-                             Boolean(localStorage.getItem('eduai_super_admin_session'));
-        return !isSuperOrDev;
+        const role = (currentUser?.role || '').toLowerCase().trim();
+        const isAdminOrSuper = role.includes('developer') || 
+                               role.includes('super_admin') || 
+                               role.includes('superadmin') || 
+                               role.includes('super admin') || 
+                               role === 'admin' ||
+                               role.includes('admin') ||
+                               role.includes('director') ||
+                               role.includes('manager') ||
+                               role.includes('head_teacher') ||
+                               role.includes('principal') ||
+                               role.includes('deputy') ||
+                               role.includes('dos') ||
+                               role.includes('hoi') ||
+                               Boolean(currentUser?.isImpersonated) || 
+                               Boolean(localStorage.getItem('eduai_super_admin_session'));
+        return !isAdminOrSuper;
     }, [userAssignedBranchId, currentUser]);
 
     useEffect(() => {
         if (!institutionId) return;
+        const role = (currentUser?.role || '').toLowerCase().trim();
         const isSuperAdminContext = Boolean(
-            (currentUser?.role || '').toLowerCase().includes('super') ||
+            role.includes('super') ||
+            role.includes('admin') ||
+            role.includes('director') ||
+            role.includes('manager') ||
             currentUser?.isImpersonated ||
             localStorage.getItem('eduai_super_admin_session')
         );
@@ -380,7 +403,17 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             await apiService.saveModuleRecord('branches', newBranch);
             setBranches(prev => {
                 const exists = prev.some(b => b.id === newBranch.id);
-                return exists ? prev.map(b => b.id === newBranch.id ? newBranch : b) : [...prev, newBranch];
+                const updated = exists ? prev.map(b => b.id === newBranch.id ? newBranch : b) : [...prev, newBranch];
+                try {
+                    localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(updated));
+                } catch (e) {}
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_ds_branches_${institutionId}`,
+                    institutionId,
+                    moduleId: 'ds_branches',
+                    data: updated
+                }).catch(() => {});
+                return updated;
             });
             success('Branch created successfully');
             return newBranch;
@@ -398,7 +431,19 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 updated_at: new Date().toISOString()
             };
             await apiService.saveModuleRecord('branches', updated);
-            setBranches(prev => prev.map(b => b.id === data.id ? { ...b, ...updated } : b));
+            setBranches(prev => {
+                const next = prev.map(b => b.id === data.id ? { ...b, ...updated } : b);
+                try {
+                    localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(next));
+                } catch (e) {}
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_ds_branches_${institutionId}`,
+                    institutionId,
+                    moduleId: 'ds_branches',
+                    data: next
+                }).catch(() => {});
+                return next;
+            });
             success('Branch updated successfully');
         } catch (err) {
             error('Failed to update branch');
@@ -415,7 +460,19 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         if (!window.confirm('Are you sure you want to delete this branch? Associated records will become unassigned.')) return;
         try {
             await apiService.deleteModuleRecord('branches', id);
-            setBranches(prev => prev.filter(b => b.id !== id));
+            setBranches(prev => {
+                const next = prev.filter(b => b.id !== id);
+                try {
+                    localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(next));
+                } catch (e) {}
+                apiService.saveModuleRecord('institution_module_states', {
+                    id: `ims_ds_branches_${institutionId}`,
+                    institutionId,
+                    moduleId: 'ds_branches',
+                    data: next
+                }).catch(() => {});
+                return next;
+            });
             if (activeBranchId === id) {
                 setActiveBranchId('ALL');
             }
@@ -466,7 +523,48 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const bInst = b.institutionId || (b as any).institution_id;
                 return bInst === institutionId || (normInstId && cleanId(bInst) === normInstId);
             });
-            if (loadedBranches.length === 0) {
+
+            // Smart consolidation with local backup and IMS cloud state so newly created branches never vanish across reloads
+            let backupBranches: Branch[] = [];
+            try {
+                const bb = localStorage.getItem(`ds_branches_backup_${institutionId}`);
+                if (bb) backupBranches = JSON.parse(bb);
+            } catch (e) {}
+
+            let imsBranches: Branch[] = [];
+            try {
+                if (dsSet && dsSet[0] && Array.isArray((dsSet[0] as any).branches)) {
+                    imsBranches = (dsSet[0] as any).branches;
+                }
+            } catch (e) {}
+
+            let lsBranches: Branch[] = [];
+            try {
+                const lsb = (apiService as any).ls?.get?.('branches') || [];
+                if (Array.isArray(lsb)) {
+                    lsBranches = lsb.filter((b: any) => {
+                        const bInst = b.institutionId || b.institution_id;
+                        return bInst === institutionId || (normInstId && cleanId(bInst) === normInstId);
+                    });
+                }
+            } catch (e) {}
+
+            const branchMap = new Map<string, Branch>();
+            (backupBranches || []).forEach(b => {
+                if (b && b.id) branchMap.set(b.id, b);
+            });
+            (lsBranches || []).forEach(b => {
+                if (b && b.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b });
+            });
+            (imsBranches || []).forEach(b => {
+                if (b && b.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b });
+            });
+            (loadedBranches || []).forEach(b => {
+                if (b && b.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b });
+            });
+
+            let finalBranches = Array.from(branchMap.values());
+            if (finalBranches.length === 0) {
                 const defaultBranch: Branch = {
                     id: `br_main_${institutionId}`,
                     institutionId,
@@ -477,10 +575,13 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     isActive: true,
                     is_active: true
                 };
-                loadedBranches = [defaultBranch];
+                finalBranches = [defaultBranch];
                 apiService.saveModuleRecord('branches', defaultBranch).catch(() => {});
             }
-            setBranches(loadedBranches);
+            setBranches(finalBranches);
+            try {
+                localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(finalBranches));
+            } catch (e) {}
 
             // Safely consolidate embedded cache columns with standalone DB rows and preserve local state if backend strips newly added columns
             setSettings(prev => {
@@ -618,7 +719,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                         (inv.studentId && (inv.studentId === s.id || (inv as any).admissionNumber === s.id)) ||
                         (inv.studentName && s.fullName && inv.studentName.trim().toLowerCase() === s.fullName.trim().toLowerCase())
                     );
-                    const invAdm = linkedInv?.admissionNumber || (linkedInv as any)?.admission_number;
+                    const invAdm = (linkedInv as any)?.admissionNumber || (linkedInv as any)?.admission_number;
                     const newAdm = (invAdm && String(invAdm).trim() && String(invAdm).trim() !== '-') ? String(invAdm).trim() : getNextAdm();
                     
                     console.log(`[DSContext] Auto-healing student ${s.fullName} admissionNumber: -> ${newAdm}`);
@@ -652,16 +753,16 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                                     (invWords && healedStudents.find(s => (s.fullName || '').replace(/\s+/g, ' ').trim().toLowerCase().split(' ').filter(Boolean).sort().join(' ') === invWords)) ||
                                     (cleanInvName.split(' ').length >= 2 ? healedStudents.find(s => {
                                         const sLower = (s.fullName || '').toLowerCase();
-                                        return cleanInvName.split(' ').filter(w => w.length > 2).every(w => sLower.includes(w));
+                                        return cleanInvName.split(' ').filter((w: string) => w.length > 2).every((w: string) => sLower.includes(w));
                                     }) : null);
 
                 // Heal admissionNumber
-                const currentAdm = inv.admissionNumber || (inv as any).admission_number;
+                const currentAdm = (inv as any).admissionNumber || (inv as any).admission_number;
                 if ((!currentAdm || !String(currentAdm).trim() || String(currentAdm).trim() === '-') && matchedStud) {
                     const studAdm = matchedStud.admissionNumber || (matchedStud as any).admission_number;
                     if (studAdm && String(studAdm).trim() && String(studAdm).trim() !== '-') {
-                        updatedInv.admissionNumber = String(studAdm).trim();
-                        updatedInv.admission_number = String(studAdm).trim();
+                        (updatedInv as any).admissionNumber = String(studAdm).trim();
+                        (updatedInv as any).admission_number = String(studAdm).trim();
                         modified = true;
                     }
                 }
@@ -700,7 +801,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
 
                 if (modified) {
-                    console.log(`[DSContext] Auto-healing invoice ${updatedInv.invoiceNumber || updatedInv.id}: adm="${updatedInv.admissionNumber}", name="${updatedInv.studentName}"`);
+                    console.log(`[DSContext] Auto-healing invoice ${updatedInv.invoiceNumber || updatedInv.id}: adm="${(updatedInv as any).admissionNumber}", name="${updatedInv.studentName}"`);
                     apiService.saveModuleRecord('ds_invoices', updatedInv).catch(err => {
                         console.warn('[DSContext] Failed to persist auto-healed invoice:', err);
                     });
@@ -716,7 +817,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const isGenericOrMissing = !rawName || rawName.toLowerCase() === 'student' || rawName.toLowerCase() === 'learner';
 
                 const targetId = p.studentId || (p as any).student_id;
-                const payAdm = (p.admissionNumber || (p as any).admission_number || '').trim().toLowerCase();
+                const payAdm = ((p as any).admissionNumber || (p as any).admission_number || '').trim().toLowerCase();
 
                 const matchedStud = (healedStudents || []).find(s => 
                     (targetId && (s.id === targetId || (s as any)._id === targetId)) ||
@@ -737,7 +838,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     realName = matchedInv.studentName;
                 }
 
-                const realAdm = matchedStud?.admissionNumber || (matchedStud as any)?.admission_number || (matchedInv as any)?.admissionNumber || p.admissionNumber;
+                const realAdm = matchedStud?.admissionNumber || (matchedStud as any)?.admission_number || (matchedInv as any)?.admissionNumber || (p as any).admissionNumber;
                 const realStudentId = matchedStud?.id || p.studentId;
 
                 if (isGenericOrMissing && realName) {
@@ -1808,6 +1909,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 balance: initialBalance,
                 createdAt: new Date().toISOString()
             };
+            const isOpeningBalance = Boolean((data as any).isOpeningBalance || inv.isOpeningBalance);
             delete inv.isOpeningBalance;
             delete inv.message;
 

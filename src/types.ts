@@ -3572,7 +3572,7 @@ export type PMPaymentMethod = 'Cash' | 'M-Pesa' | 'Bank' | 'Other';
 export type PMPaymentType = 'Rent' | 'Utility' | 'Deposit' | 'Other';
 export type PMPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 export type PMNoticeType = 'Vacate' | 'Late Rent Warning' | 'Lease Non-Renewal' | 'Custom Warning';
-export type PMNoticeStatus = 'Draft' | 'Issued' | 'Acknowledged';
+export type PMNoticeStatus = 'Draft' | 'Issued' | 'Acknowledged' | 'Completed';
 
 export interface PMNoticeLetter {
     id: string;

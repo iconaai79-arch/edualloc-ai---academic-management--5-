@@ -7643,7 +7643,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         --brand-secondary: ${activeBranding.secondaryColor};
                     }
                 `}} />
-                <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
                     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans flex flex-col p-4 md:p-8">
                         <DrivingSchoolManager
                             currentUser={undefined as any}
@@ -7920,7 +7920,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         } as any} />
                                     </ModuleAccessGuard>
                                 ) : activeRole === 'super_admin' ? (
-                                    <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
                                         <SuperAdminView {...{
                                             ...superAdminProps,
                                             payrollRecords: payrollRecords as any
@@ -8369,7 +8369,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     } as any}
                                     />
                                 ) : activeRole === 'student' && (activeInstitution?.institutionType === 'Driving School' || activeInstitution?.moduleStates?.some((m: any) => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'))) ? (
-                                    <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
                                         <DSStudentPortal
                                             currentUser={currentUser}
                                             currentInstitution={activeInstitution!}
@@ -8863,7 +8863,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             onLogAction={handleLogAction}
                                         />
                                     ) : (
-                                        <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                        <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
                                             <AdminView
                                                 {...superAdminProps as any}
                                                 currentUser={currentUser}

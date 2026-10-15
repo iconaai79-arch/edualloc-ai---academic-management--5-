@@ -2200,7 +2200,7 @@ export const DSAnalyticsView: React.FC<DSAnalyticsViewProps> = (props) => {
         return <DSAnalyticsViewInner {...props} />;
     }
     return (
-        <DrivingSchoolProvider institutionId={props.institution?.id}>
+        <DrivingSchoolProvider institutionId={props.institution?.id} currentUser={(props as any).currentUser}>
             <DSAnalyticsViewInner {...props} />
         </DrivingSchoolProvider>
     );

@@ -1678,7 +1678,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 unitType: data.unitType || '',
                 floorNumber: data.floorNumber,
                 rentAmount: data.rentAmount || 0,
-                status: editingUnit?.status || 'Vacant',
+                status: (data.status as PMUnitStatus) || editingUnit?.status || 'Vacant',
                 institutionId,
                 createdAt: editingUnit?.createdAt || new Date().toISOString()
             };
@@ -1686,7 +1686,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             setShowUnitModal(false);
             setEditingUnit(null);
-            loadData();
+            await loadData();
         } catch (e: any) { alert(e.message || "Failed to save unit"); console.error(e); }
     };
 
@@ -1694,7 +1694,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         if (!window.confirm("Are you sure you want to delete this unit?")) return;
         try {
             await apiService.deleteModuleRecord('pm_units', id);
-            loadData();
+            await loadData();
         } catch (e: any) { alert(e.message || "Failed to delete unit"); console.error(e); }
     };
 
@@ -1741,7 +1741,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
             setShowTenantModal(false);
             setEditingTenant(null);
-            loadData();
+            await loadData();
 
             if (!editingTenant && data.email) {
                 alert(`Tenant saved! Login credentials have been emailed to ${data.email}`);
@@ -1797,15 +1797,73 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         }
     };
 
-    const handleDeleteTenant = async (id: string) => {
-        if (!window.confirm("Are you sure you want to delete this tenant? All associated lease records might be affected.")) return;
+    const handleMoveOutLease = async (lease: PMLease) => {
+        const tenant = tenants.find(t => t.id === lease.tenantId);
+        const unit = units.find(u => u.id === lease.unitId);
+        const unitLabel = unit ? `Unit ${unit.unitNumber}` : 'the designated unit';
+        const tenantName = tenant?.name || 'Resident';
+
+        const confirmMsg = `Are you sure you want to move out tenant "${tenantName}" from ${unitLabel}?\n\nThis will automatically:\n1. Mark ${unitLabel} as VACANT immediately\n2. Terminate the active lease agreement\n3. Record move-out date as today`;
+        if (!window.confirm(confirmMsg)) return;
+
         try {
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // 1. Terminate lease
+            await apiService.saveModuleRecord('pm_leases', {
+                ...lease,
+                status: 'Terminated',
+                endDate: todayStr
+            });
+
+            // 2. Mark unit as Vacant
+            if (unit) {
+                await apiService.saveModuleRecord('pm_units', {
+                    ...unit,
+                    status: 'Vacant'
+                });
+            }
+
+            // 3. Mark any open vacate notices for this tenant as Completed
+            const tenantNotices = notices.filter(n => n.tenantId === lease.tenantId && n.status !== 'Completed');
+            for (const n of tenantNotices) {
+                await apiService.saveModuleRecord('pm_notices', { ...n, status: 'Completed' as any });
+            }
+
+            await loadData();
+            alert(`Tenant "${tenantName}" has been successfully moved out!\n${unitLabel} is now automatically marked as VACANT.`);
+        } catch (e: any) {
+            alert(e.message || "Failed to move out tenant");
+            console.error(e);
+        }
+    };
+
+    const handleDeleteTenant = async (id: string) => {
+        if (!window.confirm("Are you sure you want to delete this tenant? All associated active lease records will be terminated and their units automatically made Vacant.")) return;
+        try {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const tenantLeases = leases.filter(l => l.tenantId === id && l.status === 'Active');
+            for (const l of tenantLeases) {
+                await apiService.saveModuleRecord('pm_leases', {
+                    ...l,
+                    status: 'Terminated',
+                    endDate: todayStr
+                });
+                const unit = units.find(u => u.id === l.unitId);
+                if (unit && unit.status !== 'Vacant') {
+                    await apiService.saveModuleRecord('pm_units', {
+                        ...unit,
+                        status: 'Vacant'
+                    });
+                }
+            }
             await apiService.deleteModuleRecord('pm_tenants', id);
-            loadData();
+            await loadData();
+            alert("Tenant deleted and associated unit(s) marked as Vacant.");
         } catch (e: any) { alert(e.message || "Failed to delete tenant"); console.error(e); }
     };
 
-    const handleSaveInspection = async (data: Partial<PMInspection>) => {
+    const handleSaveInspection = async (data: Partial<PMInspection>, shouldVacate: boolean = true) => {
         try {
             const inspectionId = data.id || `insp_${Date.now()}`;
             const inspectionData: PMInspection = {
@@ -1828,10 +1886,58 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 createdAt: data.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_inspections', inspectionData);
+
+            // Automatically vacate the unit and terminate the lease if inspection is Completed or shouldVacate is true
+            if (inspectionData.status === 'Completed' || shouldVacate) {
+                const termDate = inspectionData.inspectionDate ? inspectionData.inspectionDate.split('T')[0] : new Date().toISOString().split('T')[0];
+                const lease = leases.find(l => l.id === inspectionData.leaseId);
+                if (lease) {
+                    if (lease.status === 'Active') {
+                        await apiService.saveModuleRecord('pm_leases', {
+                            ...lease,
+                            status: 'Terminated',
+                            endDate: termDate
+                        });
+                    }
+                    const unit = units.find(u => u.id === lease.unitId);
+                    if (unit && unit.status !== 'Vacant') {
+                        await apiService.saveModuleRecord('pm_units', {
+                            ...unit,
+                            status: 'Vacant'
+                        });
+                    }
+                }
+                if (inspectionData.tenantId) {
+                    const otherActiveLeases = leases.filter(l => l.tenantId === inspectionData.tenantId && l.status === 'Active' && l.id !== inspectionData.leaseId);
+                    for (const oLease of otherActiveLeases) {
+                        await apiService.saveModuleRecord('pm_leases', {
+                            ...oLease,
+                            status: 'Terminated',
+                            endDate: termDate
+                        });
+                        const oUnit = units.find(u => u.id === oLease.unitId);
+                        if (oUnit && oUnit.status !== 'Vacant') {
+                            await apiService.saveModuleRecord('pm_units', {
+                                ...oUnit,
+                                status: 'Vacant'
+                            });
+                        }
+                    }
+                }
+                const tenantNotices = notices.filter(n => n.tenantId === inspectionData.tenantId && n.status !== 'Completed');
+                for (const n of tenantNotices) {
+                    await apiService.saveModuleRecord('pm_notices', { ...n, status: 'Completed' as any });
+                }
+            }
+
             setShowInspectionModal(false);
             setEditingInspection(null);
-            loadData();
-            alert("Inspection report saved successfully!");
+            await loadData();
+            if (inspectionData.status === 'Completed' || shouldVacate) {
+                alert("Move-out inspection report saved! The associated house/unit has been automatically marked as VACANT, and the lease terminated.");
+            } else {
+                alert("Inspection draft saved successfully!");
+            }
         } catch (e: any) { alert(e.message || "Failed to save inspection"); console.error(e); }
     };
 
@@ -1839,7 +1945,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         if (!window.confirm("Are you sure you want to delete this inspection record?")) return;
         try {
             await apiService.deleteModuleRecord('pm_inspections', id);
-            loadData();
+            await loadData();
         } catch (e: any) { alert(e.message || "Failed to delete inspection"); console.error(e); }
     };
 
@@ -1865,10 +1971,30 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 createdAt: data.createdAt || new Date().toISOString()
             };
             await apiService.saveModuleRecord('pm_deposit_refunds', refundData);
+
+            // Automatically terminate lease and make unit Vacant if not already vacant
+            const lease = leases.find(l => l.id === refundData.leaseId);
+            if (lease) {
+                if (lease.status === 'Active') {
+                    await apiService.saveModuleRecord('pm_leases', {
+                        ...lease,
+                        status: 'Terminated',
+                        endDate: refundData.statementDate
+                    });
+                }
+                const unit = units.find(u => u.id === lease.unitId);
+                if (unit && unit.status !== 'Vacant') {
+                    await apiService.saveModuleRecord('pm_units', {
+                        ...unit,
+                        status: 'Vacant'
+                    });
+                }
+            }
+
             setShowRefundModal(false);
             setEditingRefund(null);
-            loadData();
-            alert("Deposit refund statement saved successfully!");
+            await loadData();
+            alert("Deposit refund statement saved successfully! Associated unit is set to Vacant.");
         } catch (e: any) { alert(e.message || "Failed to save deposit refund"); console.error(e); }
     };
 
@@ -1876,7 +2002,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
         if (!window.confirm("Are you sure you want to delete this deposit refund statement?")) return;
         try {
             await apiService.deleteModuleRecord('pm_deposit_refunds', id);
-            loadData();
+            await loadData();
         } catch (e: any) { alert(e.message || "Failed to delete deposit refund"); console.error(e); }
     };
 
@@ -2485,7 +2611,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <td className="p-6">
                                                 <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${unit.status === 'Vacant' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : unit.status === 'Occupied' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>{unit.status}</span>
                                             </td>
-                                            <td className="p-6 text-right space-x-2">
+                                            <td className="p-6 text-right space-x-2 whitespace-nowrap">
+                                                {unit.status === 'Occupied' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const activeLease = leases.find(l => l.unitId === unit.id && l.status === 'Active');
+                                                            if (activeLease) {
+                                                                handleMoveOutLease(activeLease);
+                                                            } else {
+                                                                if (window.confirm(`Mark Unit ${unit.unitNumber} as Vacant?`)) {
+                                                                    apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' }).then(() => loadData());
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="p-2.5 text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-xl transition-all"
+                                                        title="Move Out Occupant / Make Unit Vacant"
+                                                    >
+                                                        <HomeIcon className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                                 <button onClick={() => { setEditingUnit(unit); setShowUnitModal(true); }} className="p-2.5 text-slate-400 hover:text-orange-600 rounded-xl transition-colors"><PencilIcon className="w-4 h-4" /></button>
                                                 <button onClick={() => handleDeleteUnit(unit.id)} className="p-2.5 text-slate-400 hover:text-rose-600 rounded-xl transition-colors"><TrashIcon className="w-4 h-4" /></button>
                                             </td>
@@ -2523,6 +2667,24 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <span className="truncate">{properties.find(p => p.id === unit.propertyId)?.name || 'N/A'}</span>
                                         </div>
                                         <div className="flex gap-2">
+                                            {unit.status === 'Occupied' && (
+                                                <button
+                                                    onClick={() => {
+                                                        const activeLease = leases.find(l => l.unitId === unit.id && l.status === 'Active');
+                                                        if (activeLease) {
+                                                            handleMoveOutLease(activeLease);
+                                                        } else {
+                                                            if (window.confirm(`Mark Unit ${unit.unitNumber} as Vacant?`)) {
+                                                                apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' }).then(() => loadData());
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="p-2.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-xl"
+                                                    title="Move Out Occupant / Make Unit Vacant"
+                                                >
+                                                    <HomeIcon className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             <button onClick={() => { setEditingUnit(unit); setShowUnitModal(true); }} className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl text-slate-400"><PencilIcon className="w-4 h-4" /></button>
                                             <button onClick={() => handleDeleteUnit(unit.id)} className="p-2.5 bg-rose-50 dark:bg-rose-900/30 rounded-xl text-rose-600"><TrashIcon className="w-4 h-4" /></button>
                                         </div>
@@ -2618,7 +2780,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </tr>
                         </thead>
                         <tbody>
-                            {pagedTenants.map(tenant => (
+                            {pagedTenants.map(tenant => {
+                                const activeLease = leases.find(l => l.tenantId === tenant.id && l.status === 'Active');
+                                return (
                                 <tr key={tenant.id} className="border-b border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
                                     <td className="p-6 font-black text-slate-900 dark:text-white uppercase italic">{tenant.name}</td>
                                     <td className="p-6">
@@ -2628,6 +2792,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <td className="p-6 text-sm font-bold text-slate-500">{tenant.idNumber || '---'}</td>
                                     <td className="p-6 text-xs text-slate-400 font-bold">{new Date(tenant.createdAt).toLocaleDateString()}</td>
                                     <td className="p-6 text-right space-x-2 whitespace-nowrap">
+                                        {activeLease && (
+                                            <button onClick={() => handleMoveOutLease(activeLease)} className="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-xl hover:scale-105 transition-all" title="Move Out Tenant & Vacate Unit"><HomeIcon className="w-4 h-4" /></button>
+                                        )}
                                         <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="KCB Integration"><KcbIcon className="w-4 h-4" /></button>
                                         <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-xl hover:scale-105 transition-all" title="Coop B2B Integration"><CoopIcon className="w-4 h-4" /></button>
                                         <button onClick={() => handleResendTenantCredentials(tenant)} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl hover:scale-105 transition-all" title="Resend Tenant Credentials"><PaperAirplaneIcon className="w-4 h-4" /></button>
@@ -2636,7 +2803,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <button onClick={() => handleDeleteTenant(tenant.id)} className="p-3 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl hover:scale-105 transition-all" title="Delete Tenant"><TrashIcon className="w-4 h-4" /></button>
                                     </td>
                                 </tr>
-                            ))}
+                            );})}
                             {filteredTenants.length === 0 && (
                                 <tr><td colSpan={5} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Tenants Found</td></tr>
                             )}
@@ -2645,7 +2812,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
                 {/* Mobile Card View */}
                 <div className="lg:hidden divide-y divide-slate-50 dark:divide-slate-700/50">
-                    {pagedTenants.map(tenant => (
+                    {pagedTenants.map(tenant => {
+                        const activeLease = leases.find(l => l.tenantId === tenant.id && l.status === 'Active');
+                        return (
                         <div key={tenant.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/20 transition-colors">
                             <div className="flex justify-between items-start">
                                 <div>
@@ -2654,6 +2823,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <p className="text-[10px] text-slate-400 mt-0.5">{tenant.idNumber || 'NO ID PROVIDED'}</p>
                                 </div>
                                 <div className="flex gap-2">
+                                    {activeLease && (
+                                        <button onClick={() => handleMoveOutLease(activeLease)} className="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-2xl" title="Move Out Tenant & Vacate Unit"><HomeIcon className="w-5 h-5" /></button>
+                                    )}
                                     <button onClick={() => { setSelectedTenantForBankAction(tenant); setShowBankModal(true); }} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl"><KcbIcon className="w-5 h-5" /></button>
                                     <button onClick={() => { setSelectedTenantForCoopAction(tenant); setShowCoopModal(true); }} className="p-3 bg-teal-50 dark:bg-teal-900/30 text-teal-600 rounded-2xl" title="Coop B2B Integration"><CoopIcon className="w-5 h-5" /></button>
                                     <button onClick={() => handleResendTenantCredentials(tenant)} className="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl" title="Resend Tenant Credentials"><PaperAirplaneIcon className="w-5 h-5" /></button>
@@ -2663,7 +2835,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    );})}
                     {filteredTenants.length === 0 && (
                         <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] italic">No Tenants Found</div>
                     )}
@@ -3191,13 +3363,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     <EyeIcon className="w-4 h-4" />
                                                 </button>
                                                 {lease.status === 'Active' && (
-                                                    <button
-                                                        onClick={() => { setRenewingLease(lease); setShowRenewModal(true); }}
-                                                        className="px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-500 transition-all font-black text-[10px] uppercase tracking-widest"
-                                                        title="Renew Lease"
-                                                    >
-                                                        Renew
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={() => { setRenewingLease(lease); setShowRenewModal(true); }}
+                                                            className="px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-500 transition-all font-black text-[10px] uppercase tracking-widest"
+                                                            title="Renew Lease"
+                                                        >
+                                                            Renew
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleMoveOutLease(lease)}
+                                                            className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5"
+                                                            title="Move Out Tenant / Vacate Unit"
+                                                        >
+                                                            Move Out
+                                                        </button>
+                                                    </>
                                                 )}
                                             </div>
                                         </td>
@@ -3240,12 +3421,20 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <EyeIcon className="w-4 h-4" /> Agreement
                                     </button>
                                     {lease.status === 'Active' && (
-                                        <button
-                                            onClick={() => { setRenewingLease(lease); setShowRenewModal(true); }}
-                                            className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20"
-                                        >
-                                            Renew
-                                        </button>
+                                        <>
+                                            <button
+                                                onClick={() => { setRenewingLease(lease); setShowRenewModal(true); }}
+                                                className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20"
+                                            >
+                                                Renew
+                                            </button>
+                                            <button
+                                                onClick={() => handleMoveOutLease(lease)}
+                                                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20"
+                                            >
+                                                Move Out
+                                            </button>
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -8018,8 +8207,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             try {
                 const updated = { ...refund, status: 'Approved' as const };
                 await apiService.saveModuleRecord('pm_deposit_refunds', updated);
-                loadData();
-                alert("Deposit refund statement approved!");
+                const lease = leases.find(l => l.id === refund.leaseId);
+                if (lease) {
+                    if (lease.status === 'Active') {
+                        await apiService.saveModuleRecord('pm_leases', { ...lease, status: 'Terminated', endDate: new Date().toISOString().split('T')[0] });
+                    }
+                    const unit = units.find(u => u.id === lease.unitId);
+                    if (unit && unit.status !== 'Vacant') {
+                        await apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' });
+                    }
+                }
+                await loadData();
+                alert("Deposit refund statement approved! Associated unit marked as Vacant.");
             } catch (e: any) { alert(e.message || "Failed to approve refund"); }
         };
 
@@ -8027,8 +8226,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             try {
                 const updated = { ...refund, status: 'Paid' as const };
                 await apiService.saveModuleRecord('pm_deposit_refunds', updated);
-                loadData();
-                alert("Deposit refund statement marked as Paid!");
+                const lease = leases.find(l => l.id === refund.leaseId);
+                if (lease) {
+                    if (lease.status === 'Active') {
+                        await apiService.saveModuleRecord('pm_leases', { ...lease, status: 'Terminated', endDate: new Date().toISOString().split('T')[0] });
+                    }
+                    const unit = units.find(u => u.id === lease.unitId);
+                    if (unit && unit.status !== 'Vacant') {
+                        await apiService.saveModuleRecord('pm_units', { ...unit, status: 'Vacant' });
+                    }
+                }
+                await loadData();
+                alert("Deposit refund statement marked as Paid! Associated unit marked as Vacant.");
             } catch (e: any) { alert(e.message || "Failed to mark refund as Paid"); }
         };
 
@@ -9656,7 +9865,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         unitNumber: formData.get('unitNumber') as string,
                         unitType: formData.get('unitType') as string,
                         floorNumber: formData.get('floorNumber') ? parseInt(formData.get('floorNumber') as string) : undefined,
-                        rentAmount: parseFloat(formData.get('rentAmount') as string) || 0
+                        rentAmount: parseFloat(formData.get('rentAmount') as string) || 0,
+                        status: (formData.get('status') as PMUnitStatus) || editingUnit?.status || 'Vacant'
                     });
                 }} className="space-y-4">
                     <div className="space-y-2">
@@ -9693,6 +9903,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Monthly Rent (KES)</label>
                             <input name="rentAmount" type="number" defaultValue={editingUnit?.rentAmount || 0} required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all" placeholder="0.00" />
                         </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Occupancy Status</label>
+                        <select name="status" defaultValue={editingUnit?.status || 'Vacant'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none transition-all">
+                            <option value="Vacant">Vacant</option>
+                            <option value="Occupied">Occupied</option>
+                            <option value="Maintenance">Maintenance</option>
+                        </select>
                     </div>
                     <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/20 mt-4">
                         {editingUnit ? "Save Changes" : "Deploy Unit"}
@@ -10301,6 +10519,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 >
                                     Conduct Move-Out Inspection
                                 </button>
+                                {lease && lease.status === 'Active' && (
+                                    <button
+                                        onClick={async () => {
+                                            await handleMoveOutLease(lease);
+                                            setSelectedVacateNotice(null);
+                                        }}
+                                        className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-colors"
+                                    >
+                                        Finalize Move-Out & Vacate Unit
+                                    </button>
+                                )}
                                 {selectedVacateNotice.status === 'Issued' && (
                                     <button
                                         onClick={async () => {
@@ -10510,12 +10739,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 e.preventDefault();
                                 const formData = new FormData(e.currentTarget);
                                 const calculatedCost = totalCost;
+                                const statusVal = (formData.get('status') as any) || 'Completed';
+                                const shouldVacate = statusVal === 'Completed' || formData.get('autoVacateUnit') === 'on';
                                 handleSaveInspection({
                                     leaseId: formData.get('leaseId') as string,
                                     tenantId: leases.find(l => l.id === formData.get('leaseId'))?.tenantId || '',
                                     inspectionDate: formData.get('inspectionDate') as string,
                                     inspectedBy: formData.get('inspectedBy') as string,
-                                    status: formData.get('status') as any,
+                                    status: statusVal,
                                     structuralCondition: formData.get('structuralCondition') as string,
                                     structuralComments: formData.get('structuralComments') as string,
                                     cleaningCondition: formData.get('cleaningCondition') as string,
@@ -10527,7 +10758,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     tenantSignoff: formData.get('tenantSignoff') === 'on',
                                     id: editingInspection?.id,
                                     createdAt: editingInspection?.createdAt
-                                });
+                                }, shouldVacate);
                             }}
                             className="space-y-6 pb-2"
                         >
@@ -10556,11 +10787,24 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
                         <div className="space-y-1">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Report Status</label>
-                            <select name="status" defaultValue={editingInspection?.status || 'Draft'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
-                                <option value="Draft">Draft</option>
-                                <option value="Completed">Completed</option>
+                            <select name="status" defaultValue={editingInspection?.status || 'Completed'} className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white">
+                                <option value="Completed">Completed (Finalize Move-Out & Vacate Unit)</option>
+                                <option value="Draft">Draft (In Progress)</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-4 flex items-center gap-3">
+                        <input
+                            type="checkbox"
+                            id="autoVacateUnit"
+                            name="autoVacateUnit"
+                            defaultChecked={true}
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <label htmlFor="autoVacateUnit" className="text-xs font-bold text-emerald-800 dark:text-emerald-300 cursor-pointer">
+                            Automatically mark House/Unit as <span className="font-black uppercase underline">Vacant</span> and terminate active lease upon saving
+                        </label>
                     </div>
 
                     <div className="border-t border-slate-100 dark:border-slate-700/50 my-4 pt-4 space-y-4">

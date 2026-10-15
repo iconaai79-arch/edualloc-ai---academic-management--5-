@@ -2863,14 +2863,16 @@ export const apiService = {
                     }
                     let finalRecords = result;
                     if (result.length > 0 && localData.length > 0) {
-                        // Only preserve genuinely pending local/offline creations (items created offline waiting to sync)
+                        // For config tables like 'branches', never discard newly created local records
+                        // that exist locally but haven't synced to server or were filtered out!
+                        const preserveAllLocal = module === 'branches' || STATIC_CONFIG_MODULES.has(module);
                         const pendingLocal = localData.filter((item: any) => 
-                            item && (item._is_pending_sync || item._isLocalOnly || item._offlineCreated || (item.id && String(item.id).startsWith('temp_')))
+                            item && (preserveAllLocal || item._is_pending_sync || item._isLocalOnly || item._offlineCreated || (item.id && String(item.id).startsWith('temp_')))
                         );
                         if (pendingLocal.length > 0) {
                             const combined = new Map<string, any>();
-                            result.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
-                            pendingLocal.forEach((item: any) => { if (item && item.id && !combined.has(item.id)) combined.set(item.id, item); });
+                            pendingLocal.forEach((item: any) => { if (item && item.id) combined.set(item.id, item); });
+                            result.forEach((item: any) => { if (item && item.id) combined.set(item.id, { ...(combined.get(item.id) || {}), ...item }); });
                             finalRecords = Array.from(combined.values());
                         } else {
                             finalRecords = result;
@@ -5401,8 +5403,30 @@ export const apiService = {
                 if (contentTypePost && contentTypePost.includes('application/json')) {
                     const savedRes = await response.json().catch(() => null);
                     if (savedRes) {
-                        ls.upsert(module, savedRes);
-                        try { localDb.upsert(module, savedRes).catch(() => {}); } catch (_) {}
+                        let recordToStore = savedRes;
+                        if (savedRes.offlineFallback || (savedRes.success && !savedRes.created_at && !savedRes.name && !savedRes.student_name && !savedRes.invoice_number && !savedRes.title)) {
+                            if (Array.isArray(savedRes.data) && savedRes.data[0]) {
+                                recordToStore = savedRes.data[0];
+                            } else if (savedRes.data && typeof savedRes.data === 'object' && !Array.isArray(savedRes.data)) {
+                                recordToStore = savedRes.data;
+                            } else {
+                                recordToStore = { ...currentPayload, ...(savedRes.id ? { id: savedRes.id } : {}) };
+                            }
+                        }
+                        ls.upsert(module, recordToStore);
+                        try {
+                            localDb.upsert(module, recordToStore).catch(() => {});
+                            if (savedRes.offlineFallback) {
+                                localDb.put('sync_queue', {
+                                    id: `sync_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                                    module,
+                                    data: recordToStore,
+                                    action: 'save',
+                                    timestamp: new Date().toISOString()
+                                }).catch(() => {});
+                            }
+                        } catch (_) {}
+                        return toCamelCase(recordToStore);
                     }
                     return savedRes;
                 } else {

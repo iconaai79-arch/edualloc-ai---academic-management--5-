@@ -794,11 +794,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     res.status(200).json([]);
                 } else {
                     const fallbackId = (req.body?.data as any)?.id || (Array.isArray(req.body?.data) ? req.body?.data[0]?.id : null) || (req.body as any)?.id || `watchdog_${Date.now()}`;
+                    const payloadData = Array.isArray(req.body?.data) ? req.body?.data : (req.body?.data ? [req.body?.data] : []);
                     res.status(200).json({
                         success: true,
                         offlineFallback: true,
                         timeout: true,
                         message: `Operation on ${moduleName} handled via offline fallback due to database latency.`,
+                        data: payloadData,
                         id: fallbackId,
                         module: moduleName
                     });
@@ -1067,6 +1069,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const r = String(role).toLowerCase().trim();
                 return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
             };
+            const isInstitutionAdminRole = (role?: string) => {
+                if (!role) return false;
+                const r = String(role).toLowerCase().trim();
+                return isSuperAdminRole(r) ||
+                    r === 'group_admin' ||
+                    r === 'admin' ||
+                    r.includes('admin') ||
+                    r.includes('director') ||
+                    r.includes('manager') ||
+                    r.includes('principal') ||
+                    r.includes('head_teacher') ||
+                    r.includes('deputy') ||
+                    r.includes('dos') ||
+                    r.includes('hoi') ||
+                    r.includes('bursar') ||
+                    r.includes('finance_officer');
+            };
             const isGroupOrSuperAdmin = isSuperAdminRole(user?.role) || user?.role === 'group_admin' || (user as any)?.is_super_admin === true || (user as any)?.isSuperAdmin === true;
 
             // Security guard: protect user identity records from unauthenticated global platform-wide harvesting
@@ -1290,13 +1309,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-                const isBranchRestrictedUser = user && !isSuperAdminRole(user.role) && user.role !== 'group_admin';
+                const tablesWithBranchId = ['users', 'invoices', 'receipts'];
+                const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
                 
                 if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                    if (moduleName === 'branches') {
-                        q = q.eq('id', user.branchId);
-                    } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                    if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
                         q = q.or(`branch_id.eq.${user.branchId},branch_id.is.null,branch_id.eq.`);
                     } else {
                         q = q.eq('branch_id', user.branchId);
@@ -1423,12 +1440,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         q = q.in(moduleName === 'institutions' ? 'id' : 'institution_id', instVariants);
                     }
                 }
-                const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-                const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                const tablesWithBranchId = ['users', 'invoices', 'receipts'];
+                const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
                 if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                    if (moduleName === 'branches') {
-                        q = q.eq('id', user.branchId);
-                    } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                    if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
                         q = q.or(`branch_id.eq.${user.branchId},branch_id.is.null,branch_id.eq.`);
                     } else {
                         q = q.eq('branch_id', user.branchId);
@@ -1521,12 +1536,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
-            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-            const isBranchRestrictedUser = user && !isSuperAdminRole(user.role) && user.role !== 'group_admin';
+            const tablesWithBranchId = ['users', 'invoices', 'receipts'];
+            const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
             if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                if (moduleName === 'branches') {
-                    sqlConditions.push({ sql: `id::text = $VAL`, val: user.branchId });
-                } else if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
+                if (['users', 'students', 'student_enrollments'].includes(moduleName)) {
                     sqlConditions.push({ sql: `(branch_id::text = $VAL OR branch_id IS NULL OR branch_id = '')`, val: user.branchId });
                 } else {
                     sqlConditions.push({ sql: `branch_id::text = $VAL`, val: user.branchId });
@@ -3502,6 +3515,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const r = String(role).toLowerCase().trim();
                 return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
             };
+            const isInstitutionAdminRolePost = (role?: string) => {
+                if (!role) return false;
+                const r = String(role).toLowerCase().trim();
+                return isSuperAdminRolePost(r) ||
+                    r === 'group_admin' ||
+                    r === 'admin' ||
+                    r.includes('admin') ||
+                    r.includes('director') ||
+                    r.includes('manager') ||
+                    r.includes('principal') ||
+                    r.includes('head_teacher') ||
+                    r.includes('deputy') ||
+                    r.includes('dos') ||
+                    r.includes('hoi') ||
+                    r.includes('bursar') ||
+                    r.includes('finance_officer');
+            };
             const isInstOrNoInstTable = moduleName === 'institutions' || targetDbTable === 'institutions' || isTableWithoutInstitutionId(moduleName);
             const skipTenancy = isSuperAdminRolePost(user?.role) || (user as any)?.is_super_admin === true || isInstOrNoInstTable;
             const isBillingModule = ['invoice_clients', 'company_invoice_settings', 'finance_numbering_configs', 'invoices', 'receipts'].includes(moduleName);
@@ -3526,11 +3556,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? recordData.map(r => ({ ...r, ...(resolveInstId(r) ? { institution_id: resolveInstId(r) } : {}) }))
                     : { ...recordData, ...(resolveInstId(recordData) ? { institution_id: resolveInstId(recordData) } : {}) });
 
-            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-            const isBranchRestrictedUser = user && !isSuperAdminRolePost(user.role) && user.role !== 'group_admin';
+            const tablesWithBranchId = ['users', 'invoices', 'receipts'];
+            const isBranchRestrictedUser = user && !isInstitutionAdminRolePost(user.role);
             
             const appendBranch = (r: any) => {
-                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName) && moduleName !== 'branches') {
+                if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
                     return {
                         ...r,
                         branch_id: r.branch_id || r.branchId || user.branchId
@@ -4037,16 +4067,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (moduleName === 'ds_invoices') {
+                        if (copy.branchId !== undefined && copy.branch_id === undefined) {
+                            copy.branch_id = copy.branchId;
+                            delete copy.branchId;
+                        }
+                        if (copy.branch_id === '' || copy.branch_id === 'null' || copy.branch_id === 'undefined') {
+                            copy.branch_id = null;
+                        }
+                        if (copy.student_id === '' || copy.student_id === 'null' || copy.student_id === 'undefined') {
+                            copy.student_id = null;
+                        }
+                        if (copy.feeStructureId !== undefined) {
+                            if (copy.fee_structure_id === undefined) copy.fee_structure_id = copy.feeStructureId;
+                            delete copy.feeStructureId;
+                        }
+                        if (copy.fee_structure_id === '' || copy.fee_structure_id === 'null' || copy.fee_structure_id === 'undefined') {
+                            copy.fee_structure_id = null;
+                        }
                         if (copy.studentName !== undefined) {
                             if (copy.student_name === undefined) copy.student_name = copy.studentName;
                             delete copy.studentName;
                         }
                         if (!copy.student_name || typeof copy.student_name !== 'string' || !copy.student_name.trim() || copy.student_name.trim().toLowerCase() === 'null') {
                             copy.student_name = copy.name || copy.fullName || copy.student || 'Student';
-                        }
-                        if (copy.feeStructureId !== undefined) {
-                            if (copy.fee_structure_id === undefined) copy.fee_structure_id = copy.feeStructureId;
-                            delete copy.feeStructureId;
                         }
                         if (copy.paidAmount !== undefined) {
                             if (copy.paid_amount === undefined) copy.paid_amount = copy.paidAmount;
@@ -4063,6 +4106,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (copy.invoiceNumber !== undefined) {
                             if (copy.invoice_number === undefined) copy.invoice_number = copy.invoiceNumber;
                             delete copy.invoiceNumber;
+                        }
+                        if (!copy.invoice_number || typeof copy.invoice_number !== 'string' || !copy.invoice_number.trim()) {
+                            copy.invoice_number = `INV-DS-${Date.now().toString().slice(-6)}`;
                         }
                         if (copy.dueDate !== undefined) {
                             if (copy.due_date === undefined) copy.due_date = parseDate(copy.dueDate);
@@ -5693,7 +5739,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any = null;
 
             let error: any = null;
-            let maxRetries = 2;
+            let maxRetries = 10;
             let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
             let tableRequiresUUID = false;
 
@@ -5783,12 +5829,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(ensureValidId) : ensureValidId(currentPayload);
                 }
 
+                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments'].includes(moduleName);
                 const queryRes: any = await executeWithTimeout(
-                    supabase.from(targetDbTable).upsert(currentPayload).select(),
-                    8000
+                    supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
+                    isBillingOrDsModule ? 14000 : 8000
                 ).catch((e: any) => ({ data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } }));
                 data = queryRes.data;
                 error = queryRes.error;
+
+                // Direct PG pool fallback if PostgREST query times out or fails with network latency
+                if (error && (error.code === 'TIMEOUT' || error.message?.includes('timeout') || error.message?.includes('Database query timed out'))) {
+                    try {
+                        const pool = await getPgPool();
+                        if (pool && currentPayload) {
+                            const items = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                            const insertedRows: any[] = [];
+                            for (const item of items) {
+                                if (item && typeof item === 'object' && item.id) {
+                                    const keys = Object.keys(item).filter(k => /^[a-zA-Z0-9_]+$/.test(k));
+                                    const vals: any[] = [];
+                                    const placeholders: string[] = [];
+                                    const updateClauses: string[] = [];
+                                    keys.forEach((k, idx) => {
+                                        placeholders.push(`$${idx + 1}`);
+                                        let v = item[k];
+                                        if (v !== null && typeof v === 'object') {
+                                            v = JSON.stringify(v);
+                                        }
+                                        vals.push(v);
+                                        if (k !== 'id') {
+                                            updateClauses.push(`"${k}" = EXCLUDED."${k}"`);
+                                        }
+                                    });
+                                    const sql = `INSERT INTO public."${targetDbTable}" ("${keys.join('", "')}") VALUES (${placeholders.join(', ')}) ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')} RETURNING *;`;
+                                    const r = await executeWithTimeout(pool.query(sql, vals), 3000).catch(() => null);
+                                    if (r && r.rows && r.rows[0]) {
+                                        insertedRows.push(r.rows[0]);
+                                    }
+                                }
+                            }
+                            if (insertedRows.length > 0) {
+                                console.info(`[api/records POST] Direct PG fallback resolved timeout for [${moduleName}] (${insertedRows.length} rows saved)`);
+                                data = insertedRows;
+                                error = null;
+                            }
+                        }
+                    } catch (pgErr) {
+                        console.warn(`[api/records POST] Direct PG fallback attempt failed for [${moduleName}]:`, pgErr);
+                    }
+                }
 
                 if (!error) break;
 
@@ -5843,6 +5932,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripInstCol) : stripInstCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'branches' || targetDbTable === 'branches') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS code TEXT;
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS phone TEXT;
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS email TEXT;
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS manager_user_id TEXT;
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const stripBranchCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            delete copy[offendingCol];
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripBranchCol) : stripBranchCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
+                    if (moduleName === 'pm_leases' || targetDbTable === 'pm_leases') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.pm_leases ADD COLUMN IF NOT EXISTS lease_number TEXT;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const stripLeaseCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            delete copy[offendingCol];
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripLeaseCol) : stripLeaseCol(currentPayload);
                         maxRetries--;
                         continue;
                     }
@@ -6545,11 +6688,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        error.code === 'PGRST205' || 
                                        error.code === 'PGRST204' ||
                                        error.code === 'PGRST200' ||
+                                       error.code === 'TIMEOUT' ||
                                        // 23503 on non-institution FKs (relational: ward_id, bed_id etc.) or student_enrollments — already retried above, treat as offline
                                        (error.code === '23503' && (!message.includes('institution_id') || moduleName === 'student_enrollments' || targetDbTable === 'student_enrollments')) ||
                                        error.code === '23502' ||
                                        error.code === '22P02' ||
                                        (Date.now() - requestStartTime > MAX_SAFE_EXECUTION_MS) ||
+                                       message.includes('timeout') ||
                                        message.includes('schema cache') || 
                                        message.includes('column') ||
                                        message.includes('does not exist') ||
@@ -6559,7 +6704,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'users') {
+                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts'].includes(moduleName)) {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {
@@ -6604,6 +6749,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         success: true,
                         offlineFallback: true,
                         message: `Table/column '${moduleName}' auto-handled locally.`,
+                        data: Array.isArray(currentPayload) ? currentPayload : [currentPayload],
                         id: (recordData as any)?.id || (Array.isArray(recordData) ? recordData[0]?.id : null) || getStrParam(id)
                     });
                 }
@@ -7697,7 +7843,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 let data: any = null;
                 let error: any = null;
-                let patchRetries = 2;
+                let patchRetries = 10;
                 let patchTableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
 
                 while (patchRetries >= 0) {
@@ -7727,10 +7873,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
 
-                    const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-                    const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+                    const tablesWithBranchId = ['users', 'invoices', 'receipts'];
+                    const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
                     if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                        q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
+                        q = q.eq('branch_id', user.branchId);
                     }
 
                     const queryRes: any = await executeWithTimeout(
@@ -7787,6 +7933,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             delete currentUpdateData[offendingCol];
                             delete currentUpdateData.institution_id;
                             delete currentUpdateData.institutionId;
+                            patchRetries--;
+                            continue;
+                        }
+
+                        if (moduleName === 'branches' || targetDbTable === 'branches') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS code TEXT;
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS phone TEXT;
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS email TEXT;
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS manager_user_id TEXT;
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2000
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+                            delete currentUpdateData[offendingCol];
+                            patchRetries--;
+                            continue;
+                        }
+
+                        if (moduleName === 'pm_leases' || targetDbTable === 'pm_leases') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.pm_leases ADD COLUMN IF NOT EXISTS lease_number TEXT;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2000
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+                            delete currentUpdateData[offendingCol];
                             patchRetries--;
                             continue;
                         }
@@ -8104,10 +8290,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 q = q.eq('institution_id', user?.institutionId);
             }
 
-            const tablesWithBranchId = ['users', 'invoices', 'receipts', 'branches', 'branch_integration_configs'];
-            const isBranchRestrictedUser = user && user.role !== 'super_admin' && user.role !== 'group_admin';
+            const tablesWithBranchId = ['users', 'invoices', 'receipts'];
+            const isBranchRestrictedUser = user && !isInstitutionAdminRole(user.role);
             if (isBranchRestrictedUser && user.branchId && tablesWithBranchId.includes(moduleName)) {
-                q = q.eq(moduleName === 'branches' ? 'id' : 'branch_id', user.branchId);
+                q = q.eq('branch_id', user.branchId);
             }
 
             const { error } = await q;
