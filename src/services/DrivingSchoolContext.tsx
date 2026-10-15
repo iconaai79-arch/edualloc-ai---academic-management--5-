@@ -133,6 +133,7 @@ interface DrivingSchoolContextType {
     addPayment: (data: any) => Promise<void>;
     updatePayment: (data: any) => Promise<void>;
     deletePayment: (id: string) => Promise<void>;
+    deletePayments: (ids: string[], skipConfirmation?: boolean) => Promise<void>;
     updateLesson: (data: any) => Promise<void>;
     deleteLesson: (id: string) => Promise<void>;
     addLead: (data: Partial<DSLead>) => Promise<void>;
@@ -209,6 +210,7 @@ const defaultDrivingSchoolContext: DrivingSchoolContextType = {
     addPayment: async () => {},
     updatePayment: async () => {},
     deletePayment: async () => {},
+    deletePayments: async () => {},
     updateLesson: async () => {},
     deleteLesson: async () => {},
     addLead: async () => {},
@@ -1979,6 +1981,43 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, invoices, payments, onRefresh, success, error]);
 
+    const deletePayments = useCallback(async (ids: string[], skipConfirmation = false) => {
+        if (!institutionId || !ids || ids.length === 0) return;
+        const count = ids.length;
+        if (!skipConfirmation) {
+            if (!window.confirm(`Are you sure you want to permanently delete ${count === 1 ? 'this payment' : `these ${count} payments`}? This action will adjust affected invoice balances and cannot be undone.`)) {
+                return;
+            }
+        }
+
+        try {
+            const idsSet = new Set(ids);
+            const targetPayments = payments.filter(p => idsSet.has(p.id));
+
+            await apiService.deleteModuleRecord('ds_payments', ids.join(','));
+
+            const affectedInvoiceIds = new Set<string>();
+            targetPayments.forEach(p => {
+                if (p.invoiceId) affectedInvoiceIds.add(p.invoiceId);
+            });
+
+            for (const invId of affectedInvoiceIds) {
+                const invoice = invoices.find(inv => inv.id === invId);
+                if (invoice) {
+                    const invoicePayments = payments.filter(p => p.invoiceId === invId && !idsSet.has(p.id));
+                    const recalculated = recalculateDSInvoicePayments(invoice, invoicePayments);
+                    await apiService.saveModuleRecord('ds_invoices', recalculated).catch(e => console.warn("[DS] Failed to update invoice after payment bulk delete:", e));
+                }
+            }
+
+            success(`Successfully deleted ${count} ${count === 1 ? 'payment' : 'payments'}`);
+            await onRefresh();
+        } catch (err: any) {
+            error(err.message || "Failed to delete payments");
+            throw err;
+        }
+    }, [institutionId, payments, invoices, onRefresh, success, error]);
+
     const deleteInvoice = useCallback(async (id: string) => {
         if (!institutionId) return;
         const linkedPayments = payments.filter(p => p.invoiceId === id);
@@ -2067,7 +2106,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         addBranch, updateBranch, deleteBranch,
         rawStudents, rawInstructors, rawVehicles, rawLessons, rawInvoices, rawPayments, rawLeads, rawExpenditures,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads, setExpenditures,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, addLead, updateLead, deleteLead, deleteLeads,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, deletePayments, addLead, updateLead, deleteLead, deleteLeads,
         addExpenditure, updateExpenditure, deleteExpenditure,
         sendLessonNotification,
         refreshData, stats
