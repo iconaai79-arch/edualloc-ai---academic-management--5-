@@ -411,6 +411,7 @@ const TABLES_WITH_METADATA = new Set([
   'users',
   'institutions',
   'student_enrollments',
+  'ds_students',
   'retail_sales',
   'visitors',
   'his_patients',
@@ -2988,6 +2989,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 delete copy.licenseTypeInterested;
                 delete copy.preferred_lesson_hours;
                 delete copy.preferredLessonHours;
+                if (!copy.passport_photo && copy.metadata?.passportPhoto) {
+                    copy.passport_photo = copy.metadata.passportPhoto;
+                }
+                if (!copy.passport_photo && copy.metadata?.passport_photo) {
+                    copy.passport_photo = copy.metadata.passport_photo;
+                }
+                if (copy.passport_photo && !copy.passportPhoto) {
+                    copy.passportPhoto = copy.passport_photo;
+                }
             }
             if (moduleName === 'receipts' || moduleName === 'payments' || moduleName === 'ds_payments') {
                 if (copy.amount !== undefined && copy.amount_paid === undefined) {
@@ -3735,6 +3745,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.licenseTypeInterested;
                     delete copy.preferred_lesson_hours;
                     delete copy.preferredLessonHours;
+
+                    const photo = copy.passport_photo || copy.passportPhoto;
+                    if (photo) {
+                        copy.passport_photo = photo;
+                        const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                        meta.passportPhoto = photo;
+                        copy.metadata = meta;
+                    }
+                    delete copy.passportPhoto;
+
+                    if (copy.checkoutRequestId && !copy.checkout_request_id) {
+                        copy.checkout_request_id = copy.checkoutRequestId;
+                    }
+                    delete copy.checkoutRequestId;
+
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanDsStudent) : cleanDsStudent(currentPayload);
@@ -5990,6 +6015,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         continue;
                     }
 
+                    if (moduleName === 'ds_students' || targetDbTable === 'ds_students') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                        ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const stripDsStudentCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            if (offendingCol === 'passport_photo' && copy.passport_photo) {
+                                const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                                meta.passportPhoto = copy.passport_photo;
+                                copy.metadata = meta;
+                            }
+                            delete copy[offendingCol];
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripDsStudentCol) : stripDsStudentCol(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     if ((moduleName === 'pm_properties' || targetDbTable === 'pm_properties') && offendingCol === 'town') {
                         // 1. Attempt to add the town column via Direct PG if pool is active
                         try {
@@ -6987,6 +7044,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete copy.licenseTypeInterested;
                     delete copy.preferred_lesson_hours;
                     delete copy.preferredLessonHours;
+
+                    const photo = copy.passport_photo || copy.passportPhoto;
+                    if (photo) {
+                        copy.passport_photo = photo;
+                        const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                        meta.passportPhoto = photo;
+                        copy.metadata = meta;
+                    }
+                    delete copy.passportPhoto;
+
+                    if (copy.checkoutRequestId && !copy.checkout_request_id) {
+                        copy.checkout_request_id = copy.checkoutRequestId;
+                    }
+                    delete copy.checkoutRequestId;
+
                     currentUpdateData = copy;
                 } else if (moduleName === 'ds_invoices' && currentUpdateData && typeof currentUpdateData === 'object') {
                     const copy = { ...currentUpdateData };
@@ -7972,6 +8044,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     ).catch(() => {});
                                 }
                             } catch (_) {}
+                            delete currentUpdateData[offendingCol];
+                            patchRetries--;
+                            continue;
+                        }
+
+                        if (moduleName === 'ds_students' || targetDbTable === 'ds_students') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_photo TEXT;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                            ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS checkout_request_id TEXT;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2000
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+                            if (offendingCol === 'passport_photo' && currentUpdateData.passport_photo) {
+                                const meta = typeof currentUpdateData.metadata === 'object' && currentUpdateData.metadata !== null ? { ...currentUpdateData.metadata } : {};
+                                meta.passportPhoto = currentUpdateData.passport_photo;
+                                currentUpdateData.metadata = meta;
+                            }
                             delete currentUpdateData[offendingCol];
                             patchRetries--;
                             continue;
