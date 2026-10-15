@@ -41,15 +41,20 @@ class LocalDb {
     /** Set to false permanently if IndexedDB is unavailable (private mode, quota, policy) */
     private isAvailable = true;
 
-    private openInternal(): Promise<IDBDatabase> {
+    private openInternal(retryCount = 0): Promise<IDBDatabase> {
         return new Promise((resolve, reject) => {
             let settled = false;
             const timeout = setTimeout(() => {
                 if (!settled) {
                     settled = true;
+                    if (retryCount < 1) {
+                        console.warn('[LocalDb] Initial open attempt timed out, retrying...');
+                        this.openInternal(retryCount + 1).then(resolve).catch(reject);
+                        return;
+                    }
                     reject(new Error('IndexedDB open timed out'));
                 }
-            }, 2000);
+            }, 8000);
 
             try {
                 if (typeof indexedDB === 'undefined') {
@@ -85,10 +90,7 @@ class LocalDb {
                     reject(request.error);
                 };
                 request.onblocked = () => {
-                    if (settled) return;
-                    settled = true;
-                    clearTimeout(timeout);
-                    reject(new Error('IndexedDB open blocked'));
+                    console.warn('[LocalDb] Open blocked by existing connection in another tab, waiting...');
                 };
             } catch (err) {
                 if (settled) return;
@@ -158,12 +160,17 @@ class LocalDb {
                 this.openPromise = null;
                 this.db = null;
                 console.warn('[LocalDb] Initial open failed, attempting recovery:', err?.message ?? err);
-                // Only attempt recovery for backing-store / unknown errors, not version errors
                 const msg = (err?.message ?? '').toLowerCase();
-                if (msg.includes('internal') || msg.includes('unknown') || msg.includes('backing')) {
+                // Only attempt recovery for backing-store / unknown / corrupt errors, not version errors
+                if (msg.includes('internal') || msg.includes('unknown') || msg.includes('backing') || msg.includes('corrupt')) {
                     return this.recoverDB();
                 }
-                // For other errors (blocked, quota, private mode) disable gracefully
+                // For transient timeouts or locks, do not permanently disable storage; allow retry on next call
+                if (msg.includes('timed out') || msg.includes('timeout') || msg.includes('blocked')) {
+                    console.warn('[LocalDb] Transient timeout or lock encountered. Will retry on next call.');
+                    return null;
+                }
+                // For other permanent errors (quota, private mode policy) disable gracefully
                 this.isAvailable = false;
                 return null;
             });

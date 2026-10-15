@@ -1061,34 +1061,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ? 'users' 
             : (isBankAccountsAlias ? 'school_bank_accounts' : moduleName);
 
+        const isSuperAdminRole = (role?: string) => {
+            if (!role) return false;
+            const r = String(role).toLowerCase().trim();
+            return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
+        };
+        const isInstitutionAdminRole = (role?: string) => {
+            if (!role) return false;
+            const r = String(role).toLowerCase().trim();
+            return isSuperAdminRole(r) ||
+                r === 'group_admin' ||
+                r === 'admin' ||
+                r.includes('admin') ||
+                r.includes('director') ||
+                r.includes('manager') ||
+                r.includes('principal') ||
+                r.includes('head_teacher') ||
+                r.includes('deputy') ||
+                r.includes('dos') ||
+                r.includes('hoi') ||
+                r.includes('bursar') ||
+                r.includes('finance_officer');
+        };
+
         if (req.method === 'GET') {
             const targetInstParam = getStrParam(queryInstitutionId)
                 || getStrParam(req.query.institution_id)
                 || getStrParam(req.query.institution)
                 || getStrParam(req.headers['x-institution-id'])
                 || getStrParam(req.headers['x-tenant-id']);
-            const isSuperAdminRole = (role?: string) => {
-                if (!role) return false;
-                const r = String(role).toLowerCase().trim();
-                return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
-            };
-            const isInstitutionAdminRole = (role?: string) => {
-                if (!role) return false;
-                const r = String(role).toLowerCase().trim();
-                return isSuperAdminRole(r) ||
-                    r === 'group_admin' ||
-                    r === 'admin' ||
-                    r.includes('admin') ||
-                    r.includes('director') ||
-                    r.includes('manager') ||
-                    r.includes('principal') ||
-                    r.includes('head_teacher') ||
-                    r.includes('deputy') ||
-                    r.includes('dos') ||
-                    r.includes('hoi') ||
-                    r.includes('bursar') ||
-                    r.includes('finance_officer');
-            };
             const isGroupOrSuperAdmin = isSuperAdminRole(user?.role) || user?.role === 'group_admin' || (user as any)?.is_super_admin === true || (user as any)?.isSuperAdmin === true;
 
             // Security guard: protect user identity records from unauthenticated global platform-wide harvesting
@@ -3524,28 +3525,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
             
             // Add tenancy if missing (skip for root tables that don't have this column or for super_admin)
-            const isSuperAdminRolePost = (role?: string) => {
-                if (!role) return false;
-                const r = String(role).toLowerCase().trim();
-                return r === 'super_admin' || r === 'superadmin' || r === 'super_administrator' || r === 'superadministrator' || r === 'system_admin';
-            };
-            const isInstitutionAdminRolePost = (role?: string) => {
-                if (!role) return false;
-                const r = String(role).toLowerCase().trim();
-                return isSuperAdminRolePost(r) ||
-                    r === 'group_admin' ||
-                    r === 'admin' ||
-                    r.includes('admin') ||
-                    r.includes('director') ||
-                    r.includes('manager') ||
-                    r.includes('principal') ||
-                    r.includes('head_teacher') ||
-                    r.includes('deputy') ||
-                    r.includes('dos') ||
-                    r.includes('hoi') ||
-                    r.includes('bursar') ||
-                    r.includes('finance_officer');
-            };
+            const isSuperAdminRolePost = isSuperAdminRole;
+            const isInstitutionAdminRolePost = isInstitutionAdminRole;
             const isInstOrNoInstTable = moduleName === 'institutions' || targetDbTable === 'institutions' || isTableWithoutInstitutionId(moduleName);
             const skipTenancy = isSuperAdminRolePost(user?.role) || (user as any)?.is_super_admin === true || isInstOrNoInstTable;
             const isBillingModule = ['invoice_clients', 'company_invoice_settings', 'finance_numbering_configs', 'invoices', 'receipts'].includes(moduleName);
@@ -8006,7 +7987,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     else q = q.in('id', idsArray);
 
                     // Security check
-                    if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
+                    if (!isSuperAdminRole(user?.role) && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
                         const instCol = (moduleName === 'institutions' ? 'id' : 'institution_id');
                         const instId = user?.institutionId;
                         
@@ -8015,7 +7996,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             q = q.eq(instCol, instId);
                         } else {
                             console.warn(`[API PATCH DEBUG] Authorization warning: User has no institutionId. Skipping tenancy filter.`);
-                            if (user?.role !== 'super_admin') {
+                            if (!isSuperAdminRole(user?.role)) {
                                  return res.status(401).json({ success: false, error: 'Unauthorized: Academic institution identity required.' });
                             }
                         }
@@ -8470,7 +8451,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             else q = q.in('id', idsArray);
 
             // Security: Only allow deleting records within own institution
-            if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
+            if (!isSuperAdminRole(user?.role) && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
                 q = q.eq('institution_id', user?.institutionId);
             }
 
