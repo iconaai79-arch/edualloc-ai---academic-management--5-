@@ -86,6 +86,55 @@ import { apiService } from '../../services/apiService';
 import { SubscriptionExpiryBanner } from '../common/SubscriptionExpiryBanner';
 import * as pdfService from '../../services/pdfService';
 
+export const getLeadVoteHeads = (lead: any, settings: DSSettings | null, targetCategory?: any): Array<{ name: string; amount: number; priority?: number }> => {
+    if (!lead) return [];
+
+    // 1. If lead already has explicit items saved:
+    if (Array.isArray(lead.items) && lead.items.length > 0) {
+        return lead.items;
+    }
+
+    // 2. Find matching fee structure from settings
+    const normalizeName = (name: string) => (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const searchVal = lead.licenseTypeInterested || '';
+    if (searchVal && settings?.feeStructures?.length) {
+        const matchedFS = settings.feeStructures.find((fs: any) => {
+            if (!fs.className) return false;
+            const normFS = normalizeName(fs.className);
+            const normSub = normalizeName(searchVal);
+            return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
+        });
+        if (matchedFS && Array.isArray(matchedFS.items) && matchedFS.items.length > 0) {
+            return matchedFS.items.map((it: any, idx: number) => ({
+                name: it.name || `Item ${idx + 1}`,
+                amount: Number(it.amount) || 0,
+                priority: it.priority ?? idx + 1
+            }));
+        }
+    }
+
+    // 3. Fallback to settings.votes if configured
+    const votes = (settings as any)?.votes;
+    if (Array.isArray(votes) && votes.length > 0) {
+        return votes.map((v: any, idx: number) => ({
+            name: v.voteName || v.vote_name || `Votehead ${idx + 1}`,
+            amount: Number(v.defaultAmount || v.default_amount || 0),
+            priority: idx + 1
+        }));
+    }
+
+    // 4. Default itemized standard breakdown
+    const totalFee = Number(lead.quotedAmount || targetCategory?.baseFee || targetCategory?.price || 14500);
+    const pdl = Math.min(1450, Math.floor(totalFee * 0.1));
+    const testFee = Math.min(2500, Math.floor(totalFee * 0.15));
+    const tuition = Math.max(0, totalFee - pdl - testFee);
+    return [
+        { name: 'Standard Tuition & Practical Instruction', amount: tuition, priority: 1 },
+        { name: 'NTSA Provisional Driving License (PDL) Processing', amount: pdl, priority: 2 },
+        { name: 'NTSA Driving Test Booking & Assessment Fee', amount: testFee, priority: 3 }
+    ];
+};
+
 interface DrivingSchoolManagerProps {
     currentUser?: User;
     currentInstitution: any;
@@ -3920,6 +3969,8 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         isOpen: false,
         type: 'delete'
     });
+
+    const [viewQuoteModalLead, setViewQuoteModalLead] = useState<DSLead | null>(null);
 
     const handleRequestDeletion = (paymentId: string) => {
         const payment = payments.find(p => p.id === paymentId);
@@ -7845,25 +7896,9 @@ END $$;
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                             {paginatedLeads.map(lead => {
                                                 const targetCategory = (settings?.licenseCategories || []).find((c: any) => c.code === lead.licenseTypeInterested || c.name === lead.licenseTypeInterested);
-                                                const baseFeeAmount = (() => {
-                                                    if (lead.quotedAmount) return lead.quotedAmount;
-                                                    
-                                                    const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
-                                                    const searchVal = lead.licenseTypeInterested || '';
-                                                    if (searchVal) {
-                                                        const matchedFS = settings?.feeStructures?.find((fs: any) => {
-                                                            if (!fs.className) return false;
-                                                            const normFS = normalizeName(fs.className);
-                                                            const normSub = normalizeName(searchVal);
-                                                            return normFS === normSub || normFS.includes(normSub) || normSub.includes(normFS);
-                                                        });
-                                                        if (matchedFS && typeof matchedFS.totalAmount === 'number') {
-                                                            return matchedFS.totalAmount;
-                                                        }
-                                                    }
-                                                    
-                                                    return targetCategory ? (targetCategory.baseFee || 0) : 15000;
-                                                })();
+                                                const leadVoteHeads = getLeadVoteHeads(lead, settings, targetCategory);
+                                                const computedTotal = leadVoteHeads.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+                                                const baseFeeAmount = lead.quotedAmount || (computedTotal > 0 ? computedTotal : (targetCategory ? (targetCategory.baseFee || 0) : 15000));
                                                 
                                                 return (
                                                     <tr key={lead.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
@@ -7932,55 +7967,77 @@ END $$;
                                                         <td className="px-10 py-8 text-right">
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <button
+                                                                    onClick={() => setViewQuoteModalLead(lead)}
+                                                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center gap-1 shadow-sm"
+                                                                    title="View Itemized Quotation on Screen"
+                                                                >
+                                                                    <EyeIcon className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                                                                    View on Screen
+                                                                </button>
+                                                                <button
                                                                     onClick={async () => {
                                                                         setIsActionLoading(true);
                                                                         try {
                                                                             const amountStr = `KES ${(baseFeeAmount || 0)?.toLocaleString()}`;
                                                                             const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
                                                                             
-                                                                            // 1. Generate premium itemized quotation PDF
-                                                                            const fallbackCompanyDetails = { name: currentInstitution?.name || 'Driving School', address: currentInstitution?.location || 'Campus', phone: currentInstitution?.phoneNumber || '', email: currentInstitution?.email || '', pinNo: '' };
+                                                                            // 1. Generate premium itemized quotation PDF with all vote heads
+                                                                            const fallbackCompanyDetails = { 
+                                                                                name: currentInstitution?.name || 'Driving School', 
+                                                                                address: currentInstitution?.location || 'Campus', 
+                                                                                phone: currentInstitution?.phoneNumber || '', 
+                                                                                email: currentInstitution?.email || '', 
+                                                                                pinNo: '' 
+                                                                            };
                                                                             const pdfDataUri = await pdfService.generateDSQuotationPdfDataUri(
                                                                                 lead,
                                                                                 targetCategory,
                                                                                 baseFeeAmount,
                                                                                 currentInstitution || { name: 'Driving School', id: 'ds' },
                                                                                 fallbackCompanyDetails as any,
-                                                                                letterheadConfig?.headerImageUrl || null
+                                                                                letterheadConfig?.headerImageUrl || null,
+                                                                                leadVoteHeads
                                                                             );
 
-                                                                            // Convert data URI to file to attempt cloud storage upload for public short link
-                                                                            const base64Part = pdfDataUri.split(',')[1];
-                                                                            const byteCharacters = atob(base64Part);
-                                                                            const byteNumbers = new Array(byteCharacters.length);
-                                                                            for (let i = 0; i < byteCharacters.length; i++) {
-                                                                                byteNumbers[i] = byteCharacters.charCodeAt(i);
-                                                                            }
-                                                                            const byteArray = new Uint8Array(byteNumbers);
-                                                                            const blob = new Blob([byteArray], { type: 'application/pdf' });
-                                                                            const fileObj = new File([blob], `Quotation_${(lead.fullName || 'Client').replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
-                                                                            
-                                                                            let quoteUrl = `${window.location.origin}/ds-quote/${lead.id || 'new'}`;
+                                                                            // 2. Short, mobile-first quotation link
+                                                                            const rawQuoteUrl = `${window.location.origin}/?view=ds-quote&id=${lead.id || 'new'}`;
+                                                                            let quoteUrl = rawQuoteUrl;
                                                                             try {
-                                                                                const uploadRes = await apiService.uploadToGoogleDrive(fileObj, 'DS_Quotations', { institutionId: currentInstitution?.id });
-                                                                                if (uploadRes?.success && uploadRes.url) {
-                                                                                    quoteUrl = uploadRes.url;
+                                                                                const shortened = await apiService.shortenUrl(rawQuoteUrl);
+                                                                                if (shortened && (shortened.startsWith('http://') || shortened.startsWith('https://'))) {
+                                                                                    quoteUrl = shortened;
                                                                                 }
-                                                                            } catch (e) {
-                                                                                console.warn("Cloud storage upload fallback bypassed:", e);
+                                                                            } catch (shortErr) {
+                                                                                console.warn("[Quote SMS] URL shortening warning:", shortErr);
                                                                             }
 
-                                                                            const msg = `Hello ${lead.fullName ? lead.fullName.split(' ')[0] : 'Client'}, thank you for your enquiry at ${currentInstitution?.name || 'our Driving School'}. Total investment for ${catName} is ${amountStr}. View your itemized quotation: ${quoteUrl} Visit our administration desk to activate your student enrollment!`;
+                                                                            // Backup PDF to cloud storage if connected
+                                                                            try {
+                                                                                const base64Part = pdfDataUri.split(',')[1];
+                                                                                const byteCharacters = atob(base64Part);
+                                                                                const byteNumbers = new Array(byteCharacters.length);
+                                                                                for (let i = 0; i < byteCharacters.length; i++) {
+                                                                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                                                }
+                                                                                const byteArray = new Uint8Array(byteNumbers);
+                                                                                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                                                                                const fileObj = new File([blob], `Quotation_${(lead.fullName || 'Client').replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
+                                                                                apiService.uploadToGoogleDrive(fileObj, 'DS_Quotations', { institutionId: currentInstitution?.id }).catch(() => {});
+                                                                            } catch (_) {}
+
+                                                                            const clientFirstName = lead.fullName ? lead.fullName.trim().split(' ')[0] : 'Client';
+                                                                            const schoolName = currentInstitution?.name || 'our Driving School';
+                                                                            const msg = `Hi ${clientFirstName}, thanks for enquiring at ${schoolName}. Quote for ${catName} is ${amountStr}. View quotation: ${quoteUrl} Visit or call our desk to enroll!`;
                                                                             
                                                                             if (confirm(`Send Fee Quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage payload:\n"${msg}"`)) {
                                                                                 // Ensure live SMS broadcast via gateway
                                                                                 const pages = calculateSmsPages(msg);
                                                                                 const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
                                                                                 
-                                                                                await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount });
+                                                                                await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount, items: leadVoteHeads });
                                                                                 
                                                                                 if (res?.success !== false) {
-                                                                                    success(`Quotation PDF generated & live SMS dispatched successfully to ${lead.phone}!`);
+                                                                                    success(`Quotation generated & live SMS dispatched successfully to ${lead.phone}!`);
                                                                                 } else {
                                                                                     success(`Quotation created & logged successfully. Gateway response: ${res?.message || 'Delivered to local gateway queue'}`);
                                                                                 }
@@ -7992,7 +8049,7 @@ END $$;
                                                                             setIsActionLoading(false);
                                                                         }
                                                                     }}
-                                                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 text-indigo-600 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center gap-1"
+                                                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 rounded-lg font-black text-[9px] uppercase tracking-wider transition-colors flex items-center gap-1 shadow-sm"
                                                                     title="Send Quotation via SMS/Email"
                                                                 >
                                                                     <SparklesIcon className="w-3 h-3" />
@@ -8002,7 +8059,6 @@ END $$;
                                                                     onClick={async () => {
                                                                         try {
                                                                             const targetCat = (settings?.licenseCategories || []).find((c: any) => c.name === lead.licenseTypeInterested || c.code === lead.licenseTypeInterested);
-                                                                            const feeAmt = lead.quotedAmount || targetCat?.price || 14500;
                                                                             const fallbackCompany = { 
                                                                                 name: currentInstitution?.name || 'Driving School', 
                                                                                 address: currentInstitution?.location || 'Campus', 
@@ -8013,10 +8069,11 @@ END $$;
                                                                             const pdfDataUri = await pdfService.generateDSQuotationPdfDataUri(
                                                                                 lead,
                                                                                 targetCat,
-                                                                                feeAmt,
+                                                                                baseFeeAmount,
                                                                                 currentInstitution || { name: 'Driving School', id: 'ds' } as any,
                                                                                 fallbackCompany as any,
-                                                                                currentInstitution?.logoUrl || null
+                                                                                currentInstitution?.logoUrl || null,
+                                                                                leadVoteHeads
                                                                             );
                                                                             const win = window.open();
                                                                             if (win) {
@@ -8107,6 +8164,251 @@ END $$;
                                 </>
                             )}
                         </div>
+                        {viewQuoteModalLead && (() => {
+                            const modalCat = (settings?.licenseCategories || []).find((c: any) => c.code === viewQuoteModalLead.licenseTypeInterested || c.name === viewQuoteModalLead.licenseTypeInterested);
+                            const modalVoteHeads = getLeadVoteHeads(viewQuoteModalLead, settings, modalCat);
+                            const modalComputedTotal = modalVoteHeads.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+                            const modalTotalAmount = viewQuoteModalLead.quotedAmount || (modalComputedTotal > 0 ? modalComputedTotal : (modalCat ? (modalCat.baseFee || 0) : 15000));
+                            const catName = modalCat ? `${modalCat.name} (${modalCat.code})` : (viewQuoteModalLead.licenseTypeInterested || 'Class B');
+                            const validUntil = new Date(viewQuoteModalLead.createdAt || Date.now());
+                            validUntil.setDate(validUntil.getDate() + 30);
+
+                            return (
+                                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+                                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden animate-scale-up">
+                                        {/* Modal Header */}
+                                        <div className="p-6 sm:p-7 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/70 dark:bg-slate-800/40">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-11 h-11 bg-indigo-50 dark:bg-indigo-950/60 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 shadow-sm">
+                                                    <SparklesIcon className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                            Official Fee Quotation
+                                                        </h3>
+                                                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
+                                                            #{viewQuoteModalLead.id ? viewQuoteModalLead.id.slice(-6).toUpperCase() : 'QUOTE'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                                        On-Screen Itemized Preview • Captures All Vote Heads
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setViewQuoteModalLead(null)}
+                                                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                title="Close Preview"
+                                            >
+                                                <XIcon className="w-5 h-5" />
+                                            </button>
+                                        </div>
+
+                                        {/* Modal Scrollable Body */}
+                                        <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1">
+                                            {/* Institution Header Card */}
+                                            <div className="flex items-center justify-between p-5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100/80 dark:border-indigo-900/40">
+                                                <div className="flex items-center gap-3.5">
+                                                    {currentInstitution?.logoUrl ? (
+                                                        <img src={currentInstitution.logoUrl} alt={currentInstitution.name} className="w-12 h-12 rounded-xl object-contain bg-white dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-sm tracking-wider shadow-md shadow-indigo-600/30">
+                                                            DS
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <h4 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">
+                                                            {currentInstitution?.name || 'Driving School'}
+                                                        </h4>
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                                                            {currentInstitution?.location || 'Main Campus'} • {currentInstitution?.phoneNumber || 'Accounts Desk'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="hidden sm:inline-flex px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                                                    Verified Fee Structure
+                                                </span>
+                                            </div>
+
+                                            {/* Client & Quotation Metadata */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Prospective Client</span>
+                                                    <p className="font-black text-sm text-slate-900 dark:text-white uppercase">{viewQuoteModalLead.fullName}</p>
+                                                    <p className="text-xs text-slate-600 dark:text-slate-300 font-bold">{viewQuoteModalLead.phone}</p>
+                                                    {viewQuoteModalLead.email && <p className="text-[10px] text-slate-400">{viewQuoteModalLead.email}</p>}
+                                                </div>
+                                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 space-y-1">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Target License Course</span>
+                                                    <p className="font-black text-sm text-indigo-600 dark:text-indigo-400">{catName}</p>
+                                                    <p className="text-[10px] text-slate-400 font-medium">
+                                                        Issued: {new Date(viewQuoteModalLead.createdAt || Date.now()).toLocaleDateString()} • Valid Until: <span className="text-amber-500 font-bold">{validUntil.toLocaleDateString()}</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Vote Heads Itemized Table */}
+                                            <div className="space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                        Itemized Vote Heads & Curriculum Breakdown ({modalVoteHeads.length})
+                                                    </h4>
+                                                    <span className="text-[9px] font-bold text-slate-400">All fees in KES</span>
+                                                </div>
+
+                                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                                    <table className="w-full text-left text-xs">
+                                                        <thead>
+                                                            <tr className="bg-slate-100/70 dark:bg-slate-800/70 text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                                                                <th className="py-2.5 px-4 w-12 text-center">#</th>
+                                                                <th className="py-2.5 px-4">Fee Item / Vote Head</th>
+                                                                <th className="py-2.5 px-4">Category</th>
+                                                                <th className="py-2.5 px-4 text-right">Amount (KES)</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium text-slate-700 dark:text-slate-200">
+                                                            {modalVoteHeads.map((item: any, idx: number) => (
+                                                                <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                                                    <td className="py-3 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                                                                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{item.name}</td>
+                                                                    <td className="py-3 px-4 text-[10px] text-slate-400">{catName}</td>
+                                                                    <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white">
+                                                                        KES {Number(item.amount || 0).toLocaleString()}
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                        <tfoot>
+                                                            <tr className="bg-indigo-50/60 dark:bg-indigo-950/40 border-t-2 border-indigo-500 font-black text-sm">
+                                                                <td colSpan={3} className="py-3.5 px-4 text-right text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+                                                                    Total Estimated Investment:
+                                                                </td>
+                                                                <td className="py-3.5 px-4 text-right text-base text-indigo-700 dark:text-indigo-300 font-black">
+                                                                    KES {modalTotalAmount.toLocaleString()}
+                                                                </td>
+                                                            </tr>
+                                                        </tfoot>
+                                                    </table>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-[10px] text-slate-400 italic">
+                                                * Note: This quotation captures all statutory NTSA licensing vote heads, tuition modules, and assessments. Valid for 30 calendar days from issue date.
+                                            </p>
+                                        </div>
+
+                                        {/* Modal Footer Actions */}
+                                        <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                                            <button
+                                                type="button"
+                                                onClick={() => setViewQuoteModalLead(null)}
+                                                className="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs uppercase tracking-wider transition-all"
+                                            >
+                                                Close
+                                            </button>
+
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        try {
+                                                            const fallbackCompany = { 
+                                                                name: currentInstitution?.name || 'Driving School', 
+                                                                address: currentInstitution?.location || 'Campus', 
+                                                                phone: currentInstitution?.phoneNumber || '', 
+                                                                email: currentInstitution?.email || '', 
+                                                                pinNo: '' 
+                                                            };
+                                                            const pdfDataUri = await pdfService.generateDSQuotationPdfDataUri(
+                                                                viewQuoteModalLead,
+                                                                modalCat,
+                                                                modalTotalAmount,
+                                                                currentInstitution || { name: 'Driving School', id: 'ds' } as any,
+                                                                fallbackCompany as any,
+                                                                currentInstitution?.logoUrl || null,
+                                                                modalVoteHeads
+                                                            );
+                                                            const link = document.createElement('a');
+                                                            link.href = pdfDataUri;
+                                                            link.download = `Quotation_${(viewQuoteModalLead.fullName || 'Client').replace(/\s+/g, '_')}.pdf`;
+                                                            link.click();
+                                                        } catch (err: any) {
+                                                            toastError("Failed to generate PDF: " + err.message);
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
+                                                >
+                                                    <DownloadIcon className="w-4 h-4 text-indigo-500" /> Download PDF
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        setIsActionLoading(true);
+                                                        try {
+                                                            const rawQuoteUrl = `${window.location.origin}/?view=ds-quote&id=${viewQuoteModalLead.id || 'new'}`;
+                                                            let quoteUrl = rawQuoteUrl;
+                                                            try {
+                                                                const shortened = await apiService.shortenUrl(rawQuoteUrl);
+                                                                if (shortened && (shortened.startsWith('http://') || shortened.startsWith('https://'))) {
+                                                                    quoteUrl = shortened;
+                                                                }
+                                                            } catch (_) {}
+
+                                                            const clientFirstName = viewQuoteModalLead.fullName ? viewQuoteModalLead.fullName.trim().split(' ')[0] : 'Client';
+                                                            const schoolName = currentInstitution?.name || 'our Driving School';
+                                                            const msg = `Hi ${clientFirstName}, thanks for enquiring at ${schoolName}. Quote for ${catName} is KES ${modalTotalAmount.toLocaleString()}. View quotation: ${quoteUrl} Visit or call our desk to enroll!`;
+                                                            
+                                                            if (confirm(`Send Fee Quotation SMS to ${viewQuoteModalLead.fullName} (${viewQuoteModalLead.phone})?\n\nMessage payload:\n"${msg}"`)) {
+                                                                const pages = calculateSmsPages(msg);
+                                                                const res = await apiService.sendSms(viewQuoteModalLead.phone, msg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
+                                                                await updateLead({ ...viewQuoteModalLead, status: 'Quotation Sent', quotedAmount: modalTotalAmount, items: modalVoteHeads });
+                                                                if (res?.success !== false) {
+                                                                    success(`Quotation generated & live SMS dispatched successfully to ${viewQuoteModalLead.phone}!`);
+                                                                } else {
+                                                                    success(`Quotation saved. Gateway response: ${res?.message || 'Delivered'}`);
+                                                                }
+                                                            }
+                                                        } catch (e: any) {
+                                                            toastError("Failed to dispatch SMS: " + e.message);
+                                                        } finally {
+                                                            setIsActionLoading(false);
+                                                        }
+                                                    }}
+                                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-600/20 active:scale-95"
+                                                >
+                                                    <SparklesIcon className="w-4 h-4" /> Send SMS Quote
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const leadToConvert = viewQuoteModalLead;
+                                                        setViewQuoteModalLead(null);
+                                                        setActionModal({
+                                                            type: 'student',
+                                                            initialData: {
+                                                                fullName: leadToConvert.fullName,
+                                                                phone: leadToConvert.phone,
+                                                                email: leadToConvert.email || '',
+                                                                licenseTypeInterested: leadToConvert.licenseTypeInterested || '',
+                                                                enrollmentDate: new Date().toISOString().split('T')[0],
+                                                                status: 'Enrolled'
+                                                            }
+                                                        });
+                                                        updateLead({ ...leadToConvert, status: 'Converted' }).catch(() => {});
+                                                    }}
+                                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-emerald-600/20"
+                                                >
+                                                    Convert to Student
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 

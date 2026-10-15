@@ -203,6 +203,7 @@ const PublicEventConfirmation = safeLazy(() => import('./events/PublicEventConfi
 const PublicVisitorAuthorization = safeLazy(() => import('./PublicVisitorAuthorization').then((m: any) => ({ default: m?.PublicVisitorAuthorization || m?.default || m })));
 const DrivingSchoolManager = safeLazy(() => import('./ds/DrivingSchoolManager').then((m: any) => ({ default: m?.DrivingSchoolManager || m?.default || m })));
 const PublicInvoiceView = safeLazy(() => import('./ds/PublicInvoiceView').then((m: any) => ({ default: m?.PublicInvoiceView || m?.default || m })));
+const PublicQuotationView = safeLazy(() => import('./ds/PublicQuotationView').then((m: any) => ({ default: m?.PublicQuotationView || m?.default || m })));
 const PublicResultSlipPortal = safeLazy(() => import('./public/PublicResultSlipPortal').then((m: any) => ({ default: m?.PublicResultSlipPortal || m?.default || m })));
 const DSInterestPage = safeLazy(() => import('./public/DSInterestPage').then((m: any) => ({ default: m?.DSInterestPage || m?.default || m })));
 const RestaurantPOSManager = safeLazy(() => import('./restaurant/RestaurantPOSManager').then((m: any) => ({ default: m?.RestaurantPOSManager || m?.default || m })));
@@ -9142,6 +9143,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                              <Suspense fallback={<SystemPulseLoader message="Loading Invoice Portal..." />}>
                                  <PublicInvoiceView 
                                      invoiceId={new URLSearchParams(window.location.search).get('id') || ''} 
+                                 />
+                             </Suspense>
+                          ) : (
+                             new URLSearchParams(window.location.search).get('view') === 'ds-quote' || 
+                             new URLSearchParams(window.location.search).get('view') === 'quote' || 
+                             new URLSearchParams(window.location.search).get('view') === 'quotation' || 
+                             new URLSearchParams(window.location.search).get('v') === 'dsq' ||
+                             window.location.pathname.startsWith('/ds-quote')
+                          ) ? (
+                             <Suspense fallback={<SystemPulseLoader message="Loading Quotation Portal..." />}>
+                                 <PublicQuotationView 
+                                     quoteId={
+                                         new URLSearchParams(window.location.search).get('id') || 
+                                         new URLSearchParams(window.location.search).get('quoteId') || 
+                                         (window.location.pathname.startsWith('/ds-quote') ? window.location.pathname.replace(/^\/ds-quote\/?/, '').split('?')[0] : '')
+                                     } 
                                  />
                              </Suspense>
                           ) : (

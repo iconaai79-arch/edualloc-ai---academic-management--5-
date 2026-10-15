@@ -1736,7 +1736,8 @@ export const generateDSQuotationPdfDataUri = async (
     baseFeeAmount: number,
     institution: Institution,
     companyDetails: CompanyDetails,
-    logoUrl: string | null
+    logoUrl: string | null,
+    items?: Array<{ name: string; amount: number; priority?: number }>
 ): Promise<string> => {
     const lib = getJsPdf();
     if (!lib) throw new Error("jsPDF library not available.");
@@ -1795,19 +1796,33 @@ export const generateDSQuotationPdfDataUri = async (
     doc.text(lead.phone || '', margin, margin + 65);
     if (lead.email) doc.text(lead.email, margin, margin + 70);
 
-    const head = [['#', 'FEE ITEM DESCRIPTION', 'CATEGORY', 'AMOUNT (KES)']];
+    const head = [['#', 'FEE ITEM / VOTE HEAD', 'CATEGORY', 'AMOUNT (KES)']];
     const catName = targetCategory ? `${targetCategory.name} (${targetCategory.code})` : (lead.licenseTypeInterested || 'Class B');
     
-    // Split base fee into typical sub-items if available
-    const pdlFee = Math.min(1450, Math.floor(baseFeeAmount * 0.1));
-    const testFee = Math.min(2500, Math.floor(baseFeeAmount * 0.15));
-    const tuitionFee = baseFeeAmount - pdlFee - testFee;
+    // Resolve itemized vote heads from items argument or lead.items
+    let quoteItems: Array<{ name: string; amount: number }> = [];
+    if (Array.isArray(items) && items.length > 0) {
+        quoteItems = items;
+    } else if (Array.isArray(lead.items) && lead.items.length > 0) {
+        quoteItems = lead.items;
+    } else {
+        // Fallback split if no custom fee structure / vote heads provided
+        const pdlFee = Math.min(1450, Math.floor(baseFeeAmount * 0.1));
+        const testFee = Math.min(2500, Math.floor(baseFeeAmount * 0.15));
+        const tuitionFee = Math.max(0, baseFeeAmount - pdlFee - testFee);
+        quoteItems = [
+            { name: 'Standard Tuition & Instruction Fee', amount: tuitionFee },
+            { name: 'NTSA PDL (Provisional Driving License) Processing', amount: pdlFee },
+            { name: 'Practical & Theory Test Booking Fee', amount: testFee }
+        ];
+    }
 
-    const body = [
-        [1, 'Standard Tuition & Instruction Fee', catName, tuitionFee?.toLocaleString()],
-        [2, 'NTSA PDL (Provisional Driving License) Processing', catName, pdlFee?.toLocaleString()],
-        [3, 'Practical & Theory Test Booking Fee', catName, testFee?.toLocaleString()]
-    ];
+    const body = quoteItems.map((item, idx) => [
+        idx + 1,
+        item.name,
+        catName,
+        Number(item.amount || 0).toLocaleString()
+    ]);
 
     (doc as any).autoTable({
         head: head,
@@ -1818,11 +1833,14 @@ export const generateDSQuotationPdfDataUri = async (
     });
 
     const finalY = ((doc as any).lastAutoTable?.finalY || (tableStartY + 50)) + 12;
+    const computedTotal = quoteItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+    const displayTotal = baseFeeAmount > 0 ? baseFeeAmount : computedTotal;
+
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(30, 41, 59);
     doc.text('TOTAL ESTIMATED FEES:', pageWidth - margin - 65, finalY);
-    doc.text(`KES ${baseFeeAmount?.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
+    doc.text(`KES ${displayTotal?.toLocaleString()}`, pageWidth - margin, finalY, { align: 'right' });
 
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'italic');
