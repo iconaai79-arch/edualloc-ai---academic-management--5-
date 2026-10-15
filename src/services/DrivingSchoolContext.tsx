@@ -600,8 +600,55 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return inv;
             });
 
+            // Auto-heal payments that have missing or generic studentName ('Student')
+            const healedPayments = (dsPay || []).map(p => {
+                const rawName = (p.studentName || (p as any).student_name || '').trim();
+                const isGenericOrMissing = !rawName || rawName.toLowerCase() === 'student' || rawName.toLowerCase() === 'learner';
+
+                const targetId = p.studentId || (p as any).student_id;
+                const payAdm = (p.admissionNumber || (p as any).admission_number || '').trim().toLowerCase();
+
+                const matchedStud = (dsStud || []).find(s => 
+                    (targetId && (s.id === targetId || (s as any)._id === targetId)) ||
+                    (targetId && ((s.admissionNumber || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() || ((s as any).admission_number || '').trim().toLowerCase() === String(targetId).trim().toLowerCase())) ||
+                    (payAdm && ((s.admissionNumber || '').trim().toLowerCase() === payAdm || ((s as any).admission_number || '').trim().toLowerCase() === payAdm))
+                );
+
+                const invId = p.invoiceId || (p as any).invoice_id;
+                const matchedInv = (healedInvoices || dsInvs || []).find(inv => 
+                    (invId && (inv.id === invId || inv.invoiceNumber === invId)) ||
+                    (targetId && (inv.studentId === targetId || (inv as any).admissionNumber === targetId))
+                );
+
+                let realName = '';
+                if (matchedStud?.fullName && matchedStud.fullName.trim().toLowerCase() !== 'student') {
+                    realName = matchedStud.fullName;
+                } else if (matchedInv?.studentName && matchedInv.studentName.trim().toLowerCase() !== 'student') {
+                    realName = matchedInv.studentName;
+                }
+
+                const realAdm = matchedStud?.admissionNumber || (matchedStud as any)?.admission_number || (matchedInv as any)?.admissionNumber || p.admissionNumber;
+                const realStudentId = matchedStud?.id || p.studentId;
+
+                if (isGenericOrMissing && realName) {
+                    console.log(`[DSContext] Auto-healing payment ${p.receiptNumber || p.id} studentName: "${rawName}" -> "${realName}"`);
+                    const updatedPayment = {
+                        ...p,
+                        studentName: realName,
+                        studentId: realStudentId || p.studentId,
+                        ...(realAdm ? { admissionNumber: realAdm } : {})
+                    };
+                    apiService.saveModuleRecord('ds_payments', updatedPayment).catch(err => {
+                        console.warn('[DSContext] Failed to persist auto-healed payment:', err);
+                    });
+                    return updatedPayment;
+                }
+
+                return p;
+            });
+
             setInvoices(healedInvoices);
-            setPayments(dsPay || []);
+            setPayments(healedPayments);
             setMpesaTransactions(dsMpe || []);
             setBankTransactions(dsBnk || []);
             setLeads(prev => {
@@ -1755,11 +1802,41 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             let summary = '';
             
+            // Ensure student details are fully resolved and never generic 'Student'
+            const matchedStudent = rawStudents.find(s => 
+                (pay.studentId && (s.id === pay.studentId || (s as any)._id === pay.studentId)) ||
+                (pay.studentId && ((s.admissionNumber || '').trim().toLowerCase() === String(pay.studentId).trim().toLowerCase() || ((s as any).admission_number || '').trim().toLowerCase() === String(pay.studentId).trim().toLowerCase())) ||
+                (data.admissionNumber && ((s.admissionNumber || '').trim().toLowerCase() === String(data.admissionNumber).trim().toLowerCase() || ((s as any).admission_number || '').trim().toLowerCase() === String(data.admissionNumber).trim().toLowerCase()))
+            );
+
+            if (!pay.studentId && (matchedStudent?.id || invoice?.studentId)) {
+                pay.studentId = matchedStudent?.id || invoice?.studentId;
+            }
+
+            const rawName = (pay.studentName || (pay as any).student_name || '').trim();
+            const isGenericOrMissing = !rawName || rawName.toLowerCase() === 'student' || rawName.toLowerCase() === 'learner';
+            if (isGenericOrMissing) {
+                const resolvedName = (matchedStudent?.fullName && matchedStudent.fullName.trim().toLowerCase() !== 'student')
+                    ? matchedStudent.fullName
+                    : (invoice?.studentName && invoice.studentName.trim().toLowerCase() !== 'student')
+                        ? invoice.studentName
+                        : rawName;
+                if (resolvedName && resolvedName.toLowerCase() !== 'student') {
+                    pay.studentName = resolvedName;
+                }
+            }
+
+            if (matchedStudent?.admissionNumber && !pay.admissionNumber) {
+                pay.admissionNumber = matchedStudent.admissionNumber;
+            }
+
             if (invoice) {
                 // Ensure student info is backfilled from invoice if missing
                 if (!pay.studentId) {
                     pay.studentId = invoice.studentId;
-                    pay.studentName = invoice.studentName;
+                }
+                if (!pay.studentName || pay.studentName === 'Student') {
+                    pay.studentName = invoice.studentName || pay.studentName;
                 }
 
                 const allInvoicePayments = [
@@ -1820,6 +1897,30 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 metadata: updatedMetadata,
                 updatedAt: new Date().toISOString()
             };
+
+            // Ensure studentName is resolved if missing or generic 'Student'
+            const rawUpdateName = (updatedPayment.studentName || (updatedPayment as any).student_name || '').trim();
+            if (!rawUpdateName || rawUpdateName.toLowerCase() === 'student' || rawUpdateName.toLowerCase() === 'learner') {
+                const targetId = updatedPayment.studentId || oldPayment.studentId;
+                const matchedStudent = rawStudents.find(s => 
+                    (targetId && (s.id === targetId || (s as any)._id === targetId)) ||
+                    (targetId && ((s.admissionNumber || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() || ((s as any).admission_number || '').trim().toLowerCase() === String(targetId).trim().toLowerCase()))
+                );
+                const invId = updatedPayment.invoiceId || oldPayment.invoiceId;
+                const matchedInv = rawInvoices.find(inv => inv.id === invId || inv.invoiceNumber === invId);
+                const realName = (matchedStudent?.fullName && matchedStudent.fullName.trim().toLowerCase() !== 'student')
+                    ? matchedStudent.fullName
+                    : (matchedInv?.studentName && matchedInv.studentName.trim().toLowerCase() !== 'student')
+                        ? matchedInv.studentName
+                        : '';
+                if (realName) {
+                    updatedPayment.studentName = realName;
+                }
+                if (matchedStudent?.admissionNumber && !updatedPayment.admissionNumber) {
+                    updatedPayment.admissionNumber = matchedStudent.admissionNumber;
+                }
+            }
+
             if (data.editReason && !updatedPayment.notes) {
                 updatedPayment.notes = `Edit: ${data.editReason}`;
             }

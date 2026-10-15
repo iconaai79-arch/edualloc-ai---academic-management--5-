@@ -1744,6 +1744,15 @@ const DrivingSchoolActionModal: React.FC<{ type: string | null, onClose: () => v
                 }
                 if (initialData?.studentName) {
                     setStudentSearch(initialData.studentName);
+                } else if (initialData?.studentId) {
+                    const matched = (students || []).find(s => s.id === initialData.studentId || s.admissionNumber === initialData.studentId);
+                    if (matched) {
+                        setStudentSearch(matched.fullName);
+                        setFormData((prev: any) => ({
+                            ...prev,
+                            studentName: matched.fullName
+                        }));
+                    }
                 }
             }
         }
@@ -5202,22 +5211,45 @@ END $$;
     const getStudentForPayment = useCallback((pay: any) => {
         if (!pay) return null;
         const targetId = pay.studentId || (pay as any).student_id;
-        const payName = (pay.studentName || (pay as any).student_name || '').trim().toLowerCase();
+        const rawPayName = (pay.studentName || (pay as any).student_name || '').trim();
+        const payName = (rawPayName.toLowerCase() !== 'student' && rawPayName.toLowerCase() !== 'learner') ? rawPayName.toLowerCase() : '';
+        const payAdm = (pay.admissionNumber || (pay as any).admission_number || '').trim().toLowerCase();
 
+        // 1. Direct ID match
         if (targetId) {
             const byId = (normalizedStudents || []).find(s => s.id === targetId || (s as any)._id === targetId);
             if (byId) return byId;
         }
 
+        // 2. Admission Number match on payment admissionNumber
+        if (payAdm) {
+            const byAdm = (normalizedStudents || []).find(s => 
+                (s.admissionNumber || '').trim().toLowerCase() === payAdm ||
+                ((s as any).admission_number || '').trim().toLowerCase() === payAdm
+            );
+            if (byAdm) return byAdm;
+        }
+
+        // 3. Admission Number match on pay.studentId (if targetId was admission number)
+        if (targetId) {
+            const byTargetAdm = (normalizedStudents || []).find(s => 
+                (s.admissionNumber || '').trim().toLowerCase() === String(targetId).trim().toLowerCase() ||
+                ((s as any).admission_number || '').trim().toLowerCase() === String(targetId).trim().toLowerCase()
+            );
+            if (byTargetAdm) return byTargetAdm;
+        }
+
+        // 4. Linked invoice match
         const invId = pay.invoiceId || (pay as any).invoice_id;
         if (invId) {
-            const linkedInv = (invoices || []).find(i => i.id === invId);
+            const linkedInv = (invoices || []).find(i => i.id === invId || i.invoiceNumber === invId);
             if (linkedInv) {
                 const studentFromInv = getStudentForInvoice(linkedInv);
                 if (studentFromInv) return studentFromInv;
             }
         }
 
+        // 5. Full Name match (if not generic 'student')
         if (payName) {
             const byName = (normalizedStudents || []).find(s => 
                 (s.fullName || '').trim().toLowerCase() === payName ||
@@ -5255,6 +5287,29 @@ END $$;
                (pay as any)?.admission_number || 
                '-';
     }, [getStudentForPayment]);
+
+    const getPaymentStudentName = useCallback((pay: any, resolvedStudent?: any) => {
+        if (!pay) return '-';
+        const rawName = (pay.studentName || (pay as any).student_name || '').trim();
+        if (rawName && rawName.toLowerCase() !== 'student' && rawName.toLowerCase() !== 'learner') {
+            return rawName;
+        }
+        const student = resolvedStudent !== undefined ? resolvedStudent : getStudentForPayment(pay);
+        if (student?.fullName) return student.fullName;
+        if ((student as any)?.full_name) return (student as any).full_name;
+        if ((student as any)?.name) return (student as any).name;
+
+        // Check linked invoice
+        const invId = pay.invoiceId || (pay as any).invoice_id;
+        if (invId) {
+            const linkedInv = (invoices || []).find(i => i.id === invId || i.invoiceNumber === invId);
+            if (linkedInv?.studentName && linkedInv.studentName.trim().toLowerCase() !== 'student') {
+                return linkedInv.studentName;
+            }
+        }
+
+        return rawName || '-';
+    }, [getStudentForPayment, invoices]);
 
     const filteredStudents = useMemo(() => {
         let list = (normalizedStudents || []).filter(s => 
@@ -6014,7 +6069,7 @@ END $$;
         const list = (payments || []).filter(pay => {
             const student = getStudentForPayment(pay);
             const adm = getPaymentAdmNo(pay, student);
-            const sName = pay.studentName || (pay as any).student_name || student?.fullName || '';
+            const sName = getPaymentStudentName(pay, student);
             const rcpt = pay.receiptNumber || (pay as any).receipt_number || '';
             const method = pay.paymentMethod || (pay as any).payment_method || '';
             return !query ||
@@ -6030,7 +6085,7 @@ END $$;
             const timeB = new Date(b.createdAt || (b as any).created_at || b.paymentDate || (b as any).payment_date || 0).getTime();
             return timeB - timeA;
         });
-    }, [payments, paymentSearch, getStudentForPayment, getPaymentAdmNo]);
+    }, [payments, paymentSearch, getStudentForPayment, getPaymentAdmNo, getPaymentStudentName]);
 
     const totalPaymentPages = Math.max(1, Math.ceil(filteredPayments.length / itemsPerPage));
     const activePaymentPage = paymentPage > totalPaymentPages ? 1 : paymentPage;
@@ -8844,10 +8899,13 @@ END $$;
                                                          </tr>
                                                      </thead>
                                                      <tbody className="divide-y divide-amber-200/30 dark:divide-amber-800/20">
-                                                         {[...payments].filter(p => p.status === 'Pending Deletion').sort((a, b) => new Date(b.createdAt || (b as any).created_at || b.paymentDate || (b as any).payment_date || 0).getTime() - new Date(a.createdAt || (a as any).created_at || a.paymentDate || (a as any).payment_date || 0).getTime()).map(payment => (
+                                                         {[...payments].filter(p => p.status === 'Pending Deletion').sort((a, b) => new Date(b.createdAt || (b as any).created_at || b.paymentDate || (b as any).payment_date || 0).getTime() - new Date(a.createdAt || (a as any).created_at || a.paymentDate || (a as any).payment_date || 0).getTime()).map(payment => {
+                                                            const student = getStudentForPayment(payment);
+                                                            const studentName = getPaymentStudentName(payment, student);
+                                                            return (
                                                              <tr key={payment.id} className="hover:bg-amber-100/20">
                                                                  <td className="px-6 py-4 font-bold text-amber-900 dark:text-amber-300">{payment.receiptNumber}</td>
-                                                                 <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{payment.studentName}</td>
+                                                                 <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300">{studentName}</td>
                                                                  <td className="px-6 py-4 font-bold text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0)?.toLocaleString()}</td>
                                                                  <td className="px-6 py-4 text-xs italic text-rose-600 dark:text-rose-400">{payment.deletionReason}</td>
                                                                  <td className="px-6 py-4 text-xs text-slate-500">{getRequesterName(payment.deletionRequestedBy)}</td>
@@ -8874,7 +8932,8 @@ END $$;
                                                                      )}
                                                                  </td>
                                                              </tr>
-                                                         ))}
+                                                         );
+                                                        })}
                                                      </tbody>
                                                  </table>
                                              </div>
@@ -8997,7 +9056,7 @@ END $$;
                                                     {paginatedPayments.map(payment => {
                                                         const student = getStudentForPayment(payment);
                                                         const admNo = getPaymentAdmNo(payment, student);
-                                                        const studentName = payment.studentName || (payment as any).student_name || student?.fullName || '-';
+                                                        const studentName = getPaymentStudentName(payment, student);
                                                         const isCompleted = payment.status === 'Completed';
                                                         const isVerified = payment.status === 'Verified';
                                                         return (
@@ -9063,10 +9122,10 @@ END $$;
                                                                     {(isDirector || isSuperAdmin) && payment.status !== 'Verified' && payment.status !== 'Pending Deletion' && (
                                                                         <button 
                                                                             onClick={async () => {
-                                                                                if (window.confirm(`Audit-verify payment ${payment.receiptNumber} (KES ${(payment.amount ?? 0).toLocaleString()}) for ${payment.studentName}?\n\nThis stamps your approval for finance audit.`)) {
+                                                                                if (window.confirm(`Audit-verify payment ${payment.receiptNumber} (KES ${(payment.amount ?? 0).toLocaleString()}) for ${studentName}?\n\nThis stamps your approval for finance audit.`)) {
                                                                                     setIsActionLoading(true);
                                                                                     try {
-                                                                                        await onUpdatePayment({ ...payment, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() });
+                                                                                        await onUpdatePayment({ ...payment, studentName, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() });
                                                                                         success(`✓ Payment ${payment.receiptNumber} verified!`);
                                                                                     } catch (err: any) {
                                                                                         toastError(err.message || 'Failed to verify payment');
@@ -9090,7 +9149,7 @@ END $$;
                                                                                 fullName: studentName,
                                                                                 admissionNumber: admNo !== '-' ? admNo : ''
                                                                             };
-                                                                            const doc = await generateDSPDF('receipt', payment, fallbackStudent as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, payments);
+                                                                            const doc = await generateDSPDF('receipt', { ...payment, studentName }, fallbackStudent as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, payments);
                                                                             doc.save(`${payment.receiptNumber}.pdf`);
                                                                         }}
                                                                         className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
@@ -9105,7 +9164,7 @@ END $$;
                                                                                 fullName: studentName,
                                                                                 admissionNumber: admNo !== '-' ? admNo : ''
                                                                             };
-                                                                            const url = await generateDSThermalReceipt(payment, fallbackStudent as any, currentInstitution, false, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, settings, payments);
+                                                                            const url = await generateDSThermalReceipt({ ...payment, studentName }, fallbackStudent as any, currentInstitution, false, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, settings, payments);
                                                                             const win = window.open(url, '_blank');
                                                                             if (win) {
                                                                                 win.focus();
@@ -9212,7 +9271,15 @@ END $$;
                                 const auditPayments = [...(payments || [])].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
                                 const filteredAuditPayments = auditPayments.filter(p => {
                                     const q = auditSearch.toLowerCase();
-                                    const matchesSearch = !q || p.receiptNumber?.toLowerCase().includes(q) || p.studentName?.toLowerCase().includes(q) || p.paymentMethod?.toLowerCase().includes(q) || (p as any).auditedBy?.toLowerCase().includes(q);
+                                    const student = getStudentForPayment(p);
+                                    const sName = getPaymentStudentName(p, student);
+                                    const admNo = getPaymentAdmNo(p, student);
+                                    const matchesSearch = !q || 
+                                        p.receiptNumber?.toLowerCase().includes(q) || 
+                                        sName.toLowerCase().includes(q) || 
+                                        admNo.toLowerCase().includes(q) || 
+                                        p.paymentMethod?.toLowerCase().includes(q) || 
+                                        (p as any).auditedBy?.toLowerCase().includes(q);
                                     const matchesStatus = auditStatusFilter === 'all' || p.status === auditStatusFilter;
                                     const pDate = new Date(p.paymentDate).getTime();
                                     const matchesFrom = !auditDateFrom || pDate >= new Date(auditDateFrom).getTime();
@@ -9231,9 +9298,10 @@ END $$;
                                 const handleExportAuditCSV = () => {
                                     const header = ['Receipt #', 'Student', 'Adm #', 'Method', 'Amount (KES)', 'Date', 'Status', 'Audited By', 'Audited At'];
                                     const rows = filteredAuditPayments.map(p => {
-                                        const student = (normalizedStudents || []).find(s => s.id === p.studentId);
-                                        const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
-                                        return [p.receiptNumber, p.studentName, admNo, p.paymentMethod, p.amount, new Date(p.paymentDate).toLocaleDateString(), p.status, (p as any).auditedBy || '', (p as any).auditedAt ? new Date((p as any).auditedAt).toLocaleString() : ''];
+                                        const student = getStudentForPayment(p);
+                                        const admNo = getPaymentAdmNo(p, student);
+                                        const resolvedStudentName = getPaymentStudentName(p, student);
+                                        return [p.receiptNumber, resolvedStudentName, admNo, p.paymentMethod, p.amount, new Date(p.paymentDate).toLocaleDateString(), p.status, (p as any).auditedBy || '', (p as any).auditedAt ? new Date((p as any).auditedAt).toLocaleString() : ''];
                                     });
                                     const csv = [header, ...rows].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
                                     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -9317,8 +9385,9 @@ END $$;
                                                         {filteredAuditPayments.length === 0 ? (
                                                             <tr><td colSpan={9} className="px-8 py-16 text-center"><div className="flex flex-col items-center gap-3"><div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center"><CheckCircleIcon className="w-6 h-6 text-slate-300" /></div><p className="text-xs font-black text-slate-400 uppercase tracking-widest">No payments match your filters</p></div></td></tr>
                                                         ) : filteredAuditPayments.map(payment => {
-                                                            const student = (normalizedStudents || []).find(s => s.id === payment.studentId);
-                                                            const admNo = student?.admissionNumber || (student as any)?.admission_number || '-';
+                                                            const student = getStudentForPayment(payment);
+                                                            const admNo = getPaymentAdmNo(payment, student);
+                                                            const resolvedStudentName = getPaymentStudentName(payment, student);
                                                             const isVerified = payment.status === 'Verified';
                                                             const isCompleted = payment.status === 'Completed';
                                                             const isPendingConfirm = payment.status === 'Pending Confirmation';
@@ -9327,7 +9396,7 @@ END $$;
                                                                 <tr key={payment.id} className={`transition-colors ${isVerified ? 'bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/60' : isPendingDeletion ? 'bg-rose-50/30 dark:bg-rose-950/10 hover:bg-rose-50/50' : 'hover:bg-slate-50/50'}`}>
                                                                     <td className="px-8 py-5 font-black text-sm text-slate-900 dark:text-white">{payment.receiptNumber}</td>
                                                                     <td className="px-8 py-5 text-xs font-bold text-slate-500">{admNo}</td>
-                                                                    <td className="px-8 py-5 text-sm font-bold">{payment.studentName}</td>
+                                                                    <td className="px-8 py-5 text-sm font-bold text-slate-900 dark:text-white">{resolvedStudentName}</td>
                                                                     <td className="px-8 py-5"><span className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-[9px] font-black uppercase tracking-widest">{payment.paymentMethod}</span></td>
                                                                     <td className="px-8 py-5 font-black text-sm text-slate-900 dark:text-white">KES {(payment.amount ?? 0).toLocaleString()}</td>
                                                                     <td className="px-8 py-5 text-xs font-bold text-slate-500">{new Date(payment.paymentDate).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
@@ -9347,7 +9416,7 @@ END $$;
                                                                     </td>
                                                                     <td className="px-8 py-5 text-right space-x-2">
                                                                         {!isVerified && !isPendingDeletion && (
-                                                                            <button onClick={async () => { if (window.confirm(`Audit-verify payment ${payment.receiptNumber} (KES ${(payment.amount ?? 0).toLocaleString()}) for ${payment.studentName}?\n\nThis stamps your approval for finance audit.`)) { setIsActionLoading(true); try { await onUpdatePayment({ ...payment, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() }); success(`Payment ${payment.receiptNumber} verified!`); } catch (err: any) { toastError(err.message || 'Failed to verify'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><CheckCircleIcon className="w-3 h-3" /> Verify</button>
+                                                                            <button onClick={async () => { if (window.confirm(`Audit-verify payment ${payment.receiptNumber} (KES ${(payment.amount ?? 0).toLocaleString()}) for ${resolvedStudentName}?\n\nThis stamps your approval for finance audit.`)) { setIsActionLoading(true); try { await onUpdatePayment({ ...payment, studentName: resolvedStudentName, status: 'Verified', auditedBy: currentUser?.name || currentUser?.email || 'Director', auditedAt: new Date().toISOString() }); success(`Payment ${payment.receiptNumber} verified!`); } catch (err: any) { toastError(err.message || 'Failed to verify'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><CheckCircleIcon className="w-3 h-3" /> Verify</button>
                                                                         )}
                                                                         {isVerified && (
                                                                             <button onClick={async () => { if (window.confirm(`Re-open audit for payment ${payment.receiptNumber}? This will revert it to Completed status.`)) { setIsActionLoading(true); try { await onUpdatePayment({ ...payment, status: 'Completed', auditedBy: undefined as any, auditedAt: undefined as any }); success(`Payment ${payment.receiptNumber} reopened for audit.`); } catch (err: any) { toastError(err.message || 'Failed to reopen'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50">Re-open</button>
@@ -9355,7 +9424,15 @@ END $$;
                                                                         {isPendingDeletion && (
                                                                             <button onClick={async () => { if (window.confirm(`Confirm deletion of payment ${payment.receiptNumber}?`)) { setIsActionLoading(true); try { await onDeletePayment(payment.id); success(`Payment ${payment.receiptNumber} deleted.`); } catch (err: any) { toastError(err.message || 'Failed to delete'); } finally { setIsActionLoading(false); } } }} disabled={isActionLoading} className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-50"><TrashIcon className="w-3 h-3" /> Delete</button>
                                                                         )}
-                                                                        <button onClick={async () => { const s = (students || []).find(st => st.id === payment.studentId); if (s) { const doc = await generateDSPDF('receipt', payment, s as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, payments); doc.save(`${payment.receiptNumber}.pdf`); } }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                                                                        <button onClick={async () => {
+                                                                            const fallbackStudent = student || (students || []).find(st => st.id === payment.studentId || st.admissionNumber === payment.studentId) || {
+                                                                                id: payment.studentId || 'unknown',
+                                                                                fullName: resolvedStudentName,
+                                                                                admissionNumber: admNo !== '-' ? admNo : ''
+                                                                            };
+                                                                            const doc = await generateDSPDF('receipt', { ...payment, studentName: resolvedStudentName }, fallbackStudent as any, settings, currentInstitution, invoices, payment.receivedBy || currentUser?.name || currentUser?.email, payments);
+                                                                            doc.save(`${payment.receiptNumber}.pdf`);
+                                                                        }} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all inline-flex items-center" title="Download Receipt PDF"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
                                                                     </td>
                                                                 </tr>
                                                             );
@@ -12547,7 +12624,15 @@ END $$;
                                                 setEnrollWizard(w => ({ ...w, open: false }));
                                                 setActiveTab('finance');
                                                 setFinanceTab('payments');
-                                                setActionModal({ type: 'payment', initialData: { studentId: enrollWizard.student?.id, invoiceId: enrollWizard.createdInvoiceId } });
+                                                setActionModal({ 
+                                                    type: 'payment', 
+                                                    initialData: { 
+                                                        studentId: enrollWizard.student?.id, 
+                                                        studentName: enrollWizard.student?.fullName || enrollWizard.student?.name || '',
+                                                        admissionNumber: enrollWizard.student?.admissionNumber || '',
+                                                        invoiceId: enrollWizard.createdInvoiceId 
+                                                    } 
+                                                });
                                             }}
                                             className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
                                         >
