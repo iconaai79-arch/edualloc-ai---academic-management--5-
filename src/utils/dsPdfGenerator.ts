@@ -1617,4 +1617,191 @@ export const generateDSCompletionCertificatePDF = async (
     return doc;
 };
 
+export const generateDSStudentStatementPDF = async (
+    student: DSStudent,
+    invoices: DSInvoice[],
+    payments: DSPayment[],
+    institution: any,
+    settings?: DSSettings | null
+) => {
+    const doc = new jsPDF() as any;
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // 1. Institution Header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(30, 41, 59);
+    doc.text(institution?.name || settings?.schoolName || 'DRIVING ACADEMY', margin, 25);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`${institution?.address || settings?.address || 'Nairobi, Kenya'} | Tel: ${institution?.phoneNumber || settings?.phone || ''} | Email: ${institution?.email || settings?.email || ''}`, margin, 31);
+
+    // Decorative line
+    doc.setDrawColor(226, 232, 240);
+    doc.line(margin, 36, pageWidth - margin, 36);
+
+    // Title Badge
+    doc.setFillColor(79, 70, 229);
+    doc.roundedRect(pageWidth - 85, 15, 65, 14, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text('STATEMENT OF ACCOUNT', pageWidth - 52.5, 23.5, { align: 'center' });
+
+    // 2. Student Details Box
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, 42, pageWidth - margin * 2, 28, 3, 3, 'F');
+
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text('STUDENT NAME:', margin + 6, 50);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(student.fullName || 'N/A', margin + 38, 50);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('ADMISSION #:', margin + 6, 57);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(79, 70, 229);
+    doc.text(student.admissionNumber || student.idNumber || 'N/A', margin + 38, 57);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('CATEGORY:', margin + 6, 64);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(student.licenseCategory || student.licenseTypeInterested || 'Standard Driving Course', margin + 38, 64);
+
+    // Right Column in box
+    const rightCol = pageWidth / 2 + 10;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('PHONE:', rightCol, 50);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(student.phone || 'N/A', rightCol + 32, 50);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('STATEMENT DATE:', rightCol, 57);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), rightCol + 32, 57);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text('ACCOUNT STATUS:', rightCol, 64);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 185, 129);
+    doc.text(student.status || 'Active', rightCol + 32, 64);
+
+    // 3. Financial Ledger Entries
+    interface LedgerRow {
+        date: string;
+        ref: string;
+        description: string;
+        debit: number;
+        credit: number;
+        balance: number;
+    }
+
+    const rows: LedgerRow[] = [];
+    (invoices || []).forEach(inv => {
+        rows.push({
+            date: inv.invoiceDate || inv.createdAt || '',
+            ref: inv.invoiceNumber || inv.id,
+            description: `Tuition Invoice: ${(inv.items || []).map((i: any) => i.name || i.description).join(', ') || 'Driving Course Fee'}`,
+            debit: Number(inv.totalAmount) || 0,
+            credit: 0,
+            balance: 0
+        });
+    });
+
+    (payments || []).forEach(p => {
+        rows.push({
+            date: p.paymentDate || p.createdAt || '',
+            ref: p.receiptNumber || p.transactionReference || p.id,
+            description: `Payment Received [${p.paymentMethod || 'M-Pesa'}]${p.transactionReference ? ` Ref: ${p.transactionReference}` : ''}`,
+            debit: 0,
+            credit: Number(p.amount) || 0,
+            balance: 0
+        });
+    });
+
+    rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let runningBalance = 0;
+    rows.forEach(r => {
+        runningBalance = runningBalance + r.debit - r.credit;
+        r.balance = runningBalance;
+    });
+
+    const totalDebits = rows.reduce((s, r) => s + r.debit, 0);
+    const totalCredits = rows.reduce((s, r) => s + r.credit, 0);
+    const finalBalance = runningBalance;
+
+    const tableData = rows.map(r => [
+        r.date ? new Date(r.date).toLocaleDateString('en-GB') : '-',
+        r.ref,
+        r.description,
+        r.debit > 0 ? `KES ${r.debit.toLocaleString()}` : '-',
+        r.credit > 0 ? `KES ${r.credit.toLocaleString()}` : '-',
+        `KES ${r.balance.toLocaleString()}`
+    ]);
+
+    autoTable(doc, {
+        startY: 76,
+        head: [['Date', 'Ref / Doc #', 'Description', 'Charges (Debit)', 'Paid (Credit)', 'Balance']],
+        body: tableData.length > 0 ? tableData : [['-', '-', 'No transactions recorded', '-', '-', 'KES 0']],
+        foot: [[
+            'TOTALS',
+            '',
+            '',
+            `KES ${totalDebits.toLocaleString()}`,
+            `KES ${totalCredits.toLocaleString()}`,
+            `KES ${finalBalance.toLocaleString()}`
+        ]],
+        theme: 'striped',
+        headStyles: {
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8.5
+        },
+        bodyStyles: {
+            fontSize: 8,
+            textColor: [51, 65, 85]
+        },
+        footStyles: {
+            fillColor: [241, 245, 249],
+            textColor: [15, 23, 42],
+            fontStyle: 'bold',
+            fontSize: 8.5
+        },
+        margin: { left: margin, right: margin }
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 140;
+
+    doc.setFillColor(finalBalance > 0 ? 254 : 240, finalBalance > 0 ? 242 : 253, finalBalance > 0 ? 242 : 244);
+    doc.roundedRect(pageWidth - margin - 75, finalY + 8, 75, 18, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(finalBalance > 0 ? 185 : 16, finalBalance > 0 ? 28 : 122, finalBalance > 0 ? 28 : 87);
+    doc.text(`CURRENT BALANCE: KES ${finalBalance.toLocaleString()}`, pageWidth - margin - 37.5, finalY + 19, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('This is an official computer-generated statement of account issued by the driving academy.', margin, pageHeight - 15);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, pageHeight - 11);
+
+    return doc;
+};
+
 
