@@ -104,7 +104,8 @@ const PUBLIC_MODULES = [
   'bursary_disbursements', 'stock_transactions', 'appointments',
   'assessments', 'assessment_marks', 'exam_units', 'exam_broadsheets',
   'law_documents', 'law_clients', 'law_matters', 'law_time_entries', 'law_invoices', 'law_trust_transactions', 'law_agreement_templates', 'law_agreements',
-  'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
+  'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
+  'branches'
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

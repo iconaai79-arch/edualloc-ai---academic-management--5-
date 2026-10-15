@@ -3,6 +3,7 @@ import { DSInstructor, DSVehicle, DSStudent, DSLesson, DSSkillMastery, DSSetting
 import { apiService } from './apiService';
 import { useToast } from './ToastContext';
 import { generateDSPDF } from '../utils/dsPdfGenerator';
+import { localDb } from './localDb';
 
 export const recalculateDSInvoicePayments = (
     invoice: DSInvoice, 
@@ -383,73 +384,134 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const addBranch = useCallback(async (data: Partial<Branch>) => {
         if (!institutionId) return;
         try {
+            const cleanId = (sid?: string) => sid ? String(sid).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+            const normInstId = cleanId(institutionId);
             const id = data.id || `br_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
             const newBranch: Branch = {
                 id,
                 institutionId,
                 institution_id: institutionId,
-                name: data.name || 'New Branch',
-                location: data.location || '',
-                code: data.code || '',
-                phone: data.phone || '',
-                email: data.email || '',
-                managerUserId: data.managerUserId || data.manager_user_id,
-                manager_user_id: data.managerUserId || data.manager_user_id,
+                name: (data.name || 'New Branch').trim(),
+                location: (data.location || '').trim(),
+                code: (data.code || '').trim().toUpperCase(),
+                phone: (data.phone || '').trim(),
+                email: (data.email || '').trim(),
+                managerUserId: data.managerUserId || data.manager_user_id || undefined,
+                manager_user_id: data.managerUserId || data.manager_user_id || undefined,
                 isActive: data.isActive ?? data.is_active ?? true,
                 is_active: data.isActive ?? data.is_active ?? true,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
+
+            // 1. Immediate local persistence to IndexedDB and in-memory cache
+            try {
+                localDb.put('branches', newBranch).catch(() => {});
+                (apiService as any).ls?.upsert?.('branches', newBranch);
+            } catch (_) {}
+
+            // 2. Persist to API / PostgreSQL
             await apiService.saveModuleRecord('branches', newBranch);
+
+            // 3. Update React state and multi-layer backups
             setBranches(prev => {
                 const exists = prev.some(b => b.id === newBranch.id);
                 const updated = exists ? prev.map(b => b.id === newBranch.id ? newBranch : b) : [...prev, newBranch];
-                try {
-                    localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(updated));
-                } catch (e) {}
+                
+                const backupKeys = [
+                    `ds_branches_backup_${institutionId}`,
+                    `ds_branches_backup_${normInstId}`,
+                    `ds_branches_backup_inst_${normInstId}`
+                ];
+                backupKeys.forEach(k => {
+                    try { localStorage.setItem(k, JSON.stringify(updated)); } catch (_) {}
+                });
+
                 apiService.saveModuleRecord('institution_module_states', {
                     id: `ims_ds_branches_${institutionId}`,
                     institutionId,
+                    institution_id: institutionId,
                     moduleId: 'ds_branches',
+                    module_id: 'ds_branches',
                     data: updated
                 }).catch(() => {});
+
+                apiService.saveModuleRecord('ds_settings', {
+                    id: settings?.id || `ds_settings_${institutionId}`,
+                    institutionId,
+                    institution_id: institutionId,
+                    branches: updated
+                }).catch(() => {});
+
                 return updated;
             });
+
+            setSettings(prev => prev ? ({ ...prev, branches: [...(prev.branches || []).filter(b => b.id !== newBranch.id), newBranch] }) : prev);
+
             success('Branch created successfully');
             return newBranch;
         } catch (err) {
             error('Failed to create branch');
             throw err;
         }
-    }, [institutionId, success, error]);
+    }, [institutionId, settings?.id, success, error]);
 
     const updateBranch = useCallback(async (data: Partial<Branch>) => {
         if (!institutionId || !data.id) return;
         try {
+            const cleanId = (sid?: string) => sid ? String(sid).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+            const normInstId = cleanId(institutionId);
             const updated = {
                 ...data,
+                institutionId,
+                institution_id: institutionId,
                 updated_at: new Date().toISOString()
             };
+
+            try {
+                localDb.put('branches', updated).catch(() => {});
+                (apiService as any).ls?.upsert?.('branches', updated);
+            } catch (_) {}
+
             await apiService.saveModuleRecord('branches', updated);
             setBranches(prev => {
                 const next = prev.map(b => b.id === data.id ? { ...b, ...updated } : b);
-                try {
-                    localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(next));
-                } catch (e) {}
+                const backupKeys = [
+                    `ds_branches_backup_${institutionId}`,
+                    `ds_branches_backup_${normInstId}`,
+                    `ds_branches_backup_inst_${normInstId}`
+                ];
+                backupKeys.forEach(k => {
+                    try { localStorage.setItem(k, JSON.stringify(next)); } catch (_) {}
+                });
+
                 apiService.saveModuleRecord('institution_module_states', {
                     id: `ims_ds_branches_${institutionId}`,
                     institutionId,
+                    institution_id: institutionId,
                     moduleId: 'ds_branches',
+                    module_id: 'ds_branches',
                     data: next
                 }).catch(() => {});
+
+                apiService.saveModuleRecord('ds_settings', {
+                    id: settings?.id || `ds_settings_${institutionId}`,
+                    institutionId,
+                    institution_id: institutionId,
+                    branches: next
+                }).catch(() => {});
+
                 return next;
             });
+
+            setSettings(prev => prev ? ({ ...prev, branches: (prev.branches || []).map(b => b.id === data.id ? { ...b, ...updated } : b) }) : prev);
+
             success('Branch updated successfully');
         } catch (err) {
             error('Failed to update branch');
             throw err;
         }
-    }, [institutionId, success, error]);
+    }, [institutionId, settings?.id, success, error]);
 
     const deleteBranch = useCallback(async (id: string) => {
         if (!institutionId) return;
@@ -459,20 +521,47 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
         if (!window.confirm('Are you sure you want to delete this branch? Associated records will become unassigned.')) return;
         try {
+            const cleanId = (sid?: string) => sid ? String(sid).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+            const normInstId = cleanId(institutionId);
+
+            try {
+                localDb.delete('branches', id).catch(() => {});
+                (apiService as any).ls?.delete?.('branches', id);
+            } catch (_) {}
+
             await apiService.deleteModuleRecord('branches', id);
             setBranches(prev => {
                 const next = prev.filter(b => b.id !== id);
-                try {
-                    localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(next));
-                } catch (e) {}
+                const backupKeys = [
+                    `ds_branches_backup_${institutionId}`,
+                    `ds_branches_backup_${normInstId}`,
+                    `ds_branches_backup_inst_${normInstId}`
+                ];
+                backupKeys.forEach(k => {
+                    try { localStorage.setItem(k, JSON.stringify(next)); } catch (_) {}
+                });
+
                 apiService.saveModuleRecord('institution_module_states', {
                     id: `ims_ds_branches_${institutionId}`,
                     institutionId,
+                    institution_id: institutionId,
                     moduleId: 'ds_branches',
+                    module_id: 'ds_branches',
                     data: next
                 }).catch(() => {});
+
+                apiService.saveModuleRecord('ds_settings', {
+                    id: settings?.id || `ds_settings_${institutionId}`,
+                    institutionId,
+                    institution_id: institutionId,
+                    branches: next
+                }).catch(() => {});
+
                 return next;
             });
+
+            setSettings(prev => prev ? ({ ...prev, branches: (prev.branches || []).filter(b => b.id !== id) }) : prev);
+
             if (activeBranchId === id) {
                 setActiveBranchId('ALL');
             }
@@ -481,7 +570,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error('Failed to delete branch');
             throw err;
         }
-    }, [institutionId, branches.length, activeBranchId, setActiveBranchId, success, error]);
+    }, [institutionId, branches.length, activeBranchId, setActiveBranchId, settings?.id, success, error]);
 
     const loadDSData = useCallback(async () => {
         if (!institutionId) {
@@ -491,7 +580,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         setIsLoading(true);
         console.log(`[DSContext] loadDSData: Starting fetch for institutionId=${institutionId}`);
         try {
-            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone, dsBranches] = await Promise.all([
+            const [dsInst, dsVeh, dsStud, dsLess, dsMast, dsSet, dsInvs, dsPay, dsMpe, dsBnk, dsVotesStandalone, dsCatsStandalone, dsLeadsStandalone, dsExpendituresStandalone, dsBranches, dsModuleStates, idbBranches] = await Promise.all([
                 apiService.fetchModuleRecords<DSInstructor>('ds_instructors', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSVehicle>('ds_vehicles', institutionId).catch(() => []),
                 apiService.fetchModuleRecords<DSStudent>('ds_students', institutionId, undefined, { limit: 5000 }).catch(() => []),
@@ -507,6 +596,8 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.fetchModuleRecords<DSLead>('ds_leads', institutionId, undefined, { limit: 5000 }).catch(() => []),
                 apiService.fetchModuleRecords<DSExpenditure>('ds_expenditures', institutionId, undefined, { limit: 5000 }).catch(() => []),
                 apiService.fetchModuleRecords<Branch>('branches', institutionId).catch(() => []),
+                apiService.fetchModuleRecords<any>('institution_module_states', institutionId).catch(() => []),
+                localDb.getAll('branches').catch(() => [])
             ]);
 
             console.log(`[DSContext] loadDSData: Fetched ${dsInst.length} instructors, ${dsVeh.length} vehicles, ${dsStud.length} students, ${dsLess.length} lessons, ${dsLeadsStandalone.length} leads`);
@@ -519,49 +610,75 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             const cleanId = (id?: string) => id ? String(id).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
             const normInstId = cleanId(institutionId);
-            let loadedBranches = (dsBranches || []).filter((b: any) => {
-                const bInst = b.institutionId || (b as any).institution_id;
+            const matchesInst = (b: any) => {
+                if (!b) return false;
+                const bInst = b.institutionId || b.institution_id;
+                if (!bInst) return true;
                 return bInst === institutionId || (normInstId && cleanId(bInst) === normInstId);
-            });
+            };
 
-            // Smart consolidation with local backup and IMS cloud state so newly created branches never vanish across reloads
+            // 1. Branches from PostgreSQL API
+            const loadedBranches = (dsBranches || []).filter(matchesInst);
+
+            // 2. Branches from IndexedDB localDb
+            const loadedIdbBranches = (idbBranches || []).filter(matchesInst);
+
+            // 3. Branches from localStorage backup keys
             let backupBranches: Branch[] = [];
-            try {
-                const bb = localStorage.getItem(`ds_branches_backup_${institutionId}`);
-                if (bb) backupBranches = JSON.parse(bb);
-            } catch (e) {}
+            const candidateKeys = [
+                `ds_branches_backup_${institutionId}`,
+                `ds_branches_backup_${normInstId}`,
+                `ds_branches_backup_inst_${normInstId}`
+            ];
+            for (const key of candidateKeys) {
+                try {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            backupBranches.push(...parsed.filter(matchesInst));
+                        }
+                    }
+                } catch (_) {}
+            }
 
+            // 4. Branches from institution_module_states (ims_ds_branches)
             let imsBranches: Branch[] = [];
-            try {
-                if (dsSet && dsSet[0] && Array.isArray((dsSet[0] as any).branches)) {
-                    imsBranches = (dsSet[0] as any).branches;
+            if (Array.isArray(dsModuleStates)) {
+                for (const state of dsModuleStates) {
+                    const sId = String(state?.id || '');
+                    const sMod = String(state?.moduleId || state?.module_id || '');
+                    if (sId.includes('ds_branches') || sMod === 'ds_branches') {
+                        const sData = state.data || state.settings || state.stateData;
+                        if (Array.isArray(sData)) {
+                            imsBranches.push(...sData.filter(matchesInst));
+                        }
+                    }
                 }
-            } catch (e) {}
+            }
 
+            // 5. Branches from ds_settings
+            let settingsBranches: Branch[] = [];
+            if (dsSet && dsSet[0] && Array.isArray((dsSet[0] as any).branches)) {
+                settingsBranches = (dsSet[0] as any).branches.filter(matchesInst);
+            }
+
+            // 6. Branches from apiService.ls cache
             let lsBranches: Branch[] = [];
             try {
                 const lsb = (apiService as any).ls?.get?.('branches') || [];
                 if (Array.isArray(lsb)) {
-                    lsBranches = lsb.filter((b: any) => {
-                        const bInst = b.institutionId || b.institution_id;
-                        return bInst === institutionId || (normInstId && cleanId(bInst) === normInstId);
-                    });
+                    lsBranches = lsb.filter(matchesInst);
                 }
-            } catch (e) {}
+            } catch (_) {}
 
             const branchMap = new Map<string, Branch>();
-            (backupBranches || []).forEach(b => {
-                if (b && b.id) branchMap.set(b.id, b);
-            });
-            (lsBranches || []).forEach(b => {
-                if (b && b.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b });
-            });
-            (imsBranches || []).forEach(b => {
-                if (b && b.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b });
-            });
-            (loadedBranches || []).forEach(b => {
-                if (b && b.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b });
-            });
+            backupBranches.forEach(b => { if (b?.id) branchMap.set(b.id, b); });
+            imsBranches.forEach(b => { if (b?.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b }); });
+            settingsBranches.forEach(b => { if (b?.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b }); });
+            lsBranches.forEach(b => { if (b?.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b }); });
+            loadedIdbBranches.forEach(b => { if (b?.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b }); });
+            loadedBranches.forEach(b => { if (b?.id) branchMap.set(b.id, { ...(branchMap.get(b.id) || {}), ...b }); });
 
             let finalBranches = Array.from(branchMap.values());
             if (finalBranches.length === 0) {
@@ -579,9 +696,17 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 apiService.saveModuleRecord('branches', defaultBranch).catch(() => {});
             }
             setBranches(finalBranches);
+
+            // Re-sync final consolidated branches to all local stores
+            candidateKeys.forEach(k => {
+                try { localStorage.setItem(k, JSON.stringify(finalBranches)); } catch (_) {}
+            });
             try {
-                localStorage.setItem(`ds_branches_backup_${institutionId}`, JSON.stringify(finalBranches));
-            } catch (e) {}
+                finalBranches.forEach(b => {
+                    localDb.put('branches', b).catch(() => {});
+                    (apiService as any).ls?.upsert?.('branches', b);
+                });
+            } catch (_) {}
 
             // Safely consolidate embedded cache columns with standalone DB rows and preserve local state if backend strips newly added columns
             setSettings(prev => {

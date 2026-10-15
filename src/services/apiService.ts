@@ -525,6 +525,7 @@ export const buildExamUnitsStatePayload = (instId: string, exams: any[]) => {
 };
 
 export const apiService = {
+    ls,
     getSupabase() {
         return _supabase;
     },

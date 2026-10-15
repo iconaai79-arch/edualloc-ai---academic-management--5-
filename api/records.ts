@@ -1020,7 +1020,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds'
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1029,13 +1029,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds'
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
-          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests'
+          'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
+          'branches'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -5764,6 +5765,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInsp) : normInsp(currentPayload);
             }
 
+            if (moduleName === 'branches' || targetDbTable === 'branches') {
+                const normBranch = (c: any) => {
+                    if (!c || typeof c !== 'object') return c;
+                    const copy = { ...c };
+                    const camelMap: Record<string, string> = {
+                        institutionId: 'institution_id',
+                        managerUserId: 'manager_user_id',
+                        isActive: 'is_active',
+                        createdAt: 'created_at',
+                        updatedAt: 'updated_at',
+                        linkedInstitutionId: 'linked_institution_id'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (copy[camelKey] !== undefined) {
+                            if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                            if (camelKey !== snakeKey) delete copy[camelKey];
+                        }
+                    });
+                    // Foreign key constraint safety for manager_user_id:
+                    // Must be null if empty string, undefined, 'null', or 'undefined'
+                    if (!copy.manager_user_id || copy.manager_user_id === '' || copy.manager_user_id === 'null' || copy.manager_user_id === 'undefined') {
+                        copy.manager_user_id = null;
+                    }
+                    if (copy.is_active === undefined) {
+                        copy.is_active = true;
+                    } else {
+                        copy.is_active = Boolean(copy.is_active);
+                    }
+                    if (copy.name) copy.name = String(copy.name).trim();
+                    if (!copy.code) copy.code = '';
+                    if (!copy.phone) copy.phone = '';
+                    if (!copy.email) copy.email = '';
+                    if (!copy.location) copy.location = '';
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normBranch) : normBranch(currentPayload);
+            }
+
             let data: any = null;
 
             let error: any = null;
@@ -5909,6 +5948,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 if (!error) break;
 
+                if ((moduleName === 'branches' || targetDbTable === 'branches') && maxRetries > 0 &&
+                    (error.code === '23503' || String(error.message || '').includes('foreign key constraint') || String(error.message || '').includes('manager_user_id'))) {
+                    console.warn(`[api/records] Foreign key constraint on branches: setting manager_user_id to null and retrying (${maxRetries} left)...`);
+                    const clearManager = (item: any) => {
+                        if (!item || typeof item !== 'object') return item;
+                        return { ...item, manager_user_id: null, managerUserId: null };
+                    };
+                    currentPayload = Array.isArray(currentPayload) ? currentPayload.map(clearManager) : clearManager(currentPayload);
+                    maxRetries--;
+                    continue;
+                }
+
                 const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
                 if (colMatch && colMatch[1] && maxRetries > 0) {
                     const offendingCol = colMatch[1];
@@ -5975,6 +6026,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS email TEXT;
                                         ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS manager_user_id TEXT;
                                         ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS linked_institution_id TEXT;
+                                        ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
                                         NOTIFY pgrst, 'reload schema';
                                     `),
                                     2000
@@ -7915,6 +7968,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     delete c.phone_number;
                     delete c.metadata;
                     currentUpdateData = c;
+                } else if ((moduleName === 'branches' || targetDbTable === 'branches') && currentUpdateData && typeof currentUpdateData === 'object') {
+                    const c = { ...currentUpdateData };
+                    const camelMap: Record<string, string> = {
+                        institutionId: 'institution_id',
+                        managerUserId: 'manager_user_id',
+                        isActive: 'is_active',
+                        updatedAt: 'updated_at',
+                        linkedInstitutionId: 'linked_institution_id'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (c[camelKey] !== undefined) {
+                            if (c[snakeKey] === undefined) c[snakeKey] = c[camelKey];
+                            if (camelKey !== snakeKey) delete c[camelKey];
+                        }
+                    });
+                    if (c.manager_user_id !== undefined && (!c.manager_user_id || c.manager_user_id === '' || c.manager_user_id === 'null' || c.manager_user_id === 'undefined')) {
+                        c.manager_user_id = null;
+                    }
+                    if (c.is_active !== undefined) c.is_active = Boolean(c.is_active);
+                    currentUpdateData = c;
                 }
                 let data: any = null;
                 let error: any = null;
@@ -7962,6 +8035,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     error = queryRes.error;
 
                     if (!error) break;
+
+                    if ((moduleName === 'branches' || targetDbTable === 'branches') && patchRetries > 0 &&
+                        (error.code === '23503' || String(error.message || '').includes('foreign key constraint') || String(error.message || '').includes('manager_user_id'))) {
+                        console.warn(`[api/records PATCH] Foreign key constraint on branches: setting manager_user_id to null and retrying (${patchRetries} left)...`);
+                        currentUpdateData.manager_user_id = null;
+                        delete currentUpdateData.managerUserId;
+                        patchRetries--;
+                        continue;
+                    }
 
                     const colMatch = error.message ? error.message.match(/Could not find the '([^']+)' column/i) : null;
                     if (colMatch && colMatch[1] && patchRetries > 0) {
@@ -8023,6 +8105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS email TEXT;
                                             ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS manager_user_id TEXT;
                                             ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS linked_institution_id TEXT;
+                                            ALTER TABLE public.branches ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
                                             NOTIFY pgrst, 'reload schema';
                                         `),
                                         2000
