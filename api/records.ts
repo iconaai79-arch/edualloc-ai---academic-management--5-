@@ -1616,6 +1616,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Finance reference tables — small but queried on every finance page load
                     'fee_structures', 'vote_heads', 'expenses', 'bank_feed_transactions', 'bank_transactions',
                     'finance_numbering_configs', 'bursary_disbursements',
+                    'financial_goals', 'financial_periods', 'school_bank_accounts', 'bank_accounts', 'inter_account_transfers',
                     // Absence & request modules
                     'student_absence_requests', 'absence_requests', 'time_off_requests', 'commission_withdrawal_requests',
                     // Logging, visitor & security modules
@@ -1844,7 +1845,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)
+                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
