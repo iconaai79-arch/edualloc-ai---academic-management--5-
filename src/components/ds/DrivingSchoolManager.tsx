@@ -33,7 +33,8 @@ import {
     CreditCardIcon,
     PrinterIcon,
     DownloadIcon,
-    BuildingOfficeIcon
+    BuildingOfficeIcon,
+    ArrowRightOnRectangleIcon
 } from '../icons';
 import { 
     generateDSPDF, 
@@ -3895,10 +3896,21 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         role.includes('super-admin') || 
         role.includes('reseller')
     ), [rolesList]);
-    const isSuperAdmin = useMemo(() => rolesList.some(role =>
-        ['super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin'].some(r => role === r) ||
-        role.includes('super')
-    ), [rolesList]);
+    const isSuperAdmin = useMemo(() => {
+        const hasSaRole = rolesList.some(role =>
+            ['super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin'].some(r => role === r) ||
+            role.includes('super')
+        );
+        if (hasSaRole) return true;
+        try {
+            if (typeof window !== 'undefined') {
+                if (localStorage.getItem('eduai_super_admin_session') || sessionStorage.getItem('eduai_impersonated_by_admin') === 'true') {
+                    return true;
+                }
+            }
+        } catch (_) {}
+        return false;
+    }, [rolesList]);
 
     const [reasonModal, setReasonModal] = useState<{
         isOpen: boolean;
@@ -4921,6 +4933,71 @@ END $$;
                 setIsActionLoading(false);
             }
         }
+    };
+
+    const handleLoginAsStudent = (student: DSStudent) => {
+        if (!isSuperAdmin) {
+            toastError("Access restricted. Only Super Admins can login as students.");
+            return;
+        }
+
+        try {
+            // 1. Preserve original super admin session if not already stored
+            const saStored = localStorage.getItem('eduai_super_admin_session');
+            if (!saStored) {
+                const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
+                const superAdminUser = (active && (active.role === 'super_admin' || (active as any).isSuperAdmin)) ? active : currentUser;
+                if (superAdminUser) {
+                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(superAdminUser));
+                }
+            }
+        } catch (e) {
+            console.warn('[DrivingSchoolManager] Failed to cache super admin session:', e);
+        }
+
+        // 2. Resolve matching User or synthesize a student session
+        const matchedUser = (users || []).find(u => 
+            (student.userId && u.id === student.userId) || 
+            (student.email && u.email && u.email.toLowerCase() === student.email.toLowerCase()) || 
+            (student.phone && u.phoneNumber && u.phoneNumber === student.phone)
+        );
+
+        const targetInstitutionId = student.institutionId || currentInstitution?.id || '';
+        const studentBranchId = student.branchId || (student as any).branch_id || activeBranchId;
+        const sanitizedAdm = (student.admissionNumber || student.id).toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        const impersonatedStudent: User = {
+            ...(matchedUser || {}),
+            id: matchedUser?.id || student.userId || `user_stud_${student.id}`,
+            name: student.fullName,
+            fullName: student.fullName,
+            email: matchedUser?.email || student.email || `${sanitizedAdm}@student.drivingschool.edu`,
+            phoneNumber: matchedUser?.phoneNumber || student.phone || '',
+            role: 'student' as Role,
+            institutionId: targetInstitutionId,
+            branchId: studentBranchId,
+            isImpersonated: true,
+            admissionNumber: student.admissionNumber,
+            passwordLastUpdated: matchedUser?.passwordLastUpdated || new Date().toISOString()
+        };
+
+        // 3. Store into active session stores
+        try {
+            sessionStorage.setItem('eduai_impersonated_by_admin', 'true');
+        } catch (_) {}
+        apiService.storeSession(impersonatedStudent);
+        try {
+            localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedStudent));
+            localStorage.setItem('eduai_user_session', JSON.stringify(impersonatedStudent));
+            localStorage.setItem('user', JSON.stringify(impersonatedStudent));
+        } catch (_) {}
+
+        success(`Logging in as student ${student.fullName}...`);
+
+        // 4. Force reload into Driving School Student Portal
+        setTimeout(() => {
+            window.location.href = window.location.origin + window.location.pathname;
+        }, 300);
     };
 
     const handleAutoScheduleSingleStudent = async (studentId: string) => {
@@ -7355,6 +7432,16 @@ END $$;
                                                                 >
                                                                     <EyeIcon className="w-4 h-4" />
                                                                 </button>
+                                                                {isSuperAdmin && (
+                                                                    <button 
+                                                                        onClick={() => handleLoginAsStudent(student)}
+                                                                        className="px-2.5 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-indigo-600 dark:text-indigo-400 border border-indigo-200/80 dark:border-indigo-800/80 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 group/loginbtn cursor-pointer"
+                                                                        title={`Login as ${student.fullName} (Student Portal)`}
+                                                                    >
+                                                                        <ArrowRightOnRectangleIcon className="w-3.5 h-3.5 group-hover/loginbtn:translate-x-0.5 transition-transform" />
+                                                                        <span className="text-[10px] font-black uppercase tracking-wider whitespace-nowrap">Login as Student</span>
+                                                                    </button>
+                                                                )}
                                                                 {isSuperAdmin && getStudentMilestoneStatus(student.id)?.noInvoice && student.status !== 'Graduated' && (
                                                                     <button 
                                                                         onClick={async () => {
@@ -7559,23 +7646,34 @@ END $$;
                                                             {previewReportType === 'student_logbook' ? 'NTSA Training Logbook Preview' : 'Interactive Directory Document Preview'}
                                                         </p>
                                                     </div>
-                                                    {onscreenPreviewPdf && (
-                                                        <button
-                                                            onClick={() => {
-                                                                const link = document.createElement('a');
-                                                                link.href = onscreenPreviewPdf;
-                                                                if (previewReportType === 'student_logbook') {
-                                                                    link.download = `Logbook_${selectedPreviewStudent?.admissionNumber || selectedPreviewStudent?.fullName.replace(/\s+/g, '_')}.pdf`;
-                                                                } else {
-                                                                    link.download = `${previewReportType}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-                                                                }
-                                                                link.click();
-                                                            }}
-                                                            className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all"
-                                                        >
-                                                            <DownloadIcon className="w-4.5 h-4.5" /> Download PDF
-                                                        </button>
-                                                    )}
+                                                    <div className="flex items-center gap-2">
+                                                        {isSuperAdmin && previewReportType === 'student_logbook' && selectedPreviewStudent && (
+                                                            <button
+                                                                onClick={() => handleLoginAsStudent(selectedPreviewStudent)}
+                                                                className="px-3 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-600 hover:text-white text-indigo-600 dark:text-indigo-400 border border-indigo-200/80 dark:border-indigo-800/80 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                                                                title={`Login as ${selectedPreviewStudent.fullName} (Student Portal)`}
+                                                            >
+                                                                <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" /> Login as Student
+                                                            </button>
+                                                        )}
+                                                        {onscreenPreviewPdf && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    const link = document.createElement('a');
+                                                                    link.href = onscreenPreviewPdf;
+                                                                    if (previewReportType === 'student_logbook') {
+                                                                        link.download = `Logbook_${selectedPreviewStudent?.admissionNumber || selectedPreviewStudent?.fullName.replace(/\s+/g, '_')}.pdf`;
+                                                                    } else {
+                                                                        link.download = `${previewReportType}_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+                                                                    }
+                                                                    link.click();
+                                                                }}
+                                                                className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-sm transition-all"
+                                                            >
+                                                                <DownloadIcon className="w-4.5 h-4.5" /> Download PDF
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 
                                                 <div className="flex-1 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden min-h-[450px] relative flex items-center justify-center">

@@ -54,12 +54,21 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
     const [biometricError, setBiometricError] = useState('');
     const [biometricSuccess, setBiometricSuccess] = useState(false);
 
-    // Match student record to logged-in user (by userId or phone/email)
+    // Match student record to logged-in user (by id, userId, admissionNumber, or phone/email)
     const studentRecord = useMemo(() => {
+        const cleanP = (p?: string) => (p || '').replace(/\D/g, '').slice(-9);
+        const userPhone = cleanP(currentUser.phoneNumber);
+        const userEmail = (currentUser.email || '').toLowerCase().trim();
+        const currentUserId = currentUser.id || '';
+        const strippedStudId = currentUserId.startsWith('user_stud_') ? currentUserId.replace('user_stud_', '') : '';
+
         return (students || []).find(s =>
-            s.userId === currentUser.id ||
-            (s.phone && s.phone === currentUser.phoneNumber) ||
-            (s.email && s.email?.toLowerCase() === currentUser.email?.toLowerCase())
+            s.id === currentUserId ||
+            s.userId === currentUserId ||
+            (strippedStudId && s.id === strippedStudId) ||
+            (s.admissionNumber && (s.admissionNumber === currentUserId || (currentUser as any).admissionNumber === s.admissionNumber)) ||
+            (userPhone && s.phone && cleanP(s.phone) === userPhone) ||
+            (userEmail && s.email && s.email.toLowerCase().trim() === userEmail)
         );
     }, [students, currentUser]);
 
