@@ -33,8 +33,8 @@ export function getAdminRoleForInstitution(institution: Partial<Institution> | n
     // Restaurant & Hospitality
     if (isRestaurantInstitution(institution)) return 'restaurant_admin' as any;
 
-    // Driving School — admin role is Director
-    if (type === 'Driving School' || subType.includes('driving school') || (institution.category || '').toLowerCase() === 'driving school') return 'director';
+    // Driving School — admin role is admin
+    if (isDSInstitution(institution)) return 'admin';
 
     // Corporate Invoicing & Billing Services
     if (type === 'Invoicing' || type === 'Billing Services' || subType.includes('invoicing') || subType.includes('billing') || (institution.category || '').toLowerCase().includes('invoicing')) return 'admin';
@@ -141,7 +141,7 @@ export function getRolesForInstitution(institution: Institution | null | undefin
 
     // Driving School
     if (isDSInstitution(institution)) {
-        return ['director', 'admin', 'driving_instructor', 'staff', 'student', 'security', 'driver', 'procurement_officer'];
+        return ['admin', 'director', 'driving_instructor', 'staff', 'student', 'security', 'driver', 'procurement_officer'];
     }
 
     // Grain Milling & Processing
@@ -204,10 +204,31 @@ export function isHigherEdInstitution(institution: Partial<Institution> | null |
 }
 
 /**
+ * Centralized logic to determine if an institution is a Driving School.
+ */
+export function isDSInstitution(institution: Partial<Institution> | null | undefined): boolean {
+    if (!institution) return false;
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const subType = (institution.businessSubType || '').toLowerCase();
+    const name = (institution.name || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'driving_school' || m.moduleId === 'ds') && (m.status === 'active' || m.status === 'trial'));
+    return type === 'driving school' || type === 'driving_school' || type.includes('driving') ||
+           subType.includes('driving school') || subType.includes('driving_school') || subType.includes('driving') ||
+           category.includes('driving school') || category.includes('driving_school') || category.includes('driving') ||
+           name.includes('driving school') || name.includes('driving academy') ||
+           !!hasModule;
+}
+
+/**
  * Centralized logic to determine if an institution is an educational entity.
  */
 export function isEduInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
+
+    // Driving School accounts are independent commercial businesses — never part of the educational school pipeline
+    if (isDSInstitution(institution)) return false;
+
     const type = (institution.institutionType || '').toLowerCase();
     const category = (institution.category || '').toLowerCase();
     const subType = (institution.businessSubType || '').toLowerCase();
@@ -217,8 +238,6 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
     if (type === 'his' || type === 'hospital' || type === 'clinic' || subType.includes('hospital') || subType.includes('clinic')) {
         return false;
     }
-    // Driving School accounts are independent — not part of the education pipeline
-    if (category === 'driving school' || type === 'driving school') return false;
 
     // Invoicing & Billing accounts are independent commercial businesses
     if (type === 'invoicing' || type === 'billing services' || category.includes('invoicing') || category.includes('billing') || subType.includes('invoicing') || subType.includes('billing')) {
@@ -240,18 +259,6 @@ export function isInvoicingInstitution(institution: Partial<Institution> | null 
     const subType = (institution.businessSubType || '').toLowerCase();
     const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'invoicing' || m.moduleId === 'corporate_invoicing') && (m.status === 'active' || m.status === 'trial'));
     return type === 'invoicing' || type === 'billing services' || category.includes('invoicing') || category.includes('billing') || subType.includes('invoicing') || subType.includes('billing') || !!hasModule;
-}
-
-/**
- * Centralized logic to determine if an institution is a Driving School.
- */
-export function isDSInstitution(institution: Partial<Institution> | null | undefined): boolean {
-    if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
-    const subType = institution.businessSubType?.toLowerCase() || '';
-    const hasModule = institution.moduleStates?.some(m => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
-    return type === 'driving school' || subType.includes('driving school') || category === 'driving school' || !!hasModule;
 }
 
 /**

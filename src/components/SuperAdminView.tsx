@@ -47,7 +47,7 @@ import { ShieldIcon } from './icons/ShieldIcon';
 import { ShieldCheckIcon } from './icons/ShieldCheckIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
-import { isSchoolInstitution, formatRoleDisplayName } from '../utils/roleUtils';
+import { isSchoolInstitution, formatRoleDisplayName, isDSInstitution } from '../utils/roleUtils';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { ClockIcon } from './icons/ClockIcon';
 import { CreditCardIcon } from './icons/CreditCardIcon';
@@ -1882,20 +1882,32 @@ Please change it after login.`;
     }, [requests]);
 
     const isSchool = useMemo(() => isSchoolInstitution(currentInstitution), [currentInstitution]);
+    const isTargetDS = useMemo(() => isDSInstitution(selectedTenantForPerspective || currentInstitution), [selectedTenantForPerspective, currentInstitution]);
 
     const perspectiveOptions = [
-        { role: 'admin', label: 'Timetable', icon: <BuildingOfficeIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { 
+            role: 'admin', 
+            label: isTargetDS ? 'Driving School Admin' : 'Timetable', 
+            icon: isTargetDS ? <TruckIcon className="w-6 h-6" /> : <BuildingOfficeIcon className="w-6 h-6" />, 
+            color: isTargetDS ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-600' 
+        },
+        { 
+            role: 'driving_instructor', 
+            label: 'Driving Instructor', 
+            icon: <TruckIcon className="w-6 h-6" />, 
+            color: 'bg-teal-50 text-teal-700' 
+        },
         { role: 'head_teacher', label: 'Principal Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-700' },
         { role: 'academics_officer', label: 'Academics Module', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-violet-50 text-violet-600' },
-        { role: 'security', label: 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
-        { role: 'store', label: 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
+        { role: 'security', label: isTargetDS ? 'Gate / Security' : 'Security Module', icon: <ShieldIcon className="w-6 h-6" />, color: 'bg-red-50 text-red-600' },
+        { role: 'store', label: isTargetDS ? 'Fleet & Parts Inventory' : 'Inventory Module', icon: <ArchiveBoxIcon className="w-6 h-6" />, color: 'bg-emerald-50 text-emerald-600' },
         { role: 'transport_admin', label: 'Transport Module', icon: <TruckIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600' },
         { role: 'transport_assistant', label: 'Transport Assistant', icon: <MapPinIcon className="w-6 h-6" />, color: 'bg-teal-50 text-teal-600' },
         { role: 'boarding_master', label: 'Boarding Module', icon: <BedIcon className="w-6 h-6" />, color: 'bg-blue-50 text-blue-600' },
         { role: 'info_desk', label: 'Info Desk Module', icon: <ChatBubbleBottomCenterTextIcon className="w-6 h-6" />, color: 'bg-sky-50 text-sky-600' },
         { role: 'librarian', label: 'Library Module', icon: <BookOpenIcon className="w-6 h-6" />, color: 'bg-purple-50 text-purple-600' },
         { role: 'parent', label: 'Parent Portal', icon: <UserGroupIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
-        { role: 'student', label: 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
+        { role: 'student', label: isTargetDS ? 'Learner Driver Portal' : 'Student Portal', icon: <AcademicCapIcon className="w-6 h-6" />, color: 'bg-indigo-50 text-indigo-600' },
         { role: 'lecturer', label: isSchool ? 'Teacher Portal' : 'Lecturer Portal', icon: <UserIcon className="w-6 h-6" />, color: 'bg-amber-50 text-amber-600' },
         { role: 'agrovet_admin', label: 'Agrovet Module', icon: <BeakerIcon className="w-6 h-6" />, color: 'bg-green-50 text-green-600' },
         { role: 'property_admin', label: 'Property Module', icon: <HomeIcon className="w-6 h-6" />, color: 'bg-cyan-50 text-cyan-600' },
@@ -1912,6 +1924,11 @@ Please change it after login.`;
         { role: 'campaign_admin', label: 'Political Campaign', icon: <MegaphoneIcon className="w-6 h-6" />, color: 'bg-rose-50 text-rose-600' },
         { role: 'marketplace', label: 'Public Marketplace', icon: <ShoppingCartIcon className="w-6 h-6" />, color: 'bg-orange-50 text-orange-600', isService: true }
     ].filter(opt => {
+        const isDS = isDSInstitution(selectedTenantForPerspective);
+        if (isDS) {
+            return ['admin', 'driving_instructor', 'student', 'security', 'store'].includes(opt.role);
+        }
+
         const instType = selectedTenantForPerspective?.institutionType;
         const subType = selectedTenantForPerspective?.businessSubType;
         const category = (selectedTenantForPerspective as any)?.category;
@@ -1956,7 +1973,7 @@ Please change it after login.`;
     const isAdminCatchAll = [
         'admin', 'principal', 'headmaster', 'headmistress', 'head_teacher', 'managing_director', 'hoi',
         'school_admin', 'group_admin', 'school_group_admin', 'dean', 'director',
-        'deputy', 'dos', 'hod', 'tto', 'retail_agent', 'field_agent', 'reseller', 'store', 'supplier', 'staff'
+        'deputy', 'dos', 'hod', 'tto', 'retail_agent', 'field_agent', 'reseller', 'store', 'supplier', 'staff', 'driving_instructor'
     ].includes(activeRole || '');
 
     // Render logic moved from App.tsx into component to reuse for perspective switching

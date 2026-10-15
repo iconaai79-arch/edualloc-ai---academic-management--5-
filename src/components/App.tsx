@@ -5,7 +5,7 @@ import { sendEmailNotification, getInstitutionEmailConfig } from '../services/em
 import { ChurchDenominationProvider } from './church/ChurchDenominationProvider';
 import { apiService, safeLocalStorage, initSupabaseClient, setSessionUser, toCamelCase } from '../services/apiService';
 import { syncInventoryWithReceipt } from '../utils/inventorySync';
-import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole } from '../utils/roleUtils';
+import { getAdminRoleForInstitution, isEduInstitution, isSchoolInstitution, isHISInstitution, isInvoicingInstitution, isStrictTeacherUser, isTeacherRole, isSchoolAdminRole, isDSInstitution } from '../utils/roleUtils';
 import { generateAlphanumericCode, slugify, formatPhoneNumber } from '../utils/stringUtils';
 import { generateUserId, generateId } from '../utils/idGenerator';
 import { detectTimetableConflicts } from '../utils/conflictUtils';
@@ -4521,7 +4521,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 'boarding_master', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
                 
                 // Instructors / Teachers
-                'teacher', 'practice_teacher', 'lecturer',
+                'teacher', 'practice_teacher', 'lecturer', 'driving_instructor',
                 
                 // Assistant / Support staff
                 'transport_assistant', 'driver'
@@ -4648,13 +4648,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 const isPM = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
                 const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || ((targetInst?.institutionType as string) === 'County');
                 
+                const isDS = isDSInstitution(targetInst);
                 const fallbackRole = (targetInst?.institutionType === 'Reseller' || registryEntry?.institutionType === 'Reseller') 
                     ? 'reseller' 
                     : isCountyTarget
                         ? 'county_admin'
                         : isPM 
                             ? 'property_admin' 
-                            : (initialRole && initialRole !== 'super_admin') ? initialRole : 'admin';
+                            : isDS
+                                ? 'admin'
+                                : (initialRole && initialRole !== 'super_admin') ? initialRole : 'admin';
 
                 const cleanName = targetCounty?.name || targetInst?.name || registryEntry?.name || 'Academic Institution';
                 const isActualBranch = (branches || []).some((b: any) => b.id === institutionId);
@@ -4687,6 +4690,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 const isPMInstitution = targetInst?.businessSubType?.toLowerCase().includes('property management') || targetInst?.institutionType?.toLowerCase().includes('property management');
                 const isCountyTarget = !!targetCounty || initialRole === 'county_admin' || ((targetInst?.institutionType as string) === 'County') || (admin.role === 'county_admin' || admin.role?.startsWith('county_'));
                 const isResellerInst = targetInst?.institutionType === 'Reseller' || targetInst?.category === 'Reseller' || (targetInst as any)?.businessSubType === 'Reseller';
+                const isDSTarget = isDSInstitution(targetInst);
 
                 const resolvedRole = (initialRole && initialRole !== 'super_admin')
                     ? initialRole
@@ -4696,7 +4700,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             ? 'county_admin'
                             : isPMInstitution && (admin.role === 'landlord' || admin.role === 'admin')
                                 ? 'property_admin'
-                                : admin.role === 'super_admin' ? 'admin' : admin.role;
+                                : isDSTarget && (admin.role === 'driving_instructor' || admin.role === 'director' || admin.role === 'admin')
+                                    ? admin.role
+                                    : admin.role === 'super_admin' ? 'admin' : admin.role;
 
                 const isBranchInst = (branches || []).some((b: any) => b.id === institutionId || b.id === `br_${institutionId}` || b.linked_institution_id === institutionId);
 
@@ -8936,8 +8942,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     <CivilWorksDashboard />
                                 ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
                                     <LogisticsDashboard />
-                                ) : (activeRole === 'admin' && (activeInstitution?.institutionType === 'Driving School' || activeInstitution?.category?.toLowerCase().includes('driving school'))) ? (
-                                    <DrivingSchoolProvider institutionId={activeInstitution?.id}>
+                                ) : (isDSInstitution(activeInstitution) || activeInstitution?.institutionType === 'Driving School' || activeInstitution?.category?.toLowerCase().includes('driving school') || activeInstitution?.businessSubType?.toLowerCase().includes('driving school')) && (activeRole === 'admin' || activeRole === 'director' || activeRole === 'driving_instructor' || isAdminCatchAll) ? (
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
                                         <AdminView
                                              {...superAdminProps as any}
                                               teacherCheckIns={teacherCheckIns}

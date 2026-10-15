@@ -200,23 +200,33 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const isUserBranchLocked = useMemo(() => {
         if (!userAssignedBranchId) return false;
         const role = (currentUser?.role || '').toLowerCase();
-        const isSuperOrDev = role.includes('developer') || role.includes('super_admin') || role.includes('super admin');
+        const isSuperOrDev = role.includes('developer') || 
+                             role.includes('super_admin') || 
+                             role.includes('super admin') || 
+                             Boolean(currentUser?.isImpersonated) || 
+                             Boolean(localStorage.getItem('eduai_super_admin_session'));
         return !isSuperOrDev;
     }, [userAssignedBranchId, currentUser]);
 
     useEffect(() => {
         if (!institutionId) return;
-        if (isUserBranchLocked && userAssignedBranchId) {
+        const isSuperAdminContext = Boolean(
+            (currentUser?.role || '').toLowerCase().includes('super') ||
+            currentUser?.isImpersonated ||
+            localStorage.getItem('eduai_super_admin_session')
+        );
+
+        if (isUserBranchLocked && userAssignedBranchId && !isSuperAdminContext) {
             setActiveBranchIdState(userAssignedBranchId);
             return;
         }
         const saved = localStorage.getItem(`ds_active_branch_${institutionId}`);
-        if (saved) {
+        if (saved && !isSuperAdminContext) {
             setActiveBranchIdState(saved);
         } else {
             setActiveBranchIdState('ALL');
         }
-    }, [institutionId, isUserBranchLocked, userAssignedBranchId]);
+    }, [institutionId, isUserBranchLocked, userAssignedBranchId, currentUser]);
 
     const setActiveBranchId = useCallback((branchId: string) => {
         if (isUserBranchLocked && userAssignedBranchId) {
@@ -235,9 +245,10 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const matchesBranch = useCallback((itemBranchId?: string) => {
         if (activeBranchId === 'ALL') return true;
+        if (branches.length <= 1) return true;
         const effectiveBranchId = itemBranchId || defaultBranchId;
         return effectiveBranchId === activeBranchId;
-    }, [activeBranchId, defaultBranchId]);
+    }, [activeBranchId, defaultBranchId, branches.length]);
 
     const students = useMemo(() => {
         return rawStudents.filter(s => matchesBranch(s.branchId || s.branch_id));
@@ -381,7 +392,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             setLessons(dsLess || []);
             setMastery(dsMast || []);
 
-            let loadedBranches = (dsBranches || []).filter((b: any) => (b.institutionId || (b as any).institution_id) === institutionId);
+            const cleanId = (id?: string) => id ? String(id).replace(/^(inst_|br_)/i, '').toLowerCase() : '';
+            const normInstId = cleanId(institutionId);
+            let loadedBranches = (dsBranches || []).filter((b: any) => {
+                const bInst = b.institutionId || (b as any).institution_id;
+                return bInst === institutionId || (normInstId && cleanId(bInst) === normInstId);
+            });
             if (loadedBranches.length === 0) {
                 const defaultBranch: Branch = {
                     id: `br_main_${institutionId}`,
