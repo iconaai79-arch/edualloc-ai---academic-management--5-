@@ -931,9 +931,111 @@ export const App: React.FC = () => {
         ].includes(activeRole || '');
     }, [currentUser, activeRole]);
 
+    const isDSStudent = useMemo(() => {
+        if (activeRole !== 'student') return false;
+
+        // 1. Direct check on activeInstitution
+        if (activeInstitution) {
+            if (
+                isDSInstitution(activeInstitution) ||
+                activeInstitution.institutionType === 'Driving School' ||
+                (activeInstitution.institutionType || '').toLowerCase().includes('driving') ||
+                (activeInstitution.category || '').toLowerCase().includes('driving') ||
+                (activeInstitution.businessSubType || '').toLowerCase().includes('driving') ||
+                (activeInstitution.name || '').toLowerCase().includes('driving') ||
+                activeInstitution.moduleStates?.some((m: any) => (m.moduleId === 'driving_school' || m.moduleId === 'ds') && (m.status === 'active' || m.status === 'trial'))
+            ) {
+                return true;
+            }
+        }
+
+        // 2. Check user's assigned institution from loaded institutions list
+        const userInstId = currentUser?.institutionId;
+        if (userInstId && Array.isArray(institutions)) {
+            const cleanTarget = String(userInstId).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
+            const matchedInst = institutions.find(i => i && (
+                i.id === userInstId ||
+                i.id === `inst_${userInstId}` ||
+                (cleanTarget && String(i.id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() === cleanTarget)
+            ));
+            if (matchedInst && (
+                isDSInstitution(matchedInst) ||
+                matchedInst.institutionType === 'Driving School' ||
+                (matchedInst.institutionType || '').toLowerCase().includes('driving') ||
+                (matchedInst.category || '').toLowerCase().includes('driving') ||
+                (matchedInst.businessSubType || '').toLowerCase().includes('driving') ||
+                (matchedInst.name || '').toLowerCase().includes('driving') ||
+                matchedInst.moduleStates?.some((m: any) => (m.moduleId === 'driving_school' || m.moduleId === 'ds') && (m.status === 'active' || m.status === 'trial'))
+            )) {
+                return true;
+            }
+        }
+
+        // 3. Check student-specific driving school flags or markers on user object
+        const uAny = currentUser as any;
+        if (uAny && (uAny.isDrivingSchoolStudent || uAny.is_ds_student || uAny.licenseCategory || uAny.licenseTypeInterested)) {
+            return true;
+        }
+
+        // 4. Check if session was impersonated from driving school
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('eduai_impersonated_by_admin') === 'true') {
+            if (uAny?.admissionNumber?.startsWith('DS-') || uAny?.admissionNumber?.includes('DS') || (userInstId && String(userInstId).toLowerCase().includes('driving'))) {
+                return true;
+            }
+        }
+
+        // 5. Check if local ds_students cache has this student
+        try {
+            const cachedDsStudents = localStorage.getItem('ds_students');
+            if (cachedDsStudents) {
+                const parsed = JSON.parse(cachedDsStudents);
+                if (Array.isArray(parsed) && parsed.some((s: any) => s && (
+                    s.id === currentUser?.id || 
+                    s.userId === currentUser?.id ||
+                    (currentUser?.phoneNumber && s.phone && s.phone.replace(/\D/g,'').slice(-9) === currentUser.phoneNumber.replace(/\D/g,'').slice(-9)) ||
+                    (currentUser?.email && s.email && s.email.toLowerCase() === currentUser.email.toLowerCase())
+                ))) {
+                    return true;
+                }
+            }
+        } catch (_) {}
+
+        return false;
+    }, [activeRole, activeInstitution, currentUser, institutions]);
+
+    const effectiveDSInstitution = useMemo<Institution>(() => {
+        if (activeInstitution && (
+            isDSInstitution(activeInstitution) ||
+            activeInstitution.institutionType === 'Driving School' ||
+            (activeInstitution.institutionType || '').toLowerCase().includes('driving') ||
+            (activeInstitution.category || '').toLowerCase().includes('driving') ||
+            (activeInstitution.businessSubType || '').toLowerCase().includes('driving') ||
+            (activeInstitution.name || '').toLowerCase().includes('driving')
+        )) {
+            return activeInstitution;
+        }
+        const userInstId = currentUser?.institutionId;
+        if (userInstId && Array.isArray(institutions)) {
+            const cleanTarget = String(userInstId).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase();
+            const matchedInst = institutions.find(i => i && (
+                i.id === userInstId ||
+                i.id === `inst_${userInstId}` ||
+                (cleanTarget && String(i.id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() === cleanTarget)
+            ));
+            if (matchedInst) return matchedInst;
+        }
+        return {
+            id: currentUser?.institutionId || 'ds_main',
+            name: activeInstitution?.name || 'Driving School Portal',
+            institutionType: 'Driving School',
+            category: 'Driving School',
+            status: 'active'
+        } as Institution;
+    }, [activeInstitution, currentUser?.institutionId, institutions]);
+
     const isFullWidthLayout = useMemo(() => {
-        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll;
-    }, [activeRole, isAdminCatchAll]);
+        return activeRole === 'super_admin' || activeRole === 'county_admin' || isAdminCatchAll || isDSStudent;
+    }, [activeRole, isAdminCatchAll, isDSStudent]);
 
     const activeCounty = useMemo(() => {
         if (!currentUser || !Array.isArray(counties)) return null;
@@ -965,14 +1067,14 @@ export const App: React.FC = () => {
             };
         }
 
-        if (showDrivingSchoolPortal) {
+        if (showDrivingSchoolPortal || isDSStudent) {
             return {
-                primaryColor: activeInstitution?.themeColor || '#0ea5e9', // Fallback to sky blue
+                primaryColor: effectiveDSInstitution?.themeColor || activeInstitution?.themeColor || '#0ea5e9',
                 secondaryColor: '#0f172a',
-                logoUrl: activeInstitution?.logoUrl || '/driving_school_logo_3d.png',
+                logoUrl: effectiveDSInstitution?.logoUrl || activeInstitution?.logoUrl || '/driving_school_logo_3d.png',
                 motto: 'Safety First, Success Always',
-                 website: activeInstitution?.kioskUrl || 'https://urbands.eduai.co.ke',
-                displayName: activeInstitution?.name || 'Driving School Portal'
+                website: effectiveDSInstitution?.kioskUrl || activeInstitution?.kioskUrl || 'https://urbands.eduai.co.ke',
+                displayName: effectiveDSInstitution?.name || activeInstitution?.name || 'Driving School Portal'
             };
         }
 
@@ -997,7 +1099,7 @@ export const App: React.FC = () => {
             website: null,
             displayName: activeInstitution?.name
         };
-    }, [activeRole, activeCounty, activeInstitution, companyDetails, isAlumnaeMode, showDrivingSchoolPortal]);
+    }, [activeRole, activeCounty, activeInstitution, companyDetails, isAlumnaeMode, showDrivingSchoolPortal, isDSStudent, effectiveDSInstitution]);
 
     // Dynamic Browser Title Management
     useEffect(() => {
@@ -1045,11 +1147,11 @@ export const App: React.FC = () => {
         if (showMarketplace) suffix = "Solution Marketplace";
         if (showCommunityHub) suffix = "Community Hub";
         if (showTransportHub || window.location.hostname.includes('transport') || window.location.hostname.includes('shuttle')) suffix = "Logistics Hub";
-        if (showDrivingSchoolPortal || window.location.hostname.includes('driving')) suffix = "Driving School";
+        if (showDrivingSchoolPortal || isDSStudent || window.location.hostname.includes('driving')) suffix = "Driving School Student Portal";
         if (window.location.hostname.includes('showroom')) suffix = "Car Showroom";
 
         document.title = suffix ? `${suffix} | ${baseTitle}` : baseTitle;
-    }, [activeRole, activeBranding.displayName, companyDetails.applicationTitle, isHealthSystemOpen, isPharmacySystemOpen, isAlumnaeMode, showMarketing, showMarketplace, showCommunityHub, showTransportHub, showDrivingSchoolPortal]);
+    }, [activeRole, activeBranding.displayName, companyDetails.applicationTitle, isHealthSystemOpen, isPharmacySystemOpen, isAlumnaeMode, showMarketing, showMarketplace, showCommunityHub, showTransportHub, showDrivingSchoolPortal, isDSStudent]);
 
 
     const activeAcademicYear = useMemo(() =>
@@ -8368,12 +8470,13 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         }
                                     } as any}
                                     />
-                                ) : activeRole === 'student' && (activeInstitution?.institutionType === 'Driving School' || activeInstitution?.moduleStates?.some((m: any) => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'))) ? (
-                                    <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
+                                ) : (activeRole === 'student' && isDSStudent) ? (
+                                    <DrivingSchoolProvider institutionId={effectiveDSInstitution?.id} currentUser={currentUser}>
                                         <DSStudentPortal
                                             currentUser={currentUser}
-                                            currentInstitution={activeInstitution!}
-                                            onLogout={() => { apiService.clearSession(); setCurrentUser(null); }}
+                                            currentInstitution={effectiveDSInstitution}
+                                            onLogout={handleLogout}
+                                            onExitPerspective={originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined)}
                                         />
                                     </DrivingSchoolProvider>
                                 ) : activeRole === 'student' ? (

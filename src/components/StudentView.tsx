@@ -33,7 +33,8 @@ import { ExamTimetableGrid } from './ExamTimetableGrid';
 import { TAAssignmentsView } from './TAAssignmentsView';
 import { NearbyClassesView } from './NearbyClassesView';
 import type { StudentAttendance } from '../types';
-import { isSchoolInstitution } from '../utils/roleUtils';
+import { isSchoolInstitution, isDSInstitution } from '../utils/roleUtils';
+const DSStudentPortal = lazy(() => import('./ds/DSStudentPortal').then((m: any) => ({ default: m?.DSStudentPortal || m?.default || m })));
 
 // --- Enrollment Request Modal ---
 interface EnrollmentRequestModalProps {
@@ -236,6 +237,20 @@ export const StudentView: React.FC<StudentViewProps> = (props) => {
         generatedTimetable, examTimetable, getSubjectById, getRoomById, getLecturerById,
         timetableSettings, studentCheckIns, onStudentLessonCheckIn, letterheadConfig, logoUrl, footerImageUrl, assignments, submissions, onAddSubmission, lessonRatings, onAddLessonRating, onRateLesson, onAddFeedback, feedbackSubmissions, studentAbsenceRequests, onSubmitStudentAbsenceRequest, buildings, finalTimetableUrl, activeSemester, taAssignments, userTasks, onAddTask, onUpdateTask, onDeleteTask, currentInstitution, studentAttendances, books,
         onAccessAlumnaPortal, schoolRegistry, onExitPerspective } = props;
+
+    if (currentInstitution && isDSInstitution(currentInstitution)) {
+        return (
+            <Suspense fallback={<div className="p-8 text-center text-slate-400">Loading Driving School Portal...</div>}>
+                <DSStudentPortal
+                    currentUser={user}
+                    currentInstitution={currentInstitution}
+                    onLogout={() => { apiService.clearSession(); window.location.reload(); }}
+                    onExitPerspective={onExitPerspective}
+                />
+            </Suspense>
+        );
+    }
+
     const [activeTab, setActiveTab] = useState('dashboard');
     const [subTab, setSubTab] = useState<'weekly' | 'exams' | 'enrollment' | 'requests'>('weekly');
     const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);

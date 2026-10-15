@@ -51,12 +51,14 @@ interface DSStudentPortalProps {
     currentUser: User;
     currentInstitution: Institution;
     onLogout: () => void;
+    onExitPerspective?: () => void;
 }
 
 export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
     currentUser,
     currentInstitution,
     onLogout,
+    onExitPerspective,
 }) => {
     const { 
         students, 
@@ -652,9 +654,13 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
 
                     <div className="flex items-center gap-1.5 sm:gap-2">
                         {isSuperAdminImpersonating && (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[9px] font-black uppercase tracking-wider">
-                                Super Admin
-                            </span>
+                            <button
+                                onClick={onExitPerspective || onLogout}
+                                className="px-2 py-0.5 rounded-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all active:scale-95"
+                                title="Click to Exit Student Perspective and restore Admin session"
+                            >
+                                <span>Exit Admin</span>
+                            </button>
                         )}
                         {!isInstalled ? (
                             <button
