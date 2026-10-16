@@ -4190,6 +4190,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.student_name === undefined) copy.student_name = copy.studentName;
                             delete copy.studentName;
                         }
+                        if (copy.studentId !== undefined) {
+                            if (copy.student_id === undefined) copy.student_id = copy.studentId;
+                            delete copy.studentId;
+                        }
+                        if (copy.admissionNumber !== undefined) {
+                            if (copy.admission_number === undefined) copy.admission_number = copy.admissionNumber;
+                            delete copy.admissionNumber;
+                        }
+                        if (copy.branchId !== undefined) {
+                            if (copy.branch_id === undefined) copy.branch_id = copy.branchId;
+                            delete copy.branchId;
+                        }
                         if (copy.invoiceId !== undefined) {
                             if (copy.invoice_id === undefined) copy.invoice_id = copy.invoiceId;
                             delete copy.invoiceId;
@@ -4198,9 +4210,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.receipt_number === undefined) copy.receipt_number = copy.receiptNumber;
                             delete copy.receiptNumber;
                         }
+                        if (!copy.receipt_number || copy.receipt_number === '') {
+                            copy.receipt_number = `REC-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+                        }
                         if (copy.paymentMethod !== undefined) {
                             if (copy.payment_method === undefined) copy.payment_method = copy.paymentMethod;
                             delete copy.paymentMethod;
+                        }
+                        if (!copy.payment_method || copy.payment_method === '') {
+                            copy.payment_method = 'Cash';
                         }
                         if (copy.amountPaid !== undefined) {
                             if (copy.amount === undefined) copy.amount = copy.amountPaid;
@@ -4210,6 +4228,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.amount === undefined) copy.amount = copy.amount_paid;
                             delete copy.amount_paid;
                         }
+                        if (copy.amount !== undefined) {
+                            copy.amount = Number(copy.amount) || 0;
+                        }
                         if (copy.paymentDate !== undefined) {
                             if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.paymentDate);
                             delete copy.paymentDate;
@@ -4217,6 +4238,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (copy.date !== undefined) {
                             if (copy.payment_date === undefined) copy.payment_date = parseDate(copy.date);
                             delete copy.date;
+                        }
+                        if (!copy.payment_date) {
+                            copy.payment_date = new Date().toISOString();
                         }
                         if (copy.receivedBy !== undefined) {
                             if (copy.received_by === undefined) copy.received_by = copy.receivedBy;
@@ -4226,11 +4250,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.transaction_reference === undefined) copy.transaction_reference = copy.transactionReference;
                             delete copy.transactionReference;
                         }
+                        if (copy.auditedBy !== undefined) {
+                            if (copy.audited_by === undefined) copy.audited_by = copy.auditedBy;
+                            delete copy.auditedBy;
+                        }
+                        if (copy.auditedAt !== undefined) {
+                            if (copy.audited_at === undefined) copy.audited_at = parseDate(copy.auditedAt);
+                            delete copy.auditedAt;
+                        }
+                        if (copy.editReason !== undefined) {
+                            if (copy.edit_reason === undefined) copy.edit_reason = copy.editReason;
+                            delete copy.editReason;
+                        }
+                        if (copy.deletionReason !== undefined) {
+                            if (copy.deletion_reason === undefined) copy.deletion_reason = copy.deletionReason;
+                            delete copy.deletionReason;
+                        }
+                        if (!copy.status) {
+                            copy.status = 'Completed';
+                        }
 
                         const allowedDsPaymentCols = new Set([
                             'id', 'institution_id', 'branch_id', 'invoice_id', 'student_id',
-                            'student_name', 'amount', 'payment_method', 'transaction_reference',
-                            'payment_date', 'receipt_number', 'received_by', 'notes',
+                            'student_name', 'admission_number', 'amount', 'payment_method', 'transaction_reference',
+                            'payment_date', 'receipt_number', 'received_by', 'notes', 'status', 'metadata',
+                            'audited_by', 'audited_at', 'edit_reason', 'deletion_reason',
                             'created_at', 'updated_at'
                         ]);
                         Object.keys(copy).forEach(k => {
@@ -6024,7 +6068,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName);
                 const queryRes: any = await executeWithTimeout(
                     supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
-                    isBillingOrDsModule ? 4500 : 8000
+                    isBillingOrDsModule ? 8500 : 8000
                 ).catch((e: any) => ({ data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } }));
                 data = queryRes.data;
                 error = queryRes.error;
@@ -6057,7 +6101,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ? `ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')}`
                                         : `ON CONFLICT ("id") DO NOTHING`;
                                     const sql = `INSERT INTO public."${targetDbTable}" ("${keys.join('", "')}") VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
-                                    const r = await executeWithTimeout(pool.query(sql, vals), 6000).catch(() => null);
+                                    let r: any = null;
+                                    try {
+                                        r = await executeWithTimeout(pool.query(sql, vals), 6000);
+                                    } catch (pgInsertErr: any) {
+                                        console.warn(`[api/records POST] Direct PG single-row insert failed for [${moduleName}]:`, pgInsertErr?.message || pgInsertErr);
+                                    }
                                     if (r && r.rows && r.rows[0]) {
                                         insertedRows.push(r.rows[0]);
                                     }

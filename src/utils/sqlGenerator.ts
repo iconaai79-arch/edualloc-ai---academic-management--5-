@@ -3270,6 +3270,20 @@ CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_timestamp ON vehicle_logs (inst
 CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_vehicle ON vehicle_logs (institution_id, vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_created ON vehicle_logs (institution_id, created_at DESC);
 
+-- Global DS Payments RLS & Resilience --
+ALTER TABLE ds_payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "ds_payments_all_access" ON ds_payments;
+CREATE POLICY "ds_payments_all_access" ON ds_payments FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_desc ON ds_payments (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_asc ON ds_payments (institution_id, id ASC);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_invoice ON ds_payments (institution_id, invoice_id);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_student ON ds_payments (institution_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_date ON ds_payments (institution_id, payment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_created ON ds_payments (institution_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_status ON ds_payments (institution_id, status);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_branch ON ds_payments (institution_id, branch_id);
+CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_receipt ON ds_payments (institution_id, receipt_number);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3759,6 +3773,17 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_plate ON ds_vehicles(institution_id, plate_number);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_status ON ds_vehicles(institution_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_created ON ds_vehicles(institution_id, created_at DESC);`,
+        // Driving School Payments
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_institution_id ON ds_payments(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_desc ON ds_payments(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_asc ON ds_payments(institution_id, id ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_invoice ON ds_payments(institution_id, invoice_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_student ON ds_payments(institution_id, student_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_date ON ds_payments(institution_id, payment_date DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_created ON ds_payments(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_status ON ds_payments(institution_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_branch ON ds_payments(institution_id, branch_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_receipt ON ds_payments(institution_id, receipt_number);`,
         `CREATE INDEX IF NOT EXISTS idx_visitors_inst ON visitors(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_maint_requests_inst_id_desc ON maintenance_requests(institution_id, id DESC);`,
