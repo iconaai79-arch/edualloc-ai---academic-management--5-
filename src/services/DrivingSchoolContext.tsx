@@ -1705,54 +1705,120 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const addLesson = useCallback(async (data: any) => {
         try {
-            const studentBranch = data.studentId ? rawStudents.find(s => s.id === data.studentId)?.branchId : undefined;
+            const studentBranch = data.studentId ? (rawStudents.find(s => s.id === data.studentId)?.branchId || students.find(s => s.id === data.studentId)?.branchId) : undefined;
             const branchIdToUse = resolveBranchIdToUse(data.branchId || data.branch_id || studentBranch);
-            const lesson = { ...data, id: `less_${Date.now()}`, institutionId, branchId: branchIdToUse, branch_id: branchIdToUse, status: 'Scheduled' };
+            const lessonId = data.id || `less_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const lessonStatus = data.status || 'Scheduled';
+            const lesson = { 
+                ...data, 
+                id: lessonId, 
+                institutionId, 
+                branchId: branchIdToUse, 
+                branch_id: branchIdToUse, 
+                status: lessonStatus,
+                updatedAt: new Date().toISOString()
+            };
+            
             await apiService.saveModuleRecord('ds_lessons', lesson);
-            success("Lesson scheduled successfully");
+
+            // If created directly as Completed, update student curriculum progress
+            if (lessonStatus === 'Completed') {
+                const targetStudent = (rawStudents && rawStudents.length ? rawStudents : students).find(s => s.id === data.studentId);
+                if (targetStudent) {
+                    const currentRemaining = targetStudent.remainingDays ?? targetStudent.courseDurationDays ?? 0;
+                    const durationDays = targetStudent.courseDurationDays || 21;
+                    const increment = Math.max(5, Math.round(100 / durationDays));
+                    const isTheory = data.lessonType === 'Theory';
+                    
+                    const nextTheory = isTheory ? Math.min(100, (targetStudent.theoryProgressPercent || 0) + increment) : (targetStudent.theoryProgressPercent || 0);
+                    const nextPractical = !isTheory ? Math.min(100, (targetStudent.practicalProgressPercent || 0) + increment) : (targetStudent.practicalProgressPercent || 0);
+
+                    const updatedStud = {
+                        ...targetStudent,
+                        remainingDays: Math.max(0, currentRemaining - 1),
+                        theoryProgressPercent: nextTheory,
+                        practicalProgressPercent: nextPractical,
+                        updatedAt: new Date().toISOString()
+                    };
+                    await apiService.saveModuleRecord('ds_students', updatedStud);
+                    setStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
+                    setRawStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
+                }
+            }
+
+            // Immediately update local state
+            setLessons(prev => [lesson, ...prev.filter(l => l.id !== lesson.id)]);
+            setRawLessons(prev => [lesson, ...prev.filter(l => l.id !== lesson.id)]);
+
+            const successMsg = lessonStatus === 'In-Progress' 
+                ? `${lesson.lessonType || 'Driving'} Lesson started! Attendance check-in registered.` 
+                : lessonStatus === 'Completed'
+                ? `${lesson.lessonType || 'Driving'} Lesson completed & attendance recorded.`
+                : "Lesson scheduled successfully";
+            success(successMsg);
             
             // Trigger Instant Notification
             sendLessonNotification(lesson, false);
             
             await onRefresh();
+            return lesson;
         } catch (err) {
             error("Failed to schedule lesson");
             throw err;
         }
-    }, [institutionId, resolveBranchIdToUse, rawStudents, onRefresh, success, error, sendLessonNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawStudents, students, onRefresh, success, error, sendLessonNotification]);
 
     const updateLesson = useCallback(async (data: any) => {
         try {
-            const oldLesson = lessons.find(l => l.id === data.id);
-            await apiService.saveModuleRecord('ds_lessons', { ...data, institutionId });
+            const oldLesson = (rawLessons && rawLessons.length ? rawLessons : lessons).find(l => l.id === data.id);
+            const updatedPayload = { 
+                ...oldLesson,
+                ...data, 
+                institutionId,
+                updatedAt: new Date().toISOString()
+            };
+            await apiService.saveModuleRecord('ds_lessons', updatedPayload);
             
             if (data.status === 'Completed' && oldLesson?.status !== 'Completed') {
-                const student = students.find(s => s.id === data.studentId);
+                const student = (rawStudents && rawStudents.length ? rawStudents : students).find(s => s.id === (data.studentId || oldLesson?.studentId));
                 if (student) {
                     const currentRemaining = student.remainingDays ?? student.courseDurationDays ?? 0;
                     const durationDays = student.courseDurationDays || 21;
                     const increment = Math.max(5, Math.round(100 / durationDays));
-                    const isTheory = data.lessonType === 'Theory';
+                    const isTheory = (data.lessonType || oldLesson?.lessonType) === 'Theory';
                     
                     const nextTheory = isTheory ? Math.min(100, (student.theoryProgressPercent || 0) + increment) : (student.theoryProgressPercent || 0);
                     const nextPractical = !isTheory ? Math.min(100, (student.practicalProgressPercent || 0) + increment) : (student.practicalProgressPercent || 0);
 
-                    await apiService.saveModuleRecord('ds_students', {
+                    const updatedStud = {
                         ...student,
                         remainingDays: Math.max(0, currentRemaining - 1),
                         theoryProgressPercent: nextTheory,
-                        practicalProgressPercent: nextPractical
-                    });
+                        practicalProgressPercent: nextPractical,
+                        updatedAt: new Date().toISOString()
+                    };
+                    await apiService.saveModuleRecord('ds_students', updatedStud);
+                    setStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
+                    setRawStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
                 }
             }
             
-            success("Lesson updated");
+            // Immediate local state update
+            setLessons(prev => prev.map(l => l.id === data.id ? { ...l, ...updatedPayload } : l));
+            setRawLessons(prev => prev.map(l => l.id === data.id ? { ...l, ...updatedPayload } : l));
+
+            const updateMsg = data.status === 'In-Progress' 
+                ? "Session started! Beginning attendance check-in logged."
+                : data.status === 'Completed'
+                ? "Session completed! Final attendance check-out logged."
+                : "Lesson updated";
+            success(updateMsg);
             await onRefresh();
         } catch (err) {
             error("Failed to update lesson");
             throw err;
         }
-    }, [institutionId, lessons, students, onRefresh, success, error]);
+    }, [institutionId, lessons, rawLessons, students, rawStudents, onRefresh, success, error]);
 
     const deleteLesson = useCallback(async (id: string) => {
         if (!institutionId) return;
@@ -2528,7 +2594,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         totalStudents: students.length,
         activeInstructors: instructors.filter(i => i.status === 'Active').length,
         operationalVehicles: vehicles.filter(v => v.status === 'Operational').length,
-        pendingLessons: lessons.filter(l => l.status === 'Scheduled').length,
+        pendingLessons: lessons.filter(l => l.status === 'Scheduled' || l.status === 'In-Progress').length,
     }), [students, instructors, vehicles, lessons]);
 
     const value = {

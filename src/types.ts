@@ -5166,13 +5166,21 @@ export interface DSLesson {
     endTime: string;
     lessonType: 'Practical' | 'Theory';
     topic?: string;
-    status: 'Scheduled' | 'Completed' | 'Cancelled' | 'No Show';
+    status: 'Scheduled' | 'In-Progress' | 'Completed' | 'Cancelled' | 'No Show';
     confirmationStatus?: 'Pending' | 'Confirmed' | 'Reschedule Requested';
     roomId?: string;
     roomName?: string;
     instructorNotes?: string;
     notes?: string;
     routeTrackedData?: any;
+    checkInTime?: string;
+    checkOutTime?: string;
+    startedAt?: string;
+    endedAt?: string;
+    sessionPhase?: 'started' | 'completed' | 'not_started';
+    attendanceLogs?: any[];
+    reminderSent?: boolean;
+    checkoutReminderSent?: boolean;
     createdAt: string;
 }
 

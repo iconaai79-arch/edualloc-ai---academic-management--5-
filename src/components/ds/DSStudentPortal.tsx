@@ -34,7 +34,13 @@ import {
     MoreVertical,
     PlusSquare,
     HelpCircle,
-    Check
+    Check,
+    Bell,
+    BellRing,
+    Timer,
+    Play,
+    Square,
+    CheckCheck
 } from 'lucide-react';
 import { useDrivingSchool } from '../../services/DrivingSchoolContext';
 import { useToast } from '../../services/ToastContext';
@@ -62,7 +68,9 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
 }) => {
     const { 
         students, 
+        rawStudents,
         lessons, 
+        rawLessons,
         invoices, 
         payments, 
         mastery, 
@@ -71,6 +79,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         settings, 
         addLesson, 
         updateLesson, 
+        updateStudent,
         refreshData 
     } = useDrivingSchool();
 
@@ -81,16 +90,43 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
 
     // Sub-views & Sheet States
     const [attendanceMode, setAttendanceMode] = useState<'scan' | 'pass'>('scan');
+    const [attendancePhase, setAttendancePhase] = useState<'Theory' | 'Practical'>('Theory');
     const [financeSubTab, setFinanceSubTab] = useState<'overview' | 'invoices' | 'receipts' | 'statement'>('overview');
     const [lessonsSubTab, setLessonsSubTab] = useState<'upcoming' | 'completed' | 'curriculum'>('upcoming');
     
     // Bottom Sheets & Modals
     const [isMpesaModalOpen, setIsMpesaModalOpen] = useState(false);
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
-    const [scanSuccessModal, setScanSuccessModal] = useState<{ isOpen: boolean; lesson?: DSLesson; message?: string } | null>(null);
+    const [scanSuccessModal, setScanSuccessModal] = useState<{ 
+        isOpen: boolean; 
+        phase?: 'started' | 'ended';
+        lesson?: DSLesson; 
+        message?: string;
+        nextActionNote?: string;
+    } | null>(null);
     const [manualCodeInput, setManualCodeInput] = useState('');
     const [copiedAdm, setCopiedAdm] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(false);
+
+    // Attendance Lifecycle & Reminders State
+    const [activeReminders, setActiveReminders] = useState<Array<{ 
+        id: string; 
+        type: 'upcoming' | 'checkout' | 'sequence'; 
+        title: string; 
+        message: string; 
+        actionLabel?: string; 
+        onAction?: () => void 
+    }>>([]);
+    const [notificationsAllowed, setNotificationsAllowed] = useState<boolean>(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            return Notification.permission === 'granted';
+        }
+        return false;
+    });
+    const [isDirectActionLoading, setIsDirectActionLoading] = useState(false);
+    const [elapsedSessionSeconds, setElapsedSessionSeconds] = useState<number>(0);
+    const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    const lastScannedCodeRef = useRef<{ code: string; timestamp: number } | null>(null);
 
     // Camera Scanner State
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -274,8 +310,9 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         const userEmail = (currentUser.email || '').toLowerCase().trim();
         const currentUserId = currentUser.id || '';
         const strippedStudId = currentUserId.startsWith('user_stud_') ? currentUserId.replace('user_stud_', '') : '';
+        const candidateStudents = (rawStudents && rawStudents.length > 0) ? rawStudents : (students || []);
 
-        return (students || []).find(s =>
+        return candidateStudents.find(s =>
             s.id === currentUserId ||
             s.userId === currentUserId ||
             (strippedStudId && s.id === strippedStudId) ||
@@ -283,7 +320,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
             (userPhone && s.phone && cleanP(s.phone) === userPhone) ||
             (userEmail && s.email && s.email.toLowerCase().trim() === userEmail)
         );
-    }, [students, currentUser]);
+    }, [students, rawStudents, currentUser]);
 
     // Student Specific Invoices & Payments
     const myInvoices = useMemo(() => {
@@ -320,22 +357,54 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         return Math.max(0, totalInvoiced - totalPaid);
     }, [totalInvoiced, totalPaid]);
 
-    // Student Lessons
+    // Student Lessons (from rawLessons or lessons)
     const myLessons = useMemo(() => {
         if (!studentRecord) return [];
-        return (lessons || [])
-            .filter(l => l.studentId === studentRecord.id)
-            .sort((a, b) => new Date(b.lessonDate + ' ' + b.startTime).getTime() - new Date(a.lessonDate + ' ' + a.startTime).getTime());
-    }, [lessons, studentRecord]);
+        const sourceLessons = (rawLessons && rawLessons.length > 0) ? rawLessons : (lessons || []);
+        return sourceLessons
+            .filter(l => 
+                l.studentId === studentRecord.id || 
+                (l as any).student_id === studentRecord.id ||
+                (studentRecord.admissionNumber && (l as any).admissionNumber === studentRecord.admissionNumber)
+            )
+            .sort((a, b) => new Date((b.lessonDate || (b as any).date) + ' ' + (b.startTime || '00:00')).getTime() - new Date((a.lessonDate || (a as any).date) + ' ' + (a.startTime || '00:00')).getTime());
+    }, [lessons, rawLessons, studentRecord]);
+
+    const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+    const todayLessons = useMemo(() => {
+        return myLessons.filter(l => (l.lessonDate === todayStr || (l as any).date === todayStr) && l.status !== 'Cancelled');
+    }, [myLessons, todayStr]);
+
+    const activeInProgressLesson = useMemo(() => {
+        return todayLessons.find(l => l.status === 'In-Progress');
+    }, [todayLessons]);
+
+    const todayScheduledLessons = useMemo(() => {
+        return todayLessons.filter(l => l.status === 'Scheduled');
+    }, [todayLessons]);
+
+    const theoryCompletedToday = useMemo(() => {
+        return todayLessons.some(l => l.lessonType === 'Theory' && l.status === 'Completed');
+    }, [todayLessons]);
+
+    const practicalCompletedToday = useMemo(() => {
+        return todayLessons.some(l => l.lessonType === 'Practical' && l.status === 'Completed');
+    }, [todayLessons]);
+
+    const suggestedNextLessonType = useMemo<'Theory' | 'Practical'>(() => {
+        if (!theoryCompletedToday) return 'Theory';
+        return 'Practical';
+    }, [theoryCompletedToday]);
 
     const upcomingLessons = useMemo(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        return myLessons.filter(l => (l.status === 'Scheduled' || (l as any).confirmationStatus === 'Pending') && l.lessonDate >= todayStr)
-            .sort((a, b) => new Date(a.lessonDate + ' ' + a.startTime).getTime() - new Date(b.lessonDate + ' ' + b.startTime).getTime());
-    }, [myLessons]);
+        return myLessons.filter(l => (l.status === 'Scheduled' || (l as any).confirmationStatus === 'Pending') && (l.lessonDate || (l as any).date) >= todayStr)
+            .sort((a, b) => new Date((a.lessonDate || (a as any).date) + ' ' + a.startTime).getTime() - new Date((b.lessonDate || (b as any).date) + ' ' + b.startTime).getTime());
+    }, [myLessons, todayStr]);
 
     const completedLessons = useMemo(() => {
-        return myLessons.filter(l => l.status === 'Completed');
+        return myLessons.filter(l => l.status === 'Completed')
+            .sort((a, b) => new Date((b.lessonDate || '') + ' ' + (b.startTime || '')).getTime() - new Date((a.lessonDate || '') + ' ' + (a.startTime || '')).getTime());
     }, [myLessons]);
 
     const nextUpcomingLesson = upcomingLessons[0] || null;
@@ -351,6 +420,136 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         const v = vehicles?.find(v => v.id === id);
         return v ? `${v.make} ${v.model} (${v.plateNumber})` : 'Training Vehicle';
     };
+    const formatElapsedTimer = (totalSeconds: number) => {
+        const hrs = Math.floor(totalSeconds / 3600);
+        const mins = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+        if (hrs > 0) {
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Active in-progress live elapsed seconds counter
+    useEffect(() => {
+        if (!activeInProgressLesson) {
+            setElapsedSessionSeconds(0);
+            return;
+        }
+        const calc = () => {
+            const timeRef = activeInProgressLesson.startedAt || activeInProgressLesson.checkInTime || activeInProgressLesson.startTime;
+            if (!timeRef) return 0;
+            let startMs = 0;
+            if (activeInProgressLesson.startedAt) {
+                startMs = new Date(activeInProgressLesson.startedAt).getTime();
+            } else if (activeInProgressLesson.checkInTime && activeInProgressLesson.checkInTime.includes(':')) {
+                const [h, m] = activeInProgressLesson.checkInTime.split(':').map(Number);
+                const d = new Date();
+                d.setHours(h, m, 0, 0);
+                startMs = d.getTime();
+            } else if (activeInProgressLesson.startTime && activeInProgressLesson.startTime.includes(':')) {
+                const [h, m] = activeInProgressLesson.startTime.split(':').map(Number);
+                const d = new Date();
+                d.setHours(h, m, 0, 0);
+                startMs = d.getTime();
+            }
+            if (!startMs || isNaN(startMs)) return 0;
+            return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+        };
+        setElapsedSessionSeconds(calc());
+        const timer = setInterval(() => setElapsedSessionSeconds(calc()), 1000);
+        return () => clearInterval(timer);
+    }, [activeInProgressLesson]);
+
+    // Audio & Haptic Feedback utilities
+    const playAttendanceAudio = useCallback((type: 'start' | 'end' | 'reminder') => {
+        try {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            const now = ctx.currentTime;
+            if (type === 'start') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.25);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'end') {
+                [523.25, 659.25, 783.99].forEach((freq, idx) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.1 + 0.25);
+                    osc.start(now + idx * 0.1);
+                    osc.stop(now + idx * 0.1 + 0.25);
+                });
+            } else if (type === 'reminder') {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        } catch (_) {}
+    }, []);
+
+    const triggerHaptic = useCallback((pattern: number[]) => {
+        try {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                navigator.vibrate(pattern);
+            }
+        } catch (_) {}
+    }, []);
+
+    // Web Notification and Reminders System
+    const requestNotificationPermission = useCallback(async () => {
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+            toastInfo("Notifications are not supported on this browser.");
+            return;
+        }
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                setNotificationsAllowed(true);
+                success("Reminders enabled! You'll receive real-time lesson start & end alerts.");
+                playAttendanceAudio('reminder');
+            } else {
+                setNotificationsAllowed(false);
+                toastInfo("Notification permissions were not granted.");
+            }
+        } catch (e) {
+            console.warn("Notification request error:", e);
+        }
+    }, [playAttendanceAudio, success, toastInfo]);
+
+    const sendPushNotification = useCallback((title: string, body: string) => {
+        if (typeof window === 'undefined' || !('Notification' in window)) return;
+        if (Notification.permission === 'granted') {
+            try {
+                new Notification(title, {
+                    body,
+                    icon: '/driving_school_logo_3d.png',
+                    badge: '/driving_school_logo_3d.png',
+                    tag: 'ds_lesson_reminder'
+                });
+            } catch (_) {}
+        }
+    }, []);
 
     // Camera Scanner Lifecycle
     const stopCamera = useCallback(() => {
@@ -365,58 +564,371 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         setCameraActive(false);
     }, []);
 
-    const handleProcessScanCode = useCallback(async (code: string) => {
-        if (!studentRecord || !code) return;
-        const normalized = code.trim().toLowerCase();
+    // Complete Session Attendance Execution (Handles Beginning & End of Theory & Practical)
+    const executeAttendanceSession = useCallback(async (actionType: 'start' | 'end' | 'auto', scannedCode?: string) => {
+        if (!studentRecord) {
+            toastError("Candidate profile not found. Please log in again.");
+            return;
+        }
 
-        // 1. Check if student has an upcoming or today's scheduled lesson
-        const targetLesson = upcomingLessons.find(l => 
-            l.id.toLowerCase() === normalized ||
-            (l.vehicleId && l.vehicleId.toLowerCase() === normalized) ||
-            normalized.includes(l.id.toLowerCase())
-        ) || upcomingLessons[0];
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const nowTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const todayStr = nowIso.split('T')[0];
 
-        // Trigger Android haptic vibration if supported
-        try {
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
-                navigator.vibrate([100, 50, 100]);
-            }
-        } catch (_) {}
-
-        if (targetLesson) {
+        // 1. ENDING an active In-Progress lesson (Conclusion of Theory or Practical)
+        if (activeInProgressLesson && (actionType === 'end' || actionType === 'auto')) {
             try {
-                const nowIso = new Date().toISOString();
-                const checkInNote = `[QR Check-In: ${new Date().toLocaleTimeString()} by Student]`;
+                setIsDirectActionLoading(true);
+                const checkOutNote = `[QR Check-Out: Session Ended at ${nowTimeStr} by Student]`;
+                const updatedNotes = activeInProgressLesson.notes 
+                    ? `${activeInProgressLesson.notes}\n${checkOutNote}` 
+                    : checkOutNote;
+
                 await updateLesson({
-                    ...targetLesson,
+                    ...activeInProgressLesson,
                     status: 'Completed',
-                    confirmationStatus: 'Confirmed',
-                    instructorNotes: targetLesson.instructorNotes ? `${targetLesson.instructorNotes}\n${checkInNote}` : checkInNote,
-                    notes: targetLesson.notes ? `${targetLesson.notes}\n${checkInNote}` : checkInNote,
+                    sessionPhase: 'completed',
+                    checkOutTime: nowTimeStr,
+                    endedAt: nowIso,
+                    notes: updatedNotes,
+                    instructorNotes: activeInProgressLesson.instructorNotes ? `${activeInProgressLesson.instructorNotes}\n${checkOutNote}` : checkOutNote,
                     updatedAt: nowIso
                 });
 
                 stopCamera();
+                triggerHaptic([200, 100, 200, 100, 200]);
+                playAttendanceAudio('end');
+
+                const isTheory = activeInProgressLesson.lessonType === 'Theory';
+                const nextStepNote = isTheory 
+                    ? "Theory Session Completed! You are now eligible to begin Practical Driving." 
+                    : "Practical Session Completed! Driving skills logged into your NTSA portfolio.";
+
                 setScanSuccessModal({
                     isOpen: true,
-                    lesson: targetLesson,
-                    message: `Verified! Attendance confirmed for ${targetLesson.lessonType} lesson.`
+                    phase: 'ended',
+                    lesson: { ...activeInProgressLesson, status: 'Completed', checkOutTime: nowTimeStr },
+                    message: `Verified! Attendance check-out confirmed for ${activeInProgressLesson.lessonType} lesson.`,
+                    nextActionNote: nextStepNote
                 });
-                success(`Attendance confirmed for ${targetLesson.lessonType} Lesson!`);
+
+                success(`Attendance confirmed: ${activeInProgressLesson.lessonType} Lesson finalized!`);
                 if (refreshData) refreshData();
             } catch (err: any) {
-                toastError("Failed to record attendance: " + (err.message || 'Error'));
+                toastError("Failed to record checkout: " + (err.message || 'Error'));
+            } finally {
+                setIsDirectActionLoading(false);
             }
-        } else {
-            // Log generic attendance verification check-in
+            return;
+        }
+
+        // 2. STARTING a scheduled lesson for today (Beginning of Theory or Practical)
+        if (todayScheduledLessons.length > 0 && (actionType === 'start' || actionType === 'auto')) {
+            try {
+                setIsDirectActionLoading(true);
+                let targetLesson = todayScheduledLessons[0];
+                if (scannedCode) {
+                    const norm = scannedCode.trim().toLowerCase();
+                    const matched = todayScheduledLessons.find(l => 
+                        l.id.toLowerCase() === norm ||
+                        (l.vehicleId && l.vehicleId.toLowerCase() === norm) ||
+                        norm.includes(l.id.toLowerCase())
+                    );
+                    if (matched) targetLesson = matched;
+                }
+
+                const checkInNote = `[QR Check-In: Session Started at ${nowTimeStr} by Student]`;
+                const updatedNotes = targetLesson.notes 
+                    ? `${targetLesson.notes}\n${checkInNote}` 
+                    : checkInNote;
+
+                await updateLesson({
+                    ...targetLesson,
+                    status: 'In-Progress',
+                    sessionPhase: 'started',
+                    checkInTime: nowTimeStr,
+                    startedAt: nowIso,
+                    notes: updatedNotes,
+                    instructorNotes: targetLesson.instructorNotes ? `${targetLesson.instructorNotes}\n${checkInNote}` : checkInNote,
+                    updatedAt: nowIso
+                });
+
+                stopCamera();
+                triggerHaptic([100, 50, 100]);
+                playAttendanceAudio('start');
+
+                setScanSuccessModal({
+                    isOpen: true,
+                    phase: 'started',
+                    lesson: { ...targetLesson, status: 'In-Progress', checkInTime: nowTimeStr },
+                    message: `Session Started! Checked in for ${targetLesson.lessonType} lesson at ${nowTimeStr}.`,
+                    nextActionNote: "Please remember to scan the QR code again at the conclusion of class to finalize your attendance!"
+                });
+
+                success(`Session Started: ${targetLesson.lessonType} lesson check-in logged.`);
+                if (refreshData) refreshData();
+            } catch (err: any) {
+                toastError("Failed to start session: " + (err.message || 'Error'));
+            } finally {
+                setIsDirectActionLoading(false);
+            }
+            return;
+        }
+
+        // 3. Walk-in / Direct On-the-Fly Attendance Check-In (No pre-scheduled lesson exists for today)
+        try {
+            setIsDirectActionLoading(true);
+            const lessonTypeToStart = attendancePhase || suggestedNextLessonType || 'Theory';
+
+            let assignedInstructor = instructors.find(i => i.id === studentRecord.preferredInstructorId && i.status === 'Active') 
+                || instructors.find(i => i.status === 'Active');
+            
+            let assignedVehicle = undefined;
+            if (lessonTypeToStart === 'Practical') {
+                if (assignedInstructor?.assignedVehicleId) {
+                    assignedVehicle = vehicles.find(v => v.id === assignedInstructor.assignedVehicleId && v.status === 'Operational');
+                }
+                if (!assignedVehicle) {
+                    assignedVehicle = vehicles.find(v => v.status === 'Operational');
+                }
+            }
+
+            const durationMinutes = lessonTypeToStart === 'Theory' 
+                ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
+                : (settings?.schedulingRules?.practicalDurationMinutes || 60);
+
+            const endDate = new Date(now.getTime() + durationMinutes * 60000);
+            const endTimeStr = endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const newLessonId = `less_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const checkInNote = `[QR Walk-In Check-In: Session Started at ${nowTimeStr} by Student]`;
+
+            const newLessonPayload: DSLesson = {
+                id: newLessonId,
+                institutionId: currentInstitution.id,
+                branchId: studentRecord.branchId || studentRecord.branch_id,
+                branch_id: studentRecord.branchId || studentRecord.branch_id,
+                studentId: studentRecord.id,
+                instructorId: assignedInstructor?.id || undefined,
+                vehicleId: assignedVehicle?.id || undefined,
+                lessonDate: todayStr,
+                startTime: nowTimeStr,
+                endTime: endTimeStr,
+                lessonType: lessonTypeToStart,
+                status: 'In-Progress',
+                confirmationStatus: 'Confirmed',
+                checkInTime: nowTimeStr,
+                startedAt: nowIso,
+                sessionPhase: 'started',
+                notes: checkInNote,
+                instructorNotes: checkInNote,
+                createdAt: nowIso
+            };
+
+            const created = await addLesson(newLessonPayload);
             stopCamera();
+            triggerHaptic([100, 50, 100]);
+            playAttendanceAudio('start');
+
             setScanSuccessModal({
                 isOpen: true,
-                message: `Attendance verified! QR check-in timestamp logged successfully at ${new Date().toLocaleTimeString()}.`
+                phase: 'started',
+                lesson: created || newLessonPayload,
+                message: `New ${lessonTypeToStart} Session Registered! Check-in confirmed at ${nowTimeStr}.`,
+                nextActionNote: "Your lesson is now IN PROGRESS. Remember to scan the QR code again at the conclusion of class to finalize your attendance hours!"
             });
-            success("Attendance check-in verified!");
+
+            success(`New ${lessonTypeToStart} Session started & attendance logged.`);
+            if (refreshData) refreshData();
+        } catch (err: any) {
+            console.error('[Attendance] Direct start error:', err);
+            toastError("Failed to register attendance: " + (err.message || 'Error'));
+        } finally {
+            setIsDirectActionLoading(false);
         }
-    }, [studentRecord, upcomingLessons, updateLesson, stopCamera, success, toastError, refreshData]);
+    }, [
+        studentRecord, 
+        activeInProgressLesson, 
+        todayScheduledLessons, 
+        attendancePhase, 
+        suggestedNextLessonType, 
+        instructors, 
+        vehicles, 
+        settings, 
+        currentInstitution.id, 
+        updateLesson, 
+        addLesson, 
+        stopCamera, 
+        triggerHaptic, 
+        playAttendanceAudio, 
+        success, 
+        toastError, 
+        refreshData
+    ]);
+
+    const handleProcessScanCode = useCallback(async (code: string) => {
+        if (!studentRecord || !code) return;
+        const nowMs = Date.now();
+        if (lastScannedCodeRef.current && 
+            lastScannedCodeRef.current.code === code && 
+            (nowMs - lastScannedCodeRef.current.timestamp < 3000)
+        ) {
+            return; // Debounce duplicate reads
+        }
+        lastScannedCodeRef.current = { code, timestamp: nowMs };
+
+        await executeAttendanceSession('auto', code);
+    }, [studentRecord, executeAttendanceSession]);
+
+    // Active Reminder Engine: Evaluates upcoming lessons, active sessions, and sequence reminders
+    const notifiedRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        const evaluateReminders = () => {
+            const reminders: Array<{ 
+                id: string; 
+                type: 'upcoming' | 'checkout' | 'sequence'; 
+                title: string; 
+                message: string; 
+                actionLabel?: string; 
+                onAction?: () => void 
+            }> = [];
+            const now = new Date();
+
+            // 1. In-Progress Lesson Checkout Reminder
+            if (activeInProgressLesson) {
+                const lessonType = activeInProgressLesson.lessonType;
+                const durationMins = lessonType === 'Theory' 
+                    ? (settings?.schedulingRules?.theoryDurationMinutes || 60)
+                    : (settings?.schedulingRules?.practicalDurationMinutes || 60);
+
+                const elapsedMins = Math.floor(elapsedSessionSeconds / 60);
+                const isOverdue = elapsedMins >= durationMins;
+
+                if (isOverdue) {
+                    const remId = `checkout_overdue_${activeInProgressLesson.id}`;
+                    reminders.push({
+                        id: remId,
+                        type: 'checkout',
+                        title: `🔔 ${lessonType} Session Concluded!`,
+                        message: `Your scheduled ${durationMins}-minute ${lessonType} session has ended (${elapsedMins}m elapsed). Scan QR or tap below to finalize your attendance.`,
+                        actionLabel: 'Check Out Now',
+                        onAction: () => executeAttendanceSession('end')
+                    });
+
+                    if (!notifiedRef.current.has(remId)) {
+                        notifiedRef.current.add(remId);
+                        sendPushNotification(
+                            `🔔 ${lessonType} Session Finished!`,
+                            `Your session has concluded. Please scan QR to check out and finalize your attendance.`
+                        );
+                        playAttendanceAudio('reminder');
+                        triggerHaptic([200, 100, 200]);
+                    }
+                } else {
+                    reminders.push({
+                        id: `active_session_${activeInProgressLesson.id}`,
+                        type: 'checkout',
+                        title: `⏳ ${lessonType} Session in Progress`,
+                        message: `Started at ${activeInProgressLesson.checkInTime || activeInProgressLesson.startTime} (${elapsedMins}/${durationMins}m). Remember to scan QR at the end of class!`,
+                        actionLabel: 'Check Out at End',
+                        onAction: () => {
+                            setActiveTab('attendance');
+                            setAttendanceMode('scan');
+                        }
+                    });
+                }
+            }
+
+            // 2. Upcoming Scheduled Lesson Reminder (<= 45 mins before start)
+            if (!activeInProgressLesson && todayScheduledLessons.length > 0) {
+                for (const scheduled of todayScheduledLessons) {
+                    if (!scheduled.startTime || !scheduled.startTime.includes(':')) continue;
+                    const [sh, sm] = scheduled.startTime.split(':').map(Number);
+                    const schedDate = new Date(now);
+                    schedDate.setHours(sh, sm, 0, 0);
+
+                    const diffMin = Math.round((schedDate.getTime() - now.getTime()) / 60000);
+                    if (diffMin > 0 && diffMin <= 45) {
+                        const remId = `upcoming_start_${scheduled.id}_${diffMin <= 10 ? 'urgent' : 'prep'}`;
+                        reminders.push({
+                            id: remId,
+                            type: 'upcoming',
+                            title: `⏰ ${scheduled.lessonType} Lesson in ${diffMin} min!`,
+                            message: `Scheduled at ${scheduled.startTime}. Please scan QR at the beginning of class to register attendance.`,
+                            actionLabel: 'Scan to Start',
+                            onAction: () => {
+                                setActiveTab('attendance');
+                                setAttendanceMode('scan');
+                            }
+                        });
+
+                        if (!notifiedRef.current.has(remId)) {
+                            notifiedRef.current.add(remId);
+                            sendPushNotification(
+                                `⏰ Driving Lesson in ${diffMin} mins!`,
+                                `Your ${scheduled.lessonType} lesson begins at ${scheduled.startTime}. Remember to scan QR at the start.`
+                            );
+                            playAttendanceAudio('reminder');
+                        }
+                    } else if (diffMin <= 0 && diffMin >= -30) {
+                        const remId = `started_due_${scheduled.id}`;
+                        reminders.push({
+                            id: remId,
+                            type: 'upcoming',
+                            title: `⚡ ${scheduled.lessonType} Class Starting Now!`,
+                            message: `Scheduled for ${scheduled.startTime}. Scan QR now to begin and record your check-in.`,
+                            actionLabel: 'Start Session (Check-In)',
+                            onAction: () => executeAttendanceSession('start')
+                        });
+
+                        if (!notifiedRef.current.has(remId)) {
+                            notifiedRef.current.add(remId);
+                            sendPushNotification(
+                                `⚡ Class Starting Now: ${scheduled.startTime}`,
+                                `Please scan QR to record your beginning attendance.`
+                            );
+                            playAttendanceAudio('reminder');
+                        }
+                    }
+                }
+            }
+
+            // 3. Theory-to-Practical Sequence Reminder
+            if (!activeInProgressLesson && theoryCompletedToday && !practicalCompletedToday && todayScheduledLessons.length === 0) {
+                reminders.push({
+                    id: 'seq_practical_ready',
+                    type: 'sequence',
+                    title: '🚗 Theory Complete! Next Up: Practical Driving',
+                    message: 'You have verified theory attendance today. Book or scan at the vehicle to start practical driving.',
+                    actionLabel: 'Start Practical Driving',
+                    onAction: () => {
+                        setAttendancePhase('Practical');
+                        setActiveTab('attendance');
+                        setAttendanceMode('scan');
+                    }
+                });
+            }
+
+            setActiveReminders(reminders);
+        };
+
+        evaluateReminders();
+        const t = setInterval(evaluateReminders, 10000);
+        return () => clearInterval(t);
+    }, [
+        activeInProgressLesson, 
+        todayScheduledLessons, 
+        theoryCompletedToday, 
+        practicalCompletedToday, 
+        elapsedSessionSeconds, 
+        settings, 
+        sendPushNotification, 
+        executeAttendanceSession, 
+        playAttendanceAudio, 
+        triggerHaptic
+    ]);
 
     const startCamera = useCallback(async () => {
         stopCamera();
@@ -425,6 +937,21 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             setCameraError("Camera access not supported on this browser.");
             return;
+        }
+
+        // Dynamically inject jsQR script if not yet loaded and native BarcodeDetector is missing
+        if (typeof window !== 'undefined' && !('BarcodeDetector' in window) && !(window as any).jsQR) {
+            const existingScript = document.querySelector('script[src*="jsqr"]');
+            if (!existingScript) {
+                const s = document.createElement('script');
+                s.src = "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js";
+                s.async = true;
+                document.head.appendChild(s);
+            }
+        }
+
+        if (!offscreenCanvasRef.current && typeof document !== 'undefined') {
+            offscreenCanvasRef.current = document.createElement('canvas');
         }
 
         try {
@@ -465,16 +992,42 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                 const video = videoRef.current;
                 if (!video || video.readyState < 2) return;
 
+                let detectedRaw: string | null = null;
+
+                // Engine 1: Native Hardware BarcodeDetector
                 if (detector) {
                     try {
                         const barcodes = await detector.detect(video);
                         if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
-                            const raw = barcodes[0].rawValue;
-                            clearInterval(scanIntervalRef.current);
-                            handleProcessScanCode(raw);
-                            return;
+                            detectedRaw = String(barcodes[0].rawValue).trim();
                         }
                     } catch (_) {}
+                }
+
+                // Engine 2: Canvas + jsQR Fallback (Works on iPhone, iPad, Safari, and WebViews)
+                if (!detectedRaw && (window as any).jsQR && offscreenCanvasRef.current) {
+                    try {
+                        const canvas = offscreenCanvasRef.current;
+                        const vw = video.videoWidth || 640;
+                        const vh = video.videoHeight || 480;
+                        canvas.width = vw;
+                        canvas.height = vh;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(video, 0, 0, vw, vh);
+                            const imgData = ctx.getImageData(0, 0, vw, vh);
+                            const code = (window as any).jsQR(imgData.data, imgData.width, imgData.height, {
+                                inversionAttempts: "dontInvert"
+                            });
+                            if (code && code.data) {
+                                detectedRaw = String(code.data).trim();
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                if (detectedRaw) {
+                    handleProcessScanCode(detectedRaw);
                 }
             }, 300);
 
@@ -796,7 +1349,255 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                     {/* ========================================================= */}
                     {activeTab === 'attendance' && (
                         <div className="space-y-4 animate-in fade-in duration-200">
-                            {/* Segmented Switcher */}
+                            {/* Push Notifications Enable Prompt Banner */}
+                            {!notificationsAllowed && typeof window !== 'undefined' && 'Notification' in window && (
+                                <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between gap-3 shadow-lg">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                                            <Bell className="w-4 h-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-bold text-white truncate">Enable Session Alerts</p>
+                                            <p className="text-[10px] text-slate-400 truncate">Get notifications for lesson start & checkout times</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={requestNotificationPermission}
+                                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-black uppercase tracking-wider shrink-0 transition-all active:scale-95 shadow-md shadow-indigo-600/30"
+                                    >
+                                        Enable
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Active Reminders & Sequencing Alerts */}
+                            {activeReminders.length > 0 && (
+                                <div className="space-y-2">
+                                    {activeReminders.map(rem => (
+                                        <div 
+                                            key={rem.id}
+                                            className={`p-3.5 rounded-2xl border flex items-start justify-between gap-3 shadow-xl transition-all ${
+                                                rem.type === 'checkout'
+                                                    ? 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+                                                    : rem.type === 'sequence'
+                                                    ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                                                    : 'bg-indigo-950/40 border-indigo-500/50 text-indigo-200'
+                                            }`}
+                                        >
+                                            <div className="flex items-start gap-2.5 min-w-0">
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                                                    rem.type === 'checkout'
+                                                        ? 'bg-amber-500/20 text-amber-400'
+                                                        : rem.type === 'sequence'
+                                                        ? 'bg-emerald-500/20 text-emerald-400'
+                                                        : 'bg-indigo-500/20 text-indigo-400'
+                                                }`}>
+                                                    {rem.type === 'checkout' ? (
+                                                        <BellRing className="w-4 h-4 animate-bounce" />
+                                                    ) : rem.type === 'sequence' ? (
+                                                        <Sparkles className="w-4 h-4" />
+                                                    ) : (
+                                                        <Clock className="w-4 h-4" />
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black text-white">{rem.title}</p>
+                                                    <p className="text-[11px] opacity-90 mt-0.5 leading-snug">{rem.message}</p>
+                                                </div>
+                                            </div>
+                                            {rem.actionLabel && rem.onAction && (
+                                                <button
+                                                    onClick={rem.onAction}
+                                                    disabled={isDirectActionLoading}
+                                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider shrink-0 transition-all active:scale-95 shadow-md ${
+                                                        rem.type === 'checkout'
+                                                            ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/30'
+                                                            : rem.type === 'sequence'
+                                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                                                            : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                                                    }`}
+                                                >
+                                                    {rem.actionLabel}
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* 2-PHASE SESSION LIFECYCLE CONTROLLER */}
+                            {activeInProgressLesson ? (
+                                /* ACTIVE SESSION HERO CARD (PHASE 1 IN-PROGRESS -> CHECK OUT TO COMPLETE) */
+                                <div className="p-5 rounded-[2.5rem] bg-gradient-to-br from-amber-950/60 via-slate-900 to-indigo-950/60 border-2 border-amber-500/60 shadow-2xl relative overflow-hidden space-y-4">
+                                    <div className="absolute top-0 right-0 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+                                    
+                                    {/* Header Badge */}
+                                    <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
+                                        <div className="flex items-center gap-2">
+                                            <span className="relative flex h-3 w-3">
+                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                            </span>
+                                            <span className="text-[10px] font-black tracking-widest text-amber-200 uppercase">
+                                                SESSION IN PROGRESS • PHASE 1 ACTIVE
+                                            </span>
+                                        </div>
+                                        <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-black uppercase border border-amber-500/30">
+                                            CLOCKED IN
+                                        </span>
+                                    </div>
+
+                                    {/* Main Session Content */}
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h3 className="text-lg font-black text-white flex items-center gap-2">
+                                                {activeInProgressLesson.lessonType === 'Practical' ? (
+                                                    <Car className="w-5 h-5 text-indigo-400" />
+                                                ) : (
+                                                    <FileText className="w-5 h-5 text-amber-400" />
+                                                )}
+                                                {activeInProgressLesson.lessonType} Driving Lesson
+                                            </h3>
+                                            <p className="text-xs text-slate-400 mt-0.5">
+                                                Started at <span className="font-bold text-white">{activeInProgressLesson.checkInTime || activeInProgressLesson.startTime}</span>
+                                            </p>
+                                        </div>
+
+                                        {/* Live Elapsed Digital Timer */}
+                                        <div className="text-right">
+                                            <div className="text-2xl font-black font-mono tracking-wider text-emerald-400 flex items-center justify-end gap-1.5 drop-shadow-[0_0_12px_rgba(52,211,153,0.4)]">
+                                                <Timer className="w-5 h-5 animate-spin" style={{ animationDuration: '4s' }} />
+                                                {formatElapsedTimer(elapsedSessionSeconds)}
+                                            </div>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                                Elapsed Session
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Compliance Guidance Notice */}
+                                    <div className="p-3 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-[11px] text-amber-200/90 flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                                        <span>
+                                            <strong>NTSA Requirement:</strong> You must check out at the end of class to log verified attendance hours.
+                                        </span>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                        <button
+                                            onClick={() => executeAttendanceSession('end')}
+                                            disabled={isDirectActionLoading}
+                                            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                                        >
+                                            {isDirectActionLoading ? (
+                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <CheckCheck className="w-4 h-4" />
+                                            )}
+                                            Check Out & End Session
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setAttendanceMode('scan');
+                                            }}
+                                            className="w-full py-3.5 px-4 rounded-2xl bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95"
+                                        >
+                                            <Camera className="w-4 h-4 text-indigo-400" />
+                                            Scan QR to Check Out
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* PRE-SESSION LAUNCHER (CHOOSE LESSON TYPE & START) */
+                                <div className="p-5 rounded-[2.5rem] bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950/40 border border-indigo-500/30 shadow-2xl space-y-4">
+                                    <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                                        <div>
+                                            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                                                <Sparkles className="w-4 h-4 text-indigo-400" /> Start Lesson Attendance
+                                            </h3>
+                                            <p className="text-[10px] text-slate-400">Step 1: Check in when your class begins</p>
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[9px] font-black uppercase border border-indigo-500/30">
+                                            2-Phase NTSA
+                                        </span>
+                                    </div>
+
+                                    {/* Lesson Phase Switcher (Theory vs Practical) */}
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Lesson Type</label>
+                                            <span className="text-[9px] text-indigo-400 font-bold uppercase">
+                                                Suggested: {suggestedNextLessonType}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setAttendancePhase('Theory')}
+                                                className={`p-3 rounded-2xl border text-left transition-all ${
+                                                    attendancePhase === 'Theory'
+                                                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <FileText className={`w-4 h-4 ${attendancePhase === 'Theory' ? 'text-indigo-400' : 'text-slate-500'}`} />
+                                                    {suggestedNextLessonType === 'Theory' && (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 uppercase">Next</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs font-bold text-white mt-1.5">Theory Class</p>
+                                                <p className="text-[9px] text-slate-400">Rules & Highway Code</p>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setAttendancePhase('Practical')}
+                                                className={`p-3 rounded-2xl border text-left transition-all ${
+                                                    attendancePhase === 'Practical'
+                                                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <Car className={`w-4 h-4 ${attendancePhase === 'Practical' ? 'text-indigo-400' : 'text-slate-500'}`} />
+                                                    {suggestedNextLessonType === 'Practical' && (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 uppercase">Next</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs font-bold text-white mt-1.5">Practical Driving</p>
+                                                <p className="text-[9px] text-slate-400">In-Vehicle Training</p>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Start Buttons */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                        <button
+                                            onClick={() => executeAttendanceSession('start')}
+                                            disabled={isDirectActionLoading}
+                                            className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                                        >
+                                            {isDirectActionLoading ? (
+                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Play className="w-4 h-4" />
+                                            )}
+                                            Start {attendancePhase} Lesson
+                                        </button>
+                                        <button
+                                            onClick={() => setAttendanceMode('scan')}
+                                            className="w-full py-3.5 px-4 rounded-2xl bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95"
+                                        >
+                                            <Camera className="w-4 h-4 text-indigo-400" />
+                                            Scan QR to Check In
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Segmented Switcher (Scanner vs Digital Pass) */}
                             <div className="p-1 rounded-2xl bg-slate-850 border border-slate-800 flex gap-1">
                                 <button
                                     onClick={() => setAttendanceMode('scan')}
@@ -823,6 +1624,22 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                             {/* SCANNER VIEW */}
                             {attendanceMode === 'scan' && (
                                 <div className="space-y-4">
+                                    {/* Guidance Strip for Scanner Action */}
+                                    <div className={`p-3 rounded-2xl border text-xs flex items-center justify-between ${
+                                        activeInProgressLesson
+                                            ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                                            : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-200'
+                                    }`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full ${activeInProgressLesson ? 'bg-amber-400 animate-ping' : 'bg-indigo-400'}`} />
+                                            <span className="font-bold">
+                                                {activeInProgressLesson 
+                                                    ? `Ready: Scan QR to CHECK OUT & END your ${activeInProgressLesson.lessonType} lesson` 
+                                                    : `Ready: Scan QR to CHECK IN & START your ${attendancePhase} lesson`}
+                                            </span>
+                                        </div>
+                                    </div>
+
                                     {/* Live Camera Viewfinder Card */}
                                     <div className="relative rounded-[2.5rem] bg-slate-950 border border-slate-800 overflow-hidden shadow-2xl aspect-[4/3] flex items-center justify-center">
                                         <video
@@ -918,7 +1735,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                                 }}
                                                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all active:scale-95 shrink-0"
                                             >
-                                                Check In
+                                                Submit Code
                                             </button>
                                         </div>
                                     </div>
@@ -941,7 +1758,6 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
 
                                         {/* QR Code Container */}
                                         <div className="p-4 bg-white rounded-3xl mx-auto w-52 h-52 shadow-xl flex items-center justify-center">
-                                            {/* High Contrast Dynamic SVG QR Code */}
                                             <svg viewBox="0 0 100 100" className="w-full h-full text-slate-950" fill="currentColor">
                                                 <path d="M0,0 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
                                                 <path d="M70,0 h30 v30 h-30 z m5,5 v20 h20 v-20 z m5,5 h10 v10 h-10 z" />
@@ -982,7 +1798,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                 </div>
                             )}
 
-                            {/* Recent Attendance History */}
+                            {/* Detailed Attendance History & Verified Logs */}
                             <div className="p-4 rounded-2xl bg-slate-850 border border-slate-800 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -993,26 +1809,63 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                     </span>
                                 </div>
 
-                                {completedLessons.length === 0 ? (
+                                {myLessons.length === 0 ? (
                                     <div className="py-6 text-center text-slate-500 text-xs">
-                                        No checked-in lessons yet. Scan QR to record attendance!
+                                        No checked-in lessons yet. Scan QR or tap start to record attendance!
                                     </div>
                                 ) : (
-                                    <div className="space-y-2">
-                                        {completedLessons.slice(0, 4).map(l => (
-                                            <div key={l.id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
-                                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                                                        {l.lessonType} Driving Lesson
-                                                    </p>
-                                                    <p className="text-[10px] text-slate-400 mt-0.5">
-                                                        {new Date(l.lessonDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} • {l.startTime} - {l.endTime}
-                                                    </p>
+                                    <div className="space-y-2.5">
+                                        {/* If active in-progress lesson, show on top */}
+                                        {activeInProgressLesson && (
+                                            <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/40 flex items-center justify-between">
+                                                <div className="flex items-start gap-2.5">
+                                                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Timer className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            {activeInProgressLesson.lessonType} Driving Lesson
+                                                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-300 mt-0.5">
+                                                            In-Progress • Checked in at <span className="text-white font-bold">{activeInProgressLesson.checkInTime || activeInProgressLesson.startTime}</span>
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 uppercase tracking-wider">
-                                                    Verified
-                                                </span>
+                                                <button
+                                                    onClick={() => executeAttendanceSession('end')}
+                                                    disabled={isDirectActionLoading}
+                                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shrink-0 transition-all active:scale-95 shadow-md shadow-emerald-600/20"
+                                                >
+                                                    Check Out
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Completed & Historical Lessons */}
+                                        {completedLessons.slice(0, 5).map(l => (
+                                            <div key={l.id} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                                                <div className="flex items-start gap-2.5">
+                                                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                                                        {l.lessonType === 'Practical' ? <Car className="w-3.5 h-3.5" /> : <FileText className="w-3.5 h-3.5" />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                                                            {l.lessonType} Driving Lesson
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                                            {new Date(l.lessonDate || (l as any).date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} • In: <span className="text-slate-300 font-bold">{l.checkInTime || l.startTime}</span>
+                                                            {l.checkOutTime && (
+                                                                <> • Out: <span className="text-slate-300 font-bold">{l.checkOutTime}</span></>
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[9px] font-black px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 uppercase tracking-wider inline-flex items-center gap-1">
+                                                        <CheckCircle2 className="w-2.5 h-2.5" /> Verified
+                                                    </span>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
@@ -1839,40 +2692,84 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                 {/* Scan Success Celebration Modal */}
                 {scanSuccessModal?.isOpen && (
                     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-                        <div className="w-full max-w-sm bg-slate-900 rounded-[2.5rem] border border-emerald-500/40 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
-                            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
-                                <CheckCircle2 className="w-8 h-8" />
+                        <div className={`w-full max-w-sm bg-slate-900 rounded-[2.5rem] border p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95 duration-200 ${
+                            scanSuccessModal.phase === 'started' ? 'border-indigo-500/40' : 'border-emerald-500/40'
+                        }`}>
+                            <div className={`w-16 h-16 rounded-full border flex items-center justify-center mx-auto shadow-lg ${
+                                scanSuccessModal.phase === 'started'
+                                    ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 shadow-indigo-500/20'
+                                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-emerald-500/20'
+                            }`}>
+                                {scanSuccessModal.phase === 'started' ? (
+                                    <Timer className="w-8 h-8 animate-pulse" />
+                                ) : (
+                                    <CheckCircle2 className="w-8 h-8" />
+                                )}
                             </div>
 
                             <div>
-                                <h3 className="text-base font-black text-white uppercase tracking-tight">Attendance Verified!</h3>
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider mb-2 border">
+                                    {scanSuccessModal.phase === 'started' ? (
+                                        <span className="text-indigo-400 bg-indigo-500/10 border-indigo-500/30">Phase 1: Session Started</span>
+                                    ) : (
+                                        <span className="text-emerald-400 bg-emerald-500/10 border-emerald-500/30">Phase 2: Attendance Completed</span>
+                                    )}
+                                </div>
+                                <h3 className="text-base font-black text-white uppercase tracking-tight">
+                                    {scanSuccessModal.phase === 'started' ? 'Check-In Recorded!' : 'Attendance Verified!'}
+                                </h3>
                                 <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                                     {scanSuccessModal.message || "Your attendance check-in has been successfully recorded."}
                                 </p>
                             </div>
 
                             {scanSuccessModal.lesson && (
-                                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-left text-xs space-y-1">
+                                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 text-left text-xs space-y-1.5">
                                     <div className="flex justify-between">
-                                        <span className="text-slate-400">Lesson:</span>
+                                        <span className="text-slate-400">Lesson Type:</span>
                                         <span className="font-bold text-white">{scanSuccessModal.lesson.lessonType}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-slate-400">Time:</span>
-                                        <span className="font-bold text-indigo-400">{scanSuccessModal.lesson.startTime} - {scanSuccessModal.lesson.endTime}</span>
+                                        <span className="text-slate-400">Session Check-In:</span>
+                                        <span className="font-bold text-indigo-400">{scanSuccessModal.lesson.checkInTime || scanSuccessModal.lesson.startTime}</span>
                                     </div>
+                                    {scanSuccessModal.lesson.checkOutTime && (
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400">Session Check-Out:</span>
+                                            <span className="font-bold text-emerald-400">{scanSuccessModal.lesson.checkOutTime}</span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between">
-                                        <span className="text-slate-400">Status:</span>
-                                        <span className="font-black text-emerald-400 uppercase">Confirmed</span>
+                                        <span className="text-slate-400">NTSA Status:</span>
+                                        <span className={`font-black uppercase text-[10px] ${scanSuccessModal.phase === 'started' ? 'text-indigo-400' : 'text-emerald-400'}`}>
+                                            {scanSuccessModal.phase === 'started' ? 'In Progress' : 'Verified'}
+                                        </span>
                                     </div>
+                                </div>
+                            )}
+
+                            {scanSuccessModal.nextActionNote && (
+                                <div className={`p-3 rounded-xl text-left text-[11px] font-medium leading-relaxed border ${
+                                    scanSuccessModal.phase === 'started' 
+                                        ? 'bg-indigo-950/40 border-indigo-500/30 text-indigo-200' 
+                                        : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                                }`}>
+                                    <p className="font-bold uppercase tracking-wider text-[9px] mb-1 opacity-75">
+                                        {scanSuccessModal.phase === 'started' ? '👉 Required Next Step' : '🎉 Milestones Updated'}
+                                    </p>
+                                    {scanSuccessModal.nextActionNote}
                                 </div>
                             )}
 
                             <button
                                 onClick={() => setScanSuccessModal(null)}
-                                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
+                                className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg transition-all active:scale-95 ${
+                                    scanSuccessModal.phase === 'started'
+                                        ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                                }`}
                             >
-                                Done
+                                {scanSuccessModal.phase === 'started' ? 'Continue Lesson' : 'Done'}
                             </button>
                         </div>
                     </div>
