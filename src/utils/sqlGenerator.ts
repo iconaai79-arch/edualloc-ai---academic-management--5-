@@ -3242,6 +3242,34 @@ CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_academic_year ON fee_structur
 CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_created ON fee_structures (institution_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures (institution_id, vote_head_id);
 
+-- Global Vehicles & Transport RLS & Resilience --
+ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "vehicles_all_access" ON vehicles;
+CREATE POLICY "vehicles_all_access" ON vehicles FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_vehicles_inst_id_desc ON vehicles (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_vehicles_inst_id_asc ON vehicles (institution_id, id ASC);
+CREATE INDEX IF NOT EXISTS idx_vehicles_inst_plate ON vehicles (institution_id, plate_number);
+CREATE INDEX IF NOT EXISTS idx_vehicles_inst_status ON vehicles (institution_id, status);
+CREATE INDEX IF NOT EXISTS idx_vehicles_inst_driver ON vehicles (institution_id, driver_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_inst_created ON vehicles (institution_id, created_at DESC);
+
+ALTER TABLE transport_onboarding ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "transport_onboarding_all_access" ON transport_onboarding;
+CREATE POLICY "transport_onboarding_all_access" ON transport_onboarding FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_id_desc ON transport_onboarding (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_timestamp ON transport_onboarding (institution_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_student ON transport_onboarding (institution_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_vehicle ON transport_onboarding (institution_id, vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_created ON transport_onboarding (institution_id, created_at DESC);
+
+ALTER TABLE vehicle_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "vehicle_logs_all_access" ON vehicle_logs;
+CREATE POLICY "vehicle_logs_all_access" ON vehicle_logs FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_id_desc ON vehicle_logs (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_timestamp ON vehicle_logs (institution_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_vehicle ON vehicle_logs (institution_id, vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_created ON vehicle_logs (institution_id, created_at DESC);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3712,6 +3740,25 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_cafe_orders_inst ON cafe_orders(institution_id);`,
         // Logistics & Security
         `CREATE INDEX IF NOT EXISTS idx_vehicles_inst ON vehicles(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst_id_desc ON vehicles(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst_id_asc ON vehicles(institution_id, id ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst_plate ON vehicles(institution_id, plate_number);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst_status ON vehicles(institution_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst_driver ON vehicles(institution_id, driver_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicles_inst_created ON vehicles(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_id_desc ON transport_onboarding(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_timestamp ON transport_onboarding(institution_id, timestamp DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_student ON transport_onboarding(institution_id, student_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_vehicle ON transport_onboarding(institution_id, vehicle_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_created ON transport_onboarding(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_id_desc ON vehicle_logs(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_timestamp ON vehicle_logs(institution_id, timestamp DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_vehicle ON vehicle_logs(institution_id, vehicle_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_created ON vehicle_logs(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_id_desc ON ds_vehicles(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_plate ON ds_vehicles(institution_id, plate_number);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_status ON ds_vehicles(institution_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_created ON ds_vehicles(institution_id, created_at DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_visitors_inst ON visitors(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_maint_requests_inst_id_desc ON maintenance_requests(institution_id, id DESC);`,
