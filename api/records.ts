@@ -77,15 +77,19 @@ const getPgPool = async () => {
     _pgPool = new Pool({
       connectionString: cleanConnString,
       ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 2000,
-      statement_timeout: 4000,
-      max: 2,
-      idleTimeoutMillis: 3000
+      connectionTimeoutMillis: 7000,
+      statement_timeout: 8000,
+      max: 5,
+      idleTimeoutMillis: 30000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000
     });
 
     _pgPool.on('error', (err: any) => {
       console.warn('[Direct SQL Pool Error]:', err?.message || err);
       _directPgDisabledUntil = Date.now() + 60000;
+      try { _pgPool?.end().catch(() => {}); } catch (_) {}
+      _pgPool = null;
     });
 
     return _pgPool;
@@ -1806,7 +1810,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
 
                     if (error) {
-                        if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'pm_utility_readings') {
+                        if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'pm_utility_readings' || moduleName === 'ds_invoices' || moduleName === 'ds_payments') {
                             const targetInst = targetInstParam || user?.institutionId;
                             if (targetInst) {
                                 try {
@@ -6204,9 +6208,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     const sql = `INSERT INTO public."${targetDbTable}" ("${keys.join('", "')}") VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
                                     let r: any = null;
                                     try {
-                                        r = await executeWithTimeout(pool.query(sql, vals), 6000);
+                                        r = await executeWithTimeout(pool.query(sql, vals), 7000);
                                     } catch (pgInsertErr: any) {
                                         console.warn(`[api/records POST] Direct PG single-row insert failed for [${moduleName}]:`, pgInsertErr?.message || pgInsertErr);
+                                        const isConnErr = String(pgInsertErr?.message || '').includes('timeout') ||
+                                                          String(pgInsertErr?.message || '').includes('connect') ||
+                                                          pgInsertErr?.code === 'ECONNREFUSED' ||
+                                                          pgInsertErr?.code === 'ETIMEDOUT';
+                                        if (isConnErr) {
+                                            _directPgDisabledUntil = Date.now() + 60000;
+                                            if (_pgPool) {
+                                                try { _pgPool.end().catch(() => {}); } catch (_) {}
+                                                _pgPool = null;
+                                            }
+                                        }
                                     }
                                     if (r && r.rows && r.rows[0]) {
                                         insertedRows.push(r.rows[0]);
@@ -6221,6 +6236,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     } catch (pgErr) {
                         console.warn(`[api/records POST] Direct PG fallback attempt failed for [${moduleName}]:`, pgErr);
+                        if (_pgPool) {
+                            try { _pgPool.end().catch(() => {}); } catch (_) {}
+                            _pgPool = null;
+                        }
                     }
                 }
 
