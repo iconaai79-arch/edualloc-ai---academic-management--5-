@@ -392,10 +392,33 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         return todayLessons.some(l => l.lessonType === 'Practical' && l.status === 'Completed');
     }, [todayLessons]);
 
+    // Daily limit: 1 Theory and 1 Practical session allowed per day (Completed or In-Progress counts)
+    const theoryDoneToday = useMemo(() => {
+        return todayLessons.some(l => l.lessonType === 'Theory' && (l.status === 'Completed' || l.status === 'In-Progress'));
+    }, [todayLessons]);
+
+    const practicalDoneToday = useMemo(() => {
+        return todayLessons.some(l => l.lessonType === 'Practical' && (l.status === 'Completed' || l.status === 'In-Progress'));
+    }, [todayLessons]);
+
+    const bothSessionsCompletedToday = useMemo(() => {
+        return theoryDoneToday && practicalDoneToday;
+    }, [theoryDoneToday, practicalDoneToday]);
+
     const suggestedNextLessonType = useMemo<'Theory' | 'Practical'>(() => {
-        if (!theoryCompletedToday) return 'Theory';
-        return 'Practical';
-    }, [theoryCompletedToday]);
+        if (!theoryDoneToday) return 'Theory';
+        if (!practicalDoneToday) return 'Practical';
+        return 'Theory';
+    }, [theoryDoneToday, practicalDoneToday]);
+
+    // Keep active attendance phase aligned with the remaining available session for today
+    useEffect(() => {
+        if (theoryDoneToday && !practicalDoneToday && attendancePhase !== 'Practical') {
+            setAttendancePhase('Practical');
+        } else if (!theoryDoneToday && practicalDoneToday && attendancePhase !== 'Theory') {
+            setAttendancePhase('Theory');
+        }
+    }, [theoryDoneToday, practicalDoneToday, attendancePhase]);
 
     const upcomingLessons = useMemo(() => {
         return myLessons.filter(l => (l.status === 'Scheduled' || (l as any).confirmationStatus === 'Pending') && (l.lessonDate || (l as any).date) >= todayStr)
@@ -564,7 +587,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         setCameraActive(false);
     }, []);
 
-    // Complete Session Attendance Execution (Handles Beginning & End of Theory & Practical)
+    // Complete Session Attendance Execution (Handles Beginning & End of Theory & Practical with Daily Limits)
     const executeAttendanceSession = useCallback(async (actionType: 'start' | 'end' | 'auto', scannedCode?: string) => {
         if (!studentRecord) {
             toastError("Candidate profile not found. Please log in again.");
@@ -601,9 +624,20 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                 playAttendanceAudio('end');
 
                 const isTheory = activeInProgressLesson.lessonType === 'Theory';
-                const nextStepNote = isTheory 
-                    ? "Theory Session Completed! You are now eligible to begin Practical Driving." 
-                    : "Practical Session Completed! Driving skills logged into your NTSA portfolio.";
+                let nextStepNote = "";
+                if (isTheory) {
+                    if (!practicalDoneToday) {
+                        nextStepNote = "Theory Session Completed (1/1 for today)! You are now eligible to complete your 1 allowed Practical Driving session.";
+                    } else {
+                        nextStepNote = "Theory Session Completed (1/1)! You have now completed both of your allowed sessions (1 Theory & 1 Practical) for today. Great job!";
+                    }
+                } else {
+                    if (!theoryDoneToday) {
+                        nextStepNote = "Practical Session Completed (1/1 for today)! You are eligible to complete your 1 allowed Theory session.";
+                    } else {
+                        nextStepNote = "Practical Session Completed (1/1)! You have now completed both of your allowed sessions (1 Theory & 1 Practical) for today. Great job!";
+                    }
+                }
 
                 setScanSuccessModal({
                     isOpen: true,
@@ -623,63 +657,149 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
             return;
         }
 
+        // Daily Limit Defense: If student has already completed both daily sessions (1 Theory and 1 Practical)
+        if (bothSessionsCompletedToday) {
+            stopCamera();
+            triggerHaptic([300, 100, 300]);
+            playAttendanceAudio('reminder');
+            toastError("Daily Limit Reached: You have already completed both allowed sessions (1 Theory and 1 Practical) for today.");
+            return;
+        }
+
+        // Infer scanned code type if QR code was provided
+        let inferredTypeFromCode: 'Theory' | 'Practical' | null = null;
+        if (scannedCode) {
+            const norm = scannedCode.trim().toLowerCase();
+            if (
+                norm.startsWith('veh_') || 
+                norm.includes('practical') || 
+                norm.includes('car') ||
+                vehicles.some(v => v.id.toLowerCase() === norm || v.plateNumber?.toLowerCase().replace(/\s/g, '') === norm.replace(/\s/g, ''))
+            ) {
+                inferredTypeFromCode = 'Practical';
+            } else if (
+                norm.startsWith('room_') || 
+                norm.includes('theory') || 
+                norm.includes('class')
+            ) {
+                inferredTypeFromCode = 'Theory';
+            }
+        }
+
         // 2. STARTING a scheduled lesson for today (Beginning of Theory or Practical)
         if (todayScheduledLessons.length > 0 && (actionType === 'start' || actionType === 'auto')) {
-            try {
-                setIsDirectActionLoading(true);
-                let targetLesson = todayScheduledLessons[0];
-                if (scannedCode) {
-                    const norm = scannedCode.trim().toLowerCase();
-                    const matched = todayScheduledLessons.find(l => 
-                        l.id.toLowerCase() === norm ||
-                        (l.vehicleId && l.vehicleId.toLowerCase() === norm) ||
-                        norm.includes(l.id.toLowerCase())
-                    );
-                    if (matched) targetLesson = matched;
+            let targetLesson: DSLesson | undefined;
+
+            if (scannedCode) {
+                const norm = scannedCode.trim().toLowerCase();
+                targetLesson = todayScheduledLessons.find(l => 
+                    l.id.toLowerCase() === norm ||
+                    (l.vehicleId && l.vehicleId.toLowerCase() === norm) ||
+                    norm.includes(l.id.toLowerCase())
+                );
+            }
+
+            if (!targetLesson && inferredTypeFromCode) {
+                targetLesson = todayScheduledLessons.find(l => l.lessonType === inferredTypeFromCode);
+            }
+
+            if (!targetLesson && actionType === 'start') {
+                targetLesson = todayScheduledLessons.find(l => l.lessonType === attendancePhase);
+            }
+
+            if (!targetLesson) {
+                // Select a scheduled lesson whose type is not yet fulfilled today
+                targetLesson = todayScheduledLessons.find(l => 
+                    (l.lessonType === 'Theory' && !theoryDoneToday) ||
+                    (l.lessonType === 'Practical' && !practicalDoneToday)
+                );
+            }
+
+            if (targetLesson) {
+                // Strictly enforce daily limit on scheduled lesson type
+                if (targetLesson.lessonType === 'Theory' && theoryDoneToday) {
+                    stopCamera();
+                    triggerHaptic([300, 100, 300]);
+                    playAttendanceAudio('reminder');
+                    toastError("Daily Theory Limit Reached: You have already completed your 1 allowed Theory session for today. Only 1 Theory and 1 Practical session are permitted per day.");
+                    return;
+                }
+                if (targetLesson.lessonType === 'Practical' && practicalDoneToday) {
+                    stopCamera();
+                    triggerHaptic([300, 100, 300]);
+                    playAttendanceAudio('reminder');
+                    toastError("Daily Practical Limit Reached: You have already completed your 1 allowed Practical session for today. Only 1 Theory and 1 Practical session are permitted per day.");
+                    return;
                 }
 
-                const checkInNote = `[QR Check-In: Session Started at ${nowTimeStr} by Student]`;
-                const updatedNotes = targetLesson.notes 
-                    ? `${targetLesson.notes}\n${checkInNote}` 
-                    : checkInNote;
+                try {
+                    setIsDirectActionLoading(true);
+                    const checkInNote = `[QR Check-In: Session Started at ${nowTimeStr} by Student]`;
+                    const updatedNotes = targetLesson.notes 
+                        ? `${targetLesson.notes}\n${checkInNote}` 
+                        : checkInNote;
 
-                await updateLesson({
-                    ...targetLesson,
-                    status: 'In-Progress',
-                    sessionPhase: 'started',
-                    checkInTime: nowTimeStr,
-                    startedAt: nowIso,
-                    notes: updatedNotes,
-                    instructorNotes: targetLesson.instructorNotes ? `${targetLesson.instructorNotes}\n${checkInNote}` : checkInNote,
-                    updatedAt: nowIso
-                });
+                    await updateLesson({
+                        ...targetLesson,
+                        status: 'In-Progress',
+                        sessionPhase: 'started',
+                        checkInTime: nowTimeStr,
+                        startedAt: nowIso,
+                        notes: updatedNotes,
+                        instructorNotes: targetLesson.instructorNotes ? `${targetLesson.instructorNotes}\n${checkInNote}` : checkInNote,
+                        updatedAt: nowIso
+                    });
 
-                stopCamera();
-                triggerHaptic([100, 50, 100]);
-                playAttendanceAudio('start');
+                    stopCamera();
+                    triggerHaptic([100, 50, 100]);
+                    playAttendanceAudio('start');
 
-                setScanSuccessModal({
-                    isOpen: true,
-                    phase: 'started',
-                    lesson: { ...targetLesson, status: 'In-Progress', checkInTime: nowTimeStr },
-                    message: `Session Started! Checked in for ${targetLesson.lessonType} lesson at ${nowTimeStr}.`,
-                    nextActionNote: "Please remember to scan the QR code again at the conclusion of class to finalize your attendance!"
-                });
+                    setScanSuccessModal({
+                        isOpen: true,
+                        phase: 'started',
+                        lesson: { ...targetLesson, status: 'In-Progress', checkInTime: nowTimeStr },
+                        message: `Session Started! Checked in for ${targetLesson.lessonType} lesson at ${nowTimeStr}.`,
+                        nextActionNote: "Please remember to scan the QR code again at the conclusion of class to finalize your attendance!"
+                    });
 
-                success(`Session Started: ${targetLesson.lessonType} lesson check-in logged.`);
-                if (refreshData) refreshData();
-            } catch (err: any) {
-                toastError("Failed to start session: " + (err.message || 'Error'));
-            } finally {
-                setIsDirectActionLoading(false);
+                    success(`Session Started: ${targetLesson.lessonType} lesson check-in logged.`);
+                    if (refreshData) refreshData();
+                } catch (err: any) {
+                    toastError("Failed to start session: " + (err.message || 'Error'));
+                } finally {
+                    setIsDirectActionLoading(false);
+                }
+                return;
             }
-            return;
         }
 
         // 3. Walk-in / Direct On-the-Fly Attendance Check-In (No pre-scheduled lesson exists for today)
         try {
             setIsDirectActionLoading(true);
-            const lessonTypeToStart = attendancePhase || suggestedNextLessonType || 'Theory';
+            let lessonTypeToStart: 'Theory' | 'Practical' = inferredTypeFromCode || attendancePhase || suggestedNextLessonType || 'Theory';
+
+            // If selected type is already done today, auto-align to the remaining permitted type
+            if (lessonTypeToStart === 'Theory' && theoryDoneToday && !practicalDoneToday) {
+                lessonTypeToStart = 'Practical';
+            } else if (lessonTypeToStart === 'Practical' && practicalDoneToday && !theoryDoneToday) {
+                lessonTypeToStart = 'Theory';
+            }
+
+            // Strictly enforce daily limit
+            if (lessonTypeToStart === 'Theory' && theoryDoneToday) {
+                stopCamera();
+                triggerHaptic([300, 100, 300]);
+                playAttendanceAudio('reminder');
+                toastError("Daily Theory Limit Reached: You have already completed your 1 allowed Theory session for today. Only 1 Theory and 1 Practical session are permitted per day.");
+                return;
+            }
+            if (lessonTypeToStart === 'Practical' && practicalDoneToday) {
+                stopCamera();
+                triggerHaptic([300, 100, 300]);
+                playAttendanceAudio('reminder');
+                toastError("Daily Practical Limit Reached: You have already completed your 1 allowed Practical session for today. Only 1 Theory and 1 Practical session are permitted per day.");
+                return;
+            }
 
             let assignedInstructor = instructors.find(i => i.id === studentRecord.preferredInstructorId && i.status === 'Active') 
                 || instructors.find(i => i.status === 'Active');
@@ -753,6 +873,9 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         todayScheduledLessons, 
         attendancePhase, 
         suggestedNextLessonType, 
+        theoryDoneToday,
+        practicalDoneToday,
+        bothSessionsCompletedToday,
         instructors, 
         vehicles, 
         settings, 
@@ -842,9 +965,13 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
             }
 
             // 2. Upcoming Scheduled Lesson Reminder (<= 45 mins before start)
-            if (!activeInProgressLesson && todayScheduledLessons.length > 0) {
+            if (!activeInProgressLesson && todayScheduledLessons.length > 0 && !bothSessionsCompletedToday) {
                 for (const scheduled of todayScheduledLessons) {
                     if (!scheduled.startTime || !scheduled.startTime.includes(':')) continue;
+                    // Skip reminder if the daily quota for this lesson type is already fulfilled
+                    if (scheduled.lessonType === 'Theory' && theoryDoneToday) continue;
+                    if (scheduled.lessonType === 'Practical' && practicalDoneToday) continue;
+
                     const [sh, sm] = scheduled.startTime.split(':').map(Number);
                     const schedDate = new Date(now);
                     schedDate.setHours(sh, sm, 0, 0);
@@ -896,7 +1023,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
             }
 
             // 3. Theory-to-Practical Sequence Reminder
-            if (!activeInProgressLesson && theoryCompletedToday && !practicalCompletedToday && todayScheduledLessons.length === 0) {
+            if (!activeInProgressLesson && theoryDoneToday && !practicalDoneToday && todayScheduledLessons.length === 0) {
                 reminders.push({
                     id: 'seq_practical_ready',
                     type: 'sequence',
@@ -907,6 +1034,20 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                         setAttendancePhase('Practical');
                         setActiveTab('attendance');
                         setAttendanceMode('scan');
+                    }
+                });
+            }
+
+            // 4. Daily quota fulfilled reminder
+            if (!activeInProgressLesson && bothSessionsCompletedToday) {
+                reminders.push({
+                    id: 'seq_all_completed_today',
+                    type: 'sequence',
+                    title: '🎉 Daily Lessons Complete!',
+                    message: 'You have completed both your 1 Theory and 1 Practical session for today. Well done!',
+                    actionLabel: 'View Progress',
+                    onAction: () => {
+                        setActiveTab('lessons');
                     }
                 });
             }
@@ -922,6 +1063,9 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         todayScheduledLessons, 
         theoryCompletedToday, 
         practicalCompletedToday, 
+        theoryDoneToday,
+        practicalDoneToday,
+        bothSessionsCompletedToday,
         elapsedSessionSeconds, 
         settings, 
         sendPushNotification, 
@@ -1150,6 +1294,14 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         e.preventDefault();
         if (!studentRecord || !bookingDate || !bookingInstructor) {
             toastError("Please pick a date and instructor.");
+            return;
+        }
+
+        // Daily Limit Check: Ensure candidate does not exceed 1 Theory and 1 Practical on any chosen date
+        const sameDayLessons = myLessons.filter(l => (l.lessonDate === bookingDate || (l as any).date === bookingDate) && l.status !== 'Cancelled');
+        const alreadyHasTypeThatDay = sameDayLessons.some(l => l.lessonType === bookingType);
+        if (alreadyHasTypeThatDay) {
+            toastError(`Daily Limit Reached: You already have a ${bookingType} session for ${bookingDate}. Only 1 Theory and 1 Practical session are permitted per day.`);
             return;
         }
 
@@ -1508,6 +1660,49 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                         </button>
                                     </div>
                                 </div>
+                            ) : bothSessionsCompletedToday ? (
+                                /* ALL DAILY SESSIONS COMPLETED CELEBRATION CARD */
+                                <div className="p-5 rounded-[2.5rem] bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/30 shadow-2xl space-y-4">
+                                    <div className="flex items-center justify-between pb-3 border-b border-emerald-500/20">
+                                        <div>
+                                            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-400" /> Daily Lessons Complete
+                                            </h3>
+                                            <p className="text-[10px] text-slate-400">All allowed sessions for today completed (2/2)</p>
+                                        </div>
+                                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase border border-emerald-500/30">
+                                            Limit Met (2/2)
+                                        </span>
+                                    </div>
+
+                                    {/* Daily Status Breakdown */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="p-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 text-left">
+                                            <div className="flex items-center justify-between">
+                                                <FileText className="w-4 h-4 text-emerald-400" />
+                                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 uppercase">1/1 Done</span>
+                                            </div>
+                                            <p className="text-xs font-bold text-white mt-1.5">Theory Class</p>
+                                            <p className="text-[9px] text-slate-400">Completed for today</p>
+                                        </div>
+
+                                        <div className="p-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 text-left">
+                                            <div className="flex items-center justify-between">
+                                                <Car className="w-4 h-4 text-emerald-400" />
+                                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 uppercase">1/1 Done</span>
+                                            </div>
+                                            <p className="text-xs font-bold text-white mt-1.5">Practical Driving</p>
+                                            <p className="text-[9px] text-slate-400">Completed for today</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3 bg-slate-900/80 rounded-2xl border border-slate-800 text-center">
+                                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                                            You have completed your daily quota of <strong>1 Theory</strong> and <strong>1 Practical</strong> session. 
+                                            Great work! Your attendance and hours have been recorded in your NTSA portfolio. See you tomorrow!
+                                        </p>
+                                    </div>
+                                </div>
                             ) : (
                                 /* PRE-SESSION LAUNCHER (CHOOSE LESSON TYPE & START) */
                                 <div className="p-5 rounded-[2.5rem] bg-gradient-to-br from-slate-900 via-slate-850 to-indigo-950/40 border border-indigo-500/30 shadow-2xl space-y-4">
@@ -1516,10 +1711,10 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                             <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                                                 <Sparkles className="w-4 h-4 text-indigo-400" /> Start Lesson Attendance
                                             </h3>
-                                            <p className="text-[10px] text-slate-400">Step 1: Check in when your class begins</p>
+                                            <p className="text-[10px] text-slate-400">Step 1: Check in when your class begins (Max 1 Theory & 1 Practical/day)</p>
                                         </div>
                                         <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[9px] font-black uppercase border border-indigo-500/30">
-                                            2-Phase NTSA
+                                            Daily Cap: 1+1
                                         </span>
                                     </div>
 
@@ -1528,46 +1723,74 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                         <div className="flex items-center justify-between">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Select Lesson Type</label>
                                             <span className="text-[9px] text-indigo-400 font-bold uppercase">
-                                                Suggested: {suggestedNextLessonType}
+                                                {suggestedNextLessonType ? `Suggested: ${suggestedNextLessonType}` : 'Daily Quota'}
                                             </span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
                                                 type="button"
-                                                onClick={() => setAttendancePhase('Theory')}
+                                                onClick={() => {
+                                                    if (theoryDoneToday) {
+                                                        toastInfo("You have already completed your 1 allowed Theory session for today.");
+                                                        return;
+                                                    }
+                                                    setAttendancePhase('Theory');
+                                                }}
                                                 className={`p-3 rounded-2xl border text-left transition-all ${
-                                                    attendancePhase === 'Theory'
-                                                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                                    theoryDoneToday
+                                                        ? 'bg-slate-900/50 border-emerald-500/30 text-slate-400 opacity-80 cursor-default'
+                                                        : attendancePhase === 'Theory'
+                                                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between">
-                                                    <FileText className={`w-4 h-4 ${attendancePhase === 'Theory' ? 'text-indigo-400' : 'text-slate-500'}`} />
-                                                    {suggestedNextLessonType === 'Theory' && (
-                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 uppercase">Next</span>
+                                                    <FileText className={`w-4 h-4 ${theoryDoneToday ? 'text-emerald-400' : attendancePhase === 'Theory' ? 'text-indigo-400' : 'text-slate-500'}`} />
+                                                    {theoryDoneToday ? (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 uppercase flex items-center gap-1">
+                                                            <Check className="w-2.5 h-2.5" /> 1/1 Done
+                                                        </span>
+                                                    ) : suggestedNextLessonType === 'Theory' ? (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 uppercase">Next (0/1)</span>
+                                                    ) : (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase">0/1</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xs font-bold text-white mt-1.5">Theory Class</p>
-                                                <p className="text-[9px] text-slate-400">Rules & Highway Code</p>
+                                                <p className="text-[9px] text-slate-400">{theoryDoneToday ? 'Completed today' : 'Rules & Highway Code'}</p>
                                             </button>
 
                                             <button
                                                 type="button"
-                                                onClick={() => setAttendancePhase('Practical')}
+                                                onClick={() => {
+                                                    if (practicalDoneToday) {
+                                                        toastInfo("You have already completed your 1 allowed Practical session for today.");
+                                                        return;
+                                                    }
+                                                    setAttendancePhase('Practical');
+                                                }}
                                                 className={`p-3 rounded-2xl border text-left transition-all ${
-                                                    attendancePhase === 'Practical'
-                                                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                                                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                                                    practicalDoneToday
+                                                        ? 'bg-slate-900/50 border-emerald-500/30 text-slate-400 opacity-80 cursor-default'
+                                                        : attendancePhase === 'Practical'
+                                                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
+                                                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
                                                 }`}
                                             >
                                                 <div className="flex items-center justify-between">
-                                                    <Car className={`w-4 h-4 ${attendancePhase === 'Practical' ? 'text-indigo-400' : 'text-slate-500'}`} />
-                                                    {suggestedNextLessonType === 'Practical' && (
-                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 uppercase">Next</span>
+                                                    <Car className={`w-4 h-4 ${practicalDoneToday ? 'text-emerald-400' : attendancePhase === 'Practical' ? 'text-indigo-400' : 'text-slate-500'}`} />
+                                                    {practicalDoneToday ? (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 uppercase flex items-center gap-1">
+                                                            <Check className="w-2.5 h-2.5" /> 1/1 Done
+                                                        </span>
+                                                    ) : suggestedNextLessonType === 'Practical' ? (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 uppercase">Next (0/1)</span>
+                                                    ) : (
+                                                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 uppercase">0/1</span>
                                                     )}
                                                 </div>
                                                 <p className="text-xs font-bold text-white mt-1.5">Practical Driving</p>
-                                                <p className="text-[9px] text-slate-400">In-Vehicle Training</p>
+                                                <p className="text-[9px] text-slate-400">{practicalDoneToday ? 'Completed today' : 'In-Vehicle Training'}</p>
                                             </button>
                                         </div>
                                     </div>
@@ -1576,7 +1799,7 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                         <button
                                             onClick={() => executeAttendanceSession('start')}
-                                            disabled={isDirectActionLoading}
+                                            disabled={isDirectActionLoading || (attendancePhase === 'Theory' && theoryDoneToday) || (attendancePhase === 'Practical' && practicalDoneToday)}
                                             className="w-full py-3.5 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                                         >
                                             {isDirectActionLoading ? (
@@ -1584,7 +1807,9 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                             ) : (
                                                 <Play className="w-4 h-4" />
                                             )}
-                                            Start {attendancePhase} Lesson
+                                            {(attendancePhase === 'Theory' && theoryDoneToday) || (attendancePhase === 'Practical' && practicalDoneToday)
+                                                ? `${attendancePhase} Limit Met (1/1)`
+                                                : `Start ${attendancePhase} Lesson`}
                                         </button>
                                         <button
                                             onClick={() => setAttendanceMode('scan')}
@@ -1628,14 +1853,28 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
                                     <div className={`p-3 rounded-2xl border text-xs flex items-center justify-between ${
                                         activeInProgressLesson
                                             ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
-                                            : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-200'
+                                            : bothSessionsCompletedToday
+                                                ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200'
+                                                : 'bg-indigo-950/40 border-indigo-500/40 text-indigo-200'
                                     }`}>
                                         <div className="flex items-center gap-2">
-                                            <span className={`w-2 h-2 rounded-full ${activeInProgressLesson ? 'bg-amber-400 animate-ping' : 'bg-indigo-400'}`} />
+                                            <span className={`w-2 h-2 rounded-full ${
+                                                activeInProgressLesson 
+                                                    ? 'bg-amber-400 animate-ping' 
+                                                    : bothSessionsCompletedToday
+                                                        ? 'bg-emerald-400'
+                                                        : 'bg-indigo-400'
+                                            }`} />
                                             <span className="font-bold">
                                                 {activeInProgressLesson 
                                                     ? `Ready: Scan QR to CHECK OUT & END your ${activeInProgressLesson.lessonType} lesson` 
-                                                    : `Ready: Scan QR to CHECK IN & START your ${attendancePhase} lesson`}
+                                                    : bothSessionsCompletedToday
+                                                        ? 'Daily Limit Reached: 1 Theory and 1 Practical session already completed for today.'
+                                                        : attendancePhase === 'Theory' && theoryDoneToday
+                                                            ? 'Theory completed today (1/1). Switch to Practical to scan.'
+                                                            : attendancePhase === 'Practical' && practicalDoneToday
+                                                                ? 'Practical completed today (1/1). Switch to Theory to scan.'
+                                                                : `Ready: Scan QR to CHECK IN & START your ${attendancePhase} lesson (1 Theory & 1 Practical/day)`}
                                             </span>
                                         </div>
                                     </div>

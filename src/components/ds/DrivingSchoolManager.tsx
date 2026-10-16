@@ -6190,7 +6190,7 @@ END $$;
         // Find scheduled lessons for today
         const todayLessons = (lessons || []).filter(l => 
             l.studentId === student.id && 
-            l.lessonDate === todayStr && 
+            (l.lessonDate === todayStr || (l as any).date === todayStr) && 
             l.status !== 'Cancelled'
         );
 
@@ -6220,8 +6220,9 @@ END $$;
                     ? settings.schedulingRules.dailySequence 
                     : ['Theory', 'Practical'];
 
-                const completedTheoryToday = todayLessons.find(l => l.lessonType === 'Theory' && l.status === 'Completed');
-                const completedPracticalToday = todayLessons.find(l => l.lessonType === 'Practical' && l.status === 'Completed');
+                // Both Completed and In-Progress sessions count toward the daily limit (max 1 Theory, 1 Practical)
+                const completedTheoryToday = todayLessons.find(l => l.lessonType === 'Theory' && (l.status === 'Completed' || l.status === 'In-Progress'));
+                const completedPracticalToday = todayLessons.find(l => l.lessonType === 'Practical' && (l.status === 'Completed' || l.status === 'In-Progress'));
 
                 const completedLessonsToday: Record<string, any> = {
                     'Theory': completedTheoryToday,
@@ -6241,14 +6242,20 @@ END $$;
                             const prevType = sequence[i - 1] as 'Theory' | 'Practical';
                             const prevCompletedLesson = completedLessonsToday[prevType];
                             
-                            if (prevCompletedLesson && prevCompletedLesson.endTime) {
-                                const [endHr, endMin] = prevCompletedLesson.endTime.split(':').map(Number);
-                                const endTimeToday = new Date(now);
-                                endTimeToday.setHours(endHr, endMin, 0, 0);
-                                
-                                if (now < endTimeToday) {
-                                    blockReason = `Your ${prevType} session is still ongoing until ${prevCompletedLesson.endTime}. Please wait for it to end before checking in for ${type}.`;
+                            if (prevCompletedLesson) {
+                                if (prevCompletedLesson.status === 'In-Progress') {
+                                    blockReason = `Your ${prevType} session is still in progress. Please check out and conclude it before checking in for ${type}.`;
                                     break;
+                                }
+                                if (prevCompletedLesson.endTime) {
+                                    const [endHr, endMin] = prevCompletedLesson.endTime.split(':').map(Number);
+                                    const endTimeToday = new Date(now);
+                                    endTimeToday.setHours(endHr, endMin, 0, 0);
+                                    
+                                    if (now < endTimeToday) {
+                                        blockReason = `Your ${prevType} session is still ongoing until ${prevCompletedLesson.endTime}. Please wait for it to end before checking in for ${type}.`;
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -6276,7 +6283,7 @@ END $$;
                 }
 
                 if (!lessonTypeToAssign) {
-                    const limitMsg = `Candidate: ${student.fullName}. You have already completed all allowed sessions for today (${sequence.join(' and ')}).`;
+                    const limitMsg = `Candidate: ${student.fullName}. Daily limit reached: candidate has already completed the allowed 1 Theory and 1 Practical session for today.`;
                     setKioskMessage({
                         status: 'error',
                         text: 'Daily Session Limit Reached',
