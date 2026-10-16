@@ -37,6 +37,118 @@ async function getAuthUser(supabase: any, authHeader?: string) {
     return null;
 }
 
+// In-memory cache for system settings to guarantee sub-millisecond responses and eliminate PostgREST upstream connection reset issues
+interface CachedSettings {
+    data: any;
+    timestamp: number;
+}
+let _cachedSettings: CachedSettings | null = null;
+const SETTINGS_CACHE_TTL_MS = 60 * 1000; // 60s cache TTL
+
+// Direct PostgreSQL Connection Pool Singleton for fallback when PostgREST resets/terminates connections
+let _pgPool: any = null;
+let _directPgDisabledUntil = 0;
+
+const getPgPool = async () => {
+    if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
+        return null;
+    }
+    if (Date.now() < _directPgDisabledUntil) {
+        return null;
+    }
+    if (_pgPool) return _pgPool;
+    const connectionString = 
+        process.env.DATABASE_URL || 
+        process.env.POSTGRES_URL || 
+        process.env.VITE_DATABASE_URL ||
+        process.env.SUPABASE_DB_URL;
+    if (!connectionString) return null;
+
+    try {
+        const pgModule: any = await import('pg');
+        const Pool = pgModule.Pool || pgModule.default?.Pool || null;
+        if (!Pool) return null;
+
+        let cleanConnString = connectionString.trim();
+        try {
+            const parsedUrl = new URL(cleanConnString);
+            parsedUrl.searchParams.delete('sslmode');
+            cleanConnString = parsedUrl.toString();
+        } catch {
+            cleanConnString = cleanConnString
+                .replace(/([?&])sslmode=[^&]*(&|$)/g, (_match, prefix, suffix) => suffix === '&' ? prefix : '')
+                .replace(/\?$/, '');
+        }
+
+        _pgPool = new Pool({
+            connectionString: cleanConnString,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 3000,
+            statement_timeout: 5000,
+            max: 2,
+            idleTimeoutMillis: 5000
+        });
+
+        _pgPool.on('error', (err: any) => {
+            console.warn('[Direct SQL Pool Error]:', err?.message || err);
+            _directPgDisabledUntil = Date.now() + 60000;
+        });
+
+        return _pgPool;
+    } catch (err) {
+        console.error('[Direct SQL Pool Init Error]:', err);
+        return null;
+    }
+};
+
+async function fetchSystemSettingsFromDb(supabase: any): Promise<any> {
+    let settingsData: any = null;
+    let pgrstErr: any = null;
+
+    // 1. Attempt PostgREST query with a 3.5s timeout
+    try {
+        const pgrstQuery = supabase.from('system_settings').select('data').eq('id', 1).maybeSingle();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('PostgREST query timeout (3500ms)')), 3500)
+        );
+        const { data, error }: any = await Promise.race([pgrstQuery, timeoutPromise]);
+        if (error && error.code !== 'PGRST116') {
+            pgrstErr = error;
+        } else if (data?.data && typeof data.data === 'object' && Object.keys(data.data).length > 0) {
+            settingsData = data.data;
+        }
+    } catch (err: any) {
+        pgrstErr = err;
+    }
+
+    if (settingsData) {
+        return settingsData;
+    }
+
+    // 2. Direct PostgreSQL fallback if PostgREST had upstream connection reset, disconnect, or empty response
+    try {
+        const pool = await getPgPool();
+        if (pool) {
+            const pgRes = await pool.query('SELECT data FROM public.system_settings WHERE id = 1 LIMIT 1');
+            if (pgRes?.rows && pgRes.rows.length > 0 && pgRes.rows[0].data) {
+                const rowData = pgRes.rows[0].data;
+                if (typeof rowData === 'object' && Object.keys(rowData).length > 0) {
+                    console.log('[System API] getSettings successfully fetched via Direct PostgreSQL pool fallback.');
+                    return rowData;
+                }
+            }
+        }
+    } catch (pgErr: any) {
+        console.warn('[System API] Direct PostgreSQL fallback for getSettings failed:', pgErr?.message || pgErr);
+    }
+
+    if (pgrstErr) {
+        console.warn(`[System API] getSettings PostgREST warning: ${pgrstErr?.message || pgrstErr}`);
+    }
+
+    return null;
+}
+
 // Diagnostic helper
 const getEnvInfo = () => ({
     hasSupabaseUrl: !!process.env.SUPABASE_URL || !!process.env.VITE_SUPABASE_URL,
@@ -89,15 +201,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (action === 'getSettings') {
                 try {
-                    const { data, error } = await supabase.from('system_settings').select('data').eq('id', 1).single();
-                    if (error && error.code !== 'PGRST116') {
-                        console.warn(`[System API] getSettings query error: ${error.message}. Returning fallback empty settings.`);
-                        return res.status(200).json({});
+                    // Check in-memory fresh cache first (< 60s)
+                    if (_cachedSettings && (Date.now() - _cachedSettings.timestamp < SETTINGS_CACHE_TTL_MS)) {
+                        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+                        return res.status(200).json(_cachedSettings.data);
                     }
-                    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-                    return res.status(200).json(data?.data || {});
+
+                    // Fetch from Database (PostgREST with Direct PostgreSQL fallback)
+                    const dbSettings = await fetchSystemSettingsFromDb(supabase);
+                    if (dbSettings) {
+                        _cachedSettings = { data: dbSettings, timestamp: Date.now() };
+                        res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+                        return res.status(200).json(dbSettings);
+                    }
+
+                    // If DB fetch failed (e.g. temporary network reset) but we have previous cached data, serve stale
+                    if (_cachedSettings?.data) {
+                        console.warn('[System API] Serving stale cached settings due to upstream network reset.');
+                        res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=60');
+                        return res.status(200).json(_cachedSettings.data);
+                    }
+
+                    // Return empty settings as last resort
+                    return res.status(200).json({});
                 } catch (e: any) {
-                    console.warn(`[System API] getSettings exception: ${e?.message || e}. Returning fallback empty settings.`);
+                    console.warn(`[System API] getSettings exception: ${e?.message || e}.`);
+                    if (_cachedSettings?.data) {
+                        return res.status(200).json(_cachedSettings.data);
+                    }
                     return res.status(200).json({});
                 }
             }
@@ -134,8 +265,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (req.method === 'POST') {
             if (action === 'saveSettings') {
                 const { settings } = req.body;
-                const { error } = await supabase.from('system_settings').upsert({ id: 1, data: settings });
-                if (error) return res.status(500).json({ error: error.message });
+                if (!settings) return res.status(400).json({ error: 'Settings payload required' });
+
+                // Update memory cache immediately
+                _cachedSettings = { data: settings, timestamp: Date.now() };
+
+                let saved = false;
+                let saveError: any = null;
+
+                // 1. PostgREST upsert
+                try {
+                    const { error } = await supabase.from('system_settings').upsert({
+                        id: 1,
+                        data: settings,
+                        updated_at: new Date().toISOString()
+                    });
+                    if (!error) {
+                        saved = true;
+                    } else {
+                        saveError = error;
+                    }
+                } catch (pgrstSaveErr: any) {
+                    saveError = pgrstSaveErr;
+                }
+
+                // 2. Direct PG Fallback if PostgREST reset connection or timed out
+                if (!saved) {
+                    try {
+                        const pool = await getPgPool();
+                        if (pool) {
+                            await pool.query(
+                                `INSERT INTO public.system_settings (id, data, updated_at)
+                                 VALUES (1, $1::jsonb, NOW())
+                                 ON CONFLICT (id) DO UPDATE
+                                 SET data = EXCLUDED.data, updated_at = NOW()`,
+                                [JSON.stringify(settings)]
+                            );
+                            saved = true;
+                            saveError = null;
+                            console.log('[System API] saveSettings successfully persisted via Direct PostgreSQL pool fallback.');
+                        }
+                    } catch (pgErr: any) {
+                        console.error('[System API] Direct PostgreSQL saveSettings fallback error:', pgErr);
+                        saveError = saveError || pgErr;
+                    }
+                }
+
+                if (!saved && saveError) {
+                    return res.status(500).json({ error: saveError.message || 'Failed to save settings' });
+                }
                 return res.status(200).json({ success: true });
             }
 

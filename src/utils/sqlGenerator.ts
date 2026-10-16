@@ -155,7 +155,8 @@ CREATE TABLE IF NOT EXISTS counties (
 
 CREATE TABLE IF NOT EXISTS system_settings (
     id INTEGER PRIMARY KEY,
-    data JSONB NOT NULL
+    data JSONB DEFAULT '{}'::jsonb NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS activity_log (
@@ -3136,6 +3137,15 @@ CREATE POLICY "Institutions are public" ON institutions FOR SELECT USING (true);
 
 DROP POLICY IF EXISTS "Users can view own profile" ON users;
 CREATE POLICY "Users can view own profile" ON users FOR SELECT USING (auth.uid()::text = id OR 'u_' || auth.uid()::text = id OR public.get_curr_user_role() = 'super_admin');
+
+-- Global System Settings RLS & Resilience --
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "system_settings_read_policy" ON system_settings;
+CREATE POLICY "system_settings_read_policy" ON system_settings FOR SELECT USING (true);
+DROP POLICY IF EXISTS "system_settings_write_policy" ON system_settings;
+CREATE POLICY "system_settings_write_policy" ON system_settings FOR ALL USING (true) WITH CHECK (true);
+INSERT INTO system_settings (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_system_settings_id ON system_settings (id);
 
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;

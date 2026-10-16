@@ -6327,8 +6327,10 @@ export const apiService = {
                 const contentType = response.headers.get('content-type');
                 if (contentType && contentType.includes('application/json')) {
                     const data = await response.json();
-                    safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
-                    return parseAndNormalize(data);
+                    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                        safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(data));
+                        return parseAndNormalize(data);
+                    }
                 }
             }
         } catch {
@@ -6344,7 +6346,7 @@ export const apiService = {
                     .eq('id', 1)
                     .maybeSingle();
 
-                if (!dbErr && dbData?.data) {
+                if (!dbErr && dbData?.data && typeof dbData.data === 'object' && Object.keys(dbData.data).length > 0) {
                     safeLocalStorage.setItem('eduai_system_settings_cache', JSON.stringify(dbData.data));
                     return parseAndNormalize(dbData.data);
                 }
