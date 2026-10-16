@@ -5894,7 +5894,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments'].includes(moduleName);
                 const queryRes: any = await executeWithTimeout(
                     supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
-                    isBillingOrDsModule ? 14000 : 8000
+                    isBillingOrDsModule ? 6000 : 8000
                 ).catch((e: any) => ({ data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } }));
                 data = queryRes.data;
                 error = queryRes.error;
@@ -5924,7 +5924,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         }
                                     });
                                     const sql = `INSERT INTO public."${targetDbTable}" ("${keys.join('", "')}") VALUES (${placeholders.join(', ')}) ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')} RETURNING *;`;
-                                    const r = await executeWithTimeout(pool.query(sql, vals), 3000).catch(() => null);
+                                    const r = await executeWithTimeout(pool.query(sql, vals), 6000).catch(() => null);
                                     if (r && r.rows && r.rows[0]) {
                                         insertedRows.push(r.rows[0]);
                                     }

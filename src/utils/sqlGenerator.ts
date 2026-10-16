@@ -3578,7 +3578,12 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_ds_students_inst ON ds_students(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_lessons_inst ON ds_lessons(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst ON ds_invoices(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_id_desc ON ds_invoices(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_student ON ds_invoices(institution_id, student_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_status ON ds_invoices(institution_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst ON ds_payments(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_desc ON ds_payments(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_invoice ON ds_payments(institution_id, invoice_id);`,
         // Property Management
         `CREATE INDEX IF NOT EXISTS idx_pm_tenants_inst ON pm_tenants(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_pm_leases_inst ON pm_leases(institution_id);`,
