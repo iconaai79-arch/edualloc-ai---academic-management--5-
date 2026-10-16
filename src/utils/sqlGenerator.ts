@@ -177,6 +177,48 @@ CREATE TABLE IF NOT EXISTS activity_log (
     imei TEXT
 );
 
+CREATE TABLE IF NOT EXISTS payroll_records (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT,
+    staff_id TEXT,
+    staff_name TEXT,
+    month TEXT,
+    basic_salary NUMERIC(12,2) DEFAULT 0.00,
+    allowances JSONB DEFAULT '[]'::jsonb,
+    deductions JSONB DEFAULT '[]'::jsonb,
+    net_salary NUMERIC(12,2) DEFAULT 0.00,
+    status TEXT DEFAULT 'paid',
+    recorded_by TEXT,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payroll_runs (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT,
+    records JSONB DEFAULT '[]'::jsonb,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS his_expenditures (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT,
+    title TEXT,
+    category TEXT,
+    vendor TEXT,
+    amount NUMERIC(12,2) DEFAULT 0.00,
+    date DATE,
+    payment_method TEXT,
+    voucher_no TEXT,
+    status TEXT DEFAULT 'Paid',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS institution_module_states (
     id TEXT PRIMARY KEY,
     institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
@@ -3159,6 +3201,27 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_inst_id_desc ON activity_log (instit
 CREATE INDEX IF NOT EXISTS idx_activity_log_inst_timestamp ON activity_log (institution_id, "timestamp" DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_inst_module ON activity_log (institution_id, module);
 
+-- Global Payroll Records & Runs RLS & Resilience --
+ALTER TABLE payroll_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "payroll_records_all_access" ON payroll_records;
+CREATE POLICY "payroll_records_all_access" ON payroll_records FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_id_desc ON payroll_records (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_payment_date ON payroll_records (institution_id, payment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_created ON payroll_records (institution_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_month ON payroll_records (institution_id, month);
+
+ALTER TABLE payroll_runs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "payroll_runs_all_access" ON payroll_runs;
+CREATE POLICY "payroll_runs_all_access" ON payroll_runs FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_id_desc ON payroll_runs (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_created ON payroll_runs (institution_id, created_at DESC);
+
+ALTER TABLE his_expenditures ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "his_expenditures_all_access" ON his_expenditures;
+CREATE POLICY "his_expenditures_all_access" ON his_expenditures FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_id_desc ON his_expenditures (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_date ON his_expenditures (institution_id, date DESC);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3675,7 +3738,19 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_id_desc ON activity_log(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_timestamp ON activity_log(institution_id, "timestamp" DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_created_desc ON activity_log(institution_id, created_at DESC);`,
-        `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_module ON activity_log(institution_id, module);`
+        `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_module ON activity_log(institution_id, module);`,
+        // Payroll Records, Runs & HealthCore Expenditures
+        `CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_id_desc ON payroll_records(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_payment_date ON payroll_records(institution_id, payment_date DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_created ON payroll_records(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_month ON payroll_records(institution_id, month);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_staff ON payroll_records(institution_id, staff_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_status ON payroll_records(institution_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_id_desc ON payroll_runs(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_created ON payroll_runs(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_id_desc ON his_expenditures(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_date ON his_expenditures(institution_id, date DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_created ON his_expenditures(institution_id, created_at DESC);`
     ];
 
     indexStatements.forEach(stmt => {

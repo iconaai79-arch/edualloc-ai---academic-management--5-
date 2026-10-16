@@ -14,7 +14,7 @@ const STORE_NAMES = [
     // Finance module stores
     'invoices', 'receipts', 'expenses', 'financial_goals', 'vote_heads', 'fee_structures', 'financial_periods',
     'bank_accounts', 'school_bank_accounts', 'finance_numbering_configs', 'branches', 'branch_integration_configs',
-    'inter_bank_transfers', 'inter_vote_transfers', 'vote_head_transfers', 'ng_cdf_school_grants', 'payroll_records',
+    'inter_bank_transfers', 'inter_vote_transfers', 'vote_head_transfers', 'ng_cdf_school_grants', 'payroll_records', 'payroll_runs', 'his_expenditures',
     // Restaurant & Cafe POS module stores
     'cafe_menu_items', 'cafe_orders', 'retail_sales', 'retail_inventory', 'retail_stores',
     // EduPulse / Healthcare module stores

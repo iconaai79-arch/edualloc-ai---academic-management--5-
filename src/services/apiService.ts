@@ -162,7 +162,8 @@ const PROTECTED_KEYS = new Set([
     'classRankingConfigs', 'class_ranking_configs',
     'othersExamSettings', 'others_exam_settings',
     'teacherPreferences', 'teacher_preferences',
-    'imConfig', 'im_config'
+    'imConfig', 'im_config',
+    'allowances', 'deductions', 'records'
 ]);
 
 function toSnakeCase(obj: any): any {

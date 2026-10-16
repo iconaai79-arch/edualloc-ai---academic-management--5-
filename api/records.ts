@@ -1020,7 +1020,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches'
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches',
+          'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1029,14 +1030,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches'
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches',
+          'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'branches'
+          'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -1233,7 +1235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('check_in_date', { ascending: false });
                 } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
-                } else if (['receipts'].includes(moduleName)) {
+                } else if (['receipts', 'payroll_records'].includes(moduleName)) {
                     q = q.order('payment_date', { ascending: false }).order('id', { ascending: false });
                 } else if (['invoices'].includes(moduleName)) {
                     q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
@@ -1241,7 +1243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('requested_at', { ascending: false }).order('id', { ascending: false });
                 } else if (moduleName === 'app_notifications') {
                     q = q.order('timestamp', { ascending: false }).order('id', { ascending: false });
-                } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches'].includes(moduleName)) {
+                } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
@@ -1596,7 +1598,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'check_in_date.desc';
             } else if (['integration_logs', 'bank_transactions', 'mpesa_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'visitors', 'security_alerts', 'building_visitor_logs', 'watchlist_records', 'school_remedial_rate_settings'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
-            } else if (['receipts'].includes(moduleName)) {
+            } else if (['receipts', 'payroll_records'].includes(moduleName)) {
                 defaultOrderBy = 'payment_date.desc';
             } else if (['invoices'].includes(moduleName)) {
                 defaultOrderBy = 'created_at.desc';
@@ -1604,7 +1606,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'requested_at.desc';
             } else if (moduleName === 'app_notifications') {
                 defaultOrderBy = 'timestamp.desc';
-            } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches'].includes(moduleName)) {
+            } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
@@ -1649,6 +1651,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'requisitions', 'suppliers', 'lpos', 'stock_transactions',
                     'institution_module_states',
                     'branches',
+                    'payroll_records', 'payroll_runs', 'his_expenditures',
                 ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
@@ -1872,7 +1875,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches'].includes(moduleName)
+                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
@@ -4810,6 +4813,91 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanActivityLogRecord) : cleanActivityLogRecord(currentPayload);
+            } else if (moduleName === 'payroll_records') {
+                const cleanPayrollRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (!copy.id || copy.id === 'null' || copy.id === 'undefined') {
+                        copy.id = `pr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    }
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.staffId && !copy.staff_id) copy.staff_id = copy.staffId;
+                    if (copy.staffName && !copy.staff_name) copy.staff_name = copy.staffName;
+                    if (copy.basicSalary !== undefined && copy.basic_salary === undefined) copy.basic_salary = copy.basicSalary;
+                    if (copy.basicPay !== undefined && copy.basic_salary === undefined) copy.basic_salary = copy.basicPay;
+                    if (copy.netSalary !== undefined && copy.net_salary === undefined) copy.net_salary = copy.netSalary;
+                    if (copy.netPay !== undefined && copy.net_salary === undefined) copy.net_salary = copy.netPay;
+                    if (copy.paymentDate && !copy.payment_date) copy.payment_date = copy.paymentDate;
+                    if (copy.recordedBy && !copy.recorded_by) copy.recorded_by = copy.recordedBy;
+                    if (copy.createdAt && !copy.created_at) copy.created_at = copy.createdAt;
+                    if (copy.updatedAt && !copy.updated_at) copy.updated_at = copy.updatedAt;
+
+                    if (copy.allowances && typeof copy.allowances === 'object') {
+                        try { copy.allowances = JSON.stringify(copy.allowances); } catch (_) {}
+                    }
+                    if (copy.deductions && typeof copy.deductions === 'object') {
+                        try { copy.deductions = JSON.stringify(copy.deductions); } catch (_) {}
+                    }
+
+                    delete copy.institutionId;
+                    delete copy.staffId;
+                    delete copy.staffName;
+                    delete copy.basicSalary;
+                    delete copy.basicPay;
+                    delete copy.netSalary;
+                    delete copy.netPay;
+                    delete copy.paymentDate;
+                    delete copy.recordedBy;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanPayrollRecord) : cleanPayrollRecord(currentPayload);
+            } else if (moduleName === 'payroll_runs') {
+                const cleanPayrollRun = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (!copy.id || copy.id === 'null' || copy.id === 'undefined') {
+                        copy.id = `prun_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    }
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.createdAt && !copy.created_at) copy.created_at = copy.createdAt;
+                    if (copy.updatedAt && !copy.updated_at) copy.updated_at = copy.updatedAt;
+
+                    if (copy.records && typeof copy.records === 'object') {
+                        try { copy.records = JSON.stringify(copy.records); } catch (_) {}
+                    }
+
+                    delete copy.institutionId;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanPayrollRun) : cleanPayrollRun(currentPayload);
+            } else if (moduleName === 'his_expenditures') {
+                const cleanHisExpenditure = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (!copy.id || copy.id === 'null' || copy.id === 'undefined') {
+                        copy.id = `hexp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    }
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.paymentMethod && !copy.payment_method) copy.payment_method = copy.paymentMethod;
+                    if (copy.voucherNo && !copy.voucher_no) copy.voucher_no = copy.voucherNo;
+                    if (copy.createdAt && !copy.created_at) copy.created_at = copy.createdAt;
+                    if (copy.updatedAt && !copy.updated_at) copy.updated_at = copy.updatedAt;
+
+                    delete copy.institutionId;
+                    delete copy.paymentMethod;
+                    delete copy.voucherNo;
+                    delete copy.createdAt;
+                    delete copy.updatedAt;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanHisExpenditure) : cleanHisExpenditure(currentPayload);
             } else if (moduleName === 'subjects') {
                 const cleanSubjectRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
@@ -5932,7 +6020,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(ensureValidId) : ensureValidId(currentPayload);
                 }
 
-                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs'].includes(moduleName);
+                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures'].includes(moduleName);
                 const queryRes: any = await executeWithTimeout(
                     supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
                     isBillingOrDsModule ? 4500 : 8000
@@ -6856,7 +6944,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs'].includes(moduleName)) {
+                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures'].includes(moduleName)) {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {
