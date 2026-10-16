@@ -2511,7 +2511,7 @@ export const apiService = {
                     });
                 }
 
-                const fetchTimeoutMs = module === 'activity_log' ? 8000 : (module === 'institutions' ? 30000 : 15000);
+                const fetchTimeoutMs = (module === 'activity_log' || module === 'app_notifications') ? 8000 : (module === 'institutions' ? 30000 : 15000);
                 const doFetch = (tkn: string) => {
                     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
                     const timeoutId = controller ? setTimeout(() => controller.abort(), fetchTimeoutMs) : null;
@@ -2892,12 +2892,17 @@ export const apiService = {
                 }
                 return resolveLocalRecords();
             } catch (e: any) {
+                const errMsg = String(e?.message || e || '').toLowerCase();
                 const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || 
-                    String(e?.message || '').toLowerCase().includes('failed to fetch') ||
-                    String(e?.message || '').toLowerCase().includes('network') ||
-                    String(e?.message || '').toLowerCase().includes('internet_disconnected');
+                    errMsg.includes('failed to fetch') ||
+                    errMsg.includes('network') ||
+                    errMsg.includes('internet_disconnected') ||
+                    errMsg.includes('network_changed') ||
+                    errMsg.includes('name_not_resolved') ||
+                    errMsg.includes('load failed') ||
+                    errMsg.includes('connection refused');
 
-                const isAbort = e?.name === 'AbortError' || String(e?.message || '').includes('aborted');
+                const isAbort = e?.name === 'AbortError' || errMsg.includes('aborted');
                 if (isOffline) {
                     // Silently serve local records when offline / disconnected without spamming logs
                     return resolveLocalRecords();
@@ -5722,8 +5727,12 @@ export const apiService = {
                 ...options
             });
             return Array.isArray(res) ? res : getLocalFallback();
-        } catch (err) {
-            console.warn('[fetchNotifications] Server query timed out or failed, utilizing local notification cache:', err);
+        } catch (err: any) {
+            const msg = String(err?.message || err || '').toLowerCase();
+            const isSilentNetworkErr = msg.includes('network') || msg.includes('fetch') || msg.includes('abort') || msg.includes('offline');
+            if (!isSilentNetworkErr) {
+                console.warn('[fetchNotifications] Server query timed out or failed, utilizing local notification cache:', err);
+            }
             return getLocalFallback();
         }
     },

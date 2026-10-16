@@ -4203,11 +4203,20 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     useEffect(() => {
         if (!currentUser?.id) return;
 
-        const syncNotifications = () => {
+        let isSyncing = false;
+        let consecutiveFailures = 0;
+        let timerId: any = null;
+
+        const syncNotifications = async () => {
+            if (isSyncing) return;
             if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
             if (currentUser.id.startsWith('temp_admin_')) return;
 
-            apiService.fetchNotifications(currentUser.id, { limit: notificationLimit }).then(notifs => {
+            isSyncing = true;
+            try {
+                const notifs = await apiService.fetchNotifications(currentUser.id, { limit: notificationLimit });
+                consecutiveFailures = 0;
                 if (notifs) {
                     setNotifications(prev => {
                         if (prev && prev.length === notifs.length) {
@@ -4217,26 +4226,61 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         return notifs;
                     });
                 }
-            }).catch(() => {});
+            } catch {
+                consecutiveFailures++;
+            } finally {
+                isSyncing = false;
+                scheduleNext();
+            }
+        };
+
+        const scheduleNext = () => {
+            if (timerId) clearTimeout(timerId);
+            // Gentle adaptive interval: 25s base, with exponential backoff on network failure
+            const delay = consecutiveFailures > 0 
+                ? Math.min(15000 * Math.pow(2, consecutiveFailures), 60000)
+                : 25000;
+            timerId = setTimeout(syncNotifications, delay);
         };
 
         const handleNotifEvent = (e: any) => {
             const detail = e?.detail;
             if (!detail || detail.userId === currentUser.id) {
+                consecutiveFailures = 0;
+                syncNotifications();
+            }
+        };
+
+        const handleOnline = () => {
+            consecutiveFailures = 0;
+            syncNotifications();
+        };
+
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+                consecutiveFailures = 0;
                 syncNotifications();
             }
         };
 
         window.addEventListener('app_notification_created', handleNotifEvent);
         window.addEventListener('storage', syncNotifications);
+        window.addEventListener('online', handleOnline);
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
 
-        // Periodically poll every 15s to catch visitors checked in on another guard terminal
-        const intervalId = setInterval(syncNotifications, 15000);
+        // Initial schedule
+        scheduleNext();
 
         return () => {
             window.removeEventListener('app_notification_created', handleNotifEvent);
             window.removeEventListener('storage', syncNotifications);
-            clearInterval(intervalId);
+            window.removeEventListener('online', handleOnline);
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }
+            if (timerId) clearTimeout(timerId);
         };
     }, [currentUser?.id, notificationLimit]);
 
