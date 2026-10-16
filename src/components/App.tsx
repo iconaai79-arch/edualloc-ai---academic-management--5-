@@ -2016,7 +2016,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords('carwash_jobs', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
-                        apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<MaintenanceRequest>('maintenance_requests', effectiveInstIdFinal, undefined, { limit: 500 }).catch(() => []),
                     ]) : Promise.resolve([]),
                     // Coop Batch
                     isCoop ? Promise.all([
