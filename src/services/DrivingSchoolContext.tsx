@@ -1551,16 +1551,6 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
                 return s;
             }));
-            setRawStudents(prev => prev.map(s => {
-                if (idsSet.has(s.id)) {
-                    return {
-                        ...s,
-                        branchId: branchId || undefined,
-                        branch_id: branchId || undefined
-                    };
-                }
-                return s;
-            }));
 
             const targetBranch = branches.find(b => b.id === branchId);
             const branchLabel = targetBranch ? targetBranch.name : (branchId ? branchId : 'Unassigned (No Branch)');
@@ -1742,13 +1732,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     };
                     await apiService.saveModuleRecord('ds_students', updatedStud);
                     setStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
-                    setRawStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
                 }
             }
 
             // Immediately update local state
             setLessons(prev => [lesson, ...prev.filter(l => l.id !== lesson.id)]);
-            setRawLessons(prev => [lesson, ...prev.filter(l => l.id !== lesson.id)]);
 
             const successMsg = lessonStatus === 'In-Progress' 
                 ? `${lesson.lessonType || 'Driving'} Lesson started! Attendance check-in registered.` 
@@ -1799,13 +1787,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     };
                     await apiService.saveModuleRecord('ds_students', updatedStud);
                     setStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
-                    setRawStudents(prev => prev.map(s => s.id === updatedStud.id ? updatedStud : s));
                 }
             }
             
             // Immediate local state update
             setLessons(prev => prev.map(l => l.id === data.id ? { ...l, ...updatedPayload } : l));
-            setRawLessons(prev => prev.map(l => l.id === data.id ? { ...l, ...updatedPayload } : l));
 
             const updateMsg = data.status === 'In-Progress' 
                 ? "Session started! Beginning attendance check-in logged."
