@@ -1020,7 +1020,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'vehicles', 'transport_onboarding', 'vehicle_logs', 'institution_module_states',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches',
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
           'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
@@ -1030,7 +1030,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'branches',
+          'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
           'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
@@ -1038,7 +1038,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'
+          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -1787,25 +1787,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        errDetailStr.includes('does not exist') ||
                                        errDetailStr.includes('relation');
                 if (isTableMissing) {
-                    if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections') {
-                        const targetInst = targetInstParam || user?.institutionId;
-                        if (targetInst) {
-                            try {
-                                const { data: imsData } = await supabase
-                                    .from('institution_module_states')
-                                    .select('data')
-                                    .or(`id.eq.ims_${moduleName}_${targetInst},id.eq.${moduleName}_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.${moduleName})`)
-                                    .order('updated_at', { ascending: false })
-                                    .limit(1);
-                                if (imsData && imsData.length > 0 && imsData[0].data) {
-                                    const fallbackList = Array.isArray(imsData[0].data) ? imsData[0].data : (imsData[0].data.records || imsData[0].data.roster || [imsData[0].data]);
-                                    return res.status(200).json(fallbackList);
-                                }
-                            } catch (_) {}
+                    // Attempt direct PostgreSQL fallback in case PostgREST schema cache is stale
+                    try {
+                        const directData = await fetchViaDirectPg(
+                            targetDbTable,
+                            sqlConditions,
+                            defaultOrderBy,
+                            finalLimit,
+                            offset
+                        );
+                        if (directData !== null) {
+                            console.info(`[API GET Direct SQL Fallback on Schema Cache Miss] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
+                            data = directData;
+                            error = null;
                         }
+                    } catch (pgEx: any) {
+                        console.warn(`[API GET Direct SQL Fallback Exception] for '${moduleName}':`, pgEx?.message || pgEx);
                     }
-                    console.info(`[API GET] Table '${moduleName}' not in DB schema cache, returning empty list.`);
-                    return res.status(200).json([]);
+
+                    if (error) {
+                        if (moduleName === 'school_remedial_duty_roster' || moduleName === 'pm_deposit_refunds' || moduleName === 'pm_inspections' || moduleName === 'pm_utility_readings') {
+                            const targetInst = targetInstParam || user?.institutionId;
+                            if (targetInst) {
+                                try {
+                                    const { data: imsData } = await supabase
+                                        .from('institution_module_states')
+                                        .select('data')
+                                        .or(`id.eq.ims_${moduleName}_${targetInst},id.eq.${moduleName}_${targetInst},and(institution_id.eq.${targetInst},module_id.eq.${moduleName})`)
+                                        .order('updated_at', { ascending: false })
+                                        .limit(1);
+                                    if (imsData && imsData.length > 0 && imsData[0].data) {
+                                        const fallbackList = Array.isArray(imsData[0].data) ? imsData[0].data : (imsData[0].data.records || imsData[0].data.roster || [imsData[0].data]);
+                                        return res.status(200).json(fallbackList);
+                                    }
+                                } catch (_) {}
+                            }
+                        }
+                        console.info(`[API GET] Table '${moduleName}' not in DB schema cache, returning empty list.`);
+                        return res.status(200).json([]);
+                    }
                 }
                 const isUuidMismatch = error.code === '22P02' || 
                                        error.code === '42883' ||
@@ -2888,6 +2908,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     createdAt: r.createdAt || r.created_at,
                     created_at: r.created_at || r.createdAt
                 }));
+            }
+
+            if (moduleName === 'pm_utility_readings' && Array.isArray(data)) {
+                data = data.map((r: any) => {
+                    if (!r || typeof r !== 'object') return r;
+                    const prevR = Number(r.previousReading !== undefined ? r.previousReading : r.previous_reading) || 0;
+                    const currR = Number(r.currentReading !== undefined ? r.currentReading : r.current_reading) || 0;
+                    const rate = Number(r.ratePerUnit !== undefined ? r.ratePerUnit : r.rate_per_unit) || 0;
+                    const calcCons = currR - prevR;
+                    const cons = Number(r.consumption !== undefined ? r.consumption : calcCons) || 0;
+                    const amt = Number(r.amount !== undefined ? r.amount : (cons * rate)) || 0;
+                    return {
+                        ...r,
+                        propertyId: r.propertyId || r.property_id,
+                        property_id: r.property_id || r.propertyId,
+                        unitId: r.unitId || r.unit_id || undefined,
+                        unit_id: r.unit_id || r.unitId || undefined,
+                        utilityType: r.utilityType || r.utility_type || 'Water',
+                        utility_type: r.utility_type || r.utilityType || 'Water',
+                        previousReading: prevR,
+                        previous_reading: prevR,
+                        currentReading: currR,
+                        current_reading: currR,
+                        ratePerUnit: rate,
+                        rate_per_unit: rate,
+                        consumption: cons,
+                        amount: amt,
+                        readingDate: r.readingDate || r.reading_date || r.created_at,
+                        reading_date: r.reading_date || r.readingDate || r.created_at,
+                        billingStatus: r.billingStatus || r.billing_status || 'Pending',
+                        billing_status: r.billing_status || r.billingStatus || 'Pending',
+                        invoiceId: r.invoiceId || r.invoice_id || undefined,
+                        invoice_id: r.invoice_id || r.invoiceId || undefined,
+                        institutionId: r.institutionId || r.institution_id,
+                        institution_id: r.institution_id || r.institutionId,
+                        createdAt: r.createdAt || r.created_at,
+                        created_at: r.created_at || r.createdAt
+                    };
+                });
             }
 
             if (moduleName === 'pm_properties' && Array.isArray(data)) {
@@ -5939,6 +5998,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normInsp) : normInsp(currentPayload);
             }
 
+            if (moduleName === 'pm_utility_readings' || targetDbTable === 'pm_utility_readings') {
+                const normReading = (c: any) => {
+                    if (!c || typeof c !== 'object') return c;
+                    const copy = { ...c };
+                    const camelMap: Record<string, string> = {
+                        propertyId: 'property_id',
+                        unitId: 'unit_id',
+                        utilityType: 'utility_type',
+                        previousReading: 'previous_reading',
+                        currentReading: 'current_reading',
+                        ratePerUnit: 'rate_per_unit',
+                        consumption: 'consumption',
+                        amount: 'amount',
+                        readingDate: 'reading_date',
+                        billingStatus: 'billing_status',
+                        invoiceId: 'invoice_id',
+                        institutionId: 'institution_id',
+                        createdAt: 'created_at'
+                    };
+                    Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
+                        if (copy[camelKey] !== undefined) {
+                            if (copy[snakeKey] === undefined) copy[snakeKey] = copy[camelKey];
+                            if (camelKey !== snakeKey) delete copy[camelKey];
+                        }
+                    });
+                    ['previous_reading', 'current_reading', 'rate_per_unit', 'consumption', 'amount'].forEach(col => {
+                        if (copy[col] !== undefined && typeof copy[col] !== 'number') {
+                            copy[col] = parseFloat(copy[col]) || 0;
+                        }
+                    });
+                    if (!copy.billing_status) copy.billing_status = 'Pending';
+                    if (!copy.utility_type) copy.utility_type = 'Water';
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(normReading) : normReading(currentPayload);
+            }
+
             if (moduleName === 'branches' || targetDbTable === 'branches') {
                 const normBranch = (c: any) => {
                     if (!c || typeof c !== 'object') return c;
@@ -6999,7 +7095,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
+                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'pm_utility_readings', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {
