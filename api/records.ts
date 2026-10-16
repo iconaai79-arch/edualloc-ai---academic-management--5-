@@ -1383,8 +1383,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                                     : 10000))))))))
             );
             if (isNaN(finalLimit)) finalLimit = isUnscopedMultiTenantQuery ? 5000 : 100000;
-            if (isUnscopedMultiTenantQuery && ['student_enrollments', 'users', 'students'].includes(moduleName) && !limit) {
-                finalLimit = Math.min(finalLimit, 5000);
+            if (isUnscopedMultiTenantQuery && ['student_enrollments', 'users', 'students'].includes(moduleName)) {
+                finalLimit = Math.min(finalLimit, 3000);
             }
             if (finalLimit > 100000) {
                 finalLimit = 100000;
@@ -1396,9 +1396,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const CHUNK_SIZE = ['users', 'students', 'receipts', 'invoices',
                 'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters', 'school_registry'].includes(moduleName) 
                 ? 1000 
-                : (['student_enrollments', 'timetable_entries', 'exam_timetable_entries'].includes(moduleName)
+                : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
-                    : (['inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
+                    : (['student_enrollments', 'inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
                         : (['visitors', 'building_visitor_logs'].includes(moduleName)
                             ? 100
@@ -1949,9 +1949,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     });
                                     data = synthesized;
                                     error = null;
+                                } else {
+                                    console.warn(`[API GET Recovery] No student users found to synthesize enrollments for '${moduleName}' (institution: '${effectiveTenantInstId}'). Returning empty array fallback.`);
+                                    data = [];
+                                    error = null;
                                 }
                             } catch (uErr) {
                                 console.warn('[API GET] Student recovery from users failed:', uErr);
+                                data = [];
+                                error = null;
                             }
                         }
                         console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);

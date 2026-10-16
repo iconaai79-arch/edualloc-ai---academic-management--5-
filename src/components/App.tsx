@@ -1994,7 +1994,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         apiService.fetchModuleRecords<ObservationNote>('observation_notes', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<TeacherCheckIn>('teacher_check_ins', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<DisciplineIncident>('discipline_incidents', effectiveInstIdFinal).catch(() => []),
-                        apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveInstIdFinal, undefined, { limit: 10000 }).catch(() => []),
+                        apiService.fetchModuleRecords<StudentEnrollment>('student_enrollments', effectiveInstIdFinal, undefined, { limit: 3000 }).catch(() => []),
                     ]) : Promise.resolve([]),
                     // County Batch
                     isCounty ? Promise.all([

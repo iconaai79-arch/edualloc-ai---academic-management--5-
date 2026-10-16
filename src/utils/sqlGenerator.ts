@@ -3534,6 +3534,9 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);`,
         // Academic Core
         `CREATE INDEX IF NOT EXISTS idx_students_institution_id ON student_enrollments(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id_asc ON student_enrollments(institution_id, id ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id_desc ON student_enrollments(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_status ON student_enrollments(institution_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_attendances_institution_id ON student_attendances(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_attendances_date ON student_attendances(date);`,
         // Finance & Billing
