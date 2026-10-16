@@ -1241,7 +1241,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('requested_at', { ascending: false }).order('id', { ascending: false });
                 } else if (moduleName === 'app_notifications') {
                     q = q.order('timestamp', { ascending: false }).order('id', { ascending: false });
-                } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states'].includes(moduleName)) {
+                } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
@@ -1362,7 +1362,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId;
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'retail_inventory_items'].includes(moduleName)
+                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory'].includes(moduleName)
                     ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
                     : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests'].includes(moduleName) 
                         ? 2000 
@@ -1376,7 +1376,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         ? (targetInstParam || getStrParam(id) ? 1 : 10000) 
                                         : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                                             ? 3000
-                                            : (moduleName === 'institution_module_states'
+                                            : (['institution_module_states', 'retail_inventory_items'].includes(moduleName)
                                                 ? 1000
                                                 : (['school_bank_accounts', 'bank_accounts', 'inter_account_transfers', 'gok_capitation_logs', 'system_settings', 'financial_goals', 'financial_periods', 'vote_heads', 'fee_structures', 'retail_stores'].includes(moduleName)
                                                     ? 500
@@ -1604,7 +1604,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'requested_at.desc';
             } else if (moduleName === 'app_notifications') {
                 defaultOrderBy = 'timestamp.desc';
-            } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states'].includes(moduleName)) {
+            } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
@@ -1870,7 +1870,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states'].includes(moduleName)
+                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);

@@ -2011,7 +2011,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstIdFinal).catch(() => []),
                         apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal, undefined, { limit: 500 }).catch(() => []),
                         apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal, undefined, { limit: 200 }).catch(() => []),
-                        apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal, undefined, { limit: 1000 }).catch(() => []),
                         isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<RetailSale>('retail_sales', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
