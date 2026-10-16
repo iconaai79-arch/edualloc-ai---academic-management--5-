@@ -3222,6 +3222,26 @@ CREATE POLICY "his_expenditures_all_access" ON his_expenditures FOR ALL USING (t
 CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_id_desc ON his_expenditures (institution_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_date ON his_expenditures (institution_id, date DESC);
 
+-- Global Vote Heads & Fee Structures RLS & Resilience --
+ALTER TABLE vote_heads ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "vote_heads_all_access" ON vote_heads;
+CREATE POLICY "vote_heads_all_access" ON vote_heads FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_id_desc ON vote_heads (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_id_asc ON vote_heads (institution_id, id ASC);
+CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_created ON vote_heads (institution_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_priority ON vote_heads (institution_id, priority);
+CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_name ON vote_heads (institution_id, name);
+CREATE INDEX IF NOT EXISTS idx_vote_heads_academic_year ON vote_heads (institution_id, academic_year_id);
+
+ALTER TABLE fee_structures ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fee_structures_all_access" ON fee_structures;
+CREATE POLICY "fee_structures_all_access" ON fee_structures FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_desc ON fee_structures (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_asc ON fee_structures (institution_id, id ASC);
+CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_academic_year ON fee_structures (institution_id, academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_created ON fee_structures (institution_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures (institution_id, vote_head_id);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3750,7 +3770,19 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_created ON payroll_runs(institution_id, created_at DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_id_desc ON his_expenditures(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_date ON his_expenditures(institution_id, date DESC);`,
-        `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_created ON his_expenditures(institution_id, created_at DESC);`
+        `CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_created ON his_expenditures(institution_id, created_at DESC);`,
+        // Vote Heads & Fee Structures
+        `CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_id_desc ON vote_heads(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_id_asc ON vote_heads(institution_id, id ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_created ON vote_heads(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_priority ON vote_heads(institution_id, priority);`,
+        `CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_name ON vote_heads(institution_id, name);`,
+        `CREATE INDEX IF NOT EXISTS idx_vote_heads_academic_year ON vote_heads(institution_id, academic_year_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_desc ON fee_structures(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_asc ON fee_structures(institution_id, id ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_academic_year ON fee_structures(institution_id, academic_year_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_created ON fee_structures(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures(institution_id, vote_head_id);`
     ];
 
     indexStatements.forEach(stmt => {

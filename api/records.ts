@@ -1610,7 +1610,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
-                        'academic_years', 'semesters', 'allocation_requests'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
+                        'academic_years', 'semesters', 'allocation_requests', 'vote_heads', 'fee_structures'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
                 defaultOrderBy = 'id.asc';
             }
 
@@ -1875,7 +1875,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'].includes(moduleName)
+                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
@@ -6020,7 +6020,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(ensureValidId) : ensureValidId(currentPayload);
                 }
 
-                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures'].includes(moduleName);
+                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures'].includes(moduleName);
                 const queryRes: any = await executeWithTimeout(
                     supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
                     isBillingOrDsModule ? 4500 : 8000
@@ -6944,7 +6944,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures'].includes(moduleName)) {
+                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures'].includes(moduleName)) {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {

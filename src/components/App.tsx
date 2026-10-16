@@ -568,7 +568,11 @@ export const App: React.FC = () => {
         try {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
-            const hostname = window.location.hostname;
+            const hostname = window.location.hostname.toLowerCase();
+            const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+            if (isPortalHost && view !== 'ds' && view !== 'driving') {
+                return false;
+            }
             const hasKioskParam = params.has('kiosk') || params.get('view') === 'kiosk';
              return view === 'ds' || view === 'driving' || hasKioskParam || hostname === 'drivingschool.eduai.co.ke' || hostname === 'urbands.eduai.co.ke' || hostname.includes('drivingschool') || hostname.includes('urbands');
         } catch (e) {
@@ -661,9 +665,13 @@ export const App: React.FC = () => {
     const [showInstitutionClaim, setShowInstitutionClaim] = useState(false);
 
     const isAlumnaeMode = useMemo(() => {
-        const hostname = window.location.hostname;
+        const hostname = window.location.hostname.toLowerCase();
+        const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
+        if (isPortalHost && !view?.startsWith('alumnae_')) {
+            return false;
+        }
         return hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view?.startsWith('alumnae_');
     }, []);
 
@@ -1057,11 +1065,14 @@ export const App: React.FC = () => {
     }, [counties, currentUser, getCountyById, getInstitutionById]);
 
     const activeBranding = useMemo(() => {
+        const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+        const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+
         if (isAlumnaeMode) {
             return {
                 primaryColor: '#6366f1', // Indigo
                 secondaryColor: '#0f172a',
-                logoUrl: '/alumnae_logo_3d.png',
+                logoUrl: isPortalHost ? '/eduai_logo_3d.png' : '/alumnae_logo_3d.png',
                 motto: 'Connecting Excellence Across Generations',
                 website: 'https://network.eduai.co.ke',
                 displayName: 'EduAI Network'
@@ -1072,7 +1083,7 @@ export const App: React.FC = () => {
             return {
                 primaryColor: effectiveDSInstitution?.themeColor || activeInstitution?.themeColor || '#0ea5e9',
                 secondaryColor: '#0f172a',
-                logoUrl: effectiveDSInstitution?.logoUrl || activeInstitution?.logoUrl || '/driving_school_logo_3d.png',
+                logoUrl: isPortalHost ? '/eduai_logo_3d.png' : (effectiveDSInstitution?.logoUrl || activeInstitution?.logoUrl || '/driving_school_logo_3d.png'),
                 motto: 'Safety First, Success Always',
                 website: effectiveDSInstitution?.kioskUrl || activeInstitution?.kioskUrl || 'https://urbands.eduai.co.ke',
                 displayName: effectiveDSInstitution?.name || activeInstitution?.name || 'Driving School Portal'
@@ -1085,7 +1096,7 @@ export const App: React.FC = () => {
             return {
                 primaryColor: activeCounty.primaryColor || '#4f46e5',
                 secondaryColor: activeCounty.secondaryColor || '#0f172a',
-                logoUrl: activeCounty.logoUrl || companyDetails.logoUrl,
+                logoUrl: isPortalHost ? '/eduai_logo_3d.png' : (activeCounty.logoUrl || companyDetails.logoUrl || '/eduai_logo_3d.png'),
                 motto: activeCounty.motto,
                 website: activeCounty.website,
                 displayName: activeCounty.name
@@ -1095,7 +1106,7 @@ export const App: React.FC = () => {
         return {
             primaryColor: activeInstitution?.themeColor || companyDetails.themeColor || '#4f46e5',
             secondaryColor: '#0f172a',
-            logoUrl: activeInstitution?.logoUrl || companyDetails.logoUrl,
+            logoUrl: isPortalHost ? '/eduai_logo_3d.png' : (activeInstitution?.logoUrl || companyDetails.logoUrl || '/eduai_logo_3d.png'),
             motto: null,
             website: null,
             displayName: activeInstitution?.name
@@ -5966,8 +5977,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         success(`Bulk Import Complete!\n\nSuccessfully registered: ${successCount} \nFailed: ${failCount}`);
     }, [loadData, companyDetails, success]);
 
+    const isPortalMasterHost = typeof window !== 'undefined' && (
+        window.location.hostname === 'portal.eduai.co.ke' || 
+        window.location.hostname === 'eduai.co.ke' || 
+        window.location.hostname === 'www.eduai.co.ke'
+    );
     const commonLoginProps = {
-        users, institutions, courses, academicLevels, logoUrl: activeBranding.logoUrl || companyDetails.logoUrl, applicationTitle: activeBranding.displayName || companyDetails.applicationTitle, registrationProgress: null, registrationMessage: "",
+        users, institutions, courses, academicLevels, 
+        logoUrl: isPortalMasterHost ? '/eduai_logo_3d.png' : (activeBranding.logoUrl || companyDetails.logoUrl || '/eduai_logo_3d.png'), 
+        applicationTitle: isPortalMasterHost ? 'EduAi' : (activeBranding.displayName || companyDetails.applicationTitle), 
+        registrationProgress: null, registrationMessage: "",
         onOpenGuestPortal: () => setShowGuestPortal(true),
         onOpenGuestFeedback: () => setShowGuestFeedback(true),
         onOpenMarketplace: () => setShowMarketplace(true),

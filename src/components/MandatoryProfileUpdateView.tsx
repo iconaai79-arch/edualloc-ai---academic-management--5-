@@ -35,9 +35,20 @@ export const MandatoryProfileUpdateView: React.FC<MandatoryProfileUpdateViewProp
       <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-lg shadow-xl overflow-hidden">
         <div className="p-6 sm:p-8">
           <div className="text-center mb-8">
-            {logoUrl && (
-                <img loading="lazy" src={logoUrl} alt="Logo" className="h-12 w-auto mx-auto mb-4" />
-            )}
+            {(() => {
+              const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+              const isPortal = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+              const effectiveLogo = isPortal ? '/eduai_logo_3d.png' : (logoUrl || '/eduai_logo_3d.png');
+              return (
+                <img 
+                  loading="lazy" 
+                  src={effectiveLogo} 
+                  alt="Logo" 
+                  className="h-12 w-auto mx-auto mb-4 object-contain" 
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/eduai_logo_3d.png'; }}
+                />
+              );
+            })()}
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Action Required</h2>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               To ensure our records are accurate, please update your profile details before proceeding.

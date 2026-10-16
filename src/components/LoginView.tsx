@@ -407,13 +407,32 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <div className="flex-grow flex items-center justify-center py-6 md:py-12 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-md w-full space-y-6 md:space-y-8 bg-white dark:bg-slate-800 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-700">
                     <div className="text-center">
-                        {logoUrl ? (
-                            <img loading="lazy" className="mx-auto h-16 w-auto mb-4" src={logoUrl} alt="Logo" />
-                        ) : (
-                            <img loading="lazy" className="mx-auto h-16 w-auto mb-4" src="/eduai_logo_3d.png" alt="EduAI Logo" />
-                        )}
+                        {(() => {
+                            const isPortalEduAi = typeof window !== 'undefined' && (
+                                window.location.hostname === 'portal.eduai.co.ke' ||
+                                window.location.hostname === 'eduai.co.ke' ||
+                                window.location.hostname === 'www.eduai.co.ke'
+                            );
+                            const effectiveLogo = isPortalEduAi ? '/eduai_logo_3d.png' : (logoUrl || '/eduai_logo_3d.png');
+                            return (
+                                <img 
+                                    loading="lazy" 
+                                    className="mx-auto h-16 w-auto mb-4 object-contain" 
+                                    src={effectiveLogo} 
+                                    alt="EduAI Logo" 
+                                    onError={(e) => { (e.target as HTMLImageElement).src = '/eduai_logo_3d.png'; }}
+                                />
+                            );
+                        })()}
                         <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tighter uppercase">
-                            {applicationTitle || 'EduAi'}
+                            {(() => {
+                                const isPortalEduAi = typeof window !== 'undefined' && (
+                                    window.location.hostname === 'portal.eduai.co.ke' ||
+                                    window.location.hostname === 'eduai.co.ke' ||
+                                    window.location.hostname === 'www.eduai.co.ke'
+                                );
+                                return isPortalEduAi ? 'EduAi' : (applicationTitle || 'EduAi');
+                            })()}
                         </h2>
                         <p className="mt-2 text-sm font-bold text-slate-400 uppercase tracking-widest">Automation Management Hub</p>
                         {error && (

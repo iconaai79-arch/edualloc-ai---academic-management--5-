@@ -92,9 +92,10 @@
         }
       } catch (e) {}
 
-      var isSpeechBuddy = view === 'speechbuddy' || view.includes('speech') || pathname.includes('speechbuddy') || hash.includes('speechbuddy') || isSpeechSession;
-      var isAlumnae = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view.startsWith('alumnae_');
-      var isDriving = !isSpeechBuddy && !isAlumnae && (
+      var isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+      var isSpeechBuddy = !isPortalHost && (view === 'speechbuddy' || view.includes('speech') || pathname.includes('speechbuddy') || hash.includes('speechbuddy') || isSpeechSession);
+      var isAlumnae = !isPortalHost && (hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view.startsWith('alumnae_'));
+      var isDriving = !isPortalHost && !isSpeechBuddy && !isAlumnae && (
         hostname.includes('drivingschool') || 
         hostname.includes('urbands') || 
         view === 'ds' || 
@@ -114,7 +115,14 @@
       var appleTitle = "EduAI OS";
       var themeColor = "#0F172A";
 
-      if (isSpeechBuddy) {
+      if (isPortalHost) {
+        title = "EduAI OS | Enterprise Automation Ecosystem";
+        desc = "Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations.";
+        manifest = "/manifest.json";
+        icon = "/eduai_logo_3d.png";
+        appleTitle = "EduAI OS";
+        themeColor = "#0F172A";
+      } else if (isSpeechBuddy) {
         title = "SpeechBuddy AI — Speech Therapy & Early Learning";
         desc = "Interactive AI speech therapy, phoneme trainer, voice games, and AAC storybook for children with speech delay.";
         manifest = "/manifest_speechbuddy.json";

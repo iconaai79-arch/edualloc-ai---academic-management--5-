@@ -169,11 +169,20 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
             <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-700 animate-fade-in-up">
                 <div className="p-8 sm:p-10">
                     <div className="text-center mb-6">
-                        {logoUrl ? (
-                            <img loading="lazy" src={logoUrl} alt="Logo" className="mx-auto h-16 w-auto mb-4" />
-                        ) : (
-                            <img loading="lazy" src="/eduai_logo_3d.png" alt="EduAI Logo" className="mx-auto h-16 w-auto mb-4" />
-                        )}
+                        {(() => {
+                            const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
+                            const isPortal = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+                            const effectiveLogo = isPortal ? '/eduai_logo_3d.png' : (logoUrl || '/eduai_logo_3d.png');
+                            return (
+                                <img 
+                                    loading="lazy" 
+                                    src={effectiveLogo} 
+                                    alt="Logo" 
+                                    className="mx-auto h-16 w-auto mb-4 object-contain" 
+                                    onError={(e) => { (e.target as HTMLImageElement).src = '/eduai_logo_3d.png'; }}
+                                />
+                            );
+                        })()}
                         <h2 className="text-2xl font-black uppercase tracking-tighter">Account Activation</h2>
                         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
                             Security Protocol: Please confirm your contact details and set a secure personal password to unlock your portal.
