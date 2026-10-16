@@ -693,6 +693,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [search, setSearch] = useState('');
     const [showPdfPreview, setShowPdfPreview] = useState(false);
     const [leaseSelectedUnitId, setLeaseSelectedUnitId] = useState('');
+    const [leaseSelectedTenantId, setLeaseSelectedTenantId] = useState('');
+    const [leaseUnitSearchQuery, setLeaseUnitSearchQuery] = useState('');
+    const [leaseTenantSearchQuery, setLeaseTenantSearchQuery] = useState('');
     const [leaseRentAmount, setLeaseRentAmount] = useState<number | string>('');
     const [leaseDepositAmount, setLeaseDepositAmount] = useState<number | string>('');
     const [previewPdfUrl, setPreviewPdfUrl] = useState('');
@@ -10097,6 +10100,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 onClose={() => { 
                     setShowLeaseModal(false); 
                     setLeaseSelectedUnitId('');
+                    setLeaseSelectedTenantId('');
+                    setLeaseUnitSearchQuery('');
+                    setLeaseTenantSearchQuery('');
                     setLeaseRentAmount('');
                     setLeaseDepositAmount('');
                     setLandlordSignatureFile(null); 
@@ -10117,7 +10123,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                     handleSaveLease({
                         unitId: (formData.get('unitId') as string) || leaseSelectedUnitId,
-                        tenantId: formData.get('tenantId') as string,
+                        tenantId: (formData.get('tenantId') as string) || leaseSelectedTenantId,
                         rentAmount: parseFloat(String(formData.get('rentAmount') || leaseRentAmount)) || 0,
                         depositAmount: parseFloat(String(formData.get('depositAmount') || leaseDepositAmount)) || 0,
                         witnessName: formData.get('witnessName') as string,
@@ -10149,6 +10155,27 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <PlusIcon className="w-3 h-3" /> Register Unit
                                 </button>
                             </div>
+                            {/* Unit Search Bar */}
+                            <div className="relative">
+                                <SearchIcon className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <input
+                                    type="text"
+                                    value={leaseUnitSearchQuery}
+                                    onChange={(e) => setLeaseUnitSearchQuery(e.target.value)}
+                                    placeholder="Search unit #, property, type..."
+                                    className="w-full bg-slate-100/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-all"
+                                />
+                                {leaseUnitSearchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setLeaseUnitSearchQuery('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+                                        title="Clear unit search"
+                                    >
+                                        <XIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                            </div>
                             <select 
                                 name="unitId" 
                                 required 
@@ -10162,18 +10189,33 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         setLeaseDepositAmount(u.rentAmount || '');
                                     }
                                 }}
-                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs"
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-3.5 font-bold outline-none text-xs"
                             >
-                                <option value="">Choose Unit...</option>
                                 {(() => {
-                                    const vacantUnits = units.filter(u => {
+                                    const uQuery = leaseUnitSearchQuery.trim().toLowerCase();
+                                    const filteredUnits = units.filter(u => {
+                                        if (!uQuery) return true;
+                                        const p = properties.find(prop => prop.id === u.propertyId);
+                                        const pName = (p?.name || '').toLowerCase();
+                                        const uNum = String(u.unitNumber || '').toLowerCase();
+                                        const uType = String(u.unitType || '').toLowerCase();
+                                        const uStatus = String(u.status || '').toLowerCase();
+                                        return uNum.includes(uQuery) || pName.includes(uQuery) || uType.includes(uQuery) || uStatus.includes(uQuery);
+                                    });
+
+                                    const vacantUnits = filteredUnits.filter(u => {
                                         const s = String(u.status || '').trim().toLowerCase();
                                         return s === 'vacant' || s === 'maintenance' || s === 'available' || s === '';
                                     });
-                                    const occupiedUnits = units.filter(u => {
+                                    const occupiedUnits = filteredUnits.filter(u => {
                                         const s = String(u.status || '').trim().toLowerCase();
                                         return s === 'occupied' || s === 'leased';
                                     });
+
+                                    const isCurrentSelectedInFiltered = filteredUnits.some(u => u.id === leaseSelectedUnitId);
+                                    const missingSelectedUnit = (!isCurrentSelectedInFiltered && leaseSelectedUnitId)
+                                        ? units.find(u => u.id === leaseSelectedUnitId)
+                                        : null;
 
                                     if (units.length === 0) {
                                         return <option value="" disabled>No registered units found</option>;
@@ -10181,8 +10223,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
 
                                     return (
                                         <>
+                                            <option value="">
+                                                {uQuery ? `Choose Unit (${filteredUnits.length} found)...` : 'Choose Unit...'}
+                                            </option>
+                                            {missingSelectedUnit && (
+                                                <optgroup label="Currently Selected Unit">
+                                                    <option value={missingSelectedUnit.id}>
+                                                        Unit {missingSelectedUnit.unitNumber} ({missingSelectedUnit.unitType || 'Unit'}) - KES {Number(missingSelectedUnit.rentAmount || 0).toLocaleString()} [Selected]
+                                                    </option>
+                                                </optgroup>
+                                            )}
                                             {vacantUnits.length > 0 && (
-                                                <optgroup label="Available Units (Vacant / Maintenance)">
+                                                <optgroup label={`Available Units (${vacantUnits.length})`}>
                                                     {vacantUnits.map(u => {
                                                         const p = properties.find(prop => prop.id === u.propertyId);
                                                         const pName = p ? `${p.name} • ` : '';
@@ -10195,7 +10247,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 </optgroup>
                                             )}
                                             {occupiedUnits.length > 0 && (
-                                                <optgroup label="Occupied Units (Renewal / Reassignment)">
+                                                <optgroup label={`Occupied Units (${occupiedUnits.length})`}>
                                                     {occupiedUnits.map(u => {
                                                         const p = properties.find(prop => prop.id === u.propertyId);
                                                         const pName = p ? `${p.name} • ` : '';
@@ -10207,10 +10259,29 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     })}
                                                 </optgroup>
                                             )}
+                                            {filteredUnits.length === 0 && (
+                                                <option value="" disabled>No units matching "{leaseUnitSearchQuery}"</option>
+                                            )}
                                         </>
                                     );
                                 })()}
                             </select>
+                            {/* Selected Unit Chip */}
+                            {(() => {
+                                const selUnit = units.find(u => u.id === leaseSelectedUnitId);
+                                if (!selUnit) return null;
+                                const prop = properties.find(p => p.id === selUnit.propertyId);
+                                return (
+                                    <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/50 rounded-xl text-[11px] text-blue-700 dark:text-blue-300">
+                                        <span className="font-semibold truncate">
+                                            Selected: <span className="font-bold">{prop ? `${prop.name} - ` : ''}Unit {selUnit.unitNumber}</span> ({selUnit.unitType || 'Unit'})
+                                        </span>
+                                        <span className="font-black text-blue-800 dark:text-blue-200 ml-2 whitespace-nowrap">
+                                            KES {Number(selUnit.rentAmount || 0).toLocaleString()}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
                             {units.length === 0 && (
                                 <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold ml-2">
                                     No units found in your inventory. Click "Register Unit" above to add one.
@@ -10238,15 +10309,98 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     <PlusIcon className="w-3 h-3" /> Onboard Tenant
                                 </button>
                             </div>
-                            <select name="tenantId" required className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-4 font-bold outline-none text-xs">
-                                <option value="">Choose Tenant...</option>
-                                {tenants.map(t => (
-                                    <option key={t.id} value={t.id}>{t.name} ({t.idNumber || t.phoneNumber || 'No ID'})</option>
-                                ))}
-                                {tenants.length === 0 && (
-                                    <option value="" disabled>No onboarded tenants found</option>
+                            {/* Tenant Search Bar */}
+                            <div className="relative">
+                                <SearchIcon className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <input
+                                    type="text"
+                                    value={leaseTenantSearchQuery}
+                                    onChange={(e) => setLeaseTenantSearchQuery(e.target.value)}
+                                    placeholder="Search tenant name, phone, ID..."
+                                    className="w-full bg-slate-100/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-all"
+                                />
+                                {leaseTenantSearchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setLeaseTenantSearchQuery('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-full"
+                                        title="Clear tenant search"
+                                    >
+                                        <XIcon className="w-3.5 h-3.5" />
+                                    </button>
                                 )}
+                            </div>
+                            <select 
+                                name="tenantId" 
+                                required 
+                                value={leaseSelectedTenantId}
+                                onChange={(e) => setLeaseSelectedTenantId(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-transparent focus:border-blue-500 rounded-2xl p-3.5 font-bold outline-none text-xs"
+                            >
+                                {(() => {
+                                    const tQuery = leaseTenantSearchQuery.trim().toLowerCase();
+                                    const filteredTenants = tenants.filter(t => {
+                                        if (!tQuery) return true;
+                                        const name = String(t.name || '').toLowerCase();
+                                        const phone = String(t.phoneNumber || '').toLowerCase();
+                                        const idNum = String(t.idNumber || '').toLowerCase();
+                                        const email = String(t.email || '').toLowerCase();
+                                        return name.includes(tQuery) || phone.includes(tQuery) || idNum.includes(tQuery) || email.includes(tQuery);
+                                    });
+
+                                    const isCurrentSelectedInFiltered = filteredTenants.some(t => t.id === leaseSelectedTenantId);
+                                    const missingSelectedTenant = (!isCurrentSelectedInFiltered && leaseSelectedTenantId)
+                                        ? tenants.find(t => t.id === leaseSelectedTenantId)
+                                        : null;
+
+                                    if (tenants.length === 0) {
+                                        return <option value="" disabled>No onboarded tenants found</option>;
+                                    }
+
+                                    return (
+                                        <>
+                                            <option value="">
+                                                {tQuery ? `Choose Tenant (${filteredTenants.length} found)...` : 'Choose Tenant...'}
+                                            </option>
+                                            {missingSelectedTenant && (
+                                                <optgroup label="Currently Selected Tenant">
+                                                    <option value={missingSelectedTenant.id}>
+                                                        {missingSelectedTenant.name} ({missingSelectedTenant.idNumber ? `ID: ${missingSelectedTenant.idNumber}` : ''}{missingSelectedTenant.idNumber && missingSelectedTenant.phoneNumber ? ' • ' : ''}{missingSelectedTenant.phoneNumber || 'Selected'})
+                                                    </option>
+                                                </optgroup>
+                                            )}
+                                            {filteredTenants.map(t => (
+                                                <option key={t.id} value={t.id}>
+                                                    {t.name} ({t.idNumber ? `ID: ${t.idNumber}` : ''}{t.idNumber && t.phoneNumber ? ' • ' : ''}{t.phoneNumber || 'No Contact'})
+                                                </option>
+                                            ))}
+                                            {filteredTenants.length === 0 && (
+                                                <option value="" disabled>No tenants matching "{leaseTenantSearchQuery}"</option>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </select>
+                            {/* Selected Tenant Chip */}
+                            {(() => {
+                                const selTenant = tenants.find(t => t.id === leaseSelectedTenantId);
+                                if (!selTenant) return null;
+                                return (
+                                    <div className="flex items-center justify-between px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-[11px] text-emerald-700 dark:text-emerald-300">
+                                        <span className="font-semibold truncate">
+                                            Selected: <span className="font-bold">{selTenant.name}</span>
+                                        </span>
+                                        <span className="font-bold text-emerald-800 dark:text-emerald-200 ml-2 whitespace-nowrap">
+                                            {selTenant.phoneNumber || (selTenant.idNumber ? `ID: ${selTenant.idNumber}` : 'Selected')}
+                                        </span>
+                                    </div>
+                                );
+                            })()}
+                            {tenants.length === 0 && (
+                                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold ml-2">
+                                    No tenants found in your database. Click "Onboard Tenant" above to add one.
+                                </p>
+                            )}
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
