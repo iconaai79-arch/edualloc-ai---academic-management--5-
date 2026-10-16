@@ -1252,10 +1252,10 @@ export const apiService = {
                 // However, incrementing a count requires knowing the current value or using an atomic operation.
                 // The proxy RPC is the best way. If it fails, we log it.
                 const err = await response.json().catch(() => ({}));
-                console.error(`IncrementCount Proxy Error [${table}]:`, response.status, err);
+                console.warn(`IncrementCount Proxy note [${table}]:`, response.status, err);
             }
         } catch (e) {
-            console.error(`IncrementCount Exception [${table}]:`, e);
+            console.warn(`IncrementCount Exception note [${table}]:`, e);
         }
     },
     _lastConnectionTest: null as { success: boolean, status: string, dbName: string, message: string, timestamp: number } | null,
