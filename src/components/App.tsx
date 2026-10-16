@@ -2009,8 +2009,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     // Business Batch & Inventory
                     (isBusiness || isAcademic || isDrivingSchool || isBeautyCollege || !!effectiveInstIdFinal) ? Promise.all([
                         apiService.fetchModuleRecords<InventoryItem>('inventory', effectiveInstIdFinal).catch(() => []),
-                        apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal).catch(() => []),
-                        apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal).catch(() => []),
+                        apiService.fetchModuleRecords<RetailExpense>('retail_expenses', effectiveInstIdFinal, undefined, { limit: 500 }).catch(() => []),
+                        apiService.fetchModuleRecords<RetailStore>('retail_stores', effectiveInstIdFinal, undefined, { limit: 200 }).catch(() => []),
                         apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', effectiveInstIdFinal).catch(() => []),
                         isBusiness ? apiService.fetchModuleRecords<CafeMenuItem>('cafe_menu_items', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),
                         isBusiness ? apiService.fetchModuleRecords<CafeOrder>('cafe_orders', effectiveInstIdFinal).catch(() => []) : Promise.resolve([]),

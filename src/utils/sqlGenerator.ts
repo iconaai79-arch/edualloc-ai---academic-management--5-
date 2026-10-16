@@ -3586,6 +3586,9 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         // Retail & Restaurant
         `CREATE INDEX IF NOT EXISTS idx_retail_inv_inst ON retail_inventory(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_retail_sales_inst ON retail_sales(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_retail_stores_inst_id_desc ON retail_stores(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_retail_stores_inst_name ON retail_stores(institution_id, name);`,
+        `CREATE INDEX IF NOT EXISTS idx_retail_expenses_inst_id_desc ON retail_expenses(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_cafe_orders_inst ON cafe_orders(institution_id);`,
         // Logistics & Security
         `CREATE INDEX IF NOT EXISTS idx_vehicles_inst ON vehicles(institution_id);`,

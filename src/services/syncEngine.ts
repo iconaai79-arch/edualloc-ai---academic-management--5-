@@ -258,7 +258,7 @@ class SyncEngine {
                 apiService.fetchModuleRecords('cafe_orders', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('retail_sales', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('retail_inventory', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('retail_stores', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('retail_stores', tenantId, undefined, { limit: 200 }).catch(() => []),
             ]);
 
             update(85);
