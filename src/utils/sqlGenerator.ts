@@ -161,13 +161,17 @@ CREATE TABLE IF NOT EXISTS system_settings (
 
 CREATE TABLE IF NOT EXISTS activity_log (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    user_name TEXT NOT NULL,
-    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
+    user_id TEXT,
+    user_name TEXT DEFAULT 'System',
+    institution_id TEXT,
     institution_name TEXT,
-    action TEXT NOT NULL,
+    action TEXT DEFAULT 'activity',
+    module TEXT,
+    details TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     ip_address TEXT,
     mac_address TEXT,
     imei TEXT
@@ -3147,6 +3151,14 @@ CREATE POLICY "system_settings_write_policy" ON system_settings FOR ALL USING (t
 INSERT INTO system_settings (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING;
 CREATE INDEX IF NOT EXISTS idx_system_settings_id ON system_settings (id);
 
+-- Global Activity Log RLS & Resilience --
+ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "activity_log_all_access" ON activity_log;
+CREATE POLICY "activity_log_all_access" ON activity_log FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_activity_log_inst_id_desc ON activity_log (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_inst_timestamp ON activity_log (institution_id, "timestamp" DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_inst_module ON activity_log (institution_id, module);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3658,7 +3670,12 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_intasend_tx_inst ON intasend_transactions(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_intasend_tx_tracking ON intasend_transactions(tracking_id);`,
         `CREATE INDEX IF NOT EXISTS idx_ncba_tx_inst ON ncba_transactions(institution_id);`,
-        `CREATE INDEX IF NOT EXISTS idx_ncba_tx_ref ON ncba_transactions(reference_no);`
+        `CREATE INDEX IF NOT EXISTS idx_ncba_tx_ref ON ncba_transactions(reference_no);`,
+        // Activity & Telemetry Logs
+        `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_id_desc ON activity_log(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_timestamp ON activity_log(institution_id, "timestamp" DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_created_desc ON activity_log(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_activity_log_inst_module ON activity_log(institution_id, module);`
     ];
 
     indexStatements.forEach(stmt => {

@@ -4769,6 +4769,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanNotificationRecord) : cleanNotificationRecord(currentPayload);
+            } else if (moduleName === 'activity_log' || moduleName === 'activity_logs') {
+                const cleanActivityLogRecord = (item: any) => {
+                    if (!item || typeof item !== 'object') return item;
+                    const copy = { ...item };
+                    if (!copy.id || copy.id === 'null' || copy.id === 'undefined') {
+                        copy.id = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+                    }
+                    if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.userName && !copy.user_name) copy.user_name = copy.userName;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.institutionName && !copy.institution_name) copy.institution_name = copy.institutionName;
+                    if (copy.ipAddress && !copy.ip_address) copy.ip_address = copy.ipAddress;
+                    if (copy.macAddress && !copy.mac_address) copy.mac_address = copy.macAddress;
+                    if (copy.createdAt && !copy.created_at) copy.created_at = copy.createdAt;
+                    if (copy.timestamp && !copy.created_at) copy.created_at = copy.timestamp;
+                    if (!copy.timestamp && copy.created_at) copy.timestamp = copy.created_at;
+
+                    copy.user_id = copy.user_id ? String(copy.user_id) : 'system';
+                    copy.user_name = copy.user_name ? String(copy.user_name) : 'System';
+                    copy.action = copy.action ? String(copy.action) : (copy.details ? String(copy.details) : 'activity');
+                    copy.timestamp = copy.timestamp || new Date().toISOString();
+                    copy.created_at = copy.created_at || copy.timestamp;
+
+                    if (copy.details && typeof copy.details === 'object') {
+                        try { copy.details = JSON.stringify(copy.details); } catch (_) {}
+                    }
+                    if (copy.metadata && typeof copy.metadata !== 'object') {
+                        try { copy.metadata = JSON.parse(copy.metadata); } catch (_) { copy.metadata = {}; }
+                    }
+
+                    delete copy.userId;
+                    delete copy.userName;
+                    delete copy.institutionId;
+                    delete copy.institutionName;
+                    delete copy.ipAddress;
+                    delete copy.macAddress;
+                    delete copy.createdAt;
+
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanActivityLogRecord) : cleanActivityLogRecord(currentPayload);
             } else if (moduleName === 'subjects') {
                 const cleanSubjectRecord = (item: any) => {
                     if (!item || typeof item !== 'object') return item;
@@ -5891,10 +5932,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     currentPayload = Array.isArray(currentPayload) ? currentPayload.map(ensureValidId) : ensureValidId(currentPayload);
                 }
 
-                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments'].includes(moduleName);
+                const isBillingOrDsModule = ['invoices', 'receipts', 'ds_invoices', 'ds_payments', 'ds_students', 'ds_lessons', 'pm_invoices', 'pm_payments', 'activity_log', 'activity_logs'].includes(moduleName);
                 const queryRes: any = await executeWithTimeout(
                     supabase.from(targetDbTable).upsert(currentPayload, { onConflict: 'id' }).select(),
-                    isBillingOrDsModule ? 6000 : 8000
+                    isBillingOrDsModule ? 4500 : 8000
                 ).catch((e: any) => ({ data: null, error: { message: e?.message || 'Database query timed out', code: 'TIMEOUT' } }));
                 data = queryRes.data;
                 error = queryRes.error;
@@ -5923,7 +5964,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             updateClauses.push(`"${k}" = EXCLUDED."${k}"`);
                                         }
                                     });
-                                    const sql = `INSERT INTO public."${targetDbTable}" ("${keys.join('", "')}") VALUES (${placeholders.join(', ')}) ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')} RETURNING *;`;
+                                    const onConflictClause = updateClauses.length > 0 
+                                        ? `ON CONFLICT ("id") DO UPDATE SET ${updateClauses.join(', ')}`
+                                        : `ON CONFLICT ("id") DO NOTHING`;
+                                    const sql = `INSERT INTO public."${targetDbTable}" ("${keys.join('", "')}") VALUES (${placeholders.join(', ')}) ${onConflictClause} RETURNING *;`;
                                     const r = await executeWithTimeout(pool.query(sql, vals), 6000).catch(() => null);
                                     if (r && r.rows && r.rows[0]) {
                                         insertedRows.push(r.rows[0]);
@@ -6812,7 +6856,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                        message.includes('invalid input syntax for type uuid') ||
                                        message.includes('not found in the schema cache');
                 if (isTableMissing) {
-                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts'].includes(moduleName)) {
+                    if (['school_remedial_duty_roster', 'pm_deposit_refunds', 'pm_inspections', 'users', 'ds_invoices', 'ds_payments', 'invoices', 'receipts', 'activity_log', 'activity_logs'].includes(moduleName)) {
                         const rawItems = Array.isArray(recordData) ? recordData : [recordData];
                         const instId = rawItems[0]?.institution_id || rawItems[0]?.institutionId || user?.institutionId;
                         if (instId) {
