@@ -151,9 +151,32 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
         return /Android/.test(navigator.userAgent);
     }, []);
 
-    // PWA Lifecycle & Standalone Detection
+    // PWA Lifecycle, Standalone Detection & Dynamic Driving Manifest Binding
     useEffect(() => {
         if (typeof window === 'undefined') return;
+
+        // Guarantee Driving School Manifest and Assets are active
+        try {
+            document.title = "DS Pro Master | Driving School";
+            sessionStorage.setItem('ds_student_session', 'true');
+            const manifestLinks = document.querySelectorAll('link[rel="manifest"]');
+            if (manifestLinks.length > 0) {
+                manifestLinks.forEach(l => l.setAttribute('href', '/manifest_driving.json'));
+            } else {
+                const newLink = document.createElement('link');
+                newLink.rel = 'manifest';
+                newLink.href = '/manifest_driving.json';
+                document.head.appendChild(newLink);
+            }
+            const iconLinks = document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"]');
+            iconLinks.forEach(l => l.setAttribute('href', '/driving_school_logo_3d.png'));
+            const themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+            themeMetas.forEach(tm => tm.setAttribute('content', '#0ea5e9'));
+            const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+            if (appleTitle) appleTitle.setAttribute('content', 'DS Pro');
+        } catch (e) {
+            console.warn('[PWA] Failed to enforce driving manifest', e);
+        }
 
         const checkInstalled = () => {
             return (
@@ -203,6 +226,13 @@ export const DSStudentPortal: React.FC<DSStudentPortalProps> = ({
     }, [success]);
 
     const handleInstallApp = async () => {
+        // Enforce driving manifest right before triggering native prompt
+        try {
+            document.title = "DS Pro Master | Driving School";
+            const manifestLinks = document.querySelectorAll('link[rel="manifest"]');
+            manifestLinks.forEach(l => l.setAttribute('href', '/manifest_driving.json'));
+        } catch (e) {}
+
         const promptEvent = deferredPrompt || (typeof window !== 'undefined' && (window as any).__deferredInstallPrompt);
         if (promptEvent) {
             try {

@@ -4201,6 +4201,14 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [capturedFrame, setCapturedFrame] = useState<string | null>(null);
     const [cameraFacingMode, setCameraFacingMode] = useState<'user' | 'environment'>('user');
+    useEffect(() => {
+        try {
+            document.title = "DS Pro Master | Driving School";
+            sessionStorage.setItem('ds_student_session', 'true');
+            const manifestLinks = document.querySelectorAll('link[rel="manifest"]');
+            manifestLinks.forEach(l => l.setAttribute('href', '/manifest_driving.json'));
+        } catch (e) {}
+    }, []);
 
     useEffect(() => {
         let activeStream: MediaStream | null = null;

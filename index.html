@@ -9,6 +9,7 @@
   <meta name="keywords" content="eduai, school management, enterprise automation, PWA, hospital management, ERP Kenya, logistics" />
   <meta name="author" content="EduAI Team" />
   <link rel="canonical" href="https://portal.eduai.co.ke/" />
+  <link rel="icon" type="image/png" href="/eduai_logo_3d.png" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#0F172A" />
   
@@ -48,9 +49,6 @@
   }
   </script>
 
-  <link rel="icon" type="image/png" href="/eduai_logo_3d.png" />
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#4f46e5" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="EduAI OS" />
@@ -65,30 +63,78 @@
   <script>
     (function() {
       var hostname = window.location.hostname.toLowerCase();
+      var pathname = window.location.pathname.toLowerCase();
+      var search = window.location.search.toLowerCase();
+      var hash = window.location.hash.toLowerCase();
       var params = new URLSearchParams(window.location.search);
-      var view = params.get('view') || '';
+      var view = (params.get('view') || '').toLowerCase();
       
+      // Check stored session info if available
+      var isDSSession = false;
+      var isSpeechSession = false;
+      try {
+        var instType = (localStorage.getItem('eduai_last_institution_type') || '').toLowerCase();
+        var activeRole = (localStorage.getItem('eduai_active_role') || '').toLowerCase();
+        var cachedUser = localStorage.getItem('currentUser') || localStorage.getItem('eduai_user') || '';
+        if (
+          instType === 'driving_school' || 
+          cachedUser.includes('"isdsstudent":true') || 
+          cachedUser.includes('"isdsstudent": true') ||
+          cachedUser.includes('driving_school') || 
+          localStorage.getItem('ds_nav_layout') || 
+          localStorage.getItem('ds_student_session') ||
+          sessionStorage.getItem('ds_student_session')
+        ) {
+          isDSSession = true;
+        }
+        if (localStorage.getItem('speechbuddy_registered_user') && (view === 'speechbuddy' || hash.includes('speechbuddy'))) {
+          isSpeechSession = true;
+        }
+      } catch (e) {}
+
+      var isSpeechBuddy = view === 'speechbuddy' || view.includes('speech') || pathname.includes('speechbuddy') || hash.includes('speechbuddy') || isSpeechSession;
       var isAlumnae = hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view.startsWith('alumnae_');
-      var isDriving = hostname.includes('drivingschool') || hostname.includes('urbands') || view === 'ds' || view === 'driving';
+      var isDriving = !isSpeechBuddy && !isAlumnae && (
+        hostname.includes('drivingschool') || 
+        hostname.includes('urbands') || 
+        view === 'ds' || 
+        view === 'driving' || 
+        view === 'ds-student' || 
+        view === 'ds-portal' || 
+        pathname.startsWith('/ds') || 
+        search.includes('view=ds') ||
+        hash.includes('/ds') || 
+        isDSSession
+      );
 
       var title = "EduAI OS | Enterprise Automation Ecosystem";
       var desc = "Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations.";
       var manifest = "/manifest.json";
       var icon = "/eduai_logo_3d.png";
       var appleTitle = "EduAI OS";
+      var themeColor = "#0F172A";
 
-      if (isAlumnae) {
+      if (isSpeechBuddy) {
+        title = "SpeechBuddy AI — Speech Therapy & Early Learning";
+        desc = "Interactive AI speech therapy, phoneme trainer, voice games, and AAC storybook for children with speech delay.";
+        manifest = "/manifest_speechbuddy.json";
+        icon = "/eduai_logo_3d.png";
+        appleTitle = "SpeechBuddy";
+        themeColor = "#0F172A";
+      } else if (isAlumnae) {
         title = "Alumnae Network | Alma Mater Digital Ecosystem & Community";
         desc = "Official Alumnae Network and Alma Mater community portal. Connect with classmates, find mentorship, and support your legacy.";
         manifest = "/manifest_alumnae.json";
         icon = "/alumnae_logo_3d.png";
         appleTitle = "Alumnae";
+        themeColor = "#4f46e5";
       } else if (isDriving) {
-        title = "DS Pro Master | Driving School Management Portal";
+        title = "DS Pro Master | Driving School";
         desc = "Advanced driving school portal for scheduling lessons, tracking skills, and managing instructor logs.";
         manifest = "/manifest_driving.json";
         icon = "/driving_school_logo_3d.png";
         appleTitle = "DS Pro";
+        themeColor = "#0ea5e9";
       }
 
       document.title = title;
@@ -101,15 +147,26 @@
       var appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
       if (appleIcon) appleIcon.setAttribute('href', icon);
 
-      // Update manifest
-      var manifestLink = document.querySelector('link[rel="manifest"]');
-      if (manifestLink && manifestLink.getAttribute('href') !== manifest) {
-        manifestLink.setAttribute('href', manifest);
+      // Update all manifest links
+      var manifestLinks = document.querySelectorAll('link[rel="manifest"]');
+      if (manifestLinks.length > 0) {
+        manifestLinks.forEach(function(l) { l.setAttribute('href', manifest); });
+      } else {
+        var newLink = document.createElement('link');
+        newLink.rel = 'manifest';
+        newLink.href = manifest;
+        document.head.appendChild(newLink);
       }
 
       // Update favicon
-      var faviconLink = document.querySelector('link[rel="icon"]');
-      if (faviconLink) faviconLink.setAttribute('href', icon);
+      var faviconLinks = document.querySelectorAll('link[rel="icon"]');
+      if (faviconLinks.length > 0) {
+        faviconLinks.forEach(function(l) { l.setAttribute('href', icon); });
+      }
+
+      // Update theme-color
+      var themeMetas = document.querySelectorAll('meta[name="theme-color"]');
+      themeMetas.forEach(function(tm) { tm.setAttribute('content', themeColor); });
 
       // Update Apple App Title
       var appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');

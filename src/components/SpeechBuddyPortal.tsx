@@ -90,6 +90,12 @@ export const SpeechBuddyPortal: React.FC = () => {
 
   // Listen for PWA Install Prompt & Online/Offline status
   useEffect(() => {
+    try {
+      document.title = "SpeechBuddy AI — Speech Therapy & Early Learning";
+      const manifestLinks = document.querySelectorAll('link[rel="manifest"]');
+      manifestLinks.forEach(l => l.setAttribute('href', '/manifest_speechbuddy.json'));
+    } catch (e) {}
+
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
