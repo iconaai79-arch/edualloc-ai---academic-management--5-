@@ -1646,6 +1646,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Logging, visitor & security modules
                     'integration_logs', 'sms_gateway_logs', 'sms_logs',
                     'visitors', 'building_visitor_logs', 'security_alerts',
+                    'app_notifications',
                     'maintenance_requests',
                     'retail_stores', 'retail_expenses',
                     'requisitions', 'suppliers', 'lpos', 'stock_transactions',
@@ -4807,12 +4808,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!item || typeof item !== 'object') return item;
                     const copy = { ...item };
                     if (copy.userId && !copy.user_id) copy.user_id = copy.userId;
+                    if (copy.institutionId && !copy.institution_id) copy.institution_id = copy.institutionId;
+                    if (copy.visitorName && !copy.visitor_name) copy.visitor_name = copy.visitorName;
                     if (copy.isRead !== undefined && copy.is_read === undefined) copy.is_read = copy.isRead;
                     if (copy.message === undefined || copy.message === null) {
                         copy.message = copy.title || copy.description || copy.content || copy.text || copy.body || '';
                     }
                     if (!copy.type) copy.type = 'info';
                     delete copy.userId;
+                    delete copy.institutionId;
+                    delete copy.visitorName;
                     delete copy.isRead;
                     return copy;
                 };

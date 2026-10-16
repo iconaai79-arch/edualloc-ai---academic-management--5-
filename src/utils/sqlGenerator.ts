@@ -3284,6 +3284,17 @@ CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_status ON ds_payments (instituti
 CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_branch ON ds_payments (institution_id, branch_id);
 CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_receipt ON ds_payments (institution_id, receipt_number);
 
+-- Global App Notifications RLS & Resilience --
+ALTER TABLE app_notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "app_notifications_all_access" ON app_notifications;
+CREATE POLICY "app_notifications_all_access" ON app_notifications FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_user_timestamp ON app_notifications (user_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_user_created ON app_notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_user_is_read ON app_notifications (user_id, is_read, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_timestamp ON app_notifications (institution_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_created ON app_notifications (institution_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notifications_id ON app_notifications (id);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3784,6 +3795,13 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_status ON ds_payments(institution_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_branch ON ds_payments(institution_id, branch_id);`,
         `CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_receipt ON ds_payments(institution_id, receipt_number);`,
+        // App Notifications
+        `CREATE INDEX IF NOT EXISTS idx_app_notifications_user_timestamp ON app_notifications(user_id, timestamp DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_app_notifications_user_created ON app_notifications(user_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_app_notifications_user_is_read ON app_notifications(user_id, is_read, timestamp DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_timestamp ON app_notifications(institution_id, timestamp DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_created ON app_notifications(institution_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_app_notifications_id ON app_notifications(id);`,
         `CREATE INDEX IF NOT EXISTS idx_visitors_inst ON visitors(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_maint_requests_inst_id_desc ON maintenance_requests(institution_id, id DESC);`,
