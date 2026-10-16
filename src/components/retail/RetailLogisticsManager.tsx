@@ -5,18 +5,27 @@ import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as
 interface Courier {
     id: string;
     name: string;
+    companyName?: string;
+    company_name?: string;
+    courierName?: string;
+    courier_name?: string;
     phone: string;
     email: string;
-    status: 'Pending' | 'Active' | 'Rejected';
+    status: 'Pending' | 'Active' | 'Rejected' | string;
     created_at?: string;
+    createdAt?: string;
 }
 
 interface DeliveryRate {
     id: string;
-    courier_id: string;
+    courier_id?: string;
+    courierId?: string;
+    courier_name?: string;
+    courierName?: string;
     destination: string;
     rate: number;
-    estimated_days: number;
+    estimated_days?: number;
+    estimatedDays?: number;
     status: 'Active' | 'Inactive';
 }
 
@@ -46,8 +55,8 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                 apiService.fetchModuleRecords('retail_couriers', institutionId),
                 apiService.fetchModuleRecords('retail_delivery_rates', institutionId)
             ]);
-            setCouriers(cData);
-            setRates(rData);
+            setCouriers(Array.isArray(cData) ? cData : []);
+            setRates(Array.isArray(rData) ? rData : []);
         } catch (error) {
             console.error('Failed to fetch logistics data:', error);
         } finally {
@@ -55,13 +64,94 @@ export function RetailLogisticsManager({ institutionId }: Props) {
         }
     };
 
-    const handleAddCourier = async () => {
-        if (!newCourier.name) return;
+    const getCourierDisplayName = (c: any): string => {
+        if (!c) return '';
+        return c.name || c.companyName || c.company_name || c.courierName || c.courier_name || c.fullName || c.full_name || 'Courier Partner';
+    };
+
+    const isCourierActive = (c: any): boolean => {
+        const s = String(c?.status || '').toLowerCase();
+        return s === 'active' || s === 'approved' || (!s && Boolean(getCourierDisplayName(c)));
+    };
+
+    const isCourierPending = (c: any): boolean => {
+        const s = String(c?.status || '').toLowerCase();
+        return s === 'pending';
+    };
+
+    const activeCouriers = couriers.filter(isCourierActive);
+    const pendingCouriers = couriers.filter(isCourierPending);
+
+    const resolveCourier = (r: DeliveryRate) => {
+        const courierId = r.courier_id || (r as any).courierId;
+        const explicitName = (r as any).courierName || (r as any).courier_name;
+
+        // 1. Direct ID match
+        let matched = couriers.find(c => 
+            courierId && (c.id === courierId || String(c.id).toLowerCase() === String(courierId).toLowerCase())
+        );
+
+        // 2. Name match
+        if (!matched && courierId) {
+            matched = couriers.find(c => 
+                getCourierDisplayName(c).toLowerCase() === String(courierId).toLowerCase()
+            );
+        }
+        if (!matched && explicitName && explicitName.toLowerCase() !== 'unknown') {
+            matched = couriers.find(c => 
+                getCourierDisplayName(c).toLowerCase() === explicitName.toLowerCase()
+            );
+        }
+
+        // 3. Smart association: If only 1 courier exists (Active or total), associate it
+        if (!matched && (activeCouriers.length === 1 || couriers.length === 1)) {
+            matched = activeCouriers[0] || couriers[0];
+        }
+
+        const resolvedName = matched 
+            ? getCourierDisplayName(matched) 
+            : (explicitName && explicitName.toLowerCase() !== 'unknown' 
+                ? explicitName 
+                : (courierId && !courierId.includes('-') && courierId.length > 2 && courierId.toLowerCase() !== 'unknown' ? courierId : 'Unknown'));
+
+        return {
+            matched,
+            name: resolvedName,
+            id: matched?.id || courierId
+        };
+    };
+
+    const handleReassignCourier = async (rateId: string, newCourierId: string) => {
+        if (!newCourierId) return;
         try {
+            const selectedCourier = couriers.find(c => c.id === newCourierId);
+            const courierName = getCourierDisplayName(selectedCourier);
+            await apiService.saveModuleRecord('retail_delivery_rates', {
+                id: rateId,
+                courier_id: newCourierId,
+                courierId: newCourierId,
+                courier_name: courierName,
+                courierName: courierName
+            });
+            fetchData();
+        } catch (error) {
+            console.error('Failed to reassign courier:', error);
+        }
+    };
+
+    const handleAddCourier = async () => {
+        const courierName = (newCourier.name || (newCourier as any).companyName || '').trim();
+        if (!courierName) return;
+        try {
+            const id = crypto.randomUUID();
             await apiService.saveModuleRecord('retail_couriers', {
                 ...newCourier,
+                name: courierName,
+                companyName: courierName,
+                company_name: courierName,
+                status: 'Active',
                 institutionId,
-                id: crypto.randomUUID()
+                id
             });
             setShowAddCourier(false);
             setNewCourier({ status: 'Active' });
@@ -72,10 +162,23 @@ export function RetailLogisticsManager({ institutionId }: Props) {
     };
 
     const handleAddRate = async () => {
-        if (!newRate.courier_id || !newRate.destination) return;
+        const courierId = newRate.courier_id || (newRate as any).courierId;
+        if (!courierId || !newRate.destination) return;
         try {
+            const selectedCourier = couriers.find(c => c.id === courierId);
+            const courierName = getCourierDisplayName(selectedCourier);
+            const estDays = Number(newRate.estimated_days ?? (newRate as any).estimatedDays ?? 1);
+            const rateFee = Number(newRate.rate || 0);
+
             await apiService.saveModuleRecord('retail_delivery_rates', {
                 ...newRate,
+                courier_id: courierId,
+                courierId: courierId,
+                courier_name: courierName,
+                courierName: courierName,
+                rate: rateFee,
+                estimated_days: estDays,
+                estimatedDays: estDays,
                 institutionId,
                 id: crypto.randomUUID()
             });
@@ -105,9 +208,6 @@ export function RetailLogisticsManager({ institutionId }: Props) {
             console.error('Update failed:', error);
         }
     };
-
-    const activeCouriers = couriers.filter(c => c.status === 'Active');
-    const pendingCouriers = couriers.filter(c => c.status === 'Pending');
 
     return (
         <div className="space-y-6">
@@ -169,13 +269,13 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                                     {pendingCouriers.map(c => (
                                                         <tr key={c.id} className="group hover:bg-white/50 dark:hover:bg-white/5 transition-all">
                                                             <td className="py-3 px-4">
-                                                                <div className="font-bold text-slate-800 dark:text-white uppercase tracking-tight">{c.name}</div>
-                                                                <div className="text-[10px] text-slate-500 font-medium">{new Date(c.created_at || '').toLocaleDateString()}</div>
+                                                                <div className="font-bold text-slate-800 dark:text-white uppercase tracking-tight">{getCourierDisplayName(c)}</div>
+                                                                <div className="text-[10px] text-slate-500 font-medium">{new Date(c.created_at || c.createdAt || '').toLocaleDateString()}</div>
                                                             </td>
                                                             <td className="py-3 px-4">
                                                                 <div className="flex flex-col text-[10px] text-slate-500 font-bold italic">
-                                                                    <span>{c.phone}</span>
-                                                                    <span>{c.email}</span>
+                                                                    <span>{c.phone || 'No phone'}</span>
+                                                                    <span>{c.email || 'No email'}</span>
                                                                 </div>
                                                             </td>
                                                             <td className="py-3 px-4 text-right space-x-2">
@@ -215,16 +315,16 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                         <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                                             {activeCouriers.map(c => (
                                                 <tr key={c.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-all">
-                                                    <td className="py-4 px-2 font-bold text-slate-700 dark:text-slate-200">{c.name}</td>
+                                                    <td className="py-4 px-2 font-bold text-slate-700 dark:text-slate-200">{getCourierDisplayName(c)}</td>
                                                     <td className="py-4 px-2">
                                                         <div className="flex flex-col text-[10px] text-slate-500">
-                                                            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone}</span>
-                                                            <span className="flex items-center gap-1"><Envelope className="w-3 h-3" /> {c.email}</span>
+                                                            <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {c.phone || 'No phone'}</span>
+                                                            <span className="flex items-center gap-1"><Envelope className="w-3 h-3" /> {c.email || 'No email'}</span>
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-2">
-                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${c.status === 'Active' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                                                            {c.status}
+                                                        <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase ${isCourierActive(c) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {c.status || 'Active'}
                                                         </span>
                                                     </td>
                                                     <td className="py-4 px-2 text-right">
@@ -265,25 +365,49 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                                        {rates.map(r => (
-                                            <tr key={r.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-all">
-                                                <td className="py-4 px-2 font-bold text-slate-700 dark:text-slate-200">{r.destination}</td>
-                                                <td className="py-4 px-2 text-xs font-semibold text-slate-500 uppercase tracking-tighter">
-                                                    {couriers.find(c => c.id === r.courier_id)?.name || 'Unknown'}
-                                                </td>
-                                                <td className="py-4 px-2 font-black text-indigo-600">
-                                                    {new Intl.NumberFormat().format(r.rate)}
-                                                </td>
-                                                <td className="py-4 px-2 text-[10px] font-bold text-slate-400">
-                                                    {r.estimated_days} Work days
-                                                </td>
-                                                <td className="py-4 px-2 text-right">
-                                                    <button onClick={() => handleDelete('retail_delivery_rates', r.id)} className="p-2 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 rounded-lg">
-                                                        <Trash className="w-4 h-4" />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {rates.map(r => {
+                                            const courierInfo = resolveCourier(r);
+                                            const estDays = Number(r.estimated_days ?? (r as any).estimatedDays ?? 1);
+                                            const rateFee = Number(r.rate ?? 0);
+                                            const assignedCourierId = courierInfo.matched?.id || r.courier_id || (r as any).courierId || '';
+
+                                            return (
+                                                <tr key={r.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-all">
+                                                    <td className="py-4 px-2 font-bold text-slate-700 dark:text-slate-200">{r.destination}</td>
+                                                    <td className="py-4 px-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-tighter">
+                                                                {courierInfo.name}
+                                                            </span>
+                                                            {couriers.length > 0 && (
+                                                                <select
+                                                                    value={assignedCourierId}
+                                                                    onChange={(e) => handleReassignCourier(r.id, e.target.value)}
+                                                                    className="text-[10px] bg-slate-100 dark:bg-slate-800 border-none rounded-lg px-2 py-1 text-slate-500 font-bold cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 opacity-60 group-hover:opacity-100 transition-opacity"
+                                                                    title="Assign / Switch Courier"
+                                                                >
+                                                                    <option value="">Switch partner...</option>
+                                                                    {couriers.map(c => (
+                                                                        <option key={c.id} value={c.id}>{getCourierDisplayName(c)}</option>
+                                                                    ))}
+                                                                </select>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 px-2 font-black text-indigo-600">
+                                                        {new Intl.NumberFormat().format(rateFee)}
+                                                    </td>
+                                                    <td className="py-4 px-2 text-[10px] font-bold text-slate-400">
+                                                        {estDays} Work days
+                                                    </td>
+                                                    <td className="py-4 px-2 text-right">
+                                                        <button onClick={() => handleDelete('retail_delivery_rates', r.id)} className="p-2 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 rounded-lg">
+                                                            <Trash className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -297,7 +421,7 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in-up">
                     <div className="bg-white/50 dark:bg-slate-900/50 p-4 rounded-3xl border border-white/20 dark:border-slate-800/50 shadow-sm hover:shadow-md transition-all">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic block mb-1">Active Couriers</span>
-                        <span className="text-2xl font-black text-slate-800 dark:text-white">{couriers.length}</span>
+                        <span className="text-2xl font-black text-slate-800 dark:text-white">{activeCouriers.length || couriers.length}</span>
                     </div>
                     <div className="bg-white/50 dark:bg-slate-900/50 p-4 rounded-3xl border border-white/20 dark:border-slate-800/50 shadow-sm hover:shadow-md transition-all">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic block mb-1">Mapped Zones</span>
@@ -306,13 +430,13 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                     <div className="bg-white/50 dark:bg-slate-900/50 p-4 rounded-3xl border border-white/20 dark:border-slate-800/50 shadow-sm hover:shadow-md transition-all">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic block mb-1">Avg Delivery Day</span>
                         <span className="text-2xl font-black text-slate-800 dark:text-white">
-                            {rates.length > 0 ? Math.round(rates.reduce((a, b) => a + b.estimated_days, 0) / rates.length) : 0}
+                            {rates.length > 0 ? Math.round(rates.reduce((a, b) => a + Number(b.estimated_days ?? (b as any).estimatedDays ?? 0), 0) / rates.length) : 0}
                         </span>
                     </div>
                     <div className="bg-white/50 dark:bg-slate-900/50 p-4 rounded-3xl border border-white/20 dark:border-slate-800/50 shadow-sm hover:shadow-md transition-all">
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest italic block mb-1">Avg Rate</span>
                         <span className="text-2xl font-black text-slate-800 dark:text-white">
-                            {rates.length > 0 ? Math.round(rates.reduce((a, b) => a + b.rate, 0) / rates.length) : 0}
+                            {rates.length > 0 ? Math.round(rates.reduce((a, b) => a + Number(b.rate ?? 0), 0) / rates.length) : 0}
                         </span>
                     </div>
                 </div>
@@ -385,12 +509,16 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-widest mb-1 block italic opacity-60">Courier Partner</label>
                                 <select
-                                    value={newRate.courier_id || ''}
-                                    onChange={e => setNewRate({ ...newRate, courier_id: e.target.value })}
+                                    value={newRate.courier_id || (newRate as any).courierId || ''}
+                                    onChange={e => setNewRate({ ...newRate, courier_id: e.target.value, courierId: e.target.value })}
                                     className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 ring-indigo-500 transition-all font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">Select Partner</option>
-                                    {couriers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    {couriers.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {getCourierDisplayName(c)} {c.status && c.status !== 'Active' ? `(${c.status})` : ''}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div>

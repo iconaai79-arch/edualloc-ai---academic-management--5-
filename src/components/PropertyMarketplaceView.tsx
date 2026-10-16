@@ -1366,7 +1366,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Order Authenticated</h4>
                                     <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-loose max-w-xs mx-auto">
                                         {inquiryProduct 
-                                            ? `Retail logistics initialized. Your items will be dispatched to ${selectedRate?.destination} within ${selectedRate?.estimated_days} work days.` 
+                                            ? `Retail logistics initialized. Your items will be dispatched to ${selectedRate?.destination} within ${selectedRate?.estimated_days || selectedRate?.estimatedDays || 1} work days.` 
                                             : `Transmission successful. Our field agents will contact you at ${inquiryPhone} for further intelligence.`}
                                     </p>
                                 </div>
@@ -1438,7 +1438,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                     >
                                                         <div className="flex flex-col items-start gap-1">
                                                             <span className="font-black text-slate-900 dark:text-white uppercase italic">{rate.destination}</span>
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rate.estimated_days} Day Delivery</span>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rate.estimated_days || rate.estimatedDays || 1} Day Delivery</span>
                                                         </div>
                                                         <span className="text-lg font-black text-indigo-600">KES {rate.rate}</span>
                                                     </button>

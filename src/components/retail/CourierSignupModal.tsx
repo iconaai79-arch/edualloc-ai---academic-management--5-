@@ -28,6 +28,8 @@ export function CourierSignupModal({ isOpen, onClose, institutionId, onSuccess }
         try {
             await apiService.saveModuleRecord('retail_couriers', {
                 ...formData,
+                companyName: formData.name,
+                company_name: formData.name,
                 institutionId,
                 id: `courier_reg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                 status: 'Pending'
