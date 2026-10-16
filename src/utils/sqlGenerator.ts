@@ -3607,6 +3607,10 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_requisitions_inst_id_desc ON requisitions(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_requisitions_inst_status ON requisitions(institution_id, status);`,
         `CREATE INDEX IF NOT EXISTS idx_requisitions_inst_date ON requisitions(institution_id, requested_date DESC);`,
+        // Multi-Campus & Branches
+        `CREATE INDEX IF NOT EXISTS idx_branches_inst_id_desc ON branches(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_branches_inst_active ON branches(institution_id, is_active);`,
+        `CREATE INDEX IF NOT EXISTS idx_branches_linked_inst ON branches(linked_institution_id);`,
         // Institution Module States & Settings
         `CREATE INDEX IF NOT EXISTS idx_ims_inst_id_desc ON institution_module_states(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_ims_inst_module ON institution_module_states(institution_id, module_id);`,

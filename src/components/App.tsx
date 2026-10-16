@@ -1530,7 +1530,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     !currentUser ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<InstitutionModuleState>('institution_module_states', (!isSuperAdmin && currentUser?.institutionId) ? currentUser.institutionId : undefined, undefined, { limit: 1000 }).catch(() => []), identityTimeout, []),
                     isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<any>('events', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
                     (currentUser || showAlumnaeRegister || showInstitutionClaim || showAlumnaeActivation) ? withTimeout(apiService.fetchModuleRecords<Constituency>('constituencies', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []) : Promise.resolve([]),
-                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<Branch>('branches', undefined, undefined, { limit: 10000 }).catch(() => []), identityTimeout, []),
+                    isGuestMode ? Promise.resolve([]) : withTimeout(apiService.fetchModuleRecords<Branch>('branches', (!isSuperAdmin && currentUser?.institutionId) ? currentUser.institutionId : undefined, undefined, { limit: 500 }).catch(() => []), identityTimeout, []),
                 ]);
                 insts = results[0];
                 cnts = results[1];
