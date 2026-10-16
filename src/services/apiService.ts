@@ -9771,8 +9771,8 @@ export const apiService = {
                 apiService.fetchModuleRecords('student_enrollments', institutionId).catch(() => []),
                 apiService.fetchTransactions(institutionId, { limit: 100000, order: 'created_at.desc' }).catch(() => []),
                 apiService.fetchModuleRecords('bank_transactions', institutionId, undefined, { limit: 100000, order: 'created_at.desc' }).catch(() => []),
-                apiService.fetchModuleRecords('requisitions', institutionId).catch(() => []),
-                apiService.fetchModuleRecords('payroll_records', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('requisitions', institutionId, undefined, { limit: 500 }).catch(() => []),
+                apiService.fetchModuleRecords('payroll_records', institutionId, undefined, { limit: 500 }).catch(() => []),
                 apiService.fetchModuleRecords('users', institutionId, undefined, { filter: { role: 'student' } }).catch(() => [])
             ]);
 

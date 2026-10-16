@@ -156,7 +156,7 @@ class SyncEngine {
                 apiService.fetchModuleRecords('institutions', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('constituencies').catch(() => []),
                 apiService.fetchModuleRecords('users', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('requisitions', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('requisitions', tenantId, undefined, { limit: 500 }).catch(() => []),
                 apiService.fetchModuleRecords('sms_logs', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('sms_outbox', tenantId).catch(() => []),
                 apiService.fetchModuleRecords('election_events', tenantId).catch(() => []),

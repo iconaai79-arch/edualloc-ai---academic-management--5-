@@ -3596,6 +3596,14 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_maint_requests_inst_id_desc ON maintenance_requests(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_maint_requests_inst_date ON maintenance_requests(institution_id, reported_at DESC);`,
+        // Procurement & Requisitions
+        `CREATE INDEX IF NOT EXISTS idx_requisitions_inst_id_desc ON requisitions(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_requisitions_inst_status ON requisitions(institution_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_requisitions_inst_date ON requisitions(institution_id, requested_date DESC);`,
+        // Institution Module States & Settings
+        `CREATE INDEX IF NOT EXISTS idx_ims_inst_id_desc ON institution_module_states(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ims_inst_module ON institution_module_states(institution_id, module_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_ims_inst_updated ON institution_module_states(institution_id, updated_at DESC);`,
         // Resellers
         `CREATE INDEX IF NOT EXISTS idx_cwr_reseller_id ON commission_withdrawal_requests(reseller_id);`,
         `CREATE INDEX IF NOT EXISTS idx_cwr_status ON commission_withdrawal_requests(status);`,
