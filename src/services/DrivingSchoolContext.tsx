@@ -125,6 +125,7 @@ interface DrivingSchoolContextType {
     updateStudent: (data: any) => Promise<void>;
     deleteStudent: (id: string) => Promise<void>;
     deleteStudents: (ids: string[], skipConfirmation?: boolean) => Promise<void>;
+    bulkAssignStudentsBranch: (studentIds: string[], branchId: string | null) => Promise<void>;
     addLesson: (data: any) => Promise<void>;
     addMastery: (data: any) => Promise<void>;
     updateSettings: (data: any) => Promise<void>;
@@ -202,6 +203,7 @@ const defaultDrivingSchoolContext: DrivingSchoolContextType = {
     updateStudent: async () => {},
     deleteStudent: async () => {},
     deleteStudents: async () => {},
+    bulkAssignStudentsBranch: async () => {},
     addLesson: async () => {},
     addMastery: async () => {},
     updateSettings: async () => {},
@@ -1498,6 +1500,79 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         }
     }, [institutionId, students, lessons, onRefresh, success, error]);
 
+    const bulkAssignStudentsBranch = useCallback(async (studentIds: string[], branchId: string | null) => {
+        if (!institutionId || !studentIds || studentIds.length === 0) return;
+        
+        try {
+            const idsSet = new Set(studentIds);
+            const sourceList = (rawStudents && rawStudents.length > 0 ? rawStudents : students);
+            const targetStudents = sourceList.filter(s => idsSet.has(s.id));
+            if (targetStudents.length === 0) return;
+
+            // 1. Try Supabase RPC first if available for atomic bulk update
+            let rpcSuccess = false;
+            try {
+                const rpcRes = await apiService.rpc('bulk_assign_ds_students_branch', {
+                    p_student_ids: studentIds,
+                    p_target_branch_id: branchId || null,
+                    p_institution_id: institutionId
+                });
+                if (rpcRes && (rpcRes.success || rpcRes.data?.success)) {
+                    rpcSuccess = true;
+                }
+            } catch (rpcErr) {
+                // Fall back to batch record saves
+            }
+
+            // 2. Batch update fallback
+            if (!rpcSuccess) {
+                const BATCH_SIZE = 25;
+                for (let i = 0; i < targetStudents.length; i += BATCH_SIZE) {
+                    const chunk = targetStudents.slice(i, i + BATCH_SIZE);
+                    const updatedChunk = chunk.map(s => ({
+                        ...s,
+                        institutionId,
+                        branchId: branchId || null,
+                        branch_id: branchId || null,
+                        updatedAt: new Date().toISOString()
+                    }));
+                    await apiService.saveModuleRecords('ds_students', updatedChunk);
+                }
+            }
+
+            // 3. Immediately update local state
+            setStudents(prev => prev.map(s => {
+                if (idsSet.has(s.id)) {
+                    return {
+                        ...s,
+                        branchId: branchId || undefined,
+                        branch_id: branchId || undefined
+                    };
+                }
+                return s;
+            }));
+            setRawStudents(prev => prev.map(s => {
+                if (idsSet.has(s.id)) {
+                    return {
+                        ...s,
+                        branchId: branchId || undefined,
+                        branch_id: branchId || undefined
+                    };
+                }
+                return s;
+            }));
+
+            const targetBranch = branches.find(b => b.id === branchId);
+            const branchLabel = targetBranch ? targetBranch.name : (branchId ? branchId : 'Unassigned (No Branch)');
+            success(`Successfully assigned ${studentIds.length} ${studentIds.length === 1 ? 'student' : 'students'} to ${branchLabel}.`);
+            await onRefresh();
+        } catch (err: any) {
+            console.error("[DSContext] Failed to bulk assign branch to students:", err);
+            error("Failed to assign branch to students: " + (err.message || "Unknown error"));
+            throw err;
+        }
+    }, [institutionId, students, rawStudents, branches, onRefresh, success, error]);
+
     const sendLessonNotification = useCallback(async (lesson: DSLesson, isReminder = false) => {
         const student = students.find(s => s.id === lesson.studentId);
         const instructor = instructors.find(i => i.id === lesson.instructorId);
@@ -2463,7 +2538,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         addBranch, updateBranch, deleteBranch,
         rawStudents, rawInstructors, rawVehicles, rawLessons, rawInvoices, rawPayments, rawLeads, rawExpenditures,
         setInstructors, setVehicles, setStudents, setLessons, setMastery, setSettings, setInvoices, setPayments, setLeads, setExpenditures,
-        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, deletePayments, addLead, updateLead, deleteLead, deleteLeads,
+        addInstructor, addVehicle, updateVehicle, deleteVehicle, addStudent, verifyStudentPayment, updateStudent, deleteStudent, deleteStudents, bulkAssignStudentsBranch, addLesson, updateLesson, deleteLesson, addMastery, updateSettings, addInvoice, updateInvoice, deleteInvoice, addPayment, updatePayment, deletePayment, deletePayments, addLead, updateLead, deleteLead, deleteLeads,
         addExpenditure, updateExpenditure, deleteExpenditure,
         sendLessonNotification,
         refreshData, stats

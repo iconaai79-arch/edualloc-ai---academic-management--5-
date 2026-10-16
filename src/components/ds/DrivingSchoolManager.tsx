@@ -959,9 +959,10 @@ const SmartLeadImporterModal: React.FC<{
 const SmartStudentBulkUpdaterModal: React.FC<{
     onClose: () => void;
     students: DSStudent[];
+    branches?: Branch[];
     onUpdateStudent: (data: any) => Promise<void>;
     onRefresh: () => Promise<void>;
-}> = ({ onClose, students, onUpdateStudent, onRefresh }) => {
+}> = ({ onClose, students, branches = [], onUpdateStudent, onRefresh }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [step, setStep] = useState<'upload' | 'map'>('upload');
@@ -972,7 +973,8 @@ const SmartStudentBulkUpdaterModal: React.FC<{
     const [mappings, setMappings] = useState<Record<string, string>>({
         matchKey: '',
         idNumber: '',
-        enrollmentDate: ''
+        enrollmentDate: '',
+        branch: ''
     });
 
     const [matchByField, setMatchByField] = useState<'admissionNumber' | 'phone' | 'email'>('admissionNumber');
@@ -999,11 +1001,13 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                 const matchedCol = headers.find((h: any) => /adm|reg|admission|enroll|phone|mobile|tel|mail|email/i.test(String(h))) || '';
                 const idCol = headers.find((h: any) => /id|national|passport|doc/i.test(String(h))) || '';
                 const dateCol = headers.find((h: any) => /date|enroll|admit|admission/i.test(String(h))) || '';
+                const branchCol = headers.find((h: any) => /branch|campus|center|centre|location/i.test(String(h))) || '';
 
                 setMappings({
                     matchKey: matchedCol,
                     idNumber: idCol,
-                    enrollmentDate: dateCol
+                    enrollmentDate: dateCol,
+                    branch: branchCol
                 });
 
                 if (matchedCol) {
@@ -1031,6 +1035,12 @@ const SmartStudentBulkUpdaterModal: React.FC<{
         return rawData.slice(0, 5).map(row => {
             const matchValue = row[mappings.matchKey] || '';
             const idVal = row[mappings.idNumber] || '';
+            const rawBranch = String(row[mappings.branch] || '').trim();
+            const matchedBranch = (branches || []).find(b => 
+                b.name.toLowerCase() === rawBranch.toLowerCase() || 
+                (b.code && b.code.toLowerCase() === rawBranch.toLowerCase()) ||
+                b.id.toLowerCase() === rawBranch.toLowerCase()
+            );
             
             const rawDate = row[mappings.enrollmentDate];
             let dateVal = '—';
@@ -1051,18 +1061,19 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                 matchValue: matchValue || '—',
                 idNumber: idVal || '—',
                 enrollmentDate: dateVal,
+                branchName: matchedBranch ? matchedBranch.name : (rawBranch || '—'),
                 studentName: matchedStudent ? matchedStudent.fullName : null
             };
         });
-    }, [rawData, mappings, matchByField, students]);
+    }, [rawData, mappings, matchByField, students, branches]);
 
     const handleConfirmUpdate = async () => {
         if (!mappings.matchKey) {
             toastError("Matching column must be selected.");
             return;
         }
-        if (!mappings.idNumber && !mappings.enrollmentDate) {
-            toastError("At least one target update column (ID Number or Admission Date) must be mapped.");
+        if (!mappings.idNumber && !mappings.enrollmentDate && !mappings.branch) {
+            toastError("At least one target update column (ID Number, Admission Date, or Branch) must be mapped.");
             return;
         }
 
@@ -1110,6 +1121,22 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                         }
                         if (parsedDateStr && student.enrollmentDate !== parsedDateStr) {
                             updatePayload.enrollmentDate = parsedDateStr;
+                            modified = true;
+                        }
+                    }
+                }
+
+                if (mappings.branch) {
+                    const rawBranch = String(row[mappings.branch] || '').trim();
+                    if (rawBranch) {
+                        const foundBranch = (branches || []).find(b => 
+                            b.name.toLowerCase() === rawBranch.toLowerCase() ||
+                            (b.code && b.code.toLowerCase() === rawBranch.toLowerCase()) ||
+                            b.id.toLowerCase() === rawBranch.toLowerCase()
+                        );
+                        if (foundBranch && student.branchId !== foundBranch.id) {
+                            updatePayload.branchId = foundBranch.id;
+                            updatePayload.branch_id = foundBranch.id;
                             modified = true;
                         }
                     }
@@ -1209,12 +1236,13 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[180px] overflow-y-auto pr-1">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-[180px] overflow-y-auto pr-1">
                                 {[
                                     { key: 'enrollmentDate', label: 'Admission Date', desc: 'Map to enrollment_date' },
-                                    { key: 'idNumber', label: 'National ID Number', desc: 'Map to id_number' }
+                                    { key: 'idNumber', label: 'National ID Number', desc: 'Map to id_number' },
+                                    { key: 'branch', label: 'Assigned Branch', desc: 'Map to branch name or code' }
                                 ].map(field => (
-                                    <div key={field.key} className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
+                                    <div key={field.key} className="bg-slate-50 dark:bg-slate-800/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 flex flex-col gap-2">
                                         <div>
                                             <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">{field.label}</label>
                                             <p className="text-[9px] text-slate-400 font-medium mt-0.5">{field.desc}</p>
@@ -1223,7 +1251,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                                             <select
                                                 value={mappings[field.key] || ''}
                                                 onChange={(e) => setMappings(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                                className="w-full px-4 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
+                                                className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg focus:ring-1 focus:ring-indigo-500 font-bold text-xs appearance-none cursor-pointer text-slate-700 dark:text-slate-200"
                                             >
                                                 <option value="">-- Ignore Field --</option>
                                                 {detectedHeaders.map(h => (
@@ -1237,7 +1265,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
 
                             <div className="space-y-2">
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Update Row Preview</h4>
-                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50 dark:bg-slate-900 overflow-x-auto">
                                     <table className="w-full text-left text-xs border-collapse">
                                         <thead>
                                             <tr className="bg-slate-100 dark:bg-slate-800/50 text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
@@ -1245,6 +1273,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                                                 <th className="p-3">Matched Candidate</th>
                                                 <th className="p-3">New ID Number</th>
                                                 <th className="p-3">New Admission Date</th>
+                                                <th className="p-3">New Branch</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1254,6 +1283,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                                                     <td className="p-3 text-slate-900 dark:text-white font-bold">{row.studentName || <span className="text-rose-500 dark:text-rose-400 italic">No Match Found</span>}</td>
                                                     <td className="p-3 font-mono">{row.idNumber}</td>
                                                     <td className="p-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">{row.enrollmentDate}</td>
+                                                    <td className="p-3 font-semibold text-emerald-600 dark:text-emerald-400">{row.branchName}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1264,7 +1294,7 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                             <div className="pt-2">
                                 <button 
                                     onClick={handleConfirmUpdate}
-                                    disabled={isProcessing || !mappings.matchKey || (!mappings.idNumber && !mappings.enrollmentDate)}
+                                    disabled={isProcessing || !mappings.matchKey || (!mappings.idNumber && !mappings.enrollmentDate && !mappings.branch)}
                                     className="w-full py-4.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
                                 >
                                     {isProcessing ? 'Updating Records...' : 'Run Smart Bulk Updater'}
@@ -1277,6 +1307,322 @@ const SmartStudentBulkUpdaterModal: React.FC<{
                 <div className="p-6 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Supported formats: .xlsx, .csv, .xls</p>
                     <button onClick={onClose} className="text-[10px] font-black text-slate-500 uppercase tracking-widest hover:text-slate-900 dark:hover:text-slate-100 transition-colors">Cancel</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const BulkAssignBranchModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    selectedStudentIds: string[];
+    allStudents: DSStudent[];
+    branches: Branch[];
+    onAssign: (studentIds: string[], branchId: string | null) => Promise<void>;
+}> = ({ isOpen, onClose, selectedStudentIds, allStudents, branches, onAssign }) => {
+    const { error: toastError, success: toastSuccess } = useToast();
+    const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+        return branches[0]?.id || '';
+    });
+    const [assignmentMode, setAssignmentMode] = useState<'selected' | 'unassigned' | 'all'>(() => {
+        return selectedStudentIds.length > 0 ? 'selected' : 'unassigned';
+    });
+    const [isAssigning, setIsAssigning] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+
+    if (!isOpen) return null;
+
+    const unassignedStudents = (allStudents || []).filter(s => !s.branchId && !(s as any).branch_id);
+
+    const targetStudents = assignmentMode === 'selected' 
+        ? (allStudents || []).filter(s => selectedStudentIds.includes(s.id))
+        : assignmentMode === 'unassigned'
+        ? unassignedStudents
+        : (allStudents || []);
+
+    const previewStudents = targetStudents.filter(s => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (s.fullName || '').toLowerCase().includes(q) ||
+            (s.admissionNumber || '').toLowerCase().includes(q) ||
+            (s.phone || '').toLowerCase().includes(q);
+    });
+
+    const selectedBranch = branches.find(b => b.id === selectedBranchId);
+
+    const handleConfirm = async () => {
+        if (targetStudents.length === 0) {
+            toastError("No students match the chosen assignment target.");
+            return;
+        }
+
+        const branchName = selectedBranchId ? (selectedBranch?.name || 'Selected Branch') : 'Unassigned (No Branch)';
+        const count = targetStudents.length;
+
+        if (!window.confirm(`Are you sure you want to assign ${count} ${count === 1 ? 'student' : 'students'} to ${branchName}?`)) {
+            return;
+        }
+
+        setIsAssigning(true);
+        try {
+            const idsToUpdate = targetStudents.map(s => s.id);
+            await onAssign(idsToUpdate, selectedBranchId || null);
+            toastSuccess(`Successfully assigned ${count} ${count === 1 ? 'student' : 'students'} to ${branchName}!`);
+            onClose();
+        } catch (err: any) {
+            console.error("Bulk assign branch error:", err);
+            toastError("Failed to assign branch: " + (err.message || 'Unknown error'));
+        } finally {
+            setIsAssigning(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-scale-up">
+                {/* Header */}
+                <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-slate-850/50">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                            <BuildingOfficeIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Bulk Assign Campus / Branch</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                                Reassign or backfill branches for existing driving school students
+                            </p>
+                        </div>
+                    </div>
+                    <button 
+                        type="button" 
+                        onClick={onClose} 
+                        className="p-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                    >
+                        <XIcon className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1">
+                    {/* Mode selection tabs */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                            1. Select Students to Assign ({targetStudents.length} Students Targeted)
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/60 rounded-2xl">
+                            <button
+                                type="button"
+                                disabled={selectedStudentIds.length === 0}
+                                onClick={() => setAssignmentMode('selected')}
+                                className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 ${
+                                    assignmentMode === 'selected'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 disabled:opacity-40'
+                                }`}
+                            >
+                                <span>Checked Students</span>
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                                    {selectedStudentIds.length} Selected
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAssignmentMode('unassigned')}
+                                className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 ${
+                                    assignmentMode === 'unassigned'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                <span>Unassigned Only</span>
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                    unassignedStudents.length > 0 
+                                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400' 
+                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600'
+                                }`}>
+                                    {unassignedStudents.length} No Branch
+                                </span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAssignmentMode('all')}
+                                className={`py-3 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex flex-col items-center justify-center gap-1 ${
+                                    assignmentMode === 'all'
+                                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                }`}
+                            >
+                                <span>All Students</span>
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                    {allStudents.length} Total
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Target Branch Selection */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                            2. Destination Campus / Branch
+                        </label>
+                        {branches && branches.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
+                                {branches.map(b => {
+                                    const isSelected = selectedBranchId === b.id;
+                                    const currentCount = (allStudents || []).filter(s => (s.branchId || (s as any).branch_id) === b.id).length;
+                                    return (
+                                        <div
+                                            key={b.id}
+                                            onClick={() => setSelectedBranchId(b.id)}
+                                            className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                                                isSelected 
+                                                    ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30' 
+                                                    : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-850'
+                                            }`}
+                                        >
+                                            <div className="min-w-0 pr-2">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="font-black text-xs text-slate-900 dark:text-white truncate">{b.name}</span>
+                                                    {b.code && (
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                            {b.code}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 truncate mt-0.5">{b.location || 'Branch Campus'}</p>
+                                                <p className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 mt-1">
+                                                    {currentCount} students currently
+                                                </p>
+                                            </div>
+                                            <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                                                isSelected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700'
+                                            }`}>
+                                                {isSelected && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                <div
+                                    onClick={() => setSelectedBranchId('')}
+                                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                                        selectedBranchId === '' 
+                                            ? 'border-rose-500 bg-rose-50/40 dark:bg-rose-950/30' 
+                                            : 'border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-850'
+                                    }`}
+                                >
+                                    <div className="min-w-0 pr-2">
+                                        <span className="font-black text-xs text-rose-600 dark:text-rose-400">Clear / Detach Branch</span>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">Reset students to Unassigned</p>
+                                    </div>
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                                        selectedBranchId === '' ? 'border-rose-600 bg-rose-600 text-white' : 'border-slate-300 dark:border-slate-700'
+                                    }`}>
+                                        {selectedBranchId === '' && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-200 text-xs">
+                                ⚠️ No branches found. Please create branches in Settings &gt; Branches first.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Preview Table of Students to be assigned */}
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                3. Target Students Preview ({previewStudents.length})
+                            </label>
+                            {targetStudents.length > 5 && (
+                                <div className="relative w-44">
+                                    <input
+                                        type="text"
+                                        placeholder="Filter preview..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full px-3 py-1 bg-slate-50 dark:bg-slate-850 rounded-lg text-xs font-bold border border-slate-200 dark:border-slate-700"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        <div className="bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800 max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                            {previewStudents.length > 0 ? (
+                                previewStudents.slice(0, 50).map(s => {
+                                    const currB = branches.find(b => b.id === (s.branchId || (s as any).branch_id));
+                                    return (
+                                        <div key={s.id} className="p-3 flex items-center justify-between text-xs hover:bg-slate-100/60 dark:hover:bg-slate-800/40">
+                                            <div className="min-w-0 pr-2">
+                                                <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{s.fullName}</p>
+                                                <p className="text-[10px] text-slate-400 font-mono">
+                                                    {s.admissionNumber || s.phone || s.id}
+                                                </p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                                    currB 
+                                                        ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300' 
+                                                        : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400'
+                                                }`}>
+                                                    {currB ? currB.name : 'Unassigned'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="p-6 text-center text-slate-400 text-xs font-bold">
+                                    No students found for this target.
+                                </div>
+                            )}
+                            {previewStudents.length > 50 && (
+                                <div className="p-2 text-center text-[10px] text-slate-400 font-bold bg-slate-100 dark:bg-slate-800">
+                                    Showing first 50 of {previewStudents.length} students...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+                    <div>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white">
+                            Assigning <span className="text-indigo-600 dark:text-indigo-400 font-black">{targetStudents.length}</span> students
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                            Destination: <span className="font-bold text-slate-600 dark:text-slate-300">{selectedBranch ? selectedBranch.name : 'Clear Branch'}</span>
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            disabled={isAssigning}
+                            className="px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleConfirm}
+                            disabled={isAssigning || targetStudents.length === 0}
+                            className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center gap-2 active:scale-95 transition-all"
+                        >
+                            {isAssigning ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    <span>Assigning...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <BuildingOfficeIcon className="w-4 h-4" />
+                                    <span>Assign {targetStudents.length} Students</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
