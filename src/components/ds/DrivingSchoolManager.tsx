@@ -4148,6 +4148,16 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         return (rawRooms || []).filter(r => r && r.institutionId === currentInstitution?.id);
     }, [rawRooms, currentInstitution]);
 
+    const billableInstitutionId = useMemo(() => {
+        return (currentInstitution as any)?.parentInstitutionId || 
+               (currentInstitution as any)?.parent_institution_id || 
+               currentInstitution?.id;
+    }, [currentInstitution]);
+
+    const activeSmsBalance = useMemo(() => {
+        return (currentInstitution?.smsBalance ?? (currentInstitution as any)?.sms_balance ?? 0);
+    }, [currentInstitution]);
+
     const { success, error: toastError, info: toastInfo } = useToast();
     const {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
@@ -4744,7 +4754,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
-        const currentBalance = currentInstitution?.smsBalance || 0;
+        const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
@@ -4761,7 +4771,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         try {
             // Dispatch personalized SMS batches
             const tasks = targets.map(t => 
-                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)
+                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), billableInstitutionId)
             );
             await Promise.all(tasks);
             
@@ -4829,7 +4839,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
-        const currentBalance = currentInstitution?.smsBalance || 0;
+        const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
@@ -4846,7 +4856,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
 
         try {
             await Promise.all(targets.map(t => 
-                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)
+                apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), billableInstitutionId)
             ));
             success(`Successfully dispatched payment milestone reminders to ${targets.length} students!`);
         } catch (err) {
@@ -4888,7 +4898,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
-        const currentBalance = currentInstitution?.smsBalance || 0;
+        const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
@@ -4899,7 +4909,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
 
         setIsSendingReminders(true);
         try {
-            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)));
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), billableInstitutionId)));
             success(`Successfully dispatched PDL expiry alerts to ${targets.length} candidates!`);
         } catch (err) {
             toastError("Failed to dispatch some PDL alerts.");
@@ -4932,7 +4942,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
             return;
         }
 
-        const currentBalance = currentInstitution?.smsBalance || 0;
+        const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
@@ -4943,7 +4953,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
 
         setIsSendingReminders(true);
         try {
-            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), currentInstitution?.id)));
+            await Promise.all(targets.map(t => apiService.sendSms(t.phone, t.message, currentInstitution?.smsConfig, calculateSmsPages(t.message), billableInstitutionId)));
             success(`Successfully dispatched Test prep notifications to ${targets.length} candidates!`);
         } catch (err) {
             toastError("Failed to dispatch some test notifications.");
@@ -5326,7 +5336,7 @@ END $$;
                         msg,
                         currentInstitution.smsConfig,
                         calculateSmsPages(msg),
-                        currentInstitution.id
+                        billableInstitutionId
                     );
                 } else {
                     alert(`New PIN for ${student.fullName} is: ${newPassword}\nPlease share this with the student safely.`);
@@ -5639,7 +5649,7 @@ END $$;
                         
                         if (student?.phone && currentInstitution?.smsConfig) {
                             const msg = `Hi ${student.fullName}, your vehicle is ready! A Practical session is starting now at ${pStartStr} with ${instructor?.name || 'TBD'} in car ${pVehicle.plateNumber || pVehicle.registrationNumber}. Please proceed to the vehicle.`;
-                            await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                            await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), billableInstitutionId).catch(console.error);
                         }
                     }
                 }
@@ -5685,7 +5695,7 @@ END $$;
 
                     if (student.phone && currentInstitution?.smsConfig) {
                         const msg = `Hi ${student.fullName}, your 1-hour Theory session is completed! Your Practical session has now been automatically marked as Completed. Progress: ${nextPractical}%.`;
-                        await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                        await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), billableInstitutionId).catch(console.error);
                     }
                 }
             }
@@ -6462,13 +6472,13 @@ END $$;
                                 : ` Practical session auto-scheduled for ${pStartStr} (auto-completes after 1 hour) with ${pInstructor?.name || 'instructor'} (${pPlate}).`;
                             if (student.phone && currentInstitution?.smsConfig) {
                                 const msg = `Hi ${student.fullName}, your Theory session has started. A Practical session is auto-scheduled at ${pStartStr} with ${pInstructor?.name || 'TBD'} in car ${pPlate} (auto-updates after 1 hour).`;
-                                await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                                await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), billableInstitutionId).catch(console.error);
                             }
                         } else {
                             updatedInfo += ` You have been placed in the Practical Dispatch Queue.`;
                             if (student.phone && currentInstitution?.smsConfig) {
                                 const msg = `Hi ${student.fullName}, your Theory session has started. You are in the queue for a Practical car.`;
-                                await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), currentInstitution.id).catch(console.error);
+                                await apiService.sendSms(student.phone, msg, currentInstitution.smsConfig, calculateSmsPages(msg), billableInstitutionId).catch(console.error);
                             }
                         }
                     }
@@ -6932,7 +6942,7 @@ END $$;
                                 <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
                                 <div>
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">SMS Balance</p>
-                                    <p className="text-xs font-black text-white">{(currentInstitution?.smsBalance || 0).toLocaleString()} Units</p>
+                                    <p className="text-xs font-black text-white">{activeSmsBalance.toLocaleString()} Units</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsBuySMSModalOpen(true)} className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider shadow-sm">
@@ -7016,10 +7026,10 @@ END $$;
                             )}
                             {activeTab === 'broadcaster' && (
                                 <div className="flex items-center gap-3 px-6 py-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <div className={`w-2 h-2 rounded-full ${(currentInstitution?.smsBalance || 0) < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                    <div className={`w-2 h-2 rounded-full ${activeSmsBalance < 50 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                                     <div className="flex flex-col">
                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SMS Units</span>
-                                        <span className="text-xs font-black text-slate-900 dark:text-white">{(currentInstitution?.smsBalance || 0)?.toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
+                                        <span className="text-xs font-black text-slate-900 dark:text-white">{activeSmsBalance.toLocaleString()} <span className="text-[9px] text-slate-400">Available</span></span>
                                     </div>
                                     <button 
                                         onClick={() => setIsBuySMSModalOpen(true)}
@@ -8393,11 +8403,23 @@ END $$;
                                                                             if (confirm(`Send Fee Quotation SMS to ${lead.fullName} (${lead.phone})?\n\nMessage payload:\n"${msg}"`)) {
                                                                                 // Ensure live SMS broadcast via gateway
                                                                                 const pages = calculateSmsPages(msg);
-                                                                                const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
+                                                                                if (activeSmsBalance < pages) {
+                                                                                    toastError(`Insufficient SMS units (${activeSmsBalance} available, ${pages} required). Please top up SMS units.`);
+                                                                                    setIsBuySMSModalOpen(true);
+                                                                                    return;
+                                                                                }
+                                                                                const res = await apiService.sendSms(lead.phone, msg, currentInstitution?.smsConfig, pages, billableInstitutionId);
                                                                                 
                                                                                 await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount, items: leadVoteHeads });
                                                                                 
                                                                                 if (res?.success !== false) {
+                                                                                    if (billableInstitutionId) {
+                                                                                        const newBal = Math.max(0, activeSmsBalance - pages);
+                                                                                        if (currentInstitution) {
+                                                                                            currentInstitution.smsBalance = newBal;
+                                                                                            (currentInstitution as any).sms_balance = newBal;
+                                                                                        }
+                                                                                    }
                                                                                     success(`Quotation generated & live SMS dispatched successfully to ${lead.phone}!`);
                                                                                 } else {
                                                                                     success(`Quotation created & logged successfully. Gateway response: ${res?.message || 'Delivered to local gateway queue'}`);
@@ -8723,9 +8745,21 @@ END $$;
                                                             
                                                             if (confirm(`Send Fee Quotation SMS to ${viewQuoteModalLead.fullName} (${viewQuoteModalLead.phone})?\n\nMessage payload:\n"${msg}"`)) {
                                                                 const pages = calculateSmsPages(msg);
-                                                                const res = await apiService.sendSms(viewQuoteModalLead.phone, msg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
+                                                                if (activeSmsBalance < pages) {
+                                                                    toastError(`Insufficient SMS units (${activeSmsBalance} available, ${pages} required). Please top up SMS units.`);
+                                                                    setIsBuySMSModalOpen(true);
+                                                                    return;
+                                                                }
+                                                                const res = await apiService.sendSms(viewQuoteModalLead.phone, msg, currentInstitution?.smsConfig, pages, billableInstitutionId);
                                                                 await updateLead({ ...viewQuoteModalLead, status: 'Quotation Sent', quotedAmount: modalTotalAmount, items: modalVoteHeads });
                                                                 if (res?.success !== false) {
+                                                                    if (billableInstitutionId) {
+                                                                        const newBal = Math.max(0, activeSmsBalance - pages);
+                                                                        if (currentInstitution) {
+                                                                            currentInstitution.smsBalance = newBal;
+                                                                            (currentInstitution as any).sms_balance = newBal;
+                                                                        }
+                                                                    }
                                                                     success(`Quotation generated & live SMS dispatched successfully to ${viewQuoteModalLead.phone}!`);
                                                                 } else {
                                                                     success(`Quotation saved. Gateway response: ${res?.message || 'Delivered'}`);
@@ -13387,7 +13421,7 @@ END $$;
                                      });
                                      const tasks = [];
                                      let smsResInfo = null;
-                                     const currentBalance = currentInstitution?.smsBalance || 0;
+                                     const currentBalance = activeSmsBalance;
 
                                      let requiredUnits = 0;
 
@@ -13401,15 +13435,15 @@ END $$;
                                              setIsActionLoading(false);
                                              return;
                                          }
-                                         smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, currentInstitution?.id);
+                                         smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, billableInstitutionId);
 
                                          // Optimistically update institution SMS balance locally and persist to database
-                                         if (currentInstitution?.id && requiredUnits > 0) {
+                                         if (billableInstitutionId && requiredUnits > 0) {
                                              const newBal = Math.max(0, currentBalance - requiredUnits);
                                              currentInstitution.smsBalance = newBal;
                                              currentInstitution.sms_balance = newBal;
                                              await apiService.saveModuleRecord('institutions', {
-                                                 id: currentInstitution.id,
+                                                 id: billableInstitutionId,
                                                  smsBalance: newBal,
                                                  sms_balance: newBal
                                              }).catch(() => {});
@@ -13887,8 +13921,8 @@ END $$;
                             refreshData();
                             setIsBuySMSModalOpen(false);
                         }}
-                        institutionId={currentInstitution?.id || ''}
-                        institutionCode={currentInstitution?.institutionCode || currentInstitution?.id || ''}
+                        institutionId={billableInstitutionId || currentInstitution?.id || ''}
+                        institutionCode={currentInstitution?.institutionCode || billableInstitutionId || currentInstitution?.id || ''}
                         institutionName={currentInstitution?.name || 'Driving School'}
                         smsUnitPrice={currentInstitution?.customSmsPrice || (currentInstitution as any)?.custom_sms_price || currentInstitution?.smsConfig?.smsUnitPrice || (currentInstitution?.smsConfig as any)?.sms_unit_price || 2}
                         mpesaConfig={currentInstitution?.mpesaConfig}

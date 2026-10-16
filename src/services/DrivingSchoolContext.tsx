@@ -337,6 +337,57 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
     const defaultBranchId = useMemo(() => branches[0]?.id || `br_main_${institutionId}`, [branches, institutionId]);
 
+    // Fast index of student branch IDs and invoice branch IDs for cascade resolution
+    const studentBranchMap = useMemo(() => {
+        const map = new Map<string, string>();
+        (rawStudents || []).forEach(s => {
+            const b = s.branchId || s.branch_id;
+            if (b) {
+                map.set(s.id, b);
+                if (s.admissionNumber) map.set(s.admissionNumber, b);
+                if ((s as any).admission_number) map.set((s as any).admission_number, b);
+            }
+        });
+        return map;
+    }, [rawStudents]);
+
+    const invoiceBranchMap = useMemo(() => {
+        const map = new Map<string, string>();
+        (rawInvoices || []).forEach(inv => {
+            const b = inv.branchId || inv.branch_id || (inv.studentId ? studentBranchMap.get(inv.studentId) : undefined);
+            if (b) {
+                map.set(inv.id, b);
+                if (inv.invoiceNumber) map.set(inv.invoiceNumber, b);
+            }
+        });
+        return map;
+    }, [rawInvoices, studentBranchMap]);
+
+    const resolveItemBranch = useCallback((item: any, type?: 'student' | 'invoice' | 'payment' | 'lesson' | 'lead' | 'vehicle' | 'instructor' | 'expenditure'): string => {
+        if (!item) return defaultBranchId;
+        const directBranch = item.branchId || item.branch_id;
+        if (directBranch) return directBranch;
+
+        if (type === 'payment' || (!type && (item.receiptNumber || item.paymentMethod))) {
+            const fromInv = item.invoiceId ? invoiceBranchMap.get(item.invoiceId) : undefined;
+            if (fromInv) return fromInv;
+            const fromStud = item.studentId ? studentBranchMap.get(item.studentId) : undefined;
+            if (fromStud) return fromStud;
+        }
+
+        if (type === 'invoice' || (!type && (item.invoiceNumber || item.totalAmount !== undefined))) {
+            const fromStud = item.studentId ? studentBranchMap.get(item.studentId) : undefined;
+            if (fromStud) return fromStud;
+        }
+
+        if (type === 'lesson' || (!type && item.lessonDate)) {
+            const fromStud = item.studentId ? studentBranchMap.get(item.studentId) : undefined;
+            if (fromStud) return fromStud;
+        }
+
+        return defaultBranchId;
+    }, [defaultBranchId, invoiceBranchMap, studentBranchMap]);
+
     const matchesBranch = useCallback((itemBranchId?: string) => {
         if (activeBranchId === 'ALL') return true;
         if (branches.length <= 1) return true;
@@ -345,36 +396,36 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     }, [activeBranchId, defaultBranchId, branches.length]);
 
     const students = useMemo(() => {
-        return rawStudents.filter(s => matchesBranch(s.branchId || s.branch_id));
-    }, [rawStudents, matchesBranch]);
+        return rawStudents.filter(s => matchesBranch(resolveItemBranch(s, 'student')));
+    }, [rawStudents, resolveItemBranch, matchesBranch]);
 
     const instructors = useMemo(() => {
-        return rawInstructors.filter(i => matchesBranch(i.branchId || i.branch_id));
-    }, [rawInstructors, matchesBranch]);
+        return rawInstructors.filter(i => matchesBranch(resolveItemBranch(i, 'instructor')));
+    }, [rawInstructors, resolveItemBranch, matchesBranch]);
 
     const vehicles = useMemo(() => {
-        return rawVehicles.filter(v => matchesBranch(v.branchId || v.branch_id));
-    }, [rawVehicles, matchesBranch]);
+        return rawVehicles.filter(v => matchesBranch(resolveItemBranch(v, 'vehicle')));
+    }, [rawVehicles, resolveItemBranch, matchesBranch]);
 
     const lessons = useMemo(() => {
-        return rawLessons.filter(l => matchesBranch(l.branchId || l.branch_id));
-    }, [rawLessons, matchesBranch]);
+        return rawLessons.filter(l => matchesBranch(resolveItemBranch(l, 'lesson')));
+    }, [rawLessons, resolveItemBranch, matchesBranch]);
 
     const invoices = useMemo(() => {
-        return rawInvoices.filter(inv => matchesBranch(inv.branchId || inv.branch_id));
-    }, [rawInvoices, matchesBranch]);
+        return rawInvoices.filter(inv => matchesBranch(resolveItemBranch(inv, 'invoice')));
+    }, [rawInvoices, resolveItemBranch, matchesBranch]);
 
     const payments = useMemo(() => {
-        return rawPayments.filter(p => matchesBranch(p.branchId || p.branch_id));
-    }, [rawPayments, matchesBranch]);
+        return rawPayments.filter(p => matchesBranch(resolveItemBranch(p, 'payment')));
+    }, [rawPayments, resolveItemBranch, matchesBranch]);
 
     const leads = useMemo(() => {
-        return rawLeads.filter(ld => matchesBranch(ld.branchId || ld.branch_id));
-    }, [rawLeads, matchesBranch]);
+        return rawLeads.filter(ld => matchesBranch(resolveItemBranch(ld, 'lead')));
+    }, [rawLeads, resolveItemBranch, matchesBranch]);
 
     const expenditures = useMemo(() => {
-        return rawExpenditures.filter(e => matchesBranch(e.branchId || e.branch_id));
-    }, [rawExpenditures, matchesBranch]);
+        return rawExpenditures.filter(e => matchesBranch(resolveItemBranch(e, 'expenditure')));
+    }, [rawExpenditures, resolveItemBranch, matchesBranch]);
 
     const resolveBranchIdToUse = useCallback((explicitBranchId?: string) => {
         if (explicitBranchId) return explicitBranchId;
@@ -907,6 +958,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     modified = true;
                 }
 
+                // Heal branchId if missing and student has branch assigned
+                const invBranch = (updatedInv as any).branchId || (updatedInv as any).branch_id;
+                const studBranch = matchedStud?.branchId || (matchedStud as any)?.branch_id;
+                if (!invBranch && studBranch) {
+                    updatedInv.branchId = studBranch;
+                    (updatedInv as any).branch_id = studBranch;
+                    modified = true;
+                }
+
                 const linkedPayments = (dsPay || []).filter(p => {
                     if (!p || p.status === 'Pending Deletion' || p.status === 'Cancelled' || p.status === 'Rejected') return false;
                     if (p.invoiceId && (p.invoiceId === updatedInv.id || p.invoiceId === updatedInv.invoiceNumber)) return true;
@@ -968,14 +1028,29 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const realAdm = matchedStud?.admissionNumber || (matchedStud as any)?.admission_number || (matchedInv as any)?.admissionNumber || (p as any).admissionNumber;
                 const realStudentId = matchedStud?.id || p.studentId;
 
+                const payBranch = p.branchId || (p as any).branch_id;
+                const targetBranch = matchedInv?.branchId || (matchedInv as any)?.branch_id || matchedStud?.branchId || (matchedStud as any)?.branch_id;
+                let payModified = false;
+                let updatedPayment = { ...p };
+
+                if (!payBranch && targetBranch) {
+                    updatedPayment.branchId = targetBranch;
+                    (updatedPayment as any).branch_id = targetBranch;
+                    payModified = true;
+                }
+
                 if (isGenericOrMissing && realName) {
                     console.log(`[DSContext] Auto-healing payment ${p.receiptNumber || p.id} studentName: "${rawName}" -> "${realName}"`);
-                    const updatedPayment = {
-                        ...p,
+                    updatedPayment = {
+                        ...updatedPayment,
                         studentName: realName,
                         studentId: realStudentId || p.studentId,
                         ...(realAdm ? { admissionNumber: realAdm } : {})
                     };
+                    payModified = true;
+                }
+
+                if (payModified) {
                     apiService.saveModuleRecord('ds_payments', updatedPayment).catch(err => {
                         console.warn('[DSContext] Failed to persist auto-healed payment:', err);
                     });
@@ -1014,14 +1089,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         let matchedInst: any = null;
         try {
             if (instId) {
-                const insts = await apiService.fetchModuleRecords('institutions', instId);
+                // If instId matches a branch in branches, query parent institution
+                const branchMatch = (branches || []).find(b => b.id === instId || b.linked_institution_id === instId || b.id === `br_${instId}`);
+                const targetInstId = branchMatch?.institution_id || instId;
+
+                const insts = await apiService.fetchModuleRecords('institutions', targetInstId);
                 if (Array.isArray(insts) && insts.length > 0) {
                     matchedInst = insts.find((i: any) => 
                         i && (
-                            i.id === instId || 
-                            i.id === `inst_${instId}` || 
-                            instId === `inst_${i.id}` || 
-                            String(i.id).toLowerCase() === String(instId).toLowerCase()
+                            i.id === targetInstId || 
+                            i.id === `inst_${targetInstId}` || 
+                            targetInstId === `inst_${i.id}` || 
+                            String(i.id).toLowerCase() === String(targetInstId).toLowerCase()
                         )
                     );
                     if (!matchedInst && insts.length === 1) {
@@ -1046,6 +1125,26 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             } catch (_) {}
         }
 
+        // If matchedInst is a branch, inherit from parent if possible
+        if (matchedInst && (matchedInst.isBranch || matchedInst.parentInstitutionId || matchedInst.parent_institution_id)) {
+            const parentId = matchedInst.parentInstitutionId || matchedInst.parent_institution_id;
+            if (parentId) {
+                try {
+                    const pList = await apiService.fetchModuleRecords('institutions', parentId);
+                    const pInst = (pList || []).find((i: any) => i && (i.id === parentId || String(i.id).toLowerCase() === String(parentId).toLowerCase()));
+                    if (pInst) {
+                        matchedInst = {
+                            ...pInst,
+                            ...matchedInst,
+                            smsBalance: matchedInst.smsBalance ?? matchedInst.sms_balance ?? pInst.smsBalance ?? pInst.sms_balance ?? 0,
+                            sms_balance: matchedInst.sms_balance ?? matchedInst.smsBalance ?? pInst.sms_balance ?? pInst.smsBalance ?? 0,
+                            smsConfig: matchedInst.smsConfig || matchedInst.sms_config || pInst.smsConfig || pInst.sms_config
+                        };
+                    }
+                } catch (_) {}
+            }
+        }
+
         let resolvedName = matchedInst?.name || settings?.schoolName || 'Driving School';
         // Strictly sanitize: ensure a driving school welcome message never leaks a "Law Firm" tenant name
         if (!resolvedName || resolvedName.toLowerCase().includes('law firm')) {
@@ -1055,9 +1154,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         return {
             ...(matchedInst || {}),
             name: resolvedName,
+            smsBalance: matchedInst?.smsBalance ?? (matchedInst as any)?.sms_balance ?? 0,
+            sms_balance: (matchedInst as any)?.sms_balance ?? matchedInst?.smsBalance ?? 0,
             smsConfig: matchedInst?.smsConfig || (matchedInst as any)?.sms_config
         };
-    }, [settings?.schoolName]);
+    }, [settings?.schoolName, branches]);
 
     const addInstructor = useCallback(async (data: any) => {
         try {
@@ -1540,7 +1641,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
             }
 
-            // 3. Immediately update local state
+            // 3. Immediately update local student state
             setStudents(prev => prev.map(s => {
                 if (idsSet.has(s.id)) {
                     return {
@@ -1552,6 +1653,38 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return s;
             }));
 
+            // 4. Update associated invoices and payments so their branch follows the student
+            const targetInvoices = (rawInvoices || []).filter(inv => inv.studentId && idsSet.has(inv.studentId));
+            if (targetInvoices.length > 0) {
+                const updatedInvs = targetInvoices.map(inv => ({
+                    ...inv,
+                    institutionId,
+                    branchId: branchId || null,
+                    branch_id: branchId || null,
+                    updatedAt: new Date().toISOString()
+                }));
+                await apiService.saveModuleRecords('ds_invoices', updatedInvs).catch(err => {
+                    console.warn("[DSContext] Failed to bulk update invoice branches:", err);
+                });
+                setInvoices(prev => prev.map(inv => (inv.studentId && idsSet.has(inv.studentId)) ? { ...inv, branchId: branchId || undefined, branch_id: branchId || undefined } : inv));
+            }
+
+            const targetInvoiceIds = new Set(targetInvoices.map(i => i.id));
+            const targetPayments = (rawPayments || []).filter(p => (p.studentId && idsSet.has(p.studentId)) || (p.invoiceId && targetInvoiceIds.has(p.invoiceId)));
+            if (targetPayments.length > 0) {
+                const updatedPays = targetPayments.map(p => ({
+                    ...p,
+                    institutionId,
+                    branchId: branchId || null,
+                    branch_id: branchId || null,
+                    updatedAt: new Date().toISOString()
+                }));
+                await apiService.saveModuleRecords('ds_payments', updatedPays).catch(err => {
+                    console.warn("[DSContext] Failed to bulk update payment branches:", err);
+                });
+                setPayments(prev => prev.map(p => ((p.studentId && idsSet.has(p.studentId)) || (p.invoiceId && targetInvoiceIds.has(p.invoiceId))) ? { ...p, branchId: branchId || undefined, branch_id: branchId || undefined } : p));
+            }
+
             const targetBranch = branches.find(b => b.id === branchId);
             const branchLabel = targetBranch ? targetBranch.name : (branchId ? branchId : 'Unassigned (No Branch)');
             success(`Successfully assigned ${studentIds.length} ${studentIds.length === 1 ? 'student' : 'students'} to ${branchLabel}.`);
@@ -1561,7 +1694,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to assign branch to students: " + (err.message || "Unknown error"));
             throw err;
         }
-    }, [institutionId, students, rawStudents, branches, onRefresh, success, error]);
+    }, [institutionId, students, rawStudents, rawInvoices, rawPayments, branches, onRefresh, success, error]);
 
     const sendLessonNotification = useCallback(async (lesson: DSLesson, isReminder = false) => {
         const student = students.find(s => s.id === lesson.studentId);
@@ -2022,7 +2155,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             const fileName = `${docNumber}.pdf`;
 
             try {
-                const doc = await generateDSPDF(type, data, student as any, settings, inst, invoices, (data as any)?.receivedBy, payments);
+                const doc = await generateDSPDF(type, data, student as any, settings, inst, rawInvoices, (data as any)?.receivedBy, rawPayments);
                 const pdfBlob = doc.output('blob');
                 pdfBase64 = doc.output('datauristring').split(',')[1];
                 const storagePath = `driving_school/${type}s/${fileName}`;
@@ -2054,13 +2187,18 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             if (student.phone) {
                 try {
-                    const appDocUrl = `${window.location.origin}/?view=ds-invoice&id=${type === 'invoice' ? data.id : data.invoiceId || data.id}`;
-                    const finalUrl = await apiService.shortenUrl(appDocUrl);
-                    const shortUrl = finalUrl ? `\nView/Pay: ${finalUrl}` : '';
-                    const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${docTypeName} #${docNumber} of ${amountStr} is ready.${shortUrl}`;
-                    
-                    await apiService.sendSms(student.phone, smsMessage, activeSmsConfig, 1, institutionId);
-                    console.log(`[DS Automation] Automated SMS successfully dispatched for ${docTypeName} #${docNumber} to ${student.phone}`);
+                    const smsBal = (inst as any)?.smsBalance ?? (inst as any)?.sms_balance ?? 0;
+                    if (smsBal > 0) {
+                        const appDocUrl = `${window.location.origin}/?view=ds-invoice&id=${type === 'invoice' ? data.id : data.invoiceId || data.id}`;
+                        const finalUrl = await apiService.shortenUrl(appDocUrl);
+                        const shortUrl = finalUrl ? `\nView/Pay: ${finalUrl}` : '';
+                        const smsMessage = `Hello ${student.fullName}, your ${inst.name} ${docTypeName} #${docNumber} of ${amountStr} is ready.${shortUrl}`;
+                        
+                        await apiService.sendSms(student.phone, smsMessage, activeSmsConfig, 1, institutionId);
+                        console.log(`[DS Automation] Automated SMS successfully dispatched for ${docTypeName} #${docNumber} to ${student.phone}`);
+                    } else {
+                        console.log(`[DS Automation] Skipped SMS dispatch: institution has 0 SMS units.`);
+                    }
                 } catch (smsErr) {
                     console.warn(`[DS Automation] SMS delivery warning:`, smsErr);
                 }
@@ -2070,7 +2208,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
         } catch (err) {
             console.error(`[DS Automation] Critical failure in notification workflow:`, err);
         }
-    }, [institutionId, students, settings, invoices, resolveInstitutionConfig]);
+    }, [institutionId, students, settings, rawInvoices, rawPayments, resolveInstitutionConfig]);
 
     const addInvoice = useCallback(async (data: any) => {
         try {
@@ -2094,7 +2232,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             if (!adheresToPrefix) {
                 if (isNumericPrefix) {
                     let maxVal = asNum;
-                    invoices.forEach(inv => {
+                    rawInvoices.forEach(inv => {
                         if (inv.invoiceNumber) {
                             const num = Number(inv.invoiceNumber.trim());
                             if (!isNaN(num) && num >= asNum && num > maxVal) {
@@ -2105,7 +2243,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     invNumber = String(maxVal + 1);
                 } else {
                     let maxNum = 0;
-                    invoices.forEach(inv => {
+                    rawInvoices.forEach(inv => {
                         if (inv.invoiceNumber && inv.invoiceNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
                             const remainder = inv.invoiceNumber.slice(prefixStr.length).trim();
                             const match = remainder.match(/\d+/);
@@ -2179,7 +2317,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to generate invoice");
             throw err;
         }
-    }, [institutionId, resolveBranchIdToUse, rawStudents, onRefresh, success, error, students, settings, invoices, sendDocumentNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawStudents, onRefresh, success, error, students, settings, rawInvoices, sendDocumentNotification]);
 
     const recalculateInvoicePayments = useCallback((invoice: DSInvoice, invoicePayments: DSPayment[]) => {
         return recalculateDSInvoicePayments(invoice, invoicePayments);
@@ -2188,14 +2326,14 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
     const updateInvoice = useCallback(async (data: any) => {
         if (!institutionId || !data.id) return;
         try {
-            const oldInvoice = invoices.find(inv => inv.id === data.id);
+            const oldInvoice = rawInvoices.find(inv => inv.id === data.id) || invoices.find(inv => inv.id === data.id);
             if (!oldInvoice) {
                 error("Invoice to update not found");
                 return;
             }
 
-            // Find all payments linked to this invoice
-            const invoicePayments = payments.filter(p => p.invoiceId === data.id);
+            // Find all payments linked to this invoice across the institution
+            const invoicePayments = rawPayments.filter(p => p.invoiceId === data.id);
 
             // Re-apply recalculateInvoicePayments with the updated items and invoice properties
             const recalculatedInvoice = recalculateDSInvoicePayments({
@@ -2211,7 +2349,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to update invoice");
             throw err;
         }
-    }, [institutionId, invoices, payments, onRefresh, success, error]);
+    }, [institutionId, rawInvoices, rawPayments, onRefresh, success, error, invoices]);
 
     const addPayment = useCallback(async (data: any) => {
         try {
@@ -2221,7 +2359,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 const asNum = Number(prefixStr);
                 if (!isNaN(asNum) && prefixStr !== '') {
                     let maxVal = asNum;
-                    payments.forEach(pay => {
+                    rawPayments.forEach(pay => {
                         if (pay.receiptNumber) {
                             const num = Number(pay.receiptNumber.trim());
                             if (!isNaN(num) && num >= asNum && num > maxVal) {
@@ -2232,7 +2370,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                     recNumber = String(maxVal + 1);
                 } else {
                     let maxNum = 0;
-                    payments.forEach(pay => {
+                    rawPayments.forEach(pay => {
                         if (pay.receiptNumber && pay.receiptNumber.toUpperCase().startsWith(prefixStr.toUpperCase())) {
                             const remainder = pay.receiptNumber.slice(prefixStr.length).trim();
                             const match = remainder.match(/\d+/);
@@ -2326,7 +2464,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 }
 
                 const allInvoicePayments = [
-                    ...payments.filter(p => (p.invoiceId === invoice.id || (!p.invoiceId && p.studentId === invoice.studentId)) && p.id !== pay.id),
+                    ...rawPayments.filter(p => (p.invoiceId === invoice.id || (!p.invoiceId && p.studentId === invoice.studentId)) && p.id !== pay.id),
                     pay
                 ];
                 const recalculatedInvoice = recalculateDSInvoicePayments(invoice, allInvoicePayments);
@@ -2359,12 +2497,12 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to record payment");
             throw err;
         }
-    }, [institutionId, resolveBranchIdToUse, rawInvoices, rawStudents, onRefresh, success, error, settings, payments, sendDocumentNotification]);
+    }, [institutionId, resolveBranchIdToUse, rawInvoices, rawStudents, onRefresh, success, error, settings, rawPayments, sendDocumentNotification]);
 
     const updatePayment = useCallback(async (data: any) => {
         if (!institutionId || !data.id) return;
         try {
-            const oldPayment = payments.find(p => p.id === data.id);
+            const oldPayment = rawPayments.find(p => p.id === data.id) || payments.find(p => p.id === data.id);
             if (!oldPayment) {
                 error("Payment to update not found");
                 return;
@@ -2420,9 +2558,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             if (data.invoiceId) affectedInvoiceIds.add(data.invoiceId);
 
             for (const invId of affectedInvoiceIds) {
-                const invoice = invoices.find(inv => inv.id === invId);
+                const invoice = rawInvoices.find(inv => inv.id === invId) || invoices.find(inv => inv.id === invId);
                 if (invoice) {
-                    const invoicePayments = payments.map(p => p.id === data.id ? updatedPayment : p)
+                    const invoicePayments = rawPayments.map(p => p.id === data.id ? updatedPayment : p)
                                                    .filter(p => p.invoiceId === invId);
                     const recalculatedInvoice = recalculateInvoicePayments(invoice, invoicePayments);
                     await apiService.saveModuleRecord('ds_invoices', recalculatedInvoice);
@@ -2435,11 +2573,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to update payment");
             throw err;
         }
-    }, [institutionId, payments, invoices, onRefresh, success, error, recalculateInvoicePayments]);
+    }, [institutionId, rawPayments, rawInvoices, onRefresh, success, error, recalculateInvoicePayments, payments, invoices]);
 
     const deletePayment = useCallback(async (id: string) => {
         if (!institutionId) return;
-        const paymentToDelete = payments.find(p => p.id === id);
+        const paymentToDelete = rawPayments.find(p => p.id === id) || payments.find(p => p.id === id);
         if (!paymentToDelete) {
             error("Payment not found");
             return;
@@ -2449,9 +2587,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             await apiService.deleteModuleRecord('ds_payments', id);
 
             if (paymentToDelete.invoiceId) {
-                const invoice = invoices.find(inv => inv.id === paymentToDelete.invoiceId);
+                const invoice = rawInvoices.find(inv => inv.id === paymentToDelete.invoiceId) || invoices.find(inv => inv.id === paymentToDelete.invoiceId);
                 if (invoice) {
-                    const invoicePayments = payments.filter(p => p.invoiceId === invoice.id && p.id !== id);
+                    const invoicePayments = rawPayments.filter(p => p.invoiceId === invoice.id && p.id !== id);
                     const recalculatedInvoice = recalculateInvoicePayments(invoice, invoicePayments);
                     await apiService.saveModuleRecord('ds_invoices', recalculatedInvoice);
                 }
@@ -2463,7 +2601,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to delete payment");
             throw err;
         }
-    }, [institutionId, invoices, payments, onRefresh, success, error]);
+    }, [institutionId, rawInvoices, rawPayments, onRefresh, success, error, recalculateInvoicePayments, payments, invoices]);
 
     const deletePayments = useCallback(async (ids: string[], skipConfirmation = false) => {
         if (!institutionId || !ids || ids.length === 0) return;
@@ -2476,7 +2614,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
         try {
             const idsSet = new Set(ids);
-            const targetPayments = payments.filter(p => idsSet.has(p.id));
+            const targetPayments = rawPayments.filter(p => idsSet.has(p.id));
 
             await apiService.deleteModuleRecord('ds_payments', ids.join(','));
 
@@ -2486,9 +2624,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             });
 
             for (const invId of affectedInvoiceIds) {
-                const invoice = invoices.find(inv => inv.id === invId);
+                const invoice = rawInvoices.find(inv => inv.id === invId) || invoices.find(inv => inv.id === invId);
                 if (invoice) {
-                    const invoicePayments = payments.filter(p => p.invoiceId === invId && !idsSet.has(p.id));
+                    const invoicePayments = rawPayments.filter(p => p.invoiceId === invId && !idsSet.has(p.id));
                     const recalculated = recalculateDSInvoicePayments(invoice, invoicePayments);
                     await apiService.saveModuleRecord('ds_invoices', recalculated).catch(e => console.warn("[DS] Failed to update invoice after payment bulk delete:", e));
                 }
@@ -2500,11 +2638,11 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error(err.message || "Failed to delete payments");
             throw err;
         }
-    }, [institutionId, payments, invoices, onRefresh, success, error]);
+    }, [institutionId, rawPayments, rawInvoices, onRefresh, success, error, payments, invoices]);
 
     const deleteInvoice = useCallback(async (id: string) => {
         if (!institutionId) return;
-        const linkedPayments = payments.filter(p => p.invoiceId === id);
+        const linkedPayments = rawPayments.filter(p => p.invoiceId === id);
         const warnMsg = linkedPayments.length > 0
             ? `Warning: This invoice has ${linkedPayments.length} linked payments. Deleting this invoice will unlink/affect them. Are you sure you want to delete this invoice?`
             : "Are you sure you want to delete this invoice? This action cannot be undone.";
@@ -2519,7 +2657,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             error("Failed to delete invoice");
             throw err;
         }
-    }, [institutionId, payments, onRefresh, success, error]);
+    }, [institutionId, rawPayments, onRefresh, success, error]);
 
     const addExpenditure = useCallback(async (data: Partial<DSExpenditure>) => {
         if (!institutionId) return;

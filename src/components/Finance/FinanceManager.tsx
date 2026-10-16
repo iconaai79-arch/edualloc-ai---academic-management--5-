@@ -529,6 +529,7 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const [dsPayments, setDsPayments] = useState<any[]>([]);
     const [dsSettings, setDsSettings] = useState<any>(null);
     const [dsFeeStructures, setDsFeeStructures] = useState<any[]>([]);
+    const [dsStudents, setDsStudents] = useState<any[]>([]);
     const [isCreatingDsInvoice, setIsCreatingDsInvoice] = useState(false);
     const [selectedDsInvoice, setSelectedDsInvoice] = useState<any | null>(null);
     const [isRecordingDsPayment, setIsRecordingDsPayment] = useState(false);
@@ -1039,8 +1040,28 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
         const map = new Map<string, any>();
         scopedPropsStudents.forEach((s: any) => map.set(s.id, s));
         allBranchStudents.forEach((s: any) => map.set(s.id, s));
+        if (isDrivingSchool && dsStudents.length > 0) {
+            dsStudents.forEach((s: any) => {
+                const normStudent = {
+                    ...s,
+                    id: s.id,
+                    name: s.fullName || s.name || s.studentName,
+                    fullName: s.fullName || s.name || s.studentName,
+                    admissionNumber: s.admissionNumber || s.admission_number || s.id,
+                    admission_number: s.admissionNumber || s.admission_number || s.id,
+                    branchId: s.branchId || s.branch_id,
+                    branch_id: s.branchId || s.branch_id,
+                    institutionId: s.institutionId || s.institution_id || props.institution?.id,
+                    institution_id: s.institutionId || s.institution_id || props.institution?.id
+                };
+                map.set(s.id, normStudent);
+                if (normStudent.admissionNumber) {
+                    map.set(normStudent.admissionNumber, normStudent);
+                }
+            });
+        }
         return Array.from(map.values());
-    }, [props.students, allBranchStudents, props.institution?.id, branches, cleanId]);
+    }, [props.students, allBranchStudents, dsStudents, isDrivingSchool, props.institution?.id, branches, cleanId]);
 
     const mergedStudentsMap = useMemo(() => {
         const map = new Map<string, any>();
@@ -1706,23 +1727,27 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 totalAmount: parseMoneyAmount(inv.totalAmount ?? inv.total_amount ?? inv.amount ?? 0)
             }));
         }
-        return dsInvoices.map((dsInv: any) => ({
-            id: dsInv.id,
-            invoiceNumber: dsInv.invoiceNumber || dsInv.invoice_number || dsInv.id,
-            institutionId: dsInv.institutionId,
-            issueDate: dsInv.createdAt || new Date().toISOString(),
-            dueDate: dsInv.dueDate || dsInv.due_date || '',
-            due_date: dsInv.dueDate || dsInv.due_date || '',
-            items: (dsInv.items || []).map((it: any) => ({
-                description: it.name || it.voteName || 'Fee Item',
-                quantity: 1,
-                unitPrice: parseMoneyAmount(it.unitPrice ?? it.amount ?? 0),
-                amount: parseMoneyAmount(it.amount ?? it.unitPrice ?? 0)
-            })),
-            totalAmount: parseMoneyAmount(dsInv.totalAmount ?? dsInv.total_amount ?? dsInv.amount ?? 0),
-            status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
-            studentId: dsInv.studentId
-        }));
+        return dsInvoices
+            .filter((dsInv: any) => matchesSelectedBranch(dsInv))
+            .map((dsInv: any) => ({
+                id: dsInv.id,
+                invoiceNumber: dsInv.invoiceNumber || dsInv.invoice_number || dsInv.id,
+                institutionId: dsInv.institutionId,
+                branchId: dsInv.branchId || dsInv.branch_id,
+                branch_id: dsInv.branchId || dsInv.branch_id,
+                issueDate: dsInv.createdAt || new Date().toISOString(),
+                dueDate: dsInv.dueDate || dsInv.due_date || '',
+                due_date: dsInv.dueDate || dsInv.due_date || '',
+                items: (dsInv.items || []).map((it: any) => ({
+                    description: it.name || it.voteName || 'Fee Item',
+                    quantity: 1,
+                    unitPrice: parseMoneyAmount(it.unitPrice ?? it.amount ?? 0),
+                    amount: parseMoneyAmount(it.amount ?? it.unitPrice ?? 0)
+                })),
+                totalAmount: parseMoneyAmount(dsInv.totalAmount ?? dsInv.total_amount ?? dsInv.amount ?? 0),
+                status: dsInv.status === 'Fully Paid' ? 'paid' as const : 'pending' as const,
+                studentId: dsInv.studentId
+            }));
     }, [mergedInvoices, dsInvoices, isDrivingSchool, matchesSelectedBranch]);
 
     // Translate DS payments to standard Dashboard Receipt models dynamically
@@ -1743,18 +1768,22 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 amountPaid: parseMoneyAmount(r.amountPaid ?? r.amount_paid ?? r.amount ?? 0)
             }));
         }
-        return dsPayments.map((dsPay: any) => ({
-            id: dsPay.id,
-            receiptNumber: dsPay.receiptNumber || dsPay.receipt_number || dsPay.id,
-            institutionId: dsPay.institutionId,
-            paymentDate: dsPay.paymentDate || new Date().toISOString(),
-            amountPaid: parseMoneyAmount(dsPay.amountPaid ?? dsPay.amount_paid ?? dsPay.amount ?? 0),
-            paidFor: `Payment for DS Invoice ${dsPay.invoiceNumber || dsPay.invoiceId}`,
-            paymentMethod: dsPay.paymentMethod || 'Cash',
-            relatedTransactionId: dsPay.transactionReference || '',
-            invoiceId: dsPay.invoiceId,
-            studentId: dsPay.studentId
-        }));
+        return dsPayments
+            .filter((dsPay: any) => matchesSelectedBranch(dsPay))
+            .map((dsPay: any) => ({
+                id: dsPay.id,
+                receiptNumber: dsPay.receiptNumber || dsPay.receipt_number || dsPay.id,
+                institutionId: dsPay.institutionId,
+                branchId: dsPay.branchId || dsPay.branch_id,
+                branch_id: dsPay.branchId || dsPay.branch_id,
+                paymentDate: dsPay.paymentDate || new Date().toISOString(),
+                amountPaid: parseMoneyAmount(dsPay.amountPaid ?? dsPay.amount_paid ?? dsPay.amount ?? 0),
+                paidFor: `Payment for DS Invoice ${dsPay.invoiceNumber || dsPay.invoiceId}`,
+                paymentMethod: dsPay.paymentMethod || 'Cash',
+                relatedTransactionId: dsPay.transactionReference || '',
+                invoiceId: dsPay.invoiceId,
+                studentId: dsPay.studentId
+            }));
     }, [mergedReceipts, dsPayments, isDrivingSchool, mergedInvoices, matchesSelectedBranch]);
 
     const invoicePaidAmountMap = useMemo(() => {
@@ -5437,6 +5466,13 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                 return;
             }
 
+            const smsBal = Number((props.institution as any)?.smsBalance ?? (props.institution as any)?.sms_balance ?? 0);
+            if (smsBal <= 0) {
+                alert(`Insufficient SMS balance (${smsBal} units). Please top up units in Settings > Billing before sending fee reminders.`);
+                setIsSendingReminders(false);
+                return;
+            }
+
             setReminderSendingProgress({ current: 0, total: messagesToSend.length });
 
             // Live dispatch in concurrent batches of 5 with progress reporting
@@ -5612,6 +5648,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
     const handleSendPromiseReminderSms = async (promise: FeePromise) => {
         if (!promise.parentPhone) {
             alert("No parent phone number found for this student.");
+            return;
+        }
+
+        const smsBal = Number((props.institution as any)?.smsBalance ?? (props.institution as any)?.sms_balance ?? 0);
+        if (smsBal <= 0) {
+            alert(`Insufficient SMS balance (${smsBal} units). Please top up units in Settings > Billing before sending reminder SMS.`);
             return;
         }
 
@@ -6384,7 +6426,8 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                         const bStudent = mergedStudents.find((s: any) => s.id === rec.studentId);
                         if (!bStudent) continue;
                         const bLink = `${window.location.origin}/?receipt=${rec.receiptNumber}`;
-                        if (excelImportSendSms) {
+                        const instSmsBal = Number((props.institution as any)?.smsBalance ?? (props.institution as any)?.sms_balance ?? 0);
+                        if (excelImportSendSms && instSmsBal > 0) {
                             const bPhone = extractParentPhoneNumber(bStudent, mergedEnrollments);
                             if (bPhone) {
                                 const bAccount = bankAccounts.find((b: any) => b.id === (rec as any).bankAccountId) || bankAccounts[0];

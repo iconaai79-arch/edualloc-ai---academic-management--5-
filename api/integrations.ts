@@ -1754,10 +1754,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // SMS Balance Check & Deduction Logic:
             // Ensure tenant institution ID is prioritized over generic system fallback
+            const institutionIdOverride = getParam('institutionId') || getParam('institution_id') || paramsMap.institutionId || paramsMap.institution_id;
             const institutionId = (institutionIdOverride && institutionIdOverride !== 'SYSTEM' && institutionIdOverride !== 'GLOBAL')
                 ? institutionIdOverride
                 : (user.institution_id || user.institutionId || user.user_metadata?.institutionId ||
-                   (user.role === 'super_admin' ? (paramsMap.institutionId || paramsMap.institution_id || 'SYSTEM') : 'SYSTEM'));
+                   (paramsMap.institutionId || paramsMap.institution_id || 'SYSTEM'));
 
             console.log(`[SMS Gateway] Target Institution: ${institutionId}`);
 
@@ -1799,12 +1800,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let deductedFromGeneral = totalUnitsToDeduct;
 
             // Load institution-specific config and verify balance
+            let effectiveBillableInstId = institutionId;
+            let resolvedBranchRecord: any = null;
+
             if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
-                const { data: institution, error: configError } = await supabase
+                let { data: institution, error: configError } = await supabase
                     .from('institutions')
-                    .select('sms_balance, smsBalance, sms_config, smsConfig')
+                    .select('id, name, sms_balance, smsBalance, sms_config, smsConfig')
                     .eq('id', institutionId)
                     .maybeSingle();
+
+                // If not found in institutions table, check if institutionId is a branch
+                if (!institution) {
+                    const { data: bData } = await supabase
+                        .from('branches')
+                        .select('id, institution_id, linked_institution_id, name')
+                        .or(`id.eq.${institutionId},linked_institution_id.eq.${institutionId}`)
+                        .maybeSingle();
+
+                    if (bData && bData.institution_id) {
+                        resolvedBranchRecord = bData;
+                        effectiveBillableInstId = bData.institution_id;
+                        const { data: parentInst, error: parentErr } = await supabase
+                            .from('institutions')
+                            .select('id, name, sms_balance, smsBalance, sms_config, smsConfig')
+                            .eq('id', effectiveBillableInstId)
+                            .maybeSingle();
+
+                        if (!parentErr && parentInst) {
+                            institution = parentInst;
+                            configError = null;
+                        }
+                    }
+                }
 
                 if (!configError && institution) {
                     instBalance = institution.sms_balance ?? institution.smsBalance ?? 0;
@@ -1826,13 +1854,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         deductedFromSystem = 0;
                     }
 
-                    // For non-system administrative messages, verify tenant has sufficient SMS balance
-                    // If tenant has configured their own third-party SMS gateway credentials, they bypass platform credit deduction
-                    const tenantHasCustomGateway = hasValidSmsCreds(bodyConfig) || hasValidSmsCreds(instConfig);
-                    if (!tenantHasCustomGateway && user.id !== 'system' && !isSystemMessage && instBalance < totalUnitsToDeduct) {
+                    // Strict SMS Balance Enforcement:
+                    // Any institution sending SMS must have sufficient balance (instBalance >= totalUnitsToDeduct).
+                    // If balance is 0 or less than totalUnitsToDeduct, block the dispatch immediately.
+                    if (instBalance < totalUnitsToDeduct) {
                         return res.status(402).json({
                             success: false,
-                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} units, but your current balance is ${instBalance}. Please top up units in Settings > Billing.`,
+                            message: `Insufficient SMS balance. This request requires ${totalUnitsToDeduct} unit${totalUnitsToDeduct === 1 ? '' : 's'}, but your current balance is ${instBalance}. Please top up units in Settings > Billing.`,
                             balance: instBalance,
                             required: totalUnitsToDeduct,
                             buy_url: '/settings?tab=billing'
@@ -1841,9 +1869,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     // Prefer institution-specific SMS gateway if configured and no valid body payload was supplied
                     if (instConfig && (!bodyConfig || !hasValidSmsCreds(bodyConfig)) && hasValidSmsCreds(instConfig)) {
-                        console.log(`[SMS Gateway] Using institution-specific configuration for ${institutionId} (${instConfig.provider || 'default'})`);
+                        console.log(`[SMS Gateway] Using institution-specific configuration for ${effectiveBillableInstId} (${instConfig.provider || 'default'})`);
                         smsConfig = { ...instConfig };
                     }
+                } else if (!isSystemMessage && (!user?.role || user.role !== 'super_admin')) {
+                    // Block unauthorized/unaccounted dispatches if an unknown institutionId was passed
+                    return res.status(404).json({
+                        success: false,
+                        message: `Institution or branch '${institutionId}' not found. Cannot verify SMS unit quota.`
+                    });
                 }
             }
 
@@ -1880,7 +1914,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // Deduct balance and Log
             let remainingBalance = instBalance;
-            if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
+            if (effectiveBillableInstId && effectiveBillableInstId !== 'SYSTEM' && effectiveBillableInstId !== 'GLOBAL') {
                 if (deductedFromSystem > 0) {
                     const newSystemBal = Math.max(0, (instConfig.systemSmsBalance || 0) - deductedFromSystem);
                     const updatedConfig = { ...instConfig, systemSmsBalance: newSystemBal };
@@ -1890,17 +1924,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             sms_config: updatedConfig,
                             smsConfig: updatedConfig
                         })
-                        .eq('id', institutionId);
+                        .eq('id', effectiveBillableInstId);
                 }
 
                 if (deductedFromGeneral > 0) {
-                    const { error: rpcErr } = await supabase.rpc('decrement_sms_balance', { inst_id: institutionId, amount: deductedFromGeneral });
+                    const { error: rpcErr } = await supabase.rpc('decrement_sms_balance', { inst_id: effectiveBillableInstId, amount: deductedFromGeneral });
                     if (rpcErr) {
                         console.warn('[SMS Gateway] decrement_sms_balance RPC failed/missing, executing direct fallback:', rpcErr);
                         const { data: currInst } = await supabase
                             .from('institutions')
                             .select('sms_balance, smsBalance')
-                            .eq('id', institutionId)
+                            .eq('id', effectiveBillableInstId)
                             .maybeSingle();
                         if (currInst) {
                             const currentBal = currInst.sms_balance ?? currInst.smsBalance ?? 0;
@@ -1908,7 +1942,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             await supabase
                                 .from('institutions')
                                 .update({ sms_balance: remainingBalance, smsBalance: remainingBalance })
-                                .eq('id', institutionId);
+                                .eq('id', effectiveBillableInstId);
                         }
                     } else {
                         remainingBalance = Math.max(0, instBalance - deductedFromGeneral);
@@ -1918,7 +1952,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     await supabase.from('sms_logs').insert({
                         id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                        institution_id: institutionId,
+                        institution_id: effectiveBillableInstId,
                         sender_id: (user?.id === 'system' || !user?.id) ? null : user.id,
                         recipient: normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
                         message: message,
@@ -1931,7 +1965,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             deducted_from_system: deductedFromSystem,
                             deducted_from_general: deductedFromGeneral,
                             remaining_balance: remainingBalance,
-                            failover_history: dispatchResult.failoverHistory
+                            failover_history: dispatchResult.failoverHistory,
+                            branch_id: resolvedBranchRecord?.id || (institutionId !== effectiveBillableInstId ? institutionId : undefined)
                         }
                     });
                 } catch (logErr) {
@@ -2896,10 +2931,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             // 1. Fetch Institution
             let inst = null;
-            const resolvedInstId = (instId === 'SYSTEM' || instId === 'GLOBAL') ? meta.institution_id : instId;
+            let resolvedInstId = (instId === 'SYSTEM' || instId === 'GLOBAL') ? meta.institution_id : instId;
             if (resolvedInstId && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL') {
                 const { data } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
                 inst = data;
+                if (!inst) {
+                    const { data: bData } = await supabase
+                        .from('branches')
+                        .select('institution_id')
+                        .or(`id.eq.${resolvedInstId},linked_institution_id.eq.${resolvedInstId}`)
+                        .maybeSingle();
+                    if (bData?.institution_id) {
+                        resolvedInstId = bData.institution_id;
+                        const { data: parentInst } = await supabase.from('institutions').select('*').eq('id', resolvedInstId).maybeSingle();
+                        inst = parentInst;
+                    }
+                }
             }
 
             if (!inst && resolvedInstId !== 'SYSTEM' && resolvedInstId !== 'GLOBAL' && resolvedInstId) {
@@ -2920,14 +2967,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 await supabase.from('institutions').update({
                     subscription_ends_at: newEndDate.toISOString(),
                     status: 'active'
-                }).eq('id', instId);
+                }).eq('id', resolvedInstId);
 
                 if (!invId) {
                     invId = `inv_sub_${Date.now()}`;
                     await supabase.from('invoices').insert({
                         id: invId,
                         invoice_number: `${invoicePrefix}SUB-${Date.now().toString().slice(-6)}`,
-                        institution_id: instId,
+                        institution_id: resolvedInstId,
                         issue_date: new Date().toISOString().split('T')[0],
                         due_date: new Date().toISOString().split('T')[0],
                         total_amount: amt,
@@ -2955,19 +3002,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (units > 0) {
-                    console.log(`[Reconcile - SMS] Balance Increment: ${units} units for ${instId || 'SYSTEM'}. Triggering RPC...`);
+                    console.log(`[Reconcile - SMS] Balance Increment: ${units} units for ${resolvedInstId || 'SYSTEM'}. Triggering RPC...`);
                     const { error: rpcError } = await supabase.rpc('increment_sms_balance', { 
-                        inst_id: instId || 'SYSTEM', 
+                        inst_id: resolvedInstId || 'SYSTEM', 
                         amount: units 
                     });
                     
                     if (rpcError) {
                         console.error(`[Reconcile - SMS] RPC ERROR:`, rpcError);
                     } else {
-                        console.log(`[Reconcile - SMS] SUCCESS: Balance updated for ${instId || 'SYSTEM'}`);
+                        console.log(`[Reconcile - SMS] SUCCESS: Balance updated for ${resolvedInstId || 'SYSTEM'}`);
                         // Fetch updated balance for notifications
-                        if (instId && instId !== 'SYSTEM') {
-                            const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', instId).maybeSingle();
+                        if (resolvedInstId && resolvedInstId !== 'SYSTEM') {
+                            const { data: updatedInst } = await supabase.from('institutions').select('sms_balance').eq('id', resolvedInstId).maybeSingle();
                             if (updatedInst) {
                                 (txn as any).newBalance = updatedInst.sms_balance;
                             }
@@ -2982,7 +3029,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     await supabase.from('invoices').insert({
                         id: invId,
                         invoice_number: `${invoicePrefix}SMS-${Date.now().toString().slice(-6)}`,
-                        institution_id: instId || 'SYSTEM',
+                        institution_id: resolvedInstId || 'SYSTEM',
                         issue_date: new Date().toISOString(),
                         due_date: new Date().toISOString(),
                         total_amount: amt,

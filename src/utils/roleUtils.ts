@@ -221,6 +221,23 @@ export function isDSInstitution(institution: Partial<Institution> | null | undef
 }
 
 /**
+ * Centralized logic to determine if an institution is Property Management / Real Estate.
+ */
+export function isPMInstitution(institution: Partial<Institution> | null | undefined): boolean {
+    if (!institution) return false;
+    const type = (institution.institutionType || '').toLowerCase();
+    const category = (institution.category || '').toLowerCase();
+    const subType = (institution.businessSubType || '').toLowerCase();
+    const name = (institution.name || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'property' || m.moduleId === 'property_management') && (m.status === 'active' || m.status === 'trial'));
+    return type === 'property management' || type.includes('property') || type.includes('real estate') ||
+           subType.includes('property') || subType.includes('real estate') || subType.includes('landlord') ||
+           category.includes('property') || category.includes('real estate') ||
+           name.includes('property') || name.includes('apartments') || name.includes('estates') ||
+           !!hasModule;
+}
+
+/**
  * Centralized logic to determine if an institution is an educational entity.
  */
 export function isEduInstitution(institution: Partial<Institution> | null | undefined): boolean {

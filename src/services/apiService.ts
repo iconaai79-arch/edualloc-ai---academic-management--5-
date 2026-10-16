@@ -6635,16 +6635,18 @@ export const apiService = {
                                     await apiService.sendEmail(email, subject, mailMsg).catch(() => {});
                                 }
 
-                                for (const phone of adminPhones) {
-                                    await apiService.sendSms(
-                                        phone, 
-                                        `ALERT: Your account SMS balance is low (${smsBalance} units left). Please purchase more units to avoid service disruptions.`, 
-                                        undefined, 
-                                        1, 
-                                        effectiveInstId, 
-                                        undefined, 
-                                        true
-                                    ).catch(() => {});
+                                if (smsBalance > 0 && !isLowSmsError) {
+                                    for (const phone of adminPhones) {
+                                        await apiService.sendSms(
+                                            phone, 
+                                            `ALERT: Your account SMS balance is low (${smsBalance} units left). Please purchase more units to avoid service disruptions.`, 
+                                            undefined, 
+                                            1, 
+                                            effectiveInstId, 
+                                            undefined, 
+                                            true
+                                        ).catch(() => {});
+                                    }
                                 }
                             }
                         }
