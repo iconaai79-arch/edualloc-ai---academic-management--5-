@@ -3546,6 +3546,9 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_transactions_institution_id ON transactions(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_mpesa_txns_institution_id ON mpesa_transactions(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_bank_txns_institution_id ON bank_transactions(institution_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_airtel_tx_inst_created_desc ON airtel_transactions(institution_id, created_at DESC, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_intasend_tx_inst_created_desc ON intasend_transactions(institution_id, created_at DESC, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_ncba_tx_inst_created_desc ON ncba_transactions(institution_id, created_at DESC, id DESC);`,
         // Procurement
         `CREATE INDEX IF NOT EXISTS idx_proc_supp_institution_id ON procurement_suppliers(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_proc_items_institution_id ON procurement_items(institution_id);`,

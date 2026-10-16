@@ -1627,6 +1627,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'users', 'students', 'student_enrollments', 'receipts', 'invoices', 'inventory', 'retail_inventory', 'retail_inventory_items',
                     'books', 'library_transactions', 'library_fines',
                     'ds_students', 'ds_leads', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'mpesa_transactions',
+                    'airtel_transactions', 'intasend_transactions', 'ncba_transactions',
                     // Academic lookup tables — frequently large, benefit most from direct PG
                     'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
                     'academic_years', 'semesters', 'allocation_requests',
@@ -1870,7 +1871,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales'].includes(moduleName)
+                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
