@@ -4455,7 +4455,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'student_class', 'studentClass', 'className', 'grade', 'grade_name', 'gradeName', 'class_group', 'classGroup', 'stream_name', 'streamName',
                         'metadata'
                     ];
+                    const invoicePreservedCols = new Set([
+                        'notes', 'subtotal', 'sub_total', 'tax_rate', 'taxRate', 'tax_amount', 'taxAmount',
+                        'discount_amount', 'discountAmount', 'paidAmount', 'paid_amount', 'metadata'
+                    ]);
                     transientColumns.forEach(col => {
+                        if (moduleName === 'invoices' && invoicePreservedCols.has(col)) {
+                            return;
+                        }
                         if (col in copy) {
                             delete copy[col];
                         }
@@ -4465,7 +4472,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const allowedInvoiceCols = new Set([
                             'id', 'invoice_number', 'institution_id', 'branch_id',
                             'issue_date', 'due_date', 'items', 'total_amount',
-                            'status', 'student_id', 'class_name', 'created_at', 'updated_at'
+                            'status', 'student_id', 'class_name', 'created_at', 'updated_at',
+                            'client_id', 'client_name', 'client_email', 'client_phone',
+                            'client_tax_pin', 'client_address', 'currency', 'notes', 'terms',
+                            'subtotal', 'tax_rate', 'tax_amount', 'discount_amount',
+                            'amount_paid', 'balance', 'metadata'
                         ]);
                         Object.keys(copy).forEach(k => {
                             if (!allowedInvoiceCols.has(k)) {
@@ -7591,7 +7602,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         'student_class', 'studentClass', 'className', 'grade', 'grade_name', 'gradeName', 'class_group', 'classGroup', 'stream_name', 'streamName',
                         'metadata'
                     ];
+                    const invoicePreservedCols = new Set([
+                        'notes', 'subtotal', 'sub_total', 'tax_rate', 'taxRate', 'tax_amount', 'taxAmount',
+                        'discount_amount', 'discountAmount', 'paidAmount', 'paid_amount', 'metadata'
+                    ]);
                     transientColumns.forEach(col => {
+                        if (moduleName === 'invoices' && invoicePreservedCols.has(col)) {
+                            return;
+                        }
                         if (col in copy) {
                             delete copy[col];
                         }
@@ -7601,7 +7619,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const allowedInvoiceCols = new Set([
                             'id', 'invoice_number', 'institution_id', 'branch_id',
                             'issue_date', 'due_date', 'items', 'total_amount',
-                            'status', 'student_id', 'class_name', 'created_at', 'updated_at'
+                            'status', 'student_id', 'class_name', 'created_at', 'updated_at',
+                            'client_id', 'client_name', 'client_email', 'client_phone',
+                            'client_tax_pin', 'client_address', 'currency', 'notes', 'terms',
+                            'subtotal', 'tax_rate', 'tax_amount', 'discount_amount',
+                            'amount_paid', 'balance', 'metadata'
                         ]);
                         Object.keys(copy).forEach(k => {
                             if (!allowedInvoiceCols.has(k)) {

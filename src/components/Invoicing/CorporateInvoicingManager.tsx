@@ -61,6 +61,19 @@ const amountToWords = (num: number, currency: string = 'KES'): string => {
     return str + ' Only';
 };
 
+export const formatDateDisplay = (dateStr?: string | null): string => {
+    if (!dateStr) return '—';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) {
+            return String(dateStr).split('T')[0];
+        }
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+        return String(dateStr).split('T')[0];
+    }
+};
+
 export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps> = ({
     currentUser,
     currentInstitution,
@@ -99,6 +112,15 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
     const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
     const [showStampCustomizer, setShowStampCustomizer] = useState(false);
+
+    // Client Assignment Modal State
+    const [assignClientInvoice, setAssignClientInvoice] = useState<Invoice | null>(null);
+    const [assignSelectedClientId, setAssignSelectedClientId] = useState('');
+    const [assignCustomName, setAssignCustomName] = useState('');
+    const [assignCustomEmail, setAssignCustomEmail] = useState('');
+    const [assignCustomPhone, setAssignCustomPhone] = useState('');
+    const [assignCustomTaxPin, setAssignCustomTaxPin] = useState('');
+    const [isSavingAssignClient, setIsSavingAssignClient] = useState(false);
 
     // New Invoice / Quote Form State
     const [invClientId, setInvClientId] = useState('');
@@ -229,9 +251,39 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             amount: finalAmt
                         };
                     });
+
+                    const meta = (typeof inv.metadata === 'string')
+                        ? (() => { try { return JSON.parse(inv.metadata); } catch { return {}; } })()
+                        : (inv.metadata || {});
+
+                    const rawName = inv.clientName || inv.client_name || meta.clientName || meta.client_name || meta.customer_name;
+                    const normalizedClientName = (rawName && typeof rawName === 'string' && rawName.trim().length > 0) ? rawName.trim() : '';
+
                     return {
                         ...inv,
-                        items: normalizedItems
+                        id: inv.id || inv._id,
+                        invoiceNumber: inv.invoiceNumber || inv.invoice_number || inv.invoice_no,
+                        clientId: inv.clientId || inv.client_id || meta.clientId || meta.client_id,
+                        clientName: normalizedClientName,
+                        client_name: normalizedClientName,
+                        clientEmail: inv.clientEmail || inv.client_email || meta.clientEmail || meta.client_email,
+                        clientPhone: inv.clientPhone || inv.client_phone || meta.clientPhone || meta.client_phone,
+                        clientTaxPin: inv.clientTaxPin || inv.client_tax_pin || meta.clientTaxPin || meta.client_tax_pin,
+                        clientAddress: inv.clientAddress || inv.client_address || meta.clientAddress || meta.client_address,
+                        issueDate: inv.issueDate || inv.issue_date || (inv.created_at ? String(inv.created_at).split('T')[0] : ''),
+                        dueDate: inv.dueDate || inv.due_date,
+                        totalAmount: Number(inv.totalAmount ?? inv.total_amount ?? inv.total ?? 0),
+                        amountPaid: Number(inv.amountPaid ?? inv.amount_paid ?? inv.paid_amount ?? 0),
+                        balance: Number(inv.balance ?? (Number(inv.totalAmount ?? inv.total_amount ?? 0) - Number(inv.amountPaid ?? inv.amount_paid ?? 0))),
+                        subtotal: Number(inv.subtotal ?? 0),
+                        taxRate: Number(inv.taxRate ?? inv.tax_rate ?? 0),
+                        taxAmount: Number(inv.taxAmount ?? inv.tax_amount ?? 0),
+                        discountAmount: Number(inv.discountAmount ?? inv.discount_amount ?? 0),
+                        currency: inv.currency || 'KES',
+                        notes: inv.notes || '',
+                        terms: inv.terms || '',
+                        items: normalizedItems,
+                        metadata: meta
                     };
                 };
 
@@ -278,7 +330,19 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 } else if (institutionId) {
                     fetched = fetched.filter(c => (c.institutionId || (c as any).institution_id) === institutionId);
                 }
-                setClients(fetched);
+                const normalizedClients = fetched.map((c: any) => ({
+                    ...c,
+                    id: c.id,
+                    clientName: c.clientName || c.client_name || c.name || 'Unnamed Client',
+                    email: c.email || c.client_email || '',
+                    phone: c.phone || c.client_phone || '',
+                    taxPin: c.taxPin || c.tax_pin || '',
+                    address: c.address || c.client_address || '',
+                    city: c.city || c.county || '',
+                    contactPerson: c.contactPerson || c.contact_person || '',
+                    notes: c.notes || ''
+                }));
+                setClients(normalizedClients);
             }
 
             // Sync configured Document Numbering from finance_numbering_configs
@@ -394,6 +458,174 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         }
     }, [initialReceipts, institutionId]);
 
+    // Resolve dynamic corporate client name with complete fallback waterfall
+    const resolveInvoiceClientName = useCallback((inv?: Invoice | any): string => {
+        if (!inv) return 'Corporate Client';
+
+        // 1. Direct explicit client name (must not be generic placeholder)
+        const direct = (inv.clientName || inv.client_name || '').trim();
+        if (direct && !['client', 'corporate client', 'unassigned', 'unknown', 'n/a'].includes(direct.toLowerCase())) {
+            return direct;
+        }
+
+        // 2. Metadata client name / customer name
+        const meta = inv.metadata || {};
+        const metaName = (meta.clientName || meta.client_name || meta.customer_name || meta.client || '').trim();
+        if (metaName && !['client', 'corporate client', 'unassigned', 'unknown', 'n/a'].includes(metaName.toLowerCase())) {
+            return metaName;
+        }
+
+        // 3. Match from clients directory using clientId / client_id
+        const targetClientId = inv.clientId || inv.client_id || meta.clientId || meta.client_id;
+        if (targetClientId) {
+            const foundClient = clients.find(c => c.id === targetClientId);
+            if (foundClient) {
+                const cName = (foundClient.clientName || (foundClient as any).client_name || (foundClient as any).name || '').trim();
+                if (cName && !['client', 'corporate client'].includes(cName.toLowerCase())) {
+                    return cName;
+                }
+            }
+        }
+
+        // 4. Match via linked receipts
+        const linkedReceipt = receipts.find(r => (r.invoiceId && r.invoiceId === inv.id) || (r.invoiceNumber && r.invoiceNumber === inv.invoiceNumber));
+        if (linkedReceipt) {
+            const rName = (linkedReceipt.clientName || (linkedReceipt as any).client_name || (linkedReceipt as any).paidBy || (linkedReceipt as any).paid_by || '').trim();
+            if (rName && !['client', 'corporate client'].includes(rName.toLowerCase())) {
+                return rName;
+            }
+        }
+
+        // 5. Match from institutionMap using institutionId
+        const instId = inv.institutionId || inv.institution_id;
+        if (instId && instId !== 'GLOBAL') {
+            const inst = institutionMap.get(instId);
+            if (inst?.name) return inst.name;
+        }
+
+        // 6. Scoped institution name
+        if (currentInstitution?.name && institutionId && institutionId !== 'GLOBAL') {
+            return currentInstitution.name;
+        }
+
+        // 7. If clients directory has only 1 registered client, deduce
+        if (clients.length === 1 && clients[0].clientName) {
+            return clients[0].clientName;
+        }
+
+        return direct || 'Corporate Client';
+    }, [clients, receipts, institutionMap, currentInstitution, institutionId]);
+
+    // Open Assign Client Modal
+    const handleOpenAssignClientModal = (inv: Invoice) => {
+        setAssignClientInvoice(inv);
+        const resolved = resolveInvoiceClientName(inv);
+        const isGeneric = !resolved || ['client', 'corporate client'].includes(resolved.toLowerCase());
+        setAssignSelectedClientId(inv.clientId || (inv as any).client_id || '');
+        setAssignCustomName(isGeneric ? '' : resolved);
+        setAssignCustomEmail(inv.clientEmail || (inv as any).client_email || '');
+        setAssignCustomPhone(inv.clientPhone || (inv as any).client_phone || '');
+        setAssignCustomTaxPin(inv.clientTaxPin || (inv as any).client_tax_pin || '');
+    };
+
+    // Save Assign Client Submission
+    const handleSaveAssignClientSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!assignClientInvoice) return;
+        const targetName = assignCustomName.trim();
+        if (!targetName) return alert('Please enter or select a valid client name.');
+
+        setIsSavingAssignClient(true);
+        try {
+            const updatedInvoice: Invoice = {
+                ...assignClientInvoice,
+                clientId: assignSelectedClientId || assignClientInvoice.clientId || `cli_${Date.now()}`,
+                client_id: assignSelectedClientId || assignClientInvoice.clientId || `cli_${Date.now()}`,
+                clientName: targetName,
+                client_name: targetName,
+                clientEmail: assignCustomEmail.trim() || assignClientInvoice.clientEmail,
+                client_email: assignCustomEmail.trim() || assignClientInvoice.clientEmail,
+                clientPhone: assignCustomPhone.trim() || assignClientInvoice.clientPhone,
+                client_phone: assignCustomPhone.trim() || assignClientInvoice.clientPhone,
+                clientTaxPin: assignCustomTaxPin.trim().toUpperCase() || assignClientInvoice.clientTaxPin,
+                client_tax_pin: assignCustomTaxPin.trim().toUpperCase() || assignClientInvoice.clientTaxPin,
+                metadata: {
+                    ...(assignClientInvoice.metadata || {}),
+                    clientId: assignSelectedClientId || assignClientInvoice.clientId,
+                    client_id: assignSelectedClientId || assignClientInvoice.clientId,
+                    clientName: targetName,
+                    client_name: targetName,
+                    clientEmail: assignCustomEmail.trim(),
+                    clientPhone: assignCustomPhone.trim(),
+                    clientTaxPin: assignCustomTaxPin.trim().toUpperCase()
+                }
+            } as any;
+
+            await apiService.saveModuleRecord('invoices', updatedInvoice);
+
+            // If client not already in clients directory, register it
+            if (!assignSelectedClientId) {
+                const existing = clients.find(c => (c.clientName || '').toLowerCase() === targetName.toLowerCase());
+                if (!existing) {
+                    const newClient: InvoiceClient = {
+                        id: `cli_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                        institutionId,
+                        clientName: targetName,
+                        email: assignCustomEmail.trim(),
+                        phone: assignCustomPhone.trim(),
+                        taxPin: assignCustomTaxPin.trim().toUpperCase(),
+                        notes: `Auto-registered from invoice ${assignClientInvoice.invoiceNumber}`
+                    };
+                    await apiService.saveInvoiceClient(newClient).catch(() => {});
+                    setClients(prev => [newClient, ...prev]);
+                }
+            }
+
+            setInvoices(prev => prev.map(i => i.id === updatedInvoice.id ? updatedInvoice : i));
+            onLogAction?.(`Assigned client "${targetName}" to invoice ${assignClientInvoice.invoiceNumber}`);
+            alert(`Success: Invoice ${assignClientInvoice.invoiceNumber} updated with client "${targetName}"!`);
+            setAssignClientInvoice(null);
+        } catch (err: any) {
+            console.error('Failed to update invoice client:', err);
+            alert('Failed to update invoice: ' + (err?.message || err));
+        } finally {
+            setIsSavingAssignClient(false);
+        }
+    };
+
+    // Auto-heal legacy or placeholder invoices where clientName is 'Client'
+    useEffect(() => {
+        if (invoices.length === 0 || (clients.length === 0 && (availableInstitutions || []).length === 0)) return;
+        let hasHealed = false;
+        const healedList = invoices.map(inv => {
+            const raw = (inv.clientName || '').trim();
+            const isPlaceholder = !raw || ['client', 'corporate client'].includes(raw.toLowerCase());
+            if (!isPlaceholder) return inv;
+
+            const resolved = resolveInvoiceClientName(inv);
+            if (resolved && !['client', 'corporate client'].includes(resolved.toLowerCase())) {
+                hasHealed = true;
+                const healedDoc: Invoice = {
+                    ...inv,
+                    clientName: resolved,
+                    client_name: resolved,
+                    metadata: {
+                        ...(inv.metadata || {}),
+                        clientName: resolved,
+                        client_name: resolved
+                    }
+                } as any;
+                apiService.saveModuleRecord('invoices', healedDoc).catch(() => {});
+                return healedDoc;
+            }
+            return inv;
+        });
+
+        if (hasHealed) {
+            setInvoices(healedList);
+        }
+    }, [clients, availableInstitutions, receipts, invoices, resolveInvoiceClientName]);
+
     // Financial Metrics Calculations
     const metrics = useMemo(() => {
         const isGlobal = !institutionId || institutionId === 'GLOBAL';
@@ -495,15 +727,16 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             if (searchQuery) {
                 const q = searchQuery.toLowerCase();
                 const num = (inv.invoiceNumber || '').toLowerCase();
-                const cName = (inv.clientName || '').toLowerCase();
+                const cName = resolveInvoiceClientName(inv).toLowerCase();
+                const pin = (inv.clientTaxPin || '').toLowerCase();
                 const instName = (institutionMap.get(inv.institutionId || '')?.name || '').toLowerCase();
                 const itemMatch = inv.items?.some(it => it.description.toLowerCase().includes(q));
-                if (!num.includes(q) && !cName.includes(q) && !instName.includes(q) && !itemMatch) return false;
+                if (!num.includes(q) && !cName.includes(q) && !pin.includes(q) && !instName.includes(q) && !itemMatch) return false;
             }
 
             return true;
         });
-    }, [invoices, activeTab, statusFilter, clientFilter, searchQuery, institutionMap, institutionId]);
+    }, [invoices, activeTab, statusFilter, clientFilter, searchQuery, institutionMap, institutionId, resolveInvoiceClientName]);
 
     // Receipts Search & Filter States
     const [receiptSearchQuery, setReceiptSearchQuery] = useState('');
@@ -666,6 +899,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         if (invItems.length === 0 || calculatedSubtotal <= 0) return alert('Please provide at least one valid line item with an amount.');
 
         const client = clients.find(c => c.id === invClientId);
+        const resolvedClientName = client?.clientName || (client as any)?.client_name || (client as any)?.name || 'Corporate Client';
         const docType = isQuoteMode ? 'quote' : 'invoice';
 
         // Obtain sequential number from the configured sequence
@@ -710,22 +944,38 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             amountPaid: 0,
             balance: calculatedGrandTotal,
             status: isQuoteMode ? 'quote' : 'pending',
-            clientId: client?.id,
-            clientName: client?.clientName || 'Client',
-            clientEmail: client?.email,
-            clientPhone: client?.phone,
-            clientTaxPin: client?.taxPin,
-            clientAddress: client?.address,
+            clientId: client?.id || invClientId,
+            client_id: client?.id || invClientId,
+            clientName: resolvedClientName,
+            client_name: resolvedClientName,
+            clientEmail: client?.email || (client as any)?.client_email,
+            client_email: client?.email || (client as any)?.client_email,
+            clientPhone: client?.phone || (client as any)?.client_phone,
+            client_phone: client?.phone || (client as any)?.client_phone,
+            clientTaxPin: client?.taxPin || (client as any)?.tax_pin,
+            client_tax_pin: client?.taxPin || (client as any)?.tax_pin,
+            clientAddress: client?.address || (client as any)?.client_address,
+            client_address: client?.address || (client as any)?.client_address,
             currency: formCurrency || 'KES',
             notes: invNotes || formNotesTemplate,
-            terms: invTerms || formTermsTemplate
+            terms: invTerms || formTermsTemplate,
+            metadata: {
+                clientId: client?.id || invClientId,
+                client_id: client?.id || invClientId,
+                clientName: resolvedClientName,
+                client_name: resolvedClientName,
+                clientEmail: client?.email || (client as any)?.client_email,
+                clientPhone: client?.phone || (client as any)?.client_phone,
+                clientTaxPin: client?.taxPin || (client as any)?.tax_pin,
+                clientAddress: client?.address || (client as any)?.client_address
+            }
         };
 
         try {
             await apiService.saveModuleRecord('invoices', newDoc);
             setInvoices(prev => [newDoc, ...prev]);
             setShowInvoiceModal(false);
-            onLogAction?.(`Created corporate ${isQuoteMode ? 'Quote' : 'Invoice'} ${serial} for ${client?.clientName} of ${formCurrency} ${calculatedGrandTotal.toLocaleString()}`);
+            onLogAction?.(`Created corporate ${isQuoteMode ? 'Quote' : 'Invoice'} ${serial} for ${resolvedClientName} of ${formCurrency} ${calculatedGrandTotal.toLocaleString()}`);
             alert(`Success: ${isQuoteMode ? 'Quotation' : 'Invoice'} ${serial} created successfully!`);
             // Reset form
             setInvItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
@@ -1134,7 +1384,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     // Batch Sync Tenant Institutions into Corporate Client Directory
     const handleSyncTenantsAsClients = async () => {
         if (!availableInstitutions || availableInstitutions.length === 0) return;
-        const existingNames = new Set(clients.map(c => c.clientName.toLowerCase().trim()));
+        const existingNames = new Set(clients.map(c => (c.clientName || (c as any).client_name || '').toLowerCase().trim()));
         const toImport = availableInstitutions.filter(inst => inst.name && !existingNames.has(inst.name.toLowerCase().trim()));
         
         if (toImport.length === 0) {
@@ -1350,17 +1600,33 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {invoices.filter(i => i.status !== 'quote').slice(0, 5).map(inv => {
                                         const cfg = INVOICE_STATUS_CONFIG[inv.status] || INVOICE_STATUS_CONFIG.pending;
+                                        const resolvedName = resolveInvoiceClientName(inv);
+                                        const isGenericName = !resolvedName || ['client', 'corporate client'].includes(resolvedName.toLowerCase());
+                                        const instName = institutionMap.get(inv.institutionId || '')?.name;
                                         return (
                                             <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40">
                                                 <td className="p-3 font-mono font-black text-indigo-600 dark:text-indigo-400">{inv.invoiceNumber}</td>
                                                 <td className="p-3">
-                                                    <p className="font-bold text-slate-900 dark:text-white">{inv.clientName || institutionMap.get(inv.institutionId || '')?.name || 'Client'}</p>
-                                                    {institutionMap.get(inv.institutionId || '')?.name && inv.clientName && inv.clientName !== institutionMap.get(inv.institutionId || '')?.name && (
-                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{institutionMap.get(inv.institutionId || '')?.name}</span>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <p className="font-bold text-slate-900 dark:text-white">{resolvedName}</p>
+                                                        {isGenericName && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenAssignClientModal(inv)}
+                                                                className="text-[10px] text-amber-700 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 hover:bg-amber-200 transition-colors flex items-center gap-1"
+                                                                title="Assign corporate client"
+                                                            >
+                                                                <PencilIcon className="w-2.5 h-2.5 inline" /> Assign Client
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {instName && resolvedName !== instName && (
+                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{instName}</span>
                                                     )}
+                                                    {inv.clientTaxPin && <span className="text-[10px] text-slate-400 font-mono">PIN: {inv.clientTaxPin}</span>}
                                                 </td>
-                                                <td className="p-3 text-slate-500">{inv.issueDate}</td>
-                                                <td className="p-3 text-slate-500">{inv.dueDate}</td>
+                                                <td className="p-3 text-slate-500 font-medium">{formatDateDisplay(inv.issueDate)}</td>
+                                                <td className="p-3 text-slate-500 font-medium">{formatDateDisplay(inv.dueDate)}</td>
                                                 <td className="p-3 text-right font-mono font-bold">{formCurrency} {Number(inv.totalAmount).toLocaleString()}</td>
                                                 <td className="p-3 text-right font-mono font-bold text-rose-600 dark:text-rose-400">
                                                     {formCurrency} {Math.max(0, Number(inv.totalAmount) - (Number(inv.amountPaid) || 0)).toLocaleString()}
@@ -1372,6 +1638,13 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 </td>
                                                 <td className="p-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            onClick={() => handleOpenAssignClientModal(inv)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Assign / Edit Client"
+                                                        >
+                                                            <PencilIcon className="w-4 h-4" />
+                                                        </button>
                                                         <button
                                                             onClick={() => setPreviewInvoice(inv)}
                                                             className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -1476,18 +1749,33 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     {filteredInvoices.map(doc => {
                                         const cfg = INVOICE_STATUS_CONFIG[doc.status] || INVOICE_STATUS_CONFIG.pending;
                                         const balance = Math.max(0, Number(doc.totalAmount) - (Number(doc.amountPaid) || 0));
+                                        const resolvedName = resolveInvoiceClientName(doc);
+                                        const isGenericName = !resolvedName || ['client', 'corporate client'].includes(resolvedName.toLowerCase());
+                                        const instName = institutionMap.get(doc.institutionId || '')?.name;
                                         return (
                                             <tr key={doc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors">
                                                 <td className="p-4 font-mono font-black text-indigo-600 dark:text-indigo-400">{doc.invoiceNumber}</td>
                                                 <td className="p-4">
-                                                    <p className="font-bold text-slate-900 dark:text-white">{doc.clientName || institutionMap.get(doc.institutionId || '')?.name || 'Client'}</p>
-                                                    {institutionMap.get(doc.institutionId || '')?.name && doc.clientName && doc.clientName !== institutionMap.get(doc.institutionId || '')?.name && (
-                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{institutionMap.get(doc.institutionId || '')?.name}</span>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <p className="font-bold text-slate-900 dark:text-white">{resolvedName}</p>
+                                                        {isGenericName && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenAssignClientModal(doc)}
+                                                                className="text-[10px] text-amber-700 dark:text-amber-300 font-bold bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-300 dark:border-amber-700 hover:bg-amber-200 transition-colors flex items-center gap-1"
+                                                                title="Assign corporate client"
+                                                            >
+                                                                <PencilIcon className="w-2.5 h-2.5 inline" /> Assign Client
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    {instName && resolvedName !== instName && (
+                                                        <span className="text-[10px] text-indigo-500 font-semibold block">{instName}</span>
                                                     )}
                                                     {doc.clientTaxPin && <span className="text-[10px] text-slate-400 font-mono">PIN: {doc.clientTaxPin}</span>}
                                                 </td>
-                                                <td className="p-4 text-slate-500">{doc.issueDate}</td>
-                                                <td className="p-4 text-slate-500">{doc.dueDate}</td>
+                                                <td className="p-4 text-slate-500 font-medium">{formatDateDisplay(doc.issueDate)}</td>
+                                                <td className="p-4 text-slate-500 font-medium">{formatDateDisplay(doc.dueDate)}</td>
                                                 <td className="p-4 text-right font-mono text-slate-500">{formCurrency} {Number(doc.subtotal || doc.totalAmount).toLocaleString()}</td>
                                                 <td className="p-4 text-right font-mono text-slate-500">{formCurrency} {Number(doc.taxAmount || 0).toLocaleString()}</td>
                                                 <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">
@@ -1505,6 +1793,13 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 </td>
                                                 <td className="p-4 text-center">
                                                     <div className="flex items-center justify-center gap-1.5">
+                                                        <button
+                                                            onClick={() => handleOpenAssignClientModal(doc)}
+                                                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Assign / Edit Client"
+                                                        >
+                                                            <PencilIcon className="w-4 h-4" />
+                                                        </button>
                                                         {activeTab === 'quotes' && (
                                                             <button
                                                                 onClick={() => handleConvertQuoteToInvoice(doc)}
@@ -2381,7 +2676,16 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                             {/* Client & Date Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Select Client</label>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Select Client</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setEditingClient(null); setShowClientModal(true); }}
+                                            className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                        >
+                                            + Add New
+                                        </button>
+                                    </div>
                                     <select
                                         required
                                         value={invClientId}
@@ -2390,7 +2694,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     >
                                         <option value="" className="text-slate-500 dark:text-slate-400">-- Choose Client --</option>
                                         {clients.map(c => (
-                                            <option key={c.id} value={c.id} className="text-slate-900 dark:text-white">{c.clientName}</option>
+                                            <option key={c.id} value={c.id} className="text-slate-900 dark:text-white">
+                                                {c.clientName || (c as any).client_name || (c as any).name || 'Client'} {c.contactPerson ? `(${c.contactPerson})` : ''}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -2723,6 +3029,161 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 </div>
             )}
 
+            {/* ===== MODAL: ASSIGN / EDIT CLIENT FOR INVOICE ===== */}
+            {assignClientInvoice && (
+                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-800 overflow-hidden animate-scale-up">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/40 dark:bg-slate-800/40">
+                            <div>
+                                <h3 className="font-black text-slate-900 dark:text-white text-base flex items-center gap-2">
+                                    <BuildingOfficeIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                                    Assign Client to Invoice
+                                </h3>
+                                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                    Document: <span className="font-bold text-indigo-600 dark:text-indigo-400">{assignClientInvoice.invoiceNumber}</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setAssignClientInvoice(null)}
+                                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveAssignClientSubmit} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                                    Select from Registered Clients Directory
+                                </label>
+                                <select
+                                    value={assignSelectedClientId}
+                                    onChange={e => {
+                                        const val = e.target.value;
+                                        setAssignSelectedClientId(val);
+                                        if (val) {
+                                            const found = clients.find(c => c.id === val);
+                                            if (found) {
+                                                setAssignCustomName(found.clientName || (found as any).client_name || '');
+                                                setAssignCustomEmail(found.email || '');
+                                                setAssignCustomPhone(found.phone || '');
+                                                setAssignCustomTaxPin(found.taxPin || '');
+                                            }
+                                        }
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
+                                >
+                                    <option value="">-- Choose Existing Client (or enter manually below) --</option>
+                                    {clients.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.clientName || (c as any).client_name || 'Client'} {c.contactPerson ? `(${c.contactPerson})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {availableInstitutions && availableInstitutions.length > 0 && (
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                                        Or Select from Tenant Institutions
+                                    </label>
+                                    <select
+                                        onChange={e => {
+                                            const inst = availableInstitutions.find(i => i.id === e.target.value);
+                                            if (inst) {
+                                                setAssignCustomName(inst.name);
+                                                setAssignCustomEmail(inst.email || '');
+                                                setAssignCustomPhone(inst.phoneNumber || '');
+                                            }
+                                        }}
+                                        defaultValue=""
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
+                                    >
+                                        <option value="">-- Choose Tenant School / Organization --</option>
+                                        {availableInstitutions.map(inst => (
+                                            <option key={inst.id} value={inst.id}>{inst.name} ({inst.institutionType || 'School'})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            <div className="border-t border-slate-100 dark:border-slate-800 pt-3 space-y-3">
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                        Corporate Client / Organization Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="e.g. Acme Corporation Ltd or Brookside Academy"
+                                        value={assignCustomName}
+                                        onChange={e => setAssignCustomName(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-bold outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                            Tax PIN (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="P051234567Z"
+                                            value={assignCustomTaxPin}
+                                            onChange={e => setAssignCustomTaxPin(e.target.value.toUpperCase())}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs font-mono outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                            Contact Phone (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="+254 700 000 000"
+                                            value={assignCustomPhone}
+                                            onChange={e => setAssignCustomPhone(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                        Billing Email (Optional)
+                                    </label>
+                                    <input
+                                        type="email"
+                                        placeholder="finance@clientcompany.com"
+                                        value={assignCustomEmail}
+                                        onChange={e => setAssignCustomEmail(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-indigo-600 text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setAssignClientInvoice(null)}
+                                    className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingAssignClient || !assignCustomName.trim()}
+                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-md disabled:opacity-50"
+                                >
+                                    {isSavingAssignClient ? 'Saving...' : 'Update Invoice Client'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* ===== MODAL: DOCUMENT PREVIEW WITH OFFICIAL LETTERHEAD ===== */}
             {previewInvoice && (
                 <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
@@ -2824,7 +3285,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-5 rounded-xl border border-slate-100">
                                         <div>
                                             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Billed To (Client / Customer)</span>
-                                            <h4 className="text-base font-black text-slate-900">{previewInvoice.clientName || 'Corporate Client'}</h4>
+                                            <h4 className="text-base font-black text-slate-900">{resolveInvoiceClientName(previewInvoice)}</h4>
                                             {previewInvoice.clientAddress && <p className="text-xs text-slate-600 mt-0.5">{previewInvoice.clientAddress}</p>}
                                             {previewInvoice.clientTaxPin && <p className="text-xs font-mono text-slate-500">PIN: {previewInvoice.clientTaxPin}</p>}
                                             {previewInvoice.clientEmail && <p className="text-xs text-slate-600">{previewInvoice.clientEmail}</p>}
@@ -2833,11 +3294,11 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                         <div className="space-y-1 text-right md:border-l md:border-slate-200 md:pl-6">
                                             <div className="flex justify-between md:justify-end gap-3 text-xs">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">Issue Date:</span>
-                                                <span className="font-bold text-slate-800">{previewInvoice.issueDate}</span>
+                                                <span className="font-bold text-slate-800">{formatDateDisplay(previewInvoice.issueDate)}</span>
                                             </div>
                                             <div className="flex justify-between md:justify-end gap-3 text-xs">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">{previewInvoice.status === 'quote' ? 'Valid Until:' : 'Due Date:'}</span>
-                                                <span className="font-bold text-slate-800">{previewInvoice.dueDate}</span>
+                                                <span className="font-bold text-slate-800">{formatDateDisplay(previewInvoice.dueDate)}</span>
                                             </div>
                                             <div className="flex justify-between md:justify-end gap-3 text-xs">
                                                 <span className="text-slate-400 font-bold uppercase text-[10px]">Currency:</span>
@@ -3018,7 +3479,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                 const invoicePaidTotal = Number(matchingInv?.amountPaid || previewReceipt.amountPaid);
                 const invoiceRemaining = matchingInv ? Math.max(0, invoiceTotal - invoicePaidTotal) : 0;
                 const isFullySettled = invoiceRemaining <= 0;
-                const customerName = matchingInv?.clientName || client?.clientName || (previewReceipt as any).receivedFrom || 'Commercial Client';
+                const customerName = resolveInvoiceClientName(matchingInv) || client?.clientName || (client as any)?.client_name || (previewReceipt as any).receivedFrom || 'Commercial Client';
                 const customerPhone = client?.phone || matchingInv?.clientPhone || '—';
                 const customerEmail = client?.email || matchingInv?.clientEmail || '—';
                 const customerAddress = client?.address || matchingInv?.clientAddress || '—';

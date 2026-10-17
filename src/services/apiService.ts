@@ -1949,6 +1949,60 @@ export const apiService = {
                         r.institution_id = instId;
                     });
                 }
+                if (module === 'invoices' && Array.isArray(finalResult)) {
+                    finalResult.forEach((inv: any) => {
+                        const invNum = inv.invoiceNumber || inv.invoice_number || '';
+                        inv.invoiceNumber = invNum;
+                        inv.invoice_number = invNum;
+                        const cName = inv.clientName || inv.client_name || inv.customerName || inv.customer_name || inv.billedTo || inv.billed_to || inv.metadata?.clientName || inv.metadata?.client_name || '';
+                        if (cName) {
+                            inv.clientName = cName;
+                            inv.client_name = cName;
+                        }
+                        const cId = inv.clientId || inv.client_id || inv.metadata?.clientId || inv.metadata?.client_id || '';
+                        if (cId) {
+                            inv.clientId = cId;
+                            inv.client_id = cId;
+                        }
+                        const cEmail = inv.clientEmail || inv.client_email || '';
+                        if (cEmail) {
+                            inv.clientEmail = cEmail;
+                            inv.client_email = cEmail;
+                        }
+                        const cPhone = inv.clientPhone || inv.client_phone || '';
+                        if (cPhone) {
+                            inv.clientPhone = cPhone;
+                            inv.client_phone = cPhone;
+                        }
+                        const cTaxPin = inv.clientTaxPin || inv.client_tax_pin || '';
+                        if (cTaxPin) {
+                            inv.clientTaxPin = cTaxPin;
+                            inv.client_tax_pin = cTaxPin;
+                        }
+                        const cAddress = inv.clientAddress || inv.client_address || '';
+                        if (cAddress) {
+                            inv.clientAddress = cAddress;
+                            inv.client_address = cAddress;
+                        }
+                        const isDate = inv.issueDate || inv.issue_date || '';
+                        if (isDate) {
+                            inv.issueDate = isDate;
+                            inv.issue_date = isDate;
+                        }
+                        const dDate = inv.dueDate || inv.due_date || '';
+                        if (dDate) {
+                            inv.dueDate = dDate;
+                            inv.due_date = dDate;
+                        }
+                        const tot = Number(inv.totalAmount ?? inv.total_amount ?? inv.amount ?? 0);
+                        inv.totalAmount = tot;
+                        inv.total_amount = tot;
+                        const pd = Number(inv.amountPaid ?? inv.amount_paid ?? inv.paidAmount ?? inv.paid_amount ?? 0);
+                        inv.amountPaid = pd;
+                        inv.amount_paid = pd;
+                        inv.balance = Number(inv.balance ?? (tot - pd));
+                    });
+                }
                 if (module === 'student_enrollments' && Array.isArray(finalResult)) {
                     finalResult.forEach((enr: any) => {
                         let meta = enr.metadata;
@@ -2855,6 +2909,60 @@ export const apiService = {
                         if (!req.createdAt && (req.timestamp || (req as any).created_at)) {
                             req.createdAt = req.timestamp || (req as any).created_at;
                         }
+                    });
+                }
+                if (module === 'invoices' && Array.isArray(result)) {
+                    result.forEach((inv: any) => {
+                        const invNum = inv.invoiceNumber || inv.invoice_number || '';
+                        inv.invoiceNumber = invNum;
+                        inv.invoice_number = invNum;
+                        const cName = inv.clientName || inv.client_name || inv.customerName || inv.customer_name || inv.billedTo || inv.billed_to || inv.metadata?.clientName || inv.metadata?.client_name || '';
+                        if (cName) {
+                            inv.clientName = cName;
+                            inv.client_name = cName;
+                        }
+                        const cId = inv.clientId || inv.client_id || inv.metadata?.clientId || inv.metadata?.client_id || '';
+                        if (cId) {
+                            inv.clientId = cId;
+                            inv.client_id = cId;
+                        }
+                        const cEmail = inv.clientEmail || inv.client_email || '';
+                        if (cEmail) {
+                            inv.clientEmail = cEmail;
+                            inv.client_email = cEmail;
+                        }
+                        const cPhone = inv.clientPhone || inv.client_phone || '';
+                        if (cPhone) {
+                            inv.clientPhone = cPhone;
+                            inv.client_phone = cPhone;
+                        }
+                        const cTaxPin = inv.clientTaxPin || inv.client_tax_pin || '';
+                        if (cTaxPin) {
+                            inv.clientTaxPin = cTaxPin;
+                            inv.client_tax_pin = cTaxPin;
+                        }
+                        const cAddress = inv.clientAddress || inv.client_address || '';
+                        if (cAddress) {
+                            inv.clientAddress = cAddress;
+                            inv.client_address = cAddress;
+                        }
+                        const isDate = inv.issueDate || inv.issue_date || '';
+                        if (isDate) {
+                            inv.issueDate = isDate;
+                            inv.issue_date = isDate;
+                        }
+                        const dDate = inv.dueDate || inv.due_date || '';
+                        if (dDate) {
+                            inv.dueDate = dDate;
+                            inv.due_date = dDate;
+                        }
+                        const tot = Number(inv.totalAmount ?? inv.total_amount ?? inv.amount ?? 0);
+                        inv.totalAmount = tot;
+                        inv.total_amount = tot;
+                        const pd = Number(inv.amountPaid ?? inv.amount_paid ?? inv.paidAmount ?? inv.paid_amount ?? 0);
+                        inv.amountPaid = pd;
+                        inv.amount_paid = pd;
+                        inv.balance = Number(inv.balance ?? (tot - pd));
                     });
                 }
 
@@ -8960,10 +9068,29 @@ export const apiService = {
     // Corporate Invoicing & Billing Services
     async fetchInvoiceClients(instId?: string): Promise<InvoiceClient[]> {
         const isGlobal = !instId || instId === 'GLOBAL';
+        const normalizeClientObj = (r: any): InvoiceClient => {
+            const camel = toCamelCase(r);
+            const cName = camel.clientName || r.client_name || camel.name || r.name || 'Client';
+            return {
+                ...camel,
+                id: r.id || camel.id,
+                institutionId: camel.institutionId || r.institution_id || (isGlobal ? 'GLOBAL' : instId || 'GLOBAL'),
+                clientName: cName,
+                client_name: cName,
+                contactPerson: camel.contactPerson || r.contact_person || '',
+                email: camel.email || r.email || '',
+                phone: camel.phone || r.phone || '',
+                taxPin: camel.taxPin || r.tax_pin || '',
+                address: camel.address || r.address || '',
+                city: camel.city || r.city || '',
+                notes: camel.notes || r.notes || ''
+            };
+        };
+
         try {
             const records = await apiService.fetchModuleRecords<InvoiceClient>('invoice_clients', isGlobal ? undefined : instId);
             if (Array.isArray(records) && records.length > 0) {
-                return records;
+                return records.map(normalizeClientObj);
             }
         } catch (_) {}
 
@@ -8976,7 +9103,7 @@ export const apiService = {
                 }
                 const { data: sbData, error: sbErr } = await q.order('created_at', { ascending: false });
                 if (!sbErr && Array.isArray(sbData) && sbData.length > 0) {
-                    const camelList = sbData.map(r => toCamelCase(r) as InvoiceClient);
+                    const camelList = sbData.map(normalizeClientObj);
                     ls.set('invoice_clients', camelList);
                     return camelList;
                 }
@@ -8987,22 +9114,33 @@ export const apiService = {
         return local.filter((c: any) => {
             const id = c.institutionId || c.institution_id;
             return isGlobal ? (!id || id === 'GLOBAL') : id === instId;
-        }).map(c => toCamelCase(c));
+        }).map(normalizeClientObj);
     },
 
     async saveInvoiceClient(data: Partial<InvoiceClient>): Promise<void> {
         const instId = data.institutionId || (data as any).institution_id || 'GLOBAL';
         const clientId = data.id || `cli_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const cName = data.clientName || (data as any).client_name || '';
         const snakePayload: any = {
             ...toSnakeCase(data),
             id: clientId,
             institution_id: instId,
+            client_name: cName,
             updated_at: new Date().toISOString()
+        };
+        const dualPayload: any = {
+            ...snakePayload,
+            ...toCamelCase(data),
+            id: clientId,
+            institutionId: instId,
+            institution_id: instId,
+            clientName: cName,
+            client_name: cName
         };
 
         // Immediate write-through cache so UI updates instantly
-        ls.upsert('invoice_clients', snakePayload);
-        try { localDb.upsert('invoice_clients', snakePayload).catch(() => {}); } catch (_) {}
+        ls.upsert('invoice_clients', dualPayload);
+        try { localDb.upsert('invoice_clients', dualPayload).catch(() => {}); } catch (_) {}
 
         // 1. Direct Supabase write if available
         if (_supabase) {
