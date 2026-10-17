@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { AppNotification, User, Institution } from '../types';
 import { BellIcon } from './icons/BellIcon';
 import { CheckIcon } from './icons/CheckIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
 
 interface NotificationBellProps {
   notifications: AppNotification[];
@@ -226,6 +227,14 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                                 {sortedNotifications.map(notification => {
                                     const isVisitorNotif = isGateVisitorNotification(notification);
                                     const visitorDetails = isVisitorNotif ? extractVisitorDetails(notification) : null;
+                                    const isVisitorExited = isVisitorNotif && (
+                                        notification.isRead || 
+                                        notification.metadata?.visitorStatus === 'checked_out' || 
+                                        notification.metadata?.autoFinalizedExit || 
+                                        notification.metadata?.autoFinalizedByHost || 
+                                        notification.metadata?.autoFinalizedBySchedule
+                                    );
+                                    const exitTime = notification.metadata?.exitTime;
 
                                     return (
                                         <li 
@@ -233,20 +242,39 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                                             className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
                                                 !notification.isRead 
                                                     ? (isVisitorNotif ? 'bg-amber-50/70 dark:bg-amber-950/30 border-l-4 border-amber-500' : 'bg-blue-50/50 dark:bg-blue-900/20 border-l-4 border-blue-500') 
-                                                    : ''
+                                                    : (isVisitorNotif && isVisitorExited ? 'bg-slate-50/50 dark:bg-slate-800/40 border-l-4 border-emerald-500/70' : '')
                                             }`}
                                         >
                                             <div className="flex justify-between items-start gap-3">
                                                 <div className="flex-grow">
                                                     {isVisitorNotif && visitorDetails && (
                                                         <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                                                                VISITOR AT GATE
-                                                            </span>
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-black bg-amber-200/90 text-amber-950 dark:bg-amber-800/70 dark:text-amber-100 border border-amber-300 dark:border-amber-600">
-                                                                👤 {visitorDetails.visitorName}
-                                                            </span>
+                                                            {isVisitorExited ? (
+                                                                <>
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-sm">
+                                                                        <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                                        VISITOR EXITED • MARKED
+                                                                    </span>
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-800 dark:bg-slate-700/80 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                                                        👤 {visitorDetails.visitorName}
+                                                                    </span>
+                                                                    {exitTime && (
+                                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                                            Exit: {exitTime}
+                                                                        </span>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                                                                        VISITOR AT GATE
+                                                                    </span>
+                                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-black bg-amber-200/90 text-amber-950 dark:bg-amber-800/70 dark:text-amber-100 border border-amber-300 dark:border-amber-600">
+                                                                        👤 {visitorDetails.visitorName}
+                                                                    </span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
 
@@ -262,7 +290,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
                                                     <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{formatTimeAgo(notification.timestamp)}</p>
                                                 </div>
-                                                {!notification.isRead && (
+                                                {!notification.isRead ? (
                                                     <button 
                                                         onClick={() => handleItemAction(notification)}
                                                         className={`flex-shrink-0 p-1.5 rounded-xl transition-all ${
@@ -281,7 +309,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                                                             <span className="block w-2.5 h-2.5 bg-blue-500 rounded-full"></span>
                                                         )}
                                                     </button>
-                                                )}
+                                                ) : isVisitorNotif ? (
+                                                    <div className="flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold">
+                                                        <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                        <span>Marked</span>
+                                                    </div>
+                                                ) : null}
                                             </div>
                                         </li>
                                     );

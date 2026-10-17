@@ -3430,7 +3430,30 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
     const handleCheckoutVisitor = useCallback(async (id: string) => {
         const v = (visitors || []).find(x => x.id === id);
         if (v) {
-            await apiService.saveModuleRecord('visitors', { ...v, status: 'checked_out', timeOut: new Date().toLocaleTimeString() });
+            const timeOutStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            await apiService.saveModuleRecord('visitors', { ...v, status: 'checked_out', timeOut: timeOutStr });
+            await apiService.markVisitorNotificationsAsExited(v.id, v.name || (v as any).fullName, timeOutStr, (v as any).hostId || (v as any).host_id);
+            setNotifications(prev => (prev || []).map(n => {
+                if (!n) return n;
+                const isVisitorType = n.type === 'guest_arrival' || n.type === 'visitor';
+                if (!isVisitorType) return n;
+                const nVid = String(n.metadata?.visitorId || n.visitorId || (n as any).visitor_id || '');
+                const nVName = String(n.visitorName || n.metadata?.visitorName || '').trim().toLowerCase();
+                if ((nVid && nVid === v.id) || (v.name && nVName === v.name.trim().toLowerCase())) {
+                    return {
+                        ...n,
+                        isRead: true,
+                        is_read: true,
+                        metadata: { 
+                            ...(n.metadata || {}), 
+                            visitorStatus: 'checked_out', 
+                            exitTime: timeOutStr, 
+                            autoMarkedAt: new Date().toISOString() 
+                        }
+                    };
+                }
+                return n;
+            }));
             await handleLogAction(`Checked out visitor: ${v.name}`);
         }
         loadData();
@@ -3567,6 +3590,31 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         const existing = (buildingVisitorLogs || []).find(v => v.id === id);
         if (existing) {
             await apiService.saveModuleRecord('building_visitor_logs', { ...existing, ...data });
+            if (data.status === 'checked_out') {
+                const exitTime = data.timeOut || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                await apiService.markVisitorNotificationsAsExited(existing.id, existing.visitorName, exitTime, (existing as any).hostId || (existing as any).host_id);
+                setNotifications(prev => (prev || []).map(n => {
+                    if (!n) return n;
+                    const isVisitorType = n.type === 'guest_arrival' || n.type === 'visitor';
+                    if (!isVisitorType) return n;
+                    const nVid = String(n.metadata?.visitorId || n.visitorId || (n as any).visitor_id || '');
+                    const nVName = String(n.visitorName || n.metadata?.visitorName || '').trim().toLowerCase();
+                    if ((nVid && nVid === existing.id) || (existing.visitorName && nVName === existing.visitorName.trim().toLowerCase())) {
+                        return {
+                            ...n,
+                            isRead: true,
+                            is_read: true,
+                            metadata: { 
+                                ...(n.metadata || {}), 
+                                visitorStatus: 'checked_out', 
+                                exitTime, 
+                                autoMarkedAt: new Date().toISOString() 
+                            }
+                        };
+                    }
+                    return n;
+                }));
+            }
             loadData();
         }
     }, [buildingVisitorLogs, loadData]);
@@ -4414,6 +4462,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         };
 
         window.addEventListener('app_notification_created', handleNotifEvent);
+        window.addEventListener('app_notification_updated', syncNotifications);
         window.addEventListener('storage', syncNotifications);
         window.addEventListener('online', handleOnline);
         if (typeof document !== 'undefined') {
@@ -4425,6 +4474,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
         return () => {
             window.removeEventListener('app_notification_created', handleNotifEvent);
+            window.removeEventListener('app_notification_updated', syncNotifications);
             window.removeEventListener('storage', syncNotifications);
             window.removeEventListener('online', handleOnline);
             if (typeof document !== 'undefined') {
@@ -4476,6 +4526,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 };
                 setVisitors(prev => prev.map(x => x.id === v.id ? updated : x));
                 await apiService.saveModuleRecord('visitors', updated).catch(() => {});
+                await apiService.markVisitorNotificationsAsExited(
+                    v.id, 
+                    v.name || (v as any).fullName, 
+                    timeOutStr, 
+                    (v as any).hostId || (v as any).host_id
+                ).catch(() => {});
                 count++;
             }
 
@@ -4495,12 +4551,54 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 };
                 setBuildingVisitorLogs(prev => prev.map(x => x.id === b.id ? updated : x));
                 await apiService.saveModuleRecord('building_visitor_logs', updated).catch(() => {});
+                await apiService.markVisitorNotificationsAsExited(
+                    b.id, 
+                    b.visitorName, 
+                    timeOutStr, 
+                    (b as any).hostId || (b as any).host_id
+                ).catch(() => {});
                 count++;
             }
 
             if (count > 0) {
+                // Auto-mark notifications in current user state if they are an affected host
+                setNotifications(prev => (prev || []).map(n => {
+                    if (!n) return n;
+                    const isVisitorType = n.type === 'guest_arrival' || n.type === 'visitor';
+                    if (!isVisitorType) return n;
+
+                    const nVid = String(n.metadata?.visitorId || n.visitorId || (n as any).visitor_id || '');
+                    const nVName = String(n.visitorName || n.metadata?.visitorName || '').trim().toLowerCase();
+
+                    const matchedCampus = activeVisitors.some(v => 
+                        (nVid && v.id === nVid) || 
+                        (nVName && (v.name || (v as any).fullName || '').trim().toLowerCase() === nVName)
+                    );
+                    const matchedBuilding = activeLogs.some(b => 
+                        (nVid && b.id === nVid) || 
+                        (nVName && (b.visitorName || '').trim().toLowerCase() === nVName)
+                    );
+
+                    if (matchedCampus || matchedBuilding) {
+                        return {
+                            ...n,
+                            isRead: true,
+                            is_read: true,
+                            metadata: {
+                                ...(n.metadata || {}),
+                                visitorStatus: 'checked_out',
+                                autoFinalizedExit: true,
+                                autoFinalizedBySchedule: true,
+                                exitTime: timeOutStr,
+                                autoMarkedAt: now.toISOString()
+                            }
+                        };
+                    }
+                    return n;
+                }));
+
                 await handleLogAction(`Scheduled auto-finalize: ${count} visitor(s) checked out at ${cutoffTime} cutoff.`);
-                info(`🕐 ${count} visitor(s) auto-finalized at ${cutoffTime} cutoff.`);
+                info(`🕐 ${count} visitor(s) auto-finalized at ${cutoffTime} cutoff. Host notifications marked as completed.`);
             }
         };
 
@@ -5946,11 +6044,41 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 success(`Visitor ${matchedBuildingLog.visitorName} marked as met & exit finalized.`);
             }
 
+            // Mark notifications in database and local cache
+            const targetVisitorId = matchedVisitor?.id || matchedBuildingLog?.id || visitorId;
+            const targetVisitorName = matchedVisitor?.name || matchedBuildingLog?.visitorName || visitorName;
+            await apiService.markVisitorNotificationsAsExited(targetVisitorId, targetVisitorName, timeOutStr, currentUser?.id);
+
+            setNotifications(prev => (prev || []).map(n => {
+                if (!n) return n;
+                const isVisitorType = n.type === 'guest_arrival' || n.type === 'visitor';
+                if (!isVisitorType) return n;
+
+                const nVid = String(n.metadata?.visitorId || n.visitorId || (n as any).visitor_id || '');
+                const nVName = String(n.visitorName || n.metadata?.visitorName || '').trim().toLowerCase();
+
+                if ((nVid && (nVid === visitorId || nVid === targetVisitorId)) || (targetVisitorName && nVName === targetVisitorName.trim().toLowerCase()) || n.id === notification.id) {
+                    return {
+                        ...n,
+                        isRead: true,
+                        is_read: true,
+                        metadata: {
+                            ...(n.metadata || {}),
+                            visitorStatus: 'checked_out',
+                            autoFinalizedByHost: true,
+                            exitTime: timeOutStr,
+                            autoMarkedAt: new Date().toISOString()
+                        }
+                    };
+                }
+                return n;
+            }));
+
             loadData();
         } catch (err) {
             console.error("Failed to auto-finalize visitor exit:", err);
         }
-    }, [visitors, buildingVisitorLogs, handleLogAction, success, loadData]);
+    }, [visitors, buildingVisitorLogs, handleLogAction, success, loadData, currentUser?.id]);
 
     const handleMarkNotificationAsRead = useCallback(async (id: string) => {
         try {

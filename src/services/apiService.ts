@@ -5825,6 +5825,99 @@ export const apiService = {
             is_read: true
         } as any);
     },
+    async markVisitorNotificationsAsExited(visitorId: string, visitorName?: string, exitTime?: string, hostId?: string): Promise<void> {
+        const timeStr = exitTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const nowIso = new Date().toISOString();
+        const normVisitorName = (visitorName || '').trim().toLowerCase();
+
+        // 1. Update local storage cache
+        const allNotifs = (ls.get('app_notifications') || []) as any[];
+        let matchedCount = 0;
+        const updatedNotifs = allNotifs.map(n => {
+            if (!n) return n;
+            const isVisitorType = n.type === 'guest_arrival' || n.type === 'visitor';
+            if (!isVisitorType) return n;
+
+            const nVisitorId = String(n.metadata?.visitorId || n.visitorId || (n as any).visitor_id || '');
+            const nVisitorName = String(n.visitorName || n.metadata?.visitorName || '').trim().toLowerCase();
+            const nHostId = String(n.userId || n.user_id || n.metadata?.hostId || '');
+
+            const isIdMatch = visitorId && nVisitorId === visitorId;
+            const isNameMatch = normVisitorName && (nVisitorName === normVisitorName || (n.message && n.message.toLowerCase().includes(normVisitorName)));
+            const isHostMatch = !hostId || nHostId === hostId;
+
+            if ((isIdMatch || isNameMatch) && isHostMatch) {
+                matchedCount++;
+                return {
+                    ...n,
+                    isRead: true,
+                    is_read: true,
+                    metadata: {
+                        ...(n.metadata || {}),
+                        visitorStatus: 'checked_out',
+                        autoFinalizedExit: true,
+                        exitTime: timeStr,
+                        autoMarkedAt: nowIso
+                    }
+                };
+            }
+            return n;
+        });
+
+        if (matchedCount > 0) {
+            ls.set('app_notifications', updatedNotifs);
+        }
+
+        // 2. Direct Supabase / Backend persistence
+        if (_supabase) {
+            try {
+                if (visitorId) {
+                    await _supabase
+                        .from('app_notifications')
+                        .update({ 
+                            is_read: true, 
+                            isRead: true,
+                            metadata: {
+                                visitorStatus: 'checked_out',
+                                autoFinalizedExit: true,
+                                exitTime: timeStr,
+                                autoMarkedAt: nowIso
+                            }
+                        })
+                        .filter('metadata->>visitorId', 'eq', visitorId);
+                }
+                if (normVisitorName) {
+                    await _supabase
+                        .from('app_notifications')
+                        .update({ 
+                            is_read: true, 
+                            isRead: true,
+                            metadata: {
+                                visitorStatus: 'checked_out',
+                                autoFinalizedExit: true,
+                                exitTime: timeStr,
+                                autoMarkedAt: nowIso
+                            }
+                        })
+                        .ilike('visitorName', normVisitorName);
+                }
+            } catch (err) {
+                console.warn('[markVisitorNotificationsAsExited] Supabase update error:', err);
+            }
+        }
+
+        // 3. Fallback: Save updated matched notifications via apiService.saveModuleRecord
+        const matchedItems = updatedNotifs.filter(n => n?.metadata?.autoMarkedAt === nowIso);
+        for (const item of matchedItems) {
+            await apiService.saveModuleRecord('app_notifications', item).catch(() => {});
+        }
+
+        // 4. Notify reactive subscribers across tabs & windows
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('app_notification_created', { detail: { userId: hostId } }));
+            window.dispatchEvent(new CustomEvent('app_notification_updated', { detail: { visitorId, hostId, exitTime: timeStr } }));
+        }
+    },
     async notifySuperAdmins(message: string, type: string = 'info'): Promise<void> {
         const admins = await apiService.fetchModuleRecords<User>('users', undefined, undefined, { 
             filter: { role: 'super_admin' } 
