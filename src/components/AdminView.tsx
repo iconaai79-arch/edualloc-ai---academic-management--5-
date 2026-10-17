@@ -2670,6 +2670,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         currentInstitution={props.currentInstitution!}
                         users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
                         courses={props.courses || []}
+                        currentUser={props.currentUser}
                     />
                 )}
                 {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && !isLaw && !isInvoicing && !isLogistics && activeScope !== 'ds' && activeScope !== 'bc' && (
@@ -3992,6 +3993,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         currentInstitution={props.currentInstitution!}
                         users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
                         courses={props.courses || []}
+                        currentUser={props.currentUser}
                     />
                 )}
                 {activeTab === 'fiscal_guard' && (

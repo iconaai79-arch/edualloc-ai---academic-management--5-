@@ -69,6 +69,7 @@ import { TransportBillingManager } from './TransportBillingManager';
 import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
 import { TransportOpeningBalancesModal } from './TransportOpeningBalancesModal';
 import { TransportManager } from './TransportManager';
+import { SaccoDriverPortalView } from './SaccoDriverPortalView';
 import { apiService, safeLocalStorage } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
 
@@ -114,9 +115,10 @@ interface LogisticsManagerProps {
     currentInstitution: Institution;
     users: UserType[];
     courses?: Course[];
+    currentUser?: UserType;
 }
 
-export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users, courses: initialCourses = [] }) => {
+export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users, courses: initialCourses = [], currentUser }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const isShuttle = currentInstitution.category === 'Staff Shuttle' || currentInstitution.category === 'Corporate Shuttle';
     const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
@@ -125,7 +127,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSaccoSavings = currentInstitution.category === 'SACCO Savings' || currentInstitution.category === 'Transport SACCO & Savings' || currentInstitution.category?.toLowerCase().includes('savings');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_settings' | 'trips' | 'alerts' | 'billing' | 'reports'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_settings' | 'sacco_driver_app' | 'trips' | 'alerts' | 'billing' | 'reports'>(
         isSaccoSavings ? 'sacco_savings' : isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
     const [searchTerm, setSearchTerm] = useState('');
@@ -7065,6 +7067,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const navTabs = [
         { id: 'sacco_savings', label: 'SACCO Savings', subLabel: 'Thrift & Sinking Funds', icon: PiggyBank, show: isSACCO || isSaccoSavings },
         { id: 'sacco_remittance', label: 'Daily Remittance', subLabel: 'Driver Check-off & Penalties', icon: Clock3, show: isSACCO || isSaccoSavings },
+        { id: 'sacco_driver_app', label: 'Driver Mobile App', subLabel: 'Daily Remit, Loans & Statements', icon: Smartphone, show: isSACCO || isSaccoSavings },
         { id: 'sacco_settings', label: 'SACCO Settings', subLabel: 'Remittance Tiers, Loans & Cutoffs', icon: Sliders, show: isSACCO || isSaccoSavings },
         { id: 'sacco', label: 'SACCO Hub', subLabel: 'Member Registry & Licences', icon: Landmark, show: isSACCO || isSaccoSavings },
         { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', subLabel: 'Fleet Capacity & Live Status', icon: Truck, show: true },
@@ -7284,6 +7287,28 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         {activeTab === 'sacco_savings' && renderSACCOSavings()}
                         {activeTab === 'sacco_remittance' && renderSACCORemittance()}
                         {activeTab === 'sacco_settings' && renderSACCOSettings()}
+                        {activeTab === 'sacco_driver_app' && (
+                            <SaccoDriverPortalView
+                                currentInstitution={currentInstitution}
+                                currentUser={currentUser}
+                                saccoAccounts={saccoAccounts}
+                                saccoTransactions={saccoTransactions}
+                                remittanceSettings={remittanceSettings}
+                                remittanceRecords={remittanceRecords}
+                                loanSettings={loanSettings}
+                                onRecordRemittance={(rec) => {
+                                    setRemittanceRecords(prev => [rec, ...prev.filter(r => r.id !== rec.id)]);
+                                    persistHubToCloud({ remittanceRecords: [rec, ...remittanceRecords] });
+                                    toastSuccess(`Remittance of KES ${rec.amountPaid} recorded for ${rec.vehicleRegNumber}`);
+                                }}
+                                onRecordSavingsDeposit={(accId, amt, method, ref, notes) => {
+                                    handleRecordSavingsDeposit(accId, amt, method, ref, notes);
+                                }}
+                                onApplyLoan={(loanApp) => {
+                                    toastSuccess(`Loan application for KES ${loanApp.amount?.toLocaleString()} received by SACCO Credit Desk!`);
+                                }}
+                            />
+                        )}
                         {activeTab === 'trips' && isEduTransport && renderSchoolTrips()}
                         {activeTab === 'analytics' && (
                             <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
