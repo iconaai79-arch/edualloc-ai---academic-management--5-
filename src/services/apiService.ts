@@ -3787,6 +3787,21 @@ export const apiService = {
                 });
             }
 
+            // Demo requests normalization - harmonize fields and avoid PGRST204 schema cache stale errors on un-cached columns
+            if (module === 'demo_requests') {
+                if (item.institutionId && !item.institution) item.institution = item.institutionId;
+                delete item.institutionId;
+                delete item.institution_id;
+                if (item.requestedAt && !item.requested_at) item.requested_at = item.requestedAt;
+                delete item.requestedAt;
+                if (item.quoteAmount !== undefined && item.quote_amount === undefined) item.quote_amount = item.quoteAmount;
+                delete item.quoteAmount;
+                if (item.paymentStatus && !item.payment_status) item.payment_status = item.paymentStatus;
+                delete item.paymentStatus;
+                if (item.conversationTranscript && !item.conversation_transcript) item.conversation_transcript = item.conversationTranscript;
+                delete item.conversationTranscript;
+            }
+
             // Institutions normalization - map camelCase to snake_case and delete camelCase keys to avoid PGRST204 schema cache stale errors
             if (module === 'institutions') {
                 if (item.resellerId && !item.reseller_id) item.reseller_id = item.resellerId;

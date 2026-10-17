@@ -463,7 +463,8 @@ const isTableWithoutInstitutionId = (module: string) => {
     'event_categories', 'event_participants', 'event_splits', 'event_medical_logs', 'event_pledges', 'integration_logs',
     'county_bursary_funds', 'ng_cdf_funds', 'building_offices', 'building_visitor_assets',
     'county_inventory', 'county_inventory_categories', 'county_stores', 'county_dispatch_manifests', 'county_dispatch_items', 'county_school_requisitions',
-    'app_notifications', 'commission_withdrawal_requests'
+    'app_notifications', 'commission_withdrawal_requests',
+    'demo_requests'
   ].includes(module);
 };
 
@@ -6340,6 +6341,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return copy;
                         };
                         currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripInstCol) : stripInstCol(currentPayload);
+                        maxRetries--;
+                    }
+
+                    if (moduleName === 'demo_requests' || targetDbTable === 'demo_requests') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.demo_requests ADD COLUMN IF NOT EXISTS institution_id TEXT;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const stripDemoCol = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            delete copy[offendingCol];
+                            delete copy.institution_id;
+                            delete copy.institutionId;
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripDemoCol) : stripDemoCol(currentPayload);
                         maxRetries--;
                         continue;
                     }
