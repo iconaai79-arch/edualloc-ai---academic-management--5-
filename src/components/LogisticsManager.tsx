@@ -4982,78 +4982,66 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         );
     };
 
-    return (
-        <div className="p-6 lg:p-10 space-y-10 group/logistics">
-            {/* Navigation Tabs */}
-            <div className="flex overflow-x-auto whitespace-nowrap items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-full border border-slate-200 dark:border-slate-800 shadow-inner scrollbar-none">
-                {[
-                    { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
-                    { id: 'sacco_savings', label: 'SACCO Savings', icon: PiggyBank, show: isSACCO || isSaccoSavings },
-                    { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
-                    { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', icon: isEduTransport ? MapPin : Package, show: true },
-                    { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
-                    { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', icon: Truck, show: true },
-                    { id: 'vehicle_reg', label: 'Vehicle Registration', icon: Truck, show: true },
-                    { id: 'analytics', label: isSACCO ? 'Dividend Data' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', icon: BarChart3, show: true },
-                    { id: 'alerts',  label: 'Disruption Alerts', icon: Bell,    show: isEduTransport },
-                    { id: 'billing', label: 'Transport Billing', icon: Receipt, show: isEduTransport },
-                    { id: 'reports', label: 'Reports', icon: FileText, show: true },
-                    { id: 'epod', label: 'Proof Center', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
-                ].filter(t => t.show).map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`flex items-center gap-3 px-8 py-3 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest transition-all shrink-0 ${
-                            activeTab === tab.id 
-                            ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-xl' 
-                            : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                    >
-                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-indigo-650' : 'text-slate-400'}`} />
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+    const navTabs = [
+        { id: 'sacco_savings', label: 'SACCO Savings', subLabel: 'Thrift & Sinking Funds', icon: PiggyBank, show: isSACCO || isSaccoSavings },
+        { id: 'sacco', label: 'SACCO Hub', subLabel: 'Member Registry & Licences', icon: Landmark, show: isSACCO || isSaccoSavings },
+        { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', subLabel: 'Fleet Capacity & Live Status', icon: Truck, show: true },
+        { id: 'vehicle_reg', label: 'Vehicle Registration', subLabel: 'Add & Onboard Vehicles', icon: Truck, show: true },
+        { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', subLabel: isSACCO ? 'Trips & Stage Dispatches' : 'Manifest & Route Logs', icon: isEduTransport ? MapPin : Package, show: true },
+        { id: 'shuttle', label: 'Shuttle Control', subLabel: 'Corporate Staff Boarding', icon: DoorOpen, show: isShuttle },
+        { id: 'trips', label: 'School Trips', subLabel: 'Academic Transit & Field Trips', icon: Calendar, show: isEduTransport },
+        { id: 'analytics', label: isSACCO ? 'Dividend & Yield' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', subLabel: 'Performance & Revenue Data', icon: BarChart3, show: true },
+        { id: 'alerts',  label: 'Disruption Alerts', subLabel: 'Delays & Route Issues', icon: Bell, show: isEduTransport },
+        { id: 'billing', label: 'Transport Billing', subLabel: 'Fee Invoices & Commuter Fares', icon: Receipt, show: isEduTransport },
+        { id: 'reports', label: 'Reports & Logs', subLabel: 'Exportable Audit Spreadsheets', icon: FileText, show: true },
+        { id: 'epod', label: 'Proof Center', subLabel: 'Digital Delivery Signatures', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
+    ].filter(t => t.show);
 
-            {/* Contextual Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                <div>
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
-                            {isSaccoSavings ? <PiggyBank className="w-6 h-6 text-indigo-400" /> : isSACCO ? <Landmark className="w-6 h-6 text-indigo-400" /> : isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
-                        </div>
-                        <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
-                            {isSaccoSavings ? 'SACCO Savings & Transport' : isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle' : isEduTransport ? 'School Commute' : 'Logistics'} <span className="text-indigo-600">{isSaccoSavings ? 'Treasury' : isSACCO ? 'Ledger' : isShuttle ? 'Operations' : isEduTransport ? 'Hub' : 'Control'}</span>
-                        </h1>
+    return (
+        <div className="p-4 sm:p-6 lg:p-8 space-y-8 group/logistics">
+            {/* Header & Quick Action HUD */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 sm:p-8 rounded-[2.5rem] shadow-sm">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-600/20 text-white shrink-0">
+                        {isSaccoSavings ? <PiggyBank className="w-7 h-7" /> : isSACCO ? <Landmark className="w-7 h-7" /> : isShuttle ? <DoorOpen className="w-7 h-7" /> : <Truck className="w-7 h-7" />}
                     </div>
-                    <p className="text-slate-500 font-medium max-w-xl group-hover/logistics:text-slate-600 transition-colors">
-                        {isSaccoSavings
-                            ? 'Cooperative thrift schemes, member savings accounts, vehicle sinking funds, and 3x loan guarantee collateral.'
-                            : isSACCO 
-                            ? 'The cooperative management hub. Onboard individual vehicle owners, manage municipal licenses, track trip commissions, and oversee public online bookings.'
-                            : isShuttle 
-                            ? 'Corporate & staff mobility management. Track shuttle routes, manage seat reservations, and monitor real-time staff boarding and attendance.' 
-                            : isEduTransport
-                            ? 'Real-time student pick-up and drop-off coordination, live bus tracking for parents, and academic field trip booking and administration.'
-                            : 'The mission control for your supply chain. Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.'}
-                    </p>
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40 rounded-full text-[9px] font-black uppercase tracking-widest mb-1.5">
+                            <Shield className="w-3 h-3 text-indigo-500" />
+                            <span>{isSaccoSavings ? 'Cooperative Thrift Architecture' : isSACCO ? 'Transport SACCO Management' : 'Fleet & Logistics Control'}</span>
+                        </div>
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                            {isSaccoSavings ? 'SACCO Savings & Transport' : isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle Operations' : isEduTransport ? 'School Commute' : 'Fleet & Logistics'} <span className="text-indigo-600">{isSaccoSavings ? 'Treasury' : isSACCO ? 'Hub' : 'Control'}</span>
+                        </h1>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium line-clamp-1 max-w-xl">
+                            {isSaccoSavings
+                                ? 'Cooperative thrift schemes, member savings accounts, vehicle sinking funds, and 3x loan guarantee collateral.'
+                                : isSACCO 
+                                ? 'Onboard vehicle owners, manage municipal licenses, track trip commissions, and oversee public online bookings.'
+                                : isShuttle 
+                                ? 'Corporate & staff mobility management. Track shuttle routes, seat reservations, and staff boarding.' 
+                                : isEduTransport
+                                ? 'Student pick-up and drop-off coordination, live bus tracking, and field trip administration.'
+                                : 'Real-time fleet tracking, automated manifests, and digital proof-of-delivery for modern cargo operations.'}
+                        </p>
+                    </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                     {lastSyncedTime && (
-                        <div className="hidden sm:flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 rounded-[1.2rem] text-[10px] font-black uppercase tracking-wider shadow-sm animate-fade-in">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                            <span>Cloud Synced {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl text-[10px] font-black uppercase tracking-wider shadow-sm">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            <span className="hidden sm:inline">Synced</span> {lastSyncedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                     )}
                     {isEduTransport && (
                         <button
                             type="button"
                             onClick={() => setIsOpeningBalancesModalOpen(true)}
-                            className="px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                            title="Update or import opening commuter balances (B/F Arrears & Advance)"
+                            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-wider shadow-sm transition-all flex items-center gap-2"
                         >
-                            <UploadCloud className="w-4 h-4" />
-                            <span>Opening Balances (B/F)</span>
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            <span>Opening Balances</span>
                         </button>
                     )}
                     <button 
@@ -5063,119 +5051,203 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             await syncWithCloud(true);
                         }}
                         disabled={isCloudSyncing}
-                        className="px-6 py-4 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-[1.5rem] font-black uppercase text-[10px] tracking-widest shadow-sm hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                        className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-wider transition-all flex items-center gap-2 disabled:opacity-50"
                         title="Synchronize all logistics data, routes, and vehicle registrations with the online database"
                     >
-                        <Cloud className={`w-4 h-4 ${isCloudSyncing ? 'animate-pulse text-indigo-500' : 'text-emerald-500'}`} />
-                        <span>{isCloudSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+                        <Cloud className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-pulse text-indigo-500' : 'text-emerald-500'}`} />
+                        <span>{isCloudSyncing ? 'Syncing...' : 'Sync'}</span>
                     </button>
                     <button 
                         onClick={() => {
-                            if (isEduTransport) {
+                            if (isSaccoSavings || isSACCO) {
+                                setIsOnboardMemberModalOpen(true);
+                            } else if (isEduTransport) {
                                 setIsAddTripModalOpen(true);
+                            } else {
+                                setActiveTab('vehicle_reg');
                             }
                         }}
-                        className="px-8 py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-2xl shadow-slate-200 dark:shadow-none hover:translate-y-[-2px] active:translate-y-[1px] transition-all flex items-center gap-3"
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/30 transition-all active:scale-95 flex items-center gap-2"
                     >
-                        <Plus className="w-5 h-5" />
-                        {isSACCO ? 'Register Member' : isShuttle ? 'Add New Route' : isEduTransport ? 'Schedule Trip' : 'Plan New Trip'}
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>{isSaccoSavings || isSACCO ? 'Onboard Member' : isEduTransport ? 'Schedule Trip' : 'Register Vehicle'}</span>
                     </button>
                 </div>
             </div>
 
-            {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((stat) => (
-                    <div key={stat.label} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group/stat relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 dark:bg-slate-900/50 rotate-45 translate-x-12 -translate-y-12 transition-colors group-hover/stat:bg-indigo-50/50"></div>
-                        <div className="relative z-10 flex items-center gap-6">
-                            <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-[1.5rem] flex items-center justify-center transition-transform group-hover/stat:scale-110`}>
-                                <stat.icon className="w-8 h-8" />
+            {/* Layout: Vertical Menu Sidebar (Left) + Content Workspace (Right) */}
+            <div className="flex flex-col lg:flex-row items-start gap-8 w-full text-left">
+                {/* Vertical Navigation Menu Sidebar */}
+                <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-6 self-start space-y-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-[2.5rem] shadow-sm p-4 sm:p-5">
+                        <div className="flex items-center justify-between px-3 py-2 mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Fleet SACCO Menu
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+                                {navTabs.length} Modules
+                            </span>
+                        </div>
+
+                        {/* Vertical Navigation Items */}
+                        <nav className="space-y-1.5" aria-label="Fleet SACCO Hub Navigation">
+                            {navTabs.map((tab) => {
+                                const isCurrent = activeTab === tab.id;
+                                const Icon = tab.icon;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-200 group text-left cursor-pointer ${
+                                            isCurrent
+                                                ? 'bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white shadow-md shadow-indigo-600/25 font-black scale-[1.01]'
+                                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-bold'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`p-2 rounded-xl transition-all ${
+                                                isCurrent 
+                                                    ? 'bg-white/20 text-white' 
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30'
+                                            }`}>
+                                                <Icon className="w-4 h-4 shrink-0" />
+                                            </div>
+                                            <div className="min-w-0 truncate">
+                                                <div className="text-xs uppercase tracking-wider truncate">
+                                                    {tab.label}
+                                                </div>
+                                                {tab.subLabel && (
+                                                    <div className={`text-[10px] font-medium truncate leading-tight ${isCurrent ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'}`}>
+                                                        {tab.subLabel}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {isCurrent && (
+                                            <div className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0 ml-2" />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        {/* Sidebar Quick Summary Widget */}
+                        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80 px-2 space-y-2.5">
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                <span>Registered Vehicles</span>
+                                <span className="font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">
+                                    {dbVehicles.length}
+                                </span>
                             </div>
-                            <div>
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</p>
-                                <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{stat.value}</p>
-                            </div>
+                            {(isSaccoSavings || isSACCO) && (
+                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                    <span>Active Accounts</span>
+                                    <span className="font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg">
+                                        {saccoAccounts.length}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
-                ))}
-            </div>
+                </aside>
 
-            {/* Main Content Area */}
-            <div className="min-h-[60vh]">
-                {activeTab === 'manifest' && (isEduTransport ? renderStudentCommute() : renderManifest())}
-                {activeTab === 'fleet' && renderFleet()}
-                {activeTab === 'vehicle_reg' && (
-                    <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-6 border border-slate-100 dark:border-slate-700 shadow-sm">
-                        {isLoadingVehicles ? (
-                            <div className="p-12 text-center text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
-                                Loading Vehicle Registry...
+                {/* Main Content Workspace (Right Column) */}
+                <main className="flex-1 min-w-0 w-full space-y-8">
+                    {/* Quick Stats Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+                        {stats.map((stat) => (
+                            <div key={stat.label} className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all group/stat relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 dark:bg-slate-900/50 rotate-45 translate-x-12 -translate-y-12 transition-colors group-hover/stat:bg-indigo-50/50"></div>
+                                <div className="relative z-10 flex items-center gap-6">
+                                    <div className={`w-16 h-16 ${stat.bg} ${stat.color} rounded-[1.5rem] flex items-center justify-center transition-transform group-hover/stat:scale-110`}>
+                                        <stat.icon className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{stat.label}</p>
+                                        <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter uppercase">{stat.value}</p>
+                                    </div>
+                                </div>
                             </div>
-                        ) : (
-                            <TransportManager
-                                currentInstitution={currentInstitution}
+                        ))}
+                    </div>
+
+                    {/* Main Content Area */}
+                    <div className="min-h-[60vh]">
+                        {activeTab === 'manifest' && (isEduTransport ? renderStudentCommute() : renderManifest())}
+                        {activeTab === 'fleet' && renderFleet()}
+                        {activeTab === 'vehicle_reg' && (
+                            <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-6 border border-slate-100 dark:border-slate-700 shadow-sm">
+                                {isLoadingVehicles ? (
+                                    <div className="p-12 text-center text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">
+                                        Loading Vehicle Registry...
+                                    </div>
+                                ) : (
+                                    <TransportManager
+                                        currentInstitution={currentInstitution}
+                                        vehicles={dbVehicles}
+                                        users={localUsers}
+                                        courses={loadedCourses}
+                                        onAddVehicle={handleAddVehicle}
+                                        onUpdateVehicle={handleUpdateVehicle}
+                                        onDeleteVehicle={handleDeleteVehicle}
+                                        onAddUser={handleAddUser}
+                                        onEditUser={handleEditUser}
+                                    />
+                                )}
+                            </div>
+                        )}
+                        {activeTab === 'epod' && renderEPOD()}
+                        {activeTab === 'shuttle' && renderShuttleHub()}
+                        {activeTab === 'sacco' && renderSACCOHub()}
+                        {activeTab === 'sacco_savings' && renderSACCOSavings()}
+                        {activeTab === 'trips' && isEduTransport && renderSchoolTrips()}
+                        {activeTab === 'analytics' && (
+                            <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
+                                <BarChart3 className="w-16 h-16 text-indigo-200 mb-8 animate-pulse" />
+                                <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tighter">
+                                    {isEduTransport ? 'School Transit Safety Engine' : 'AI Route Science Engine'}
+                                </h3>
+                                <p className="text-slate-400 mt-4 max-w-sm">
+                                    {isEduTransport 
+                                        ? 'Analyzing daily driver speed profiles, fuel efficiency, and route arrival schedules to optimize student safety...'
+                                        : 'Generating optimal routes based on current traffic patterns and vessel arrival times...'}
+                                </p>
+                            </div>
+                        )}
+                        {activeTab === 'alerts' && isEduTransport && (
+                            <TransportDisruptionAlert
+                                mode="admin"
+                                alerts={transportAlerts}
+                                onAddAlert={handleAddAlert}
+                                onResolveAlert={handleResolveAlert}
+                                onAcknowledge={handleAcknowledgeAlert}
                                 vehicles={dbVehicles}
-                                users={localUsers}
-                                courses={loadedCourses}
-                                onAddVehicle={handleAddVehicle}
-                                onUpdateVehicle={handleUpdateVehicle}
-                                onDeleteVehicle={handleDeleteVehicle}
-                                onAddUser={handleAddUser}
-                                onEditUser={handleEditUser}
+                                routes={busRoutes}
+                                users={users}
+                                institutionId={currentInstitution?.id}
                             />
                         )}
+                        {activeTab === 'billing' && isEduTransport && (
+                            <TransportBillingManager
+                                routeSettings={routeFeeSetting}
+                                invoices={transportInvoices}
+                                onUpdateRouteFee={handleUpdateRouteFee}
+                                onDeleteRoute={handleDeleteRoute}
+                                onGenerateInvoices={handleGenerateInvoices}
+                                onMarkPaid={handleMarkPaid}
+                                onWaive={handleWaiveFee}
+                                defaultOneWayPercentage={defaultOneWayPercentage}
+                                onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
+                                currentInstitution={currentInstitution}
+                                users={users}
+                                onSaveOpeningBalance={handleSaveOpeningBalance}
+                                onImportOpeningBalances={handleImportOpeningBalances}
+                                onDeleteOpeningBalance={handleDeleteOpeningBalance}
+                            />
+                        )}
+                        {activeTab === 'reports' && renderReports()}
                     </div>
-                )}
-                {activeTab === 'epod' && renderEPOD()}
-                {activeTab === 'shuttle' && renderShuttleHub()}
-                {activeTab === 'sacco' && renderSACCOHub()}
-                {activeTab === 'sacco_savings' && renderSACCOSavings()}
-                {activeTab === 'trips' && isEduTransport && renderSchoolTrips()}
-                {activeTab === 'analytics' && (
-                    <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
-                        <BarChart3 className="w-16 h-16 text-indigo-200 mb-8 animate-pulse" />
-                        <h3 className="text-2xl font-black text-slate-400 uppercase tracking-tighter">
-                            {isEduTransport ? 'School Transit Safety Engine' : 'AI Route Science Engine'}
-                        </h3>
-                        <p className="text-slate-400 mt-4 max-w-sm">
-                            {isEduTransport 
-                                ? 'Analyzing daily driver speed profiles, fuel efficiency, and route arrival schedules to optimize student safety...'
-                                : 'Generating optimal routes based on current traffic patterns and vessel arrival times...'}
-                        </p>
-                    </div>
-                )}
-                {activeTab === 'alerts' && isEduTransport && (
-                    <TransportDisruptionAlert
-                        mode="admin"
-                        alerts={transportAlerts}
-                        onAddAlert={handleAddAlert}
-                        onResolveAlert={handleResolveAlert}
-                        onAcknowledge={handleAcknowledgeAlert}
-                        vehicles={dbVehicles}
-                        routes={busRoutes}
-                        users={users}
-                        institutionId={currentInstitution?.id}
-                    />
-                )}
-                {activeTab === 'billing' && isEduTransport && (
-                    <TransportBillingManager
-                        routeSettings={routeFeeSetting}
-                        invoices={transportInvoices}
-                        onUpdateRouteFee={handleUpdateRouteFee}
-                        onDeleteRoute={handleDeleteRoute}
-                        onGenerateInvoices={handleGenerateInvoices}
-                        onMarkPaid={handleMarkPaid}
-                        onWaive={handleWaiveFee}
-                        defaultOneWayPercentage={defaultOneWayPercentage}
-                        onUpdateDefaultOneWayPercentage={setDefaultOneWayPercentage}
-                        currentInstitution={currentInstitution}
-                        users={users}
-                        onSaveOpeningBalance={handleSaveOpeningBalance}
-                        onImportOpeningBalances={handleImportOpeningBalances}
-                        onDeleteOpeningBalance={handleDeleteOpeningBalance}
-                    />
-                )}
-                {activeTab === 'reports' && renderReports()}
+                </main>
             </div>
 
             {/* Modal: Transport Opening Balances (B/F Arrears & Advance Importer) */}
