@@ -9341,10 +9341,25 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Onboard</span> Tenant
                                     </button>
                                 )}
+                                {propertyActiveSubTab === 'leases' && (
+                                    <button onClick={() => setShowLeaseModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Lease
+                                    </button>
+                                )}
                                 {propertyActiveSubTab === 'payments' && (
                                     <button onClick={() => setShowPaymentModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.02] active:scale-95 transition-all">
                                         <CurrencyIcon className="w-5 h-5" /> <span className="hidden sm:inline">Record</span> Payment
                                     </button>
+                                )}
+                                {propertyActiveSubTab === 'invoices' && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <button onClick={() => { setEditingInvoice(null); setShowInvoiceModal(true); }} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                            <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Create</span> Invoice
+                                        </button>
+                                        <button onClick={() => setShowGenerateArrearsModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest transition-all shadow-sm">
+                                            <DocumentTextIcon className="w-5 h-5" /> <span className="hidden sm:inline">Generate</span> Arrears
+                                        </button>
+                                    </div>
                                 )}
                                 {propertyActiveSubTab === 'maintenance' && (
                                     <button onClick={() => setShowTicketModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rose-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-rose-600/20 hover:scale-[1.02] active:scale-95 transition-all">
@@ -9361,7 +9376,23 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Log</span> Reading
                                     </button>
                                 )}
+                                {propertyActiveSubTab === 'broadcasts' && (
+                                    <button onClick={() => {
+                                        const textarea = document.querySelector('textarea') as HTMLTextAreaElement | null;
+                                        if (textarea) {
+                                            textarea.focus();
+                                            textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        }
+                                    }} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                        <PaperAirplaneIcon className="w-5 h-5" /> <span className="hidden sm:inline">Compose</span> Broadcast
+                                    </button>
+                                )}
                             </>
+                        )}
+                        {activeTab === 'expenses' && (
+                            <button onClick={() => setShowExpenseModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
+                                <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Record</span> Expense
+                            </button>
                         )}
                         {activeTab === 'listings' && (
                             <button

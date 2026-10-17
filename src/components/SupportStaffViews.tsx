@@ -33,6 +33,7 @@ import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { LockClosedIcon } from './icons/LockClosedIcon';
 import { MpesaIcon } from './icons/MpesaIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { SaccoDriverPortalView } from './SaccoDriverPortalView';
 import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { ArrowTrendingUpIcon } from './icons/ArrowTrendingUpIcon';
 import { CameraIcon } from './icons/CameraIcon';
@@ -4041,6 +4042,30 @@ export const TransportAssistantView: React.FC<SupportStaffViewProps> = (props) =
                 currentInstitution={currentInstitution}
                 onOnboardStudent={onOnboardStudent!}
                 onOffboardStudent={onOffboardStudent!}
+            />
+        );
+    }
+
+    if (user.driverType === 'sacco' || currentInstitution?.category?.includes('SACCO') || currentInstitution?.category === 'Public Transport' || currentInstitution?.category === 'Public Transport SACCO' || currentInstitution?.category?.toLowerCase().includes('savings')) {
+        return (
+            <SaccoDriverPortalView
+                currentInstitution={currentInstitution}
+                currentUser={user}
+                users={users}
+                onClose={() => {
+                    const saStored = localStorage.getItem('eduai_super_admin_session');
+                    if (saStored) {
+                        try {
+                            const superAdmin = JSON.parse(saStored);
+                            localStorage.removeItem('eduai_super_admin_session');
+                            sessionStorage.removeItem('eduai_impersonated_by_admin');
+                            localStorage.setItem('user', JSON.stringify(superAdmin));
+                            window.location.reload();
+                        } catch (_) {
+                            window.location.reload();
+                        }
+                    }
+                }}
             />
         );
     }

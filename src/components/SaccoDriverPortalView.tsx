@@ -35,6 +35,7 @@ export interface SaccoDriverPortalViewProps {
     remittanceSettings?: SaccoRemittanceSettings;
     remittanceRecords?: SaccoDailyRemittanceRecord[];
     loanSettings?: SaccoLoanSettings;
+    initialDriverId?: string;
     onRecordRemittance?: (record: SaccoDailyRemittanceRecord) => void;
     onRecordSavingsDeposit?: (accountId: string, amount: number, method: 'mpesa' | 'bank' | 'cash' | 'daily_deduction', ref?: string, notes?: string) => void;
     onApplyLoan?: (application: any) => void;
@@ -50,6 +51,7 @@ export const SaccoDriverPortalView: React.FC<SaccoDriverPortalViewProps> = ({
     remittanceSettings,
     remittanceRecords = [],
     loanSettings,
+    initialDriverId,
     onRecordRemittance,
     onRecordSavingsDeposit,
     onApplyLoan,
@@ -59,7 +61,29 @@ export const SaccoDriverPortalView: React.FC<SaccoDriverPortalViewProps> = ({
     // ACTIVE DRIVER PROFILE RESOLUTION
     // ═════════════════════════════════════════════════════════════════════════
     const availableDrivers = useMemo(() => {
-        const driversFromAccounts = saccoAccounts.filter(a => a.role === 'Driver');
+        const driversFromAccounts = saccoAccounts
+            .filter(a => a.memberRole === 'Driver' || (a as any).role === 'Driver')
+            .map(a => ({
+                id: a.id,
+                accountNumber: a.memberNumber || `SACCO-${a.id.slice(-4)}`,
+                memberId: a.memberId || a.id,
+                memberName: a.memberName,
+                nationalId: (a as any).nationalId || '30492819',
+                phoneNumber: a.phoneNumber || '0712345678',
+                role: 'Driver' as const,
+                vehicleRegNumber: a.vehiclePlate || 'KDA 482Y',
+                vehicleModel: a.vehicleModel || 'PSV Matatu',
+                savingsCategory: a.savingsCategory,
+                currentSavingsBalance: a.savingsBalance || 0,
+                shareCapitalAmount: a.shareCapital || 20000,
+                dailySavingsTarget: a.dailyTarget || 500,
+                dailyRemittanceTarget: 1500,
+                remittanceTier: a.remittanceTier || 'Silver',
+                loanEligibilityLimit: a.loanEligibility || 0,
+                status: a.status,
+                joinedDate: a.joinedDate
+            }));
+
         if (driversFromAccounts.length > 0) return driversFromAccounts;
         // Fallback mock driver if no accounts registered yet
         return [{
@@ -85,12 +109,23 @@ export const SaccoDriverPortalView: React.FC<SaccoDriverPortalViewProps> = ({
     }, [saccoAccounts]);
 
     const [selectedDriverId, setSelectedDriverId] = useState<string>(() => {
+        if (initialDriverId) {
+            const match = availableDrivers.find(d => d.id === initialDriverId || d.memberId === initialDriverId);
+            if (match) return match.id;
+        }
         if (currentUser?.id) {
             const match = availableDrivers.find(d => d.memberId === currentUser.id || d.id === currentUser.id);
             if (match) return match.id;
         }
         return availableDrivers[0]?.id || 'mock_driver_1';
     });
+
+    React.useEffect(() => {
+        if (initialDriverId) {
+            const match = availableDrivers.find(d => d.id === initialDriverId || d.memberId === initialDriverId);
+            if (match) setSelectedDriverId(match.id);
+        }
+    }, [initialDriverId, availableDrivers]);
 
     const activeDriver = useMemo(() => {
         return availableDrivers.find(d => d.id === selectedDriverId) || availableDrivers[0];
