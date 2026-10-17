@@ -54,10 +54,14 @@ import {
     ArrowDownRight,
     ArrowUpRight,
     Percent,
-    Shield
+    Shield,
+    Sliders,
+    AlertTriangle,
+    Calculator,
+    Clock3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory } from '../types';
+import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
@@ -121,7 +125,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSaccoSavings = currentInstitution.category === 'SACCO Savings' || currentInstitution.category === 'Transport SACCO & Savings' || currentInstitution.category?.toLowerCase().includes('savings');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'trips' | 'alerts' | 'billing' | 'reports'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_settings' | 'trips' | 'alerts' | 'billing' | 'reports'>(
         isSaccoSavings ? 'sacco_savings' : isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
     const [searchTerm, setSearchTerm] = useState('');
@@ -281,6 +285,91 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     };
 
     // ═════════════════════════════════════════════════════════════════════════
+    // TRANSPORT SACCO REMITTANCE & LATE PENALTY CONFIGURATION
+    // ═════════════════════════════════════════════════════════════════════════
+    const DEFAULT_SACCO_REMITTANCE_SETTINGS: SaccoRemittanceSettings = {
+        enabled: true,
+        tiers: [
+            { id: 'tier_silver', tierName: 'Silver', dailyTarget: 1500, description: 'Standard 14-seater matatu rate', color: 'slate' },
+            { id: 'tier_bronze', tierName: 'Bronze', dailyTarget: 1600, description: 'Mid-capacity express shuttle rate', color: 'amber' },
+            { id: 'tier_gold', tierName: 'Gold', dailyTarget: 1700, description: 'High-capacity 33+ seater or prime route rate', color: 'yellow' }
+        ],
+        cutoffTime: '22:00', // 10:00 PM same day
+        latePenaltyAmount: 100, // +KES 100 if late by 1 minute
+        nextDayCutoffTime: '10:00', // 10:00 AM next day
+        nextDayDelayPenaltyAmount: 200, // +KES 200 additional if past 10:00 AM next day
+        graceMinutes: 0,
+        enforcePenalties: true,
+        sinkingFundDeduction: 0
+    };
+
+    const calculateRemittanceFee = (
+        targetDate: string, // YYYY-MM-DD
+        submissionDate: Date,
+        baseTarget: number,
+        settings: SaccoRemittanceSettings
+    ) => {
+        if (!settings.enforcePenalties) {
+            return {
+                isLate: false,
+                isNextDayOverdue: false,
+                latePenalty: 0,
+                nextDayPenalty: 0,
+                totalPenalty: 0,
+                totalPayable: baseTarget,
+                status: 'on_time' as const,
+                ruleMessage: 'Penalties disabled in settings'
+            };
+        }
+
+        const [c1H, c1M] = (settings.cutoffTime || '22:00').split(':').map(Number);
+        const cutoff1 = new Date(`${targetDate}T${String(c1H).padStart(2, '0')}:${String(c1M).padStart(2, '0')}:00`);
+        const graceMs = (settings.graceMinutes || 0) * 60 * 1000;
+        const effectiveCutoff1 = new Date(cutoff1.getTime() + graceMs);
+
+        const [c2H, c2M] = (settings.nextDayCutoffTime || '10:00').split(':').map(Number);
+        const nextDay = new Date(`${targetDate}T00:00:00`);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const y2 = nextDay.getFullYear();
+        const m2 = String(nextDay.getMonth() + 1).padStart(2, '0');
+        const d2 = String(nextDay.getDate()).padStart(2, '0');
+        const cutoff2 = new Date(`${y2}-${m2}-${d2}T${String(c2H).padStart(2, '0')}:${String(c2M).padStart(2, '0')}:00`);
+
+        let isLate = false;
+        let isNextDayOverdue = false;
+        let latePenalty = 0;
+        let nextDayPenalty = 0;
+        let status: 'on_time' | 'late' | 'overdue' = 'on_time';
+        let ruleMessage = `Submitted before ${settings.cutoffTime} deadline. No penalty assessed.`;
+
+        if (submissionDate > cutoff2) {
+            isLate = true;
+            isNextDayOverdue = true;
+            latePenalty = Number(settings.latePenaltyAmount) || 100;
+            nextDayPenalty = Number(settings.nextDayDelayPenaltyAmount) || 200;
+            status = 'overdue';
+            ruleMessage = `Delayed past next-day ${settings.nextDayCutoffTime} cutoff (+KES ${latePenalty} Level 1 Late + KES ${nextDayPenalty} Level 2 Delayed).`;
+        } else if (submissionDate > effectiveCutoff1) {
+            isLate = true;
+            latePenalty = Number(settings.latePenaltyAmount) || 100;
+            status = 'late';
+            ruleMessage = `Late submission after ${settings.cutoffTime} cutoff (+KES ${latePenalty} Level 1 Late penalty).`;
+        }
+
+        const totalPenalty = latePenalty + nextDayPenalty;
+        return {
+            isLate,
+            isNextDayOverdue,
+            latePenalty,
+            nextDayPenalty,
+            totalPenalty,
+            totalPayable: baseTarget + totalPenalty,
+            status,
+            ruleMessage
+        };
+    };
+
+    // ═════════════════════════════════════════════════════════════════════════
     // TRANSPORT SACCO SAVINGS STATE & WORKFLOWS
     // ═════════════════════════════════════════════════════════════════════════
     const defaultSaccoAccounts: TransportSaccoAccount[] = [
@@ -297,7 +386,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             savingsBalance: 485000,
             shareCapital: 100000,
             welfareBalance: 25000,
-            dailyTarget: 500,
+            dailyTarget: 1700,
+            remittanceTier: 'Gold',
             loanEligibility: 1455000,
             status: 'Active',
             joinedDate: '2023-01-15',
@@ -316,7 +406,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             savingsBalance: 320000,
             shareCapital: 80000,
             welfareBalance: 20000,
-            dailyTarget: 300,
+            dailyTarget: 1600,
+            remittanceTier: 'Bronze',
             loanEligibility: 960000,
             status: 'Active',
             joinedDate: '2023-04-10',
@@ -335,7 +426,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             savingsBalance: 68000,
             shareCapital: 20000,
             welfareBalance: 15000,
-            dailyTarget: 150,
+            dailyTarget: 1700,
+            remittanceTier: 'Gold',
             loanEligibility: 204000,
             status: 'Active',
             joinedDate: '2023-06-20',
@@ -354,7 +446,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             savingsBalance: 45000,
             shareCapital: 15000,
             welfareBalance: 12000,
-            dailyTarget: 150,
+            dailyTarget: 1500,
+            remittanceTier: 'Silver',
             loanEligibility: 135000,
             status: 'Active',
             joinedDate: '2023-08-05',
@@ -373,10 +466,11 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             savingsBalance: 610000,
             shareCapital: 120000,
             welfareBalance: 30000,
-            dailyTarget: 1000,
+            dailyTarget: 1500,
+            remittanceTier: 'Silver',
             loanEligibility: 1830000,
             status: 'Active',
-            joinedDate: '2022-11-12',
+            joinedDate: '2023-09-12',
             lastDepositDate: new Date().toISOString().split('T')[0]
         },
         {
@@ -524,7 +618,69 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [newMemberCategory, setNewMemberCategory] = useState<TransportSaccoSavingsCategory>('Daily Sinking Fund');
     const [newMemberDeposit, setNewMemberDeposit] = useState<string>('5000');
     const [newMemberShareCapital, setNewMemberShareCapital] = useState<string>('20000');
-    const [newMemberDailyTarget, setNewMemberDailyTarget] = useState<string>('300');
+    const [newMemberDailyTarget, setNewMemberDailyTarget] = useState<string>('1500');
+    const [newMemberRemittanceTier, setNewMemberRemittanceTier] = useState<string>('Silver');
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // SACCO DAILY REMITTANCE & CUTOFF SETTINGS STATE
+    // ═════════════════════════════════════════════════════════════════════════
+    const [remittanceSettings, setRemittanceSettings] = useState<SaccoRemittanceSettings>(() => {
+        const key = currentInstitution?.id ? `eduai_sacco_remittance_settings_${currentInstitution.id}` : null;
+        if (key) {
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && Array.isArray(parsed.tiers) && parsed.tiers.length > 0) return parsed;
+                }
+            } catch (_) {}
+        }
+        return DEFAULT_SACCO_REMITTANCE_SETTINGS;
+    });
+
+    const [remittanceRecords, setRemittanceRecords] = useState<SaccoDailyRemittanceRecord[]>(() => {
+        const key = currentInstitution?.id ? `eduai_sacco_remittance_records_${currentInstitution.id}` : null;
+        if (key) {
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch (_) {}
+        }
+        return [];
+    });
+
+    const [selectedRemittanceDate, setSelectedRemittanceDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [remittanceSearchTerm, setRemittanceSearchTerm] = useState<string>('');
+    const [remittanceFilterStatus, setRemittanceFilterStatus] = useState<'ALL' | 'on_time' | 'late' | 'overdue' | 'pending'>('ALL');
+
+    // Record Remittance Modal
+    const [isRecordRemittanceModalOpen, setIsRecordRemittanceModalOpen] = useState(false);
+    const [activeRemittanceDriver, setActiveRemittanceDriver] = useState<any | null>(null);
+    const [remittancePaymentDate, setRemittancePaymentDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [remittancePaymentTime, setRemittancePaymentTime] = useState<string>(() => {
+        const now = new Date();
+        return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    });
+    const [remittancePaidAmount, setRemittancePaidAmount] = useState<string>('');
+    const [remittancePaymentMethod, setRemittancePaymentMethod] = useState<'mpesa' | 'cash' | 'bank' | 'daily_deduction'>('mpesa');
+    const [remittanceRefCode, setRemittanceRefCode] = useState<string>('');
+    const [remittanceNotes, setRemittanceNotes] = useState<string>('');
+
+    // Simulator State (for SACCO Settings)
+    const [simTierName, setSimTierName] = useState<string>('Silver');
+    const [simSubmissionDate, setSimSubmissionDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [simSubmissionTime, setSimSubmissionTime] = useState<string>('22:05'); // 10:05 PM test default (+100)
+
+    // Add / Edit Tier Modal State
+    const [isAddTierModalOpen, setIsAddTierModalOpen] = useState(false);
+    const [editingTierId, setEditingTierId] = useState<string | null>(null);
+    const [newTierName, setNewTierName] = useState('');
+    const [newTierTarget, setNewTierTarget] = useState('1800');
+    const [newTierDesc, setNewTierDesc] = useState('');
+    const [newTierColor, setNewTierColor] = useState('indigo');
 
     const handleRecordSavingsDeposit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -610,7 +766,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         const memberNum = `TS-MBR-${1000 + saccoAccounts.length + 1}`;
         const initDeposit = parseFloat(newMemberDeposit) || 0;
         const initShare = parseFloat(newMemberShareCapital) || 10000;
-        const target = parseFloat(newMemberDailyTarget) || 200;
+        const target = parseFloat(newMemberDailyTarget) || 1500;
 
         const newAccount: TransportSaccoAccount = {
             id: `ts_acc_${Date.now()}`,
@@ -626,6 +782,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             shareCapital: initShare,
             welfareBalance: 1000,
             dailyTarget: target,
+            remittanceTier: newMemberRemittanceTier || 'Silver',
             loanEligibility: Math.round(initDeposit * 3),
             status: 'Active',
             joinedDate: new Date().toISOString().split('T')[0],
@@ -670,6 +827,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         setNewMemberPhone('');
         setNewMemberPlate('');
         setNewMemberModel('');
+        setNewMemberRemittanceTier('Silver');
     };
 
     const handleExportSavingsExcel = () => {
@@ -702,6 +860,217 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         } catch (e: any) {
             console.error('Export error:', e);
             toastError('Failed to generate Excel export.');
+        }
+    };
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // SACCO DAILY REMITTANCE & PENALTY ENGINE HANDLERS
+    // ═════════════════════════════════════════════════════════════════════════
+    const handleSaveRemittanceSettings = () => {
+        if (!currentInstitution?.id) return;
+        const key = `eduai_sacco_remittance_settings_${currentInstitution.id}`;
+        safeSetLocalItem(key, remittanceSettings);
+        persistHubToCloud({ saccoRemittanceSettings: remittanceSettings });
+        toastSuccess('⚙️ SACCO Remittance & Late Penalty settings successfully updated & synced to cloud!');
+    };
+
+    const handleResetRemittanceSettings = () => {
+        setRemittanceSettings(DEFAULT_SACCO_REMITTANCE_SETTINGS);
+        if (currentInstitution?.id) {
+            safeSetLocalItem(`eduai_sacco_remittance_settings_${currentInstitution.id}`, DEFAULT_SACCO_REMITTANCE_SETTINGS);
+        }
+        persistHubToCloud({ saccoRemittanceSettings: DEFAULT_SACCO_REMITTANCE_SETTINGS });
+        toastSuccess('🔄 Restored default remittance tiers (Silver KES 1500, Bronze KES 1600, Gold KES 1700) & cutoff rules (10 PM +100, 10 AM next day +200).');
+    };
+
+    const handleSaveTier = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newTierName.trim() || !newTierTarget) {
+            toastError('Please specify Tier Name and Daily Remittance Target amount.');
+            return;
+        }
+        const targetVal = parseFloat(newTierTarget) || 1500;
+        let updatedTiers = [...remittanceSettings.tiers];
+        if (editingTierId) {
+            updatedTiers = updatedTiers.map(t => t.id === editingTierId ? {
+                ...t,
+                tierName: newTierName.trim(),
+                dailyTarget: targetVal,
+                description: newTierDesc.trim() || t.description,
+                color: newTierColor
+            } : t);
+            toastSuccess(`Updated tier "${newTierName}" to KES ${targetVal.toLocaleString()}/day.`);
+        } else {
+            const newTier: SaccoRemittanceTier = {
+                id: `tier_${Date.now()}`,
+                tierName: newTierName.trim(),
+                dailyTarget: targetVal,
+                description: newTierDesc.trim() || `${newTierName} daily operational remittance target`,
+                color: newTierColor
+            };
+            updatedTiers.push(newTier);
+            toastSuccess(`Added new remittance tier "${newTierName}" at KES ${targetVal.toLocaleString()}/day.`);
+        }
+
+        const nextSettings: SaccoRemittanceSettings = {
+            ...remittanceSettings,
+            tiers: updatedTiers
+        };
+        setRemittanceSettings(nextSettings);
+        if (currentInstitution?.id) {
+            safeSetLocalItem(`eduai_sacco_remittance_settings_${currentInstitution.id}`, nextSettings);
+        }
+        persistHubToCloud({ saccoRemittanceSettings: nextSettings });
+        setIsAddTierModalOpen(false);
+        setEditingTierId(null);
+        setNewTierName('');
+        setNewTierTarget('1800');
+        setNewTierDesc('');
+    };
+
+    const handleDeleteTier = (tierId: string) => {
+        if (remittanceSettings.tiers.length <= 1) {
+            toastError('At least one remittance tier must be maintained for the SACCO.');
+            return;
+        }
+        const updatedTiers = remittanceSettings.tiers.filter(t => t.id !== tierId);
+        const nextSettings = { ...remittanceSettings, tiers: updatedTiers };
+        setRemittanceSettings(nextSettings);
+        if (currentInstitution?.id) {
+            safeSetLocalItem(`eduai_sacco_remittance_settings_${currentInstitution.id}`, nextSettings);
+        }
+        persistHubToCloud({ saccoRemittanceSettings: nextSettings });
+        toastSuccess('Remittance tier removed.');
+    };
+
+    const handleOpenRecordRemittance = (account: TransportSaccoAccount, existingRecord?: SaccoDailyRemittanceRecord) => {
+        setActiveRemittanceDriver(account);
+        const todayStr = selectedRemittanceDate || new Date().toISOString().split('T')[0];
+        setRemittancePaymentDate(todayStr);
+
+        const now = new Date();
+        const currentHHmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        setRemittancePaymentTime(currentHHmm);
+
+        const tierName = account.remittanceTier || 'Silver';
+        const tier = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === tierName.toLowerCase()) || remittanceSettings.tiers[0];
+        const baseTarget = tier ? tier.dailyTarget : (account.dailyTarget || 1500);
+
+        const paymentDateTime = new Date(`${todayStr}T${currentHHmm}:00`);
+        const feeCalc = calculateRemittanceFee(todayStr, paymentDateTime, baseTarget, remittanceSettings);
+
+        if (existingRecord) {
+            setRemittancePaidAmount(String(existingRecord.amountPaid || feeCalc.totalPayable));
+            setRemittancePaymentMethod(existingRecord.paymentMethod || 'mpesa');
+            setRemittanceRefCode(existingRecord.referenceNumber || `REM-${Date.now().toString().slice(-6)}`);
+            setRemittanceNotes(existingRecord.notes || '');
+        } else {
+            setRemittancePaidAmount(String(feeCalc.totalPayable));
+            setRemittancePaymentMethod('mpesa');
+            setRemittanceRefCode(`REM-${account.vehiclePlate.replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`);
+            setRemittanceNotes(`Daily check-off remittance for ${account.vehiclePlate} (${account.memberName})`);
+        }
+
+        setIsRecordRemittanceModalOpen(true);
+    };
+
+    const handleSaveRemittanceRecord = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!activeRemittanceDriver) return;
+
+        const targetDate = remittancePaymentDate || selectedRemittanceDate;
+        const tierName = activeRemittanceDriver.remittanceTier || 'Silver';
+        const tier = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === tierName.toLowerCase()) || remittanceSettings.tiers[0];
+        const baseTarget = tier ? tier.dailyTarget : (activeRemittanceDriver.dailyTarget || 1500);
+
+        const paymentDateTime = new Date(`${targetDate}T${remittancePaymentTime || '20:00'}:00`);
+        const feeCalc = calculateRemittanceFee(targetDate, paymentDateTime, baseTarget, remittanceSettings);
+
+        const paid = parseFloat(remittancePaidAmount) || 0;
+        const balance = Math.max(0, feeCalc.totalPayable - paid);
+
+        const newRecord: SaccoDailyRemittanceRecord = {
+            id: `rem_${targetDate}_${activeRemittanceDriver.id}`,
+            institutionId: currentInstitution?.id,
+            accountId: activeRemittanceDriver.id,
+            memberId: activeRemittanceDriver.memberId,
+            memberName: activeRemittanceDriver.memberName,
+            vehiclePlate: activeRemittanceDriver.vehiclePlate,
+            driverName: activeRemittanceDriver.memberName,
+            driverPhone: activeRemittanceDriver.phoneNumber,
+            tierName: tier ? tier.tierName : tierName,
+            baseAmount: baseTarget,
+            scheduledDate: targetDate,
+            submittedAt: paymentDateTime.toISOString(),
+            latePenalty: feeCalc.latePenalty,
+            nextDayPenalty: feeCalc.nextDayPenalty,
+            totalPayable: feeCalc.totalPayable,
+            amountPaid: paid,
+            balance: balance,
+            status: feeCalc.status,
+            paymentMethod: remittancePaymentMethod,
+            referenceNumber: remittanceRefCode || `REM-${Date.now().toString().slice(-6)}`,
+            notes: remittanceNotes,
+            recordedBy: 'SACCO Cashier Desk'
+        };
+
+        const existingIdx = remittanceRecords.findIndex(r => (r.accountId === activeRemittanceDriver.id || r.vehiclePlate === activeRemittanceDriver.vehiclePlate) && r.scheduledDate === targetDate);
+        let updatedRecords: SaccoDailyRemittanceRecord[];
+        if (existingIdx >= 0) {
+            updatedRecords = [...remittanceRecords];
+            updatedRecords[existingIdx] = newRecord;
+        } else {
+            updatedRecords = [newRecord, ...remittanceRecords];
+        }
+
+        setRemittanceRecords(updatedRecords);
+        if (currentInstitution?.id) {
+            safeSetLocalItem(`eduai_sacco_remittance_records_${currentInstitution.id}`, updatedRecords);
+        }
+        persistHubToCloud({ saccoRemittanceRecords: updatedRecords });
+
+        toastSuccess(`✅ Remittance of KES ${paid.toLocaleString()} recorded for ${activeRemittanceDriver.vehiclePlate} (${activeRemittanceDriver.memberName})! [Status: ${feeCalc.status.toUpperCase()} - ${feeCalc.ruleMessage}]`);
+        setIsRecordRemittanceModalOpen(false);
+        setActiveRemittanceDriver(null);
+    };
+
+    const handleExportRemittanceExcel = () => {
+        try {
+            const dateRecords = saccoAccounts.map(acc => {
+                const existing = remittanceRecords.find(r => (r.accountId === acc.id || r.vehiclePlate === acc.vehiclePlate) && r.scheduledDate === selectedRemittanceDate);
+                const tierName = acc.remittanceTier || 'Silver';
+                const tier = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === tierName.toLowerCase()) || remittanceSettings.tiers[0];
+                const baseTarget = tier ? tier.dailyTarget : (acc.dailyTarget || 1500);
+
+                return {
+                    'Date': selectedRemittanceDate,
+                    'Vehicle Plate': acc.vehiclePlate,
+                    'Driver / Member': acc.memberName,
+                    'Role': acc.memberRole,
+                    'Phone': acc.phoneNumber,
+                    'Remittance Tier': tierName,
+                    'Base Target (KES)': baseTarget,
+                    'Submitted At': existing?.submittedAt ? new Date(existing.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+                    'Level 1 Late Fee (KES)': existing?.latePenalty ?? 0,
+                    'Level 2 Delayed Fee (KES)': existing?.nextDayPenalty ?? 0,
+                    'Total Payable (KES)': existing ? existing.totalPayable : baseTarget,
+                    'Amount Paid (KES)': existing ? existing.amountPaid : 0,
+                    'Balance Due (KES)': existing ? existing.balance : baseTarget,
+                    'Status': existing ? existing.status.toUpperCase() : 'PENDING',
+                    'Payment Mode': existing?.paymentMethod || 'N/A',
+                    'Receipt / Ref Code': existing?.referenceNumber || 'N/A'
+                };
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dateRecords);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, `Daily Remittance ${selectedRemittanceDate}`);
+            const fileName = `SACCO_Daily_Remittance_${selectedRemittanceDate}_${(currentInstitution?.name || 'SACCO').replace(/\s+/g, '_')}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+            toastSuccess(`📊 Remittance audit ledger for ${selectedRemittanceDate} exported to Excel!`);
+        } catch (e) {
+            console.error('Export error:', e);
+            toastError('Failed to generate daily remittance Excel export.');
         }
     };
 
@@ -1034,6 +1403,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         transportAlerts: any[];
         studentVehicles: any;
         vehicles: any[];
+        saccoAccounts?: TransportSaccoAccount[];
+        saccoTransactions?: TransportSaccoTransaction[];
+        saccoRemittanceSettings?: SaccoRemittanceSettings;
+        saccoRemittanceRecords?: SaccoDailyRemittanceRecord[];
     }>) => {
         if (!currentInstitution?.id) return;
         const studentVehiclesKey = `eduai_transport_student_vehicles_${currentInstitution.id}`;
@@ -1062,6 +1435,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             transportAlerts: updates.transportAlerts !== undefined ? updates.transportAlerts : transportAlerts,
             studentVehicles: updates.studentVehicles !== undefined ? updates.studentVehicles : localStudentVehicles,
             vehicles: currentVehicles,
+            saccoAccounts: updates.saccoAccounts !== undefined ? updates.saccoAccounts : saccoAccounts,
+            saccoTransactions: updates.saccoTransactions !== undefined ? updates.saccoTransactions : saccoTransactions,
+            saccoRemittanceSettings: updates.saccoRemittanceSettings !== undefined ? updates.saccoRemittanceSettings : remittanceSettings,
+            saccoRemittanceRecords: updates.saccoRemittanceRecords !== undefined ? updates.saccoRemittanceRecords : remittanceRecords,
             updatedAt: new Date().toISOString()
         };
         apiService.saveTransportLogisticsHub(currentInstitution.id, payload).catch(err => {
@@ -1201,6 +1578,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     transportAlerts: transportAlerts,
                     studentVehicles: localStudentVehicles,
                     vehicles: currentVehicles,
+                    saccoAccounts: saccoAccounts,
+                    saccoTransactions: saccoTransactions,
+                    saccoRemittanceSettings: remittanceSettings,
+                    saccoRemittanceRecords: remittanceRecords,
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.saveTransportLogisticsHub(instId, payload);
@@ -1244,6 +1625,22 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 if (cloudVehicles.length > 0) {
                     setDbVehicles(cloudVehicles);
                     safeSetLocalItem(vehiclesKey, cloudVehicles);
+                }
+                if (cloudData?.saccoRemittanceSettings && Array.isArray(cloudData.saccoRemittanceSettings.tiers) && cloudData.saccoRemittanceSettings.tiers.length > 0) {
+                    setRemittanceSettings(cloudData.saccoRemittanceSettings);
+                    safeSetLocalItem(`eduai_sacco_remittance_settings_${instId}`, cloudData.saccoRemittanceSettings);
+                }
+                if (Array.isArray(cloudData?.saccoRemittanceRecords)) {
+                    setRemittanceRecords(cloudData.saccoRemittanceRecords);
+                    safeSetLocalItem(`eduai_sacco_remittance_records_${instId}`, cloudData.saccoRemittanceRecords);
+                }
+                if (Array.isArray(cloudData?.saccoAccounts) && cloudData.saccoAccounts.length > 0) {
+                    setSaccoAccounts(cloudData.saccoAccounts);
+                    safeSetLocalItem(`eduai_transport_sacco_savings_${instId}`, cloudData.saccoAccounts);
+                }
+                if (Array.isArray(cloudData?.saccoTransactions)) {
+                    setSaccoTransactions(cloudData.saccoTransactions);
+                    safeSetLocalItem(`eduai_transport_sacco_tx_${instId}`, cloudData.saccoTransactions);
                 }
                 if (cloudStudentVehicles && typeof cloudStudentVehicles === 'object' && Object.keys(cloudStudentVehicles).length > 0) {
                     try {
@@ -4982,8 +5379,872 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         );
     };
 
+    const renderSACCORemittance = () => {
+        // Calculate consolidated driver remittance rows for selectedRemittanceDate
+        const activeRows = saccoAccounts.map(acc => {
+            const existingRecord = remittanceRecords.find(r => 
+                (r.accountId === acc.id || r.vehiclePlate === acc.vehiclePlate) && 
+                r.scheduledDate === selectedRemittanceDate
+            );
+
+            const tierName = acc.remittanceTier || 'Silver';
+            const tierObj = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === tierName.toLowerCase()) || remittanceSettings.tiers[0];
+            const baseTarget = tierObj ? tierObj.dailyTarget : (acc.dailyTarget || 1500);
+
+            // Compute current fee calculation if pending
+            const now = new Date();
+            const todayStr = new Date().toISOString().split('T')[0];
+            const checkDateTime = selectedRemittanceDate === todayStr ? now : new Date(`${selectedRemittanceDate}T23:59:59`);
+            const liveCalc = calculateRemittanceFee(selectedRemittanceDate, checkDateTime, baseTarget, remittanceSettings);
+
+            return {
+                account: acc,
+                existingRecord,
+                tierName: tierObj ? tierObj.tierName : tierName,
+                baseTarget,
+                submittedAt: existingRecord?.submittedAt,
+                latePenalty: existingRecord ? existingRecord.latePenalty : (liveCalc.isLate ? liveCalc.latePenalty : 0),
+                nextDayPenalty: existingRecord ? existingRecord.nextDayPenalty : (liveCalc.isNextDayOverdue ? liveCalc.nextDayPenalty : 0),
+                totalPayable: existingRecord ? existingRecord.totalPayable : liveCalc.totalPayable,
+                amountPaid: existingRecord ? existingRecord.amountPaid : 0,
+                balance: existingRecord ? existingRecord.balance : liveCalc.totalPayable,
+                status: existingRecord ? existingRecord.status : (liveCalc.isLate ? (liveCalc.isNextDayOverdue ? 'overdue' as const : 'late' as const) : 'pending' as const),
+                ruleMessage: existingRecord?.notes || liveCalc.ruleMessage
+            };
+        });
+
+        // Filter by search & status
+        const filteredRows = activeRows.filter(row => {
+            if (remittanceFilterStatus !== 'ALL' && row.status !== remittanceFilterStatus) return false;
+            if (!remittanceSearchTerm) return true;
+            const q = remittanceSearchTerm.toLowerCase();
+            return (
+                row.account.memberName.toLowerCase().includes(q) ||
+                row.account.vehiclePlate.toLowerCase().includes(q) ||
+                row.account.phoneNumber.toLowerCase().includes(q) ||
+                row.tierName.toLowerCase().includes(q)
+            );
+        });
+
+        // Metrics
+        const totalScheduledTarget = activeRows.reduce((sum, r) => sum + r.baseTarget, 0);
+        const totalCollected = activeRows.reduce((sum, r) => sum + r.amountPaid, 0);
+        const totalPenalties = activeRows.reduce((sum, r) => sum + (r.latePenalty + r.nextDayPenalty), 0);
+        const pendingCount = activeRows.filter(r => r.amountPaid === 0 || r.status === 'pending').length;
+
+        const todayIso = new Date().toISOString().split('T')[0];
+        const yesterdayIso = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+        return (
+            <div className="animate-fade-in-up space-y-8">
+                {/* Remittance Header Banner */}
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-8 sm:p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border border-indigo-800/40">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-3 backdrop-blur-md">
+                                <Clock3 className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>SACCO Daily Remittance & Late Penalty Ledger</span>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight">
+                                Daily Driver <span className="text-indigo-400">Remittance & Check-off</span>
+                            </h2>
+                            <p className="text-slate-300 text-sm max-w-2xl mt-2 font-medium">
+                                Enforce daily vehicle remittance rates (Silver KES 1,500, Bronze KES 1,600, Gold KES 1,700). Submissions after {remittanceSettings.cutoffTime} incur +KES {remittanceSettings.latePenaltyAmount} late penalty. Payments past {remittanceSettings.nextDayCutoffTime} next morning add +KES {remittanceSettings.nextDayDelayPenaltyAmount} overdue penalty.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                            <div className="flex items-center gap-1.5 bg-white/10 border border-white/10 rounded-2xl p-1.5 backdrop-blur-sm">
+                                <button
+                                    onClick={() => setSelectedRemittanceDate(todayIso)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                        selectedRemittanceDate === todayIso
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'text-slate-300 hover:text-white'
+                                    }`}
+                                >
+                                    Today
+                                </button>
+                                <button
+                                    onClick={() => setSelectedRemittanceDate(yesterdayIso)}
+                                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                        selectedRemittanceDate === yesterdayIso
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'text-slate-300 hover:text-white'
+                                    }`}
+                                >
+                                    Yesterday
+                                </button>
+                                <input
+                                    type="date"
+                                    value={selectedRemittanceDate}
+                                    onChange={e => setSelectedRemittanceDate(e.target.value)}
+                                    className="bg-transparent px-3 py-1.5 text-xs font-bold text-white outline-none cursor-pointer"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleExportRemittanceExcel}
+                                className="flex items-center gap-2 px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-xs uppercase tracking-wider backdrop-blur-sm border border-white/10 transition-all active:scale-95 shadow-sm"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export Excel
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('sacco_settings')}
+                                className="flex items-center gap-2 px-5 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-indigo-600/30"
+                            >
+                                <Sliders className="w-4 h-4" />
+                                Adjust Settings
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* KPI Metrics HUD */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                                <Landmark className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Scheduled Target</p>
+                                <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                    KES {totalScheduledTarget.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Collected Today</p>
+                                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                                    KES {totalCollected.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                <AlertTriangle className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Late Penalties Assessed</p>
+                                <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                                    +KES {totalPenalties.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                                <Clock className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Pending Check-offs</p>
+                                <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
+                                    {pendingCount} Vehicles
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Deadlines & Penalty Rules Notice Banner */}
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border border-amber-200 dark:border-amber-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs font-bold text-amber-900 dark:text-amber-200">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
+                            <AlertCircle className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <span className="font-black uppercase tracking-wider block sm:inline mr-2">Enforced Remittance Policy:</span>
+                            <span>Daily cutoff is <strong>{remittanceSettings.cutoffTime} (10:00 PM)</strong>. Late by &ge; 1 minute incurs <strong>+KES {remittanceSettings.latePenaltyAmount}</strong>. Delaying past <strong>{remittanceSettings.nextDayCutoffTime} (10:00 AM next day)</strong> adds an extra <strong>+KES {remittanceSettings.nextDayDelayPenaltyAmount}</strong> (+KES {remittanceSettings.latePenaltyAmount + remittanceSettings.nextDayDelayPenaltyAmount} total penalty).</span>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setActiveTab('sacco_settings')}
+                        className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-wider shrink-0 transition-all shadow-sm"
+                    >
+                        Configure Rules
+                    </button>
+                </div>
+
+                {/* Search, Filter Tabs & Ledger Table */}
+                <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden p-6 sm:p-8 space-y-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        {/* Status Filter Tabs */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {[
+                                { id: 'ALL', label: 'All Drivers', count: activeRows.length },
+                                { id: 'on_time', label: 'On Time (0 fee)', count: activeRows.filter(r => r.status === 'on_time').length },
+                                { id: 'late', label: `Late (+KES ${remittanceSettings.latePenaltyAmount})`, count: activeRows.filter(r => r.status === 'late').length },
+                                { id: 'overdue', label: `Overdue (+KES ${remittanceSettings.latePenaltyAmount + remittanceSettings.nextDayDelayPenaltyAmount})`, count: activeRows.filter(r => r.status === 'overdue').length },
+                                { id: 'pending', label: 'Pending Check-off', count: activeRows.filter(r => r.status === 'pending').length },
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setRemittanceFilterStatus(tab.id as any)}
+                                    className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
+                                        remittanceFilterStatus === tab.id
+                                            ? 'bg-indigo-600 text-white shadow-md'
+                                            : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    <span>{tab.label}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                                        remittanceFilterStatus === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                    }`}>
+                                        {tab.count}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="relative w-full md:w-72">
+                            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                value={remittanceSearchTerm}
+                                onChange={e => setRemittanceSearchTerm(e.target.value)}
+                                placeholder="Search driver, plate, phone..."
+                                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-slate-700/80 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                                    <th className="pb-3 px-4">Vehicle & Driver</th>
+                                    <th className="pb-3 px-4">Remittance Tier</th>
+                                    <th className="pb-3 px-4">Cutoff / Submitted</th>
+                                    <th className="pb-3 px-4">Late Penalty</th>
+                                    <th className="pb-3 px-4">Total Payable</th>
+                                    <th className="pb-3 px-4">Amount Paid</th>
+                                    <th className="pb-3 px-4">Balance</th>
+                                    <th className="pb-3 px-4">Status</th>
+                                    <th className="pb-3 px-4 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 dark:divide-slate-700/40 text-xs">
+                                {filteredRows.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={9} className="py-12 text-center text-slate-400 font-bold uppercase text-[11px] tracking-widest">
+                                            No vehicle remittances found for {selectedRemittanceDate} matching filters.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredRows.map(row => {
+                                        const isPaid = row.amountPaid >= row.totalPayable && row.totalPayable > 0;
+                                        return (
+                                            <tr key={row.account.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+                                                <td className="py-4 px-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="font-mono font-black text-sm text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                            {row.account.vehiclePlate}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-black text-slate-800 dark:text-slate-100">
+                                                                {row.account.memberName}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 font-medium">
+                                                                {row.account.memberRole} • {row.account.phoneNumber}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="py-4 px-4">
+                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                                                        <span className={`w-2 h-2 rounded-full ${
+                                                            row.tierName === 'Gold' ? 'bg-amber-400' : row.tierName === 'Bronze' ? 'bg-orange-500' : 'bg-slate-400'
+                                                        }`}></span>
+                                                        <span>{row.tierName}</span>
+                                                        <span className="text-slate-400 font-normal">({row.baseTarget.toLocaleString()}/d)</span>
+                                                    </div>
+                                                </td>
+
+                                                <td className="py-4 px-4 font-bold text-slate-600 dark:text-slate-300">
+                                                    {row.submittedAt ? (
+                                                        <div>
+                                                            <span className="text-slate-900 dark:text-white font-black">
+                                                                {new Date(row.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                            </span>
+                                                            <span className="text-[9px] text-slate-400 block font-medium">
+                                                                {new Date(row.submittedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                            </span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-slate-400 font-medium text-[11px] flex items-center gap-1">
+                                                            <Clock className="w-3 h-3 text-slate-400" />
+                                                            <span>Cutoff: {remittanceSettings.cutoffTime}</span>
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                <td className="py-4 px-4 font-black">
+                                                    {row.latePenalty === 0 && row.nextDayPenalty === 0 ? (
+                                                        <span className="text-emerald-600 dark:text-emerald-400 text-[11px]">KES 0</span>
+                                                    ) : row.nextDayPenalty > 0 ? (
+                                                        <span className="text-rose-600 dark:text-rose-400 text-[11px]" title="Level 1 Late + Level 2 Delayed past 10 AM">
+                                                            +KES {(row.latePenalty + row.nextDayPenalty).toLocaleString()}
+                                                            <span className="block text-[9px] font-bold text-rose-500">(100+200)</span>
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-amber-600 dark:text-amber-400 text-[11px]" title="Level 1 Late (>10:00 PM)">
+                                                            +KES {row.latePenalty.toLocaleString()}
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                <td className="py-4 px-4 font-black text-slate-900 dark:text-white">
+                                                    KES {row.totalPayable.toLocaleString()}
+                                                </td>
+
+                                                <td className="py-4 px-4 font-black text-emerald-600 dark:text-emerald-400">
+                                                    KES {row.amountPaid.toLocaleString()}
+                                                </td>
+
+                                                <td className="py-4 px-4 font-black">
+                                                    <span className={row.balance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}>
+                                                        KES {row.balance.toLocaleString()}
+                                                    </span>
+                                                </td>
+
+                                                <td className="py-4 px-4">
+                                                    {row.status === 'on_time' && (
+                                                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                                                            On Time
+                                                        </span>
+                                                    )}
+                                                    {row.status === 'late' && (
+                                                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
+                                                            Late (+100)
+                                                        </span>
+                                                    )}
+                                                    {row.status === 'overdue' && (
+                                                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40">
+                                                            Delayed (+300)
+                                                        </span>
+                                                    )}
+                                                    {row.status === 'pending' && (
+                                                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+                                                            Pending
+                                                        </span>
+                                                    )}
+                                                </td>
+
+                                                <td className="py-4 px-4 text-right">
+                                                    <button
+                                                        onClick={() => handleOpenRecordRemittance(row.account, row.existingRecord)}
+                                                        className={`px-3.5 py-1.5 rounded-xl font-black uppercase text-[10px] tracking-wider transition-all shadow-sm ${
+                                                            isPaid
+                                                                ? 'bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200'
+                                                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                                                        }`}
+                                                    >
+                                                        {isPaid ? 'View / Receipt' : 'Check Off'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderSACCOSettings = () => {
+        // Calculate simulated fee
+        const simTierObj = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === simTierName.toLowerCase()) || remittanceSettings.tiers[0];
+        const simBaseTarget = simTierObj ? simTierObj.dailyTarget : 1500;
+        const simDateTime = new Date(`${simSubmissionDate}T${simSubmissionTime || '22:00'}:00`);
+        const simResult = calculateRemittanceFee(simSubmissionDate, simDateTime, simBaseTarget, remittanceSettings);
+
+        const todayIso = new Date().toISOString().split('T')[0];
+        const nextDayIso = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+        return (
+            <div className="animate-fade-in-up space-y-8">
+                {/* SACCO Settings Header */}
+                <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 p-8 sm:p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border border-indigo-800/40">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-3 backdrop-blur-md">
+                                <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>Cooperative Policy Engine</span>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight">
+                                SACCO Remittance & <span className="text-indigo-400">Late Penalty Rules</span>
+                            </h2>
+                            <p className="text-slate-300 text-sm max-w-2xl mt-2 font-medium">
+                                Configure daily vehicle remittance targets (Silver KES 1,500, Bronze KES 1,600, Gold KES 1,700), same-day cutoff time (10:00 PM), and automated tiered late penalty escalation (+100 for &gt;10:00 PM, +200 additional for &gt;10:00 AM next day).
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                            <button
+                                type="button"
+                                onClick={handleResetRemittanceSettings}
+                                className="flex items-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-xs uppercase tracking-wider backdrop-blur-sm border border-white/10 transition-all"
+                            >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                Restore Defaults
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveRemittanceSettings}
+                                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
+                            >
+                                <CheckCircle2 className="w-4 h-4" />
+                                Save & Sync Cloud
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section 1: Daily Remittance Tiers Configuration */}
+                <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+                                <DollarSign className="w-5 h-5 text-indigo-600" />
+                                Daily Remittance Tiers (Vehicle Classes)
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium mt-1">
+                                Set daily remittance targets per vehicle classification. Drivers are assigned to tiers during member onboarding.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setEditingTierId(null);
+                                setNewTierName('');
+                                setNewTierTarget('1800');
+                                setNewTierDesc('');
+                                setNewTierColor('indigo');
+                                setIsAddTierModalOpen(true);
+                            }}
+                            className="px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40 font-black uppercase text-[10px] tracking-wider hover:bg-indigo-100 transition-all flex items-center gap-2"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Custom Tier
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {remittanceSettings.tiers.map(tier => {
+                            const assignedCount = saccoAccounts.filter(a => (a.remittanceTier || 'Silver').toLowerCase() === tier.tierName.toLowerCase()).length;
+                            return (
+                                <div
+                                    key={tier.id}
+                                    className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-4 hover:border-indigo-300 transition-all relative group"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-3 h-3 rounded-full ${
+                                                tier.tierName === 'Gold' ? 'bg-amber-400 ring-4 ring-amber-400/20' :
+                                                tier.tierName === 'Bronze' ? 'bg-orange-500 ring-4 ring-orange-500/20' :
+                                                'bg-slate-400 ring-4 ring-slate-400/20'
+                                            }`} />
+                                            <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                {tier.tierName} Tier
+                                            </h4>
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEditingTierId(tier.id);
+                                                    setNewTierName(tier.tierName);
+                                                    setNewTierTarget(String(tier.dailyTarget));
+                                                    setNewTierDesc(tier.description || '');
+                                                    setNewTierColor(tier.color || 'indigo');
+                                                    setIsAddTierModalOpen(true);
+                                                }}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                                                title="Edit Tier Target"
+                                            >
+                                                <Edit3 className="w-3.5 h-3.5" />
+                                            </button>
+                                            {remittanceSettings.tiers.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteTier(tier.id)}
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                                                    title="Remove Tier"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Daily Target</div>
+                                        <div className="text-3xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight mt-0.5">
+                                            KES {tier.dailyTarget.toLocaleString()}
+                                            <span className="text-xs font-bold text-slate-400 ml-1">/ day</span>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 line-clamp-2">
+                                        {tier.description || 'Standard vehicle check-off remittance'}
+                                    </p>
+
+                                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-[11px] font-bold text-slate-500">
+                                        <span>Assigned Vehicles:</span>
+                                        <span className="font-black text-slate-800 dark:text-white bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                                            {assignedCount} Member(s)
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Section 2: Cutoff Deadlines & Automated Late Fee Engine */}
+                <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                    <div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+                            <Clock3 className="w-5 h-5 text-indigo-600" />
+                            Cutoff Deadlines & Automated Late Fee Escalation
+                        </h3>
+                        <p className="text-xs text-slate-400 font-medium mt-1">
+                            Define exact cutoff times for daily remittance submission and how late penalties escalate across hours.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Cutoff Level 1: Same Day 10 PM */}
+                        <div className="p-6 rounded-3xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-400">
+                                    <Clock className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                        Level 1: Daily Cutoff Deadline
+                                    </h4>
+                                    <p className="text-[11px] font-medium text-slate-500">Default: 10:00 PM (22:00) on scheduled date</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                                        Submission Cutoff Time *
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={remittanceSettings.cutoffTime}
+                                        onChange={e => setRemittanceSettings({ ...remittanceSettings, cutoffTime: e.target.value })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                                        Late Penalty Amount (KES) *
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400">KES</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={remittanceSettings.latePenaltyAmount}
+                                            onChange={e => setRemittanceSettings({ ...remittanceSettings, latePenaltyAmount: parseFloat(e.target.value) || 0 })}
+                                            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-amber-100/60 dark:bg-amber-900/30 rounded-xl text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                                ⚠️ If driver is late by <strong>1 minute</strong> (e.g. 22:01), <strong>+KES {remittanceSettings.latePenaltyAmount}</strong> is automatically added to the amount payable.
+                            </div>
+                        </div>
+
+                        {/* Cutoff Level 2: Next Day 10 AM */}
+                        <div className="p-6 rounded-3xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/40 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-rose-500/20 text-rose-700 dark:text-rose-400">
+                                    <AlertTriangle className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                        Level 2: Next-Day Extended Delay
+                                    </h4>
+                                    <p className="text-[11px] font-medium text-slate-500">Default: 10:00 AM the morning after</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                                        Next-Day Cutoff Time *
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={remittanceSettings.nextDayCutoffTime}
+                                        onChange={e => setRemittanceSettings({ ...remittanceSettings, nextDayCutoffTime: e.target.value })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                                        Additional Delay Penalty (KES) *
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400">KES</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={remittanceSettings.nextDayDelayPenaltyAmount}
+                                            onChange={e => setRemittanceSettings({ ...remittanceSettings, nextDayDelayPenaltyAmount: parseFloat(e.target.value) || 0 })}
+                                            className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-rose-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-rose-100/60 dark:bg-rose-900/30 rounded-xl text-[11px] font-bold text-rose-900 dark:text-rose-200">
+                                🚨 If payment is delayed past <strong>{remittanceSettings.nextDayCutoffTime} (10:00 AM next day)</strong>, an extra <strong>+KES {remittanceSettings.nextDayDelayPenaltyAmount}</strong> is added (Total penalty = KES {remittanceSettings.latePenaltyAmount + remittanceSettings.nextDayDelayPenaltyAmount}).
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Enforcement Toggle and Grace Period */}
+                    <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={remittanceSettings.enforcePenalties}
+                                onChange={e => setRemittanceSettings({ ...remittanceSettings, enforcePenalties: e.target.checked })}
+                                className="w-5 h-5 rounded-lg text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
+                            />
+                            <div>
+                                <span className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                    Enforce Automated Late Remittance Penalties
+                                </span>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                    When checked, penalty fees will automatically calculate based on payment timestamps.
+                                </p>
+                            </div>
+                        </label>
+
+                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                            <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider shrink-0">
+                                Grace Minutes:
+                            </label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="60"
+                                value={remittanceSettings.graceMinutes || 0}
+                                onChange={e => setRemittanceSettings({ ...remittanceSettings, graceMinutes: parseInt(e.target.value) || 0 })}
+                                className="w-20 px-3 py-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-center outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section 3: Interactive Late Penalty Simulator */}
+                <div className="bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 text-white shadow-2xl space-y-6 border border-slate-800 relative overflow-hidden">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[9px] font-black uppercase tracking-widest text-indigo-300 mb-2">
+                                <Calculator className="w-3.5 h-3.5" />
+                                <span>Interactive Sandbox</span>
+                            </div>
+                            <h3 className="text-xl font-black uppercase tracking-tight">
+                                Remittance & Penalty Simulator
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Test any driver tier and submission time to preview the exact penalties and total amount payable.
+                            </p>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimSubmissionDate(todayIso);
+                                    setSimSubmissionTime('21:45');
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-emerald-300 transition-colors"
+                            >
+                                9:45 PM (On Time)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimSubmissionDate(todayIso);
+                                    setSimSubmissionTime('22:01');
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-amber-300 transition-colors"
+                            >
+                                10:01 PM (+100 Late)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimSubmissionDate(todayIso);
+                                    setSimSubmissionTime('23:30');
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-amber-300 transition-colors"
+                            >
+                                11:30 PM (+100 Late)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimSubmissionDate(nextDayIso);
+                                    setSimSubmissionTime('08:30');
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-amber-300 transition-colors"
+                            >
+                                Next Day 8:30 AM (+100)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimSubmissionDate(nextDayIso);
+                                    setSimSubmissionTime('10:05');
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-wider text-rose-300 transition-colors"
+                            >
+                                Next Day 10:05 AM (+300 Overdue)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Inputs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                Driver Vehicle Tier
+                            </label>
+                            <select
+                                value={simTierName}
+                                onChange={e => setSimTierName(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-800 rounded-xl border border-slate-700 font-black text-xs text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
+                                {remittanceSettings.tiers.map(t => (
+                                    <option key={t.id} value={t.tierName}>
+                                        {t.tierName} Tier (Base: KES {t.dailyTarget.toLocaleString()}/day)
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                Submission Date
+                            </label>
+                            <input
+                                type="date"
+                                value={simSubmissionDate}
+                                onChange={e => setSimSubmissionDate(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-800 rounded-xl border border-slate-700 font-bold text-xs text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                Submission Time
+                            </label>
+                            <input
+                                type="time"
+                                value={simSubmissionTime}
+                                onChange={e => setSimSubmissionTime(e.target.value)}
+                                className="w-full px-4 py-3 bg-slate-800 rounded-xl border border-slate-700 font-black text-xs text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Simulator Result Breakdown Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+                        <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Base Remittance</span>
+                            <div className="text-2xl font-black text-white mt-1">
+                                KES {simBaseTarget.toLocaleString()}
+                            </div>
+                            <span className="text-[10px] text-slate-400">{simTierName} Tier</span>
+                        </div>
+
+                        <div className={`p-4 rounded-2xl border ${
+                            simResult.latePenalty > 0 ? 'bg-amber-500/10 border-amber-500/40 text-amber-300' : 'bg-white/5 border-white/10 text-slate-400'
+                        }`}>
+                            <span className="text-[10px] font-black uppercase tracking-wider">2. Cutoff Late Fee (&gt;10 PM)</span>
+                            <div className="text-2xl font-black mt-1">
+                                {simResult.latePenalty > 0 ? `+KES ${simResult.latePenalty.toLocaleString()}` : 'KES 0'}
+                            </div>
+                            <span className="text-[10px]">
+                                {simResult.latePenalty > 0 ? 'Late submission' : 'Submitted on time'}
+                            </span>
+                        </div>
+
+                        <div className={`p-4 rounded-2xl border ${
+                            simResult.nextDayPenalty > 0 ? 'bg-rose-500/10 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-slate-400'
+                        }`}>
+                            <span className="text-[10px] font-black uppercase tracking-wider">3. Delayed Fee (&gt;10 AM Next Day)</span>
+                            <div className="text-2xl font-black mt-1">
+                                {simResult.nextDayPenalty > 0 ? `+KES ${simResult.nextDayPenalty.toLocaleString()}` : 'KES 0'}
+                            </div>
+                            <span className="text-[10px]">
+                                {simResult.nextDayPenalty > 0 ? 'Next-day delay applied' : 'Within morning limit'}
+                            </span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-indigo-600/30 border border-indigo-500/40">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300">4. Total Amount Payable</span>
+                            <div className="text-3xl font-black text-white mt-1">
+                                KES {simResult.totalPayable.toLocaleString()}
+                            </div>
+                            <span className="text-[10px] text-indigo-300 font-bold uppercase">
+                                Status: {simResult.status.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <span>Rule Outcome: {simResult.ruleMessage}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const navTabs = [
         { id: 'sacco_savings', label: 'SACCO Savings', subLabel: 'Thrift & Sinking Funds', icon: PiggyBank, show: isSACCO || isSaccoSavings },
+        { id: 'sacco_remittance', label: 'Daily Remittance', subLabel: 'Driver Check-off & Penalties', icon: Clock3, show: isSACCO || isSaccoSavings },
+        { id: 'sacco_settings', label: 'SACCO Settings', subLabel: 'Remittance Tiers & Cutoffs', icon: Sliders, show: isSACCO || isSaccoSavings },
         { id: 'sacco', label: 'SACCO Hub', subLabel: 'Member Registry & Licences', icon: Landmark, show: isSACCO || isSaccoSavings },
         { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', subLabel: 'Fleet Capacity & Live Status', icon: Truck, show: true },
         { id: 'vehicle_reg', label: 'Vehicle Registration', subLabel: 'Add & Onboard Vehicles', icon: Truck, show: true },
@@ -5200,6 +6461,8 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         {activeTab === 'shuttle' && renderShuttleHub()}
                         {activeTab === 'sacco' && renderSACCOHub()}
                         {activeTab === 'sacco_savings' && renderSACCOSavings()}
+                        {activeTab === 'sacco_remittance' && renderSACCORemittance()}
+                        {activeTab === 'sacco_settings' && renderSACCOSettings()}
                         {activeTab === 'trips' && isEduTransport && renderSchoolTrips()}
                         {activeTab === 'analytics' && (
                             <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
@@ -5529,7 +6792,44 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Remittance Tier
+                                    </label>
+                                    <select
+                                        value={newMemberRemittanceTier}
+                                        onChange={e => {
+                                            const tierName = e.target.value;
+                                            setNewMemberRemittanceTier(tierName);
+                                            const foundTier = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === tierName.toLowerCase());
+                                            if (foundTier) {
+                                                setNewMemberDailyTarget(String(foundTier.dailyTarget));
+                                            }
+                                        }}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        {remittanceSettings.tiers.map(t => (
+                                            <option key={t.id} value={t.tierName}>
+                                                {t.tierName} (KES {t.dailyTarget.toLocaleString()}/day)
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Daily Target (KES)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={newMemberDailyTarget}
+                                        onChange={e => setNewMemberDailyTarget(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
+                                    />
+                                </div>
+
                                 <div>
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                                         Initial Deposit (KES)
@@ -5539,7 +6839,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         min="0"
                                         value={newMemberDeposit}
                                         onChange={e => setNewMemberDeposit(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
                                     />
                                 </div>
 
@@ -5552,20 +6852,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         min="0"
                                         value={newMemberShareCapital}
                                         onChange={e => setNewMemberShareCapital(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                                        Daily Target (KES)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={newMemberDailyTarget}
-                                        onChange={e => setNewMemberDailyTarget(e.target.value)}
-                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
                                     />
                                 </div>
                             </div>
@@ -5584,6 +6871,392 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 >
                                     <UserPlus className="w-4 h-4" />
                                     Register Account
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Record Daily Remittance Check-Off */}
+            {isRecordRemittanceModalOpen && activeRemittanceDriver && (() => {
+                const tierName = activeRemittanceDriver.remittanceTier || 'Silver';
+                const tierObj = remittanceSettings.tiers.find(t => t.tierName.toLowerCase() === tierName.toLowerCase()) || remittanceSettings.tiers[0];
+                const baseTarget = tierObj ? tierObj.dailyTarget : (activeRemittanceDriver.dailyTarget || 1500);
+                const targetDate = remittancePaymentDate || selectedRemittanceDate;
+                const paymentDateTime = new Date(`${targetDate}T${remittancePaymentTime || '20:00'}:00`);
+                const feeCalc = calculateRemittanceFee(targetDate, paymentDateTime, baseTarget, remittanceSettings);
+                const paidVal = parseFloat(remittancePaidAmount) || 0;
+                const outstandingBalance = Math.max(0, feeCalc.totalPayable - paidVal);
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+                        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-2xl p-6 sm:p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up my-8">
+                            {/* Modal Header */}
+                            <div className="flex justify-between items-center mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                        <Coins className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Record Daily Remittance</h3>
+                                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                tierName === 'Gold' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' :
+                                                tierName === 'Bronze' ? 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300' :
+                                                'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200'
+                                            }`}>
+                                                {tierName} Tier (KES {baseTarget.toLocaleString()}/day)
+                                            </span>
+                                        </div>
+                                        <p className="text-slate-400 text-xs font-medium">
+                                            Vehicle Check-Off & Automated Penalty Assessment
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setIsRecordRemittanceModalOpen(false);
+                                        setActiveRemittanceDriver(null);
+                                    }}
+                                    className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Driver Profile Summary Card */}
+                            <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-700 mb-6 flex flex-wrap items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-black text-slate-700 dark:text-slate-300 text-sm">
+                                        {activeRemittanceDriver.memberName.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-black text-slate-900 dark:text-white">{activeRemittanceDriver.memberName}</h4>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                            {activeRemittanceDriver.vehiclePlate} &bull; {activeRemittanceDriver.memberRole} &bull; {activeRemittanceDriver.phoneNumber}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 block tracking-widest">Base Rate</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white font-mono">KES {baseTarget.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSaveRemittanceRecord} className="space-y-5">
+                                {/* Date & Timestamp Pickers */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                            Scheduled Date *
+                                        </label>
+                                        <div className="relative">
+                                            <Calendar className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                type="date"
+                                                required
+                                                value={remittancePaymentDate}
+                                                onChange={e => setRemittancePaymentDate(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                                            <span>Payment Submission Time *</span>
+                                            <span className="text-[9px] text-indigo-500 font-mono">Cutoff: {remittanceSettings.cutoffTime}</span>
+                                        </label>
+                                        <div className="relative">
+                                            <Clock3 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                type="time"
+                                                required
+                                                value={remittancePaymentTime}
+                                                onChange={e => setRemittancePaymentTime(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Dynamic Automated Penalty Calculation Breakdown */}
+                                <div className={`p-4 rounded-2xl border transition-all ${
+                                    feeCalc.isNextDayOverdue
+                                        ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60'
+                                        : feeCalc.isLate
+                                        ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60'
+                                        : 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60'
+                                }`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                            {feeCalc.status === 'on_time' ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                            ) : (
+                                                <AlertTriangle className={`w-4 h-4 ${feeCalc.isNextDayOverdue ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`} />
+                                            )}
+                                            <span className={`text-xs font-black uppercase tracking-wider ${
+                                                feeCalc.status === 'on_time' ? 'text-emerald-700 dark:text-emerald-300' :
+                                                feeCalc.isNextDayOverdue ? 'text-rose-700 dark:text-rose-300' :
+                                                'text-amber-700 dark:text-amber-300'
+                                            }`}>
+                                                Automated Rule Evaluation: {feeCalc.status.replace('_', ' ').toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs font-mono font-bold text-slate-500">
+                                            KES {feeCalc.totalPayable.toLocaleString()} Total
+                                        </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-3">
+                                        <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Base Tier</span>
+                                            <span className="font-black text-slate-800 dark:text-slate-200 font-mono">KES {baseTarget.toLocaleString()}</span>
+                                        </div>
+                                        <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Late Penalty</span>
+                                            <span className={`font-black font-mono ${feeCalc.latePenalty > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                                                +{feeCalc.latePenalty > 0 ? `KES ${feeCalc.latePenalty}` : 'KES 0'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">Next-Day Delay</span>
+                                            <span className={`font-black font-mono ${feeCalc.nextDayPenalty > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400'}`}>
+                                                +{feeCalc.nextDayPenalty > 0 ? `KES ${feeCalc.nextDayPenalty}` : 'KES 0'}
+                                            </span>
+                                        </div>
+                                        <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md shadow-indigo-600/20">
+                                            <span className="text-[10px] font-black uppercase text-indigo-200 block tracking-wider">Total Payable</span>
+                                            <span className="font-black font-mono text-sm">KES {feeCalc.totalPayable.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
+                                        💡 {feeCalc.ruleMessage}
+                                    </p>
+                                </div>
+
+                                {/* Payment Collection Fields */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                                            <span>Amount Paid (KES) *</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRemittancePaidAmount(String(feeCalc.totalPayable))}
+                                                className="text-[9px] text-indigo-500 font-bold hover:underline"
+                                            >
+                                                Fill Full (KES {feeCalc.totalPayable})
+                                            </button>
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 font-mono">KES</span>
+                                            <input
+                                                type="number"
+                                                required
+                                                min="0"
+                                                step="50"
+                                                value={remittancePaidAmount}
+                                                onChange={e => setRemittancePaidAmount(e.target.value)}
+                                                className="w-full pl-14 pr-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                            Payment Method *
+                                        </label>
+                                        <select
+                                            value={remittancePaymentMethod}
+                                            onChange={e => setRemittancePaymentMethod(e.target.value as any)}
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="mpesa">M-PESA Till / Paybill (Instant)</option>
+                                            <option value="cash">Cash at SACCO Cashier Desk</option>
+                                            <option value="bank">Direct Bank Deposit / RTGS</option>
+                                            <option value="daily_deduction">Thrift / Daily Sinking Fund Deduction</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                            Transaction / Ref Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={remittanceRefCode}
+                                            onChange={e => setRemittanceRefCode(e.target.value.toUpperCase())}
+                                            placeholder="e.g. QHJ8839LM or REM-KDL789B"
+                                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono uppercase"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                            Outstanding Deficit / Balance
+                                        </label>
+                                        <div className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-900/80 rounded-xl border border-slate-200 dark:border-slate-700 font-mono font-bold text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                                            <span>Remaining Deficit:</span>
+                                            <span className={outstandingBalance > 0 ? 'text-rose-600 dark:text-rose-400 font-black' : 'text-emerald-600 dark:text-emerald-400 font-black'}>
+                                                KES {outstandingBalance.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Cashier Remarks / Notes
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={remittanceNotes}
+                                        onChange={e => setRemittanceNotes(e.target.value)}
+                                        placeholder="e.g. Verified M-PESA confirmation at Stage 1 kiosk"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                {/* Modal Actions */}
+                                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsRecordRemittanceModalOpen(false);
+                                            setActiveRemittanceDriver(null);
+                                        }}
+                                        className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30 active:scale-95"
+                                    >
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        Save & Check-Off
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            {/* Modal: Add / Edit Remittance Tier */}
+            {isAddTierModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg p-6 sm:p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up my-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                                    <Sliders className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                        {editingTierId ? 'Edit Remittance Tier' : 'Add Remittance Tier'}
+                                    </h3>
+                                    <p className="text-slate-400 text-xs font-medium">Configure daily collection target for this vehicle category</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setIsAddTierModalOpen(false);
+                                    setEditingTierId(null);
+                                }}
+                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSaveTier} className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Tier Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newTierName}
+                                    onChange={e => setNewTierName(e.target.value)}
+                                    placeholder="e.g. Platinum, Super Shuttles"
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Daily Target (KES) *
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400 font-mono">KES</span>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="100"
+                                        step="50"
+                                        value={newTierTarget}
+                                        onChange={e => setNewTierTarget(e.target.value)}
+                                        placeholder="e.g. 1800"
+                                        className="w-full pl-14 pr-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500 font-mono"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1 font-medium">Standard baseline payable before cutoff times.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Badge Color Theme
+                                </label>
+                                <select
+                                    value={newTierColor}
+                                    onChange={e => setNewTierColor(e.target.value)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500"
+                                >
+                                    <option value="slate">Slate / Silver (Standard Matatus)</option>
+                                    <option value="amber">Amber / Bronze (Mid-size Vans)</option>
+                                    <option value="yellow">Yellow / Gold (Prime / High Capacity)</option>
+                                    <option value="indigo">Indigo / Blue (Express Interstate)</option>
+                                    <option value="purple">Purple (Luxury Executive)</option>
+                                    <option value="emerald">Emerald / Green (Green Fleet / EV)</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Tier Description / Fleet Scope
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newTierDesc}
+                                    onChange={e => setNewTierDesc(e.target.value)}
+                                    placeholder="e.g. 14-seater town service vans"
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+
+                            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsAddTierModalOpen(false);
+                                        setEditingTierId(null);
+                                    }}
+                                    className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex items-center gap-2 px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-600/30 active:scale-95"
+                                >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                    {editingTierId ? 'Update Tier' : 'Save Tier'}
                                 </button>
                             </div>
                         </form>

@@ -4847,6 +4847,7 @@ export interface TransportSaccoAccount {
     shareCapital: number;
     welfareBalance: number;
     dailyTarget: number;
+    remittanceTier?: string;
     loanEligibility: number;
     status: 'Active' | 'Dormant' | 'Suspended';
     joinedDate: string;
@@ -4867,6 +4868,51 @@ export interface TransportSaccoTransaction {
     reference: string;
     recordedAt: string;
     notes?: string;
+}
+
+export interface SaccoRemittanceTier {
+    id: string;
+    tierName: string; // e.g. 'Silver' | 'Bronze' | 'Gold'
+    dailyTarget: number; // e.g. 1500, 1600, 1700
+    description?: string;
+    color?: string;
+}
+
+export interface SaccoRemittanceSettings {
+    enabled: boolean;
+    tiers: SaccoRemittanceTier[];
+    cutoffTime: string; // e.g. "22:00" (10:00 PM)
+    latePenaltyAmount: number; // e.g. 100
+    nextDayCutoffTime: string; // e.g. "10:00" (10:00 AM next day)
+    nextDayDelayPenaltyAmount: number; // e.g. 200
+    graceMinutes?: number; // 0
+    enforcePenalties: boolean;
+    sinkingFundDeduction?: number;
+}
+
+export interface SaccoDailyRemittanceRecord {
+    id: string;
+    institutionId?: string;
+    accountId?: string;
+    memberId: string;
+    memberName: string;
+    vehiclePlate: string;
+    driverName?: string;
+    driverPhone?: string;
+    tierName: string;
+    baseAmount: number;
+    scheduledDate: string; // YYYY-MM-DD
+    submittedAt?: string; // ISO date
+    latePenalty: number;
+    nextDayPenalty: number;
+    totalPayable: number;
+    amountPaid: number;
+    balance: number;
+    status: 'on_time' | 'late' | 'overdue' | 'pending';
+    paymentMethod: 'mpesa' | 'cash' | 'bank' | 'daily_deduction';
+    referenceNumber?: string;
+    notes?: string;
+    recordedBy?: string;
 }
 
 
