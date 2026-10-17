@@ -4066,7 +4066,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     } else if (!copy.message) {
                         copy.message = 'SMS notification';
                     }
-                    if (copy.senderId && !copy.sender_id) copy.sender_id = copy.senderId;
+
+                    // Sanitize institution_id to prevent FK violations on GLOBAL / SYSTEM / null
+                    const rawInstId = copy.institution_id || copy.institutionId;
+                    if (!rawInstId || rawInstId === 'GLOBAL' || rawInstId === 'SYSTEM' || rawInstId === 'null' || rawInstId === 'undefined' || rawInstId === 'inst_GLOBAL' || rawInstId === 'inst_SYSTEM' || String(rawInstId).trim() === '') {
+                        copy.institution_id = null;
+                    } else {
+                        copy.institution_id = String(rawInstId).trim();
+                    }
+                    delete copy.institutionId;
+
+                    // Sanitize sender_id to prevent FK violations
+                    const rawSenderId = copy.sender_id || copy.senderId;
+                    if (!rawSenderId || rawSenderId === 'GLOBAL' || rawSenderId === 'SYSTEM' || rawSenderId === 'null' || rawSenderId === 'undefined' || String(rawSenderId).trim() === '') {
+                        copy.sender_id = null;
+                    } else {
+                        copy.sender_id = String(rawSenderId).trim();
+                    }
+                    delete copy.senderId;
+
                     if (copy.gatewayResponse && !copy.gateway_response) copy.gateway_response = copy.gatewayResponse;
                     delete copy.recipients;
                     delete copy.recipient_phone;
@@ -6818,14 +6836,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const pool = await getPgPool();
                             if (pool) {
                                 await executeWithTimeout(
-                                    pool.query(`ALTER TABLE public.student_enrollments DROP CONSTRAINT IF EXISTS student_enrollments_institution_id_fkey CASCADE;`),
+                                    pool.query(`
+                                        ALTER TABLE public.student_enrollments DROP CONSTRAINT IF EXISTS student_enrollments_institution_id_fkey CASCADE;
+                                        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_institution_id_fkey CASCADE;
+                                        ALTER TABLE public.sms_logs DROP CONSTRAINT IF EXISTS sms_logs_sender_id_fkey CASCADE;
+                                    `),
                                     2000
                                 ).catch(() => {});
                                 if (targetDbTable && /^[a-zA-Z0-9_]+$/.test(targetDbTable)) {
                                     await executeWithTimeout(
                                         pool.query(`
                                             DO $$ DECLARE r RECORD; BEGIN
-                                                FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = 'public.${targetDbTable}'::regclass AND contype = 'f' AND conname ILIKE '%institution%' LOOP
+                                                FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = 'public.${targetDbTable}'::regclass AND contype = 'f' AND (conname ILIKE '%institution%' OR conname ILIKE '%sender%') LOOP
                                                     EXECUTE format('ALTER TABLE public.${targetDbTable} DROP CONSTRAINT IF EXISTS %I CASCADE;', r.conname);
                                                 END LOOP;
                                             END $$;
@@ -6838,8 +6860,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn('[api/records] Direct PG constraint drop attempt note:', pgDropErr);
                         }
 
-                        // 2. Auto-provision the missing institution in public.institutions
+                        // Check if this is a logging / telemetry / auxiliary module or if the institution ID is non-standard
+                        const isLogOrTelemetryTable = [
+                            'sms_logs', 'sms_gateway_logs', 'sms_outbox', 'fuel_sms_logs',
+                            'integration_logs', 'audit_logs', 'activity_log', 'activity_logs',
+                            'security_alerts', 'security_logs', 'watchlist_records', 'building_visitor_logs'
+                        ].includes(targetDbTable) || [
+                            'sms_logs', 'sms_gateway_logs', 'sms_outbox', 'fuel_sms_logs',
+                            'integration_logs', 'audit_logs', 'activity_log', 'activity_logs'
+                        ].includes(moduleName);
+
                         const curInstId = (currentPayload as any)?.institution_id || (Array.isArray(currentPayload) ? currentPayload[0]?.institution_id : null);
+                        const isGlobalOrSystem = !curInstId || curInstId === 'GLOBAL' || curInstId === 'SYSTEM' || curInstId === 'null' || curInstId === 'undefined' || curInstId === 'inst_GLOBAL' || curInstId === 'inst_SYSTEM';
+
+                        // For log/telemetry tables, global/system scope, or when retries are low: nullify institution_id immediately to satisfy FK
+                        if (isLogOrTelemetryTable || isGlobalOrSystem || maxRetries <= 2) {
+                            const nullifyInst = (item: any) => {
+                                if (item && typeof item === 'object') {
+                                    item.institution_id = null;
+                                    if ('institutionId' in item) delete item.institutionId;
+                                    if (errMsg.includes('sender') || errMsg.includes('sender_id')) {
+                                        item.sender_id = null;
+                                        if ('senderId' in item) delete item.senderId;
+                                    }
+                                }
+                                return item;
+                            };
+                            currentPayload = Array.isArray(currentPayload) ? currentPayload.map(nullifyInst) : nullifyInst(currentPayload);
+                            maxRetries--;
+                            continue;
+                        }
+
+                        // 2. Auto-provision the missing institution in public.institutions
                         if (curInstId && typeof curInstId === 'string') {
                             const clean = curInstId.replace(/^inst_/, '');
                             const prefixed = curInstId.startsWith('inst_') ? curInstId : `inst_${curInstId}`;
@@ -6880,8 +6932,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const nullifyFKs = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
                         const copy = { ...item };
-                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id', 'ward_id', 'bed_id', 'admission_id', 'department_id'].forEach(k => {
-                            if (k in copy) copy[k] = null;
+                        ['patient_id', 'doctor_id', 'student_id', 'parent_id', 'driver_id', 'assistant_id', 'instructor_id', 'vehicle_id', 'room_id', 'category_id', 'invoice_id', 'host_id', 'user_id', 'sender_id', 'institution_id', 'created_by', 'recorded_by', 'agent_id', 'sale_id', 'item_id', 'product_id', 'store_id', 'order_id', 'supplier_id', 'customer_id', 'ward_id', 'bed_id', 'admission_id', 'department_id'].forEach(k => {
+                            if (k in copy) {
+                                if (k === 'institution_id') {
+                                    if (['sms_logs', 'sms_gateway_logs', 'sms_outbox', 'fuel_sms_logs', 'integration_logs', 'audit_logs', 'activity_log', 'activity_logs'].includes(targetDbTable) || maxRetries <= 1) {
+                                        copy[k] = null;
+                                    }
+                                } else {
+                                    copy[k] = null;
+                                }
+                            }
                         });
                         return copy;
                     };

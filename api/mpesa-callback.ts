@@ -1264,7 +1264,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             try {
                                 await supabase.from('sms_logs').insert({
                                     id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                                    institution_id: targetInstId || 'SYSTEM',
+                                    institution_id: (targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL') ? targetInstId : null,
                                     sender_id: null,
                                     recipient: normalizePhone(targetParentPhone),
                                     message: financeSms,

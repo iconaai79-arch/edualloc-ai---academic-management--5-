@@ -1952,7 +1952,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     await supabase.from('sms_logs').insert({
                         id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                        institution_id: effectiveBillableInstId,
+                        institution_id: (effectiveBillableInstId && effectiveBillableInstId !== 'GLOBAL' && effectiveBillableInstId !== 'SYSTEM') ? effectiveBillableInstId : null,
                         sender_id: (user?.id === 'system' || !user?.id) ? null : user.id,
                         recipient: normalizedRecipients.length === 1 ? normalizedRecipients[0] : `${normalizedRecipients.length} recipients`,
                         message: message,
@@ -2282,7 +2282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         await supabase.from('sms_logs').insert({
                             id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                            institution_id: targetInstId,
+                            institution_id: (targetInstId && targetInstId !== 'GLOBAL' && targetInstId !== 'SYSTEM') ? targetInstId : null,
                             sender_id: targetUser.id,
                             recipient: phone,
                             message: 'Password Reset OTP',

@@ -3315,6 +3315,25 @@ export const apiService = {
                 if (rVal) {
                     item.recipient = String(rVal).trim();
                 }
+
+                // Sanitize institutionId / institution_id
+                const rawInst = item.institution_id || item.institutionId;
+                if (!rawInst || rawInst === 'GLOBAL' || rawInst === 'SYSTEM' || rawInst === 'null' || rawInst === 'undefined' || rawInst === 'inst_GLOBAL' || rawInst === 'inst_SYSTEM' || String(rawInst).trim() === '') {
+                    item.institution_id = null;
+                } else {
+                    item.institution_id = String(rawInst).trim();
+                }
+                delete item.institutionId;
+
+                // Sanitize senderId / sender_id
+                const rawSender = item.sender_id || item.senderId;
+                if (!rawSender || rawSender === 'GLOBAL' || rawSender === 'SYSTEM' || rawSender === 'null' || rawSender === 'undefined' || String(rawSender).trim() === '') {
+                    item.sender_id = null;
+                } else {
+                    item.sender_id = String(rawSender).trim();
+                }
+                delete item.senderId;
+
                 delete item.recipients;
                 delete item.sent_at;
                 delete item.sentAt;
@@ -6901,7 +6920,7 @@ export const apiService = {
                 if (recipientsList) {
                     apiService.saveModuleRecord('sms_logs', {
                         id: `smslog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-                        institutionId: effectiveInstId,
+                        institutionId: (effectiveInstId && effectiveInstId !== 'GLOBAL' && effectiveInstId !== 'SYSTEM') ? effectiveInstId : null,
                         recipient: recipientsList,
                         recipients: recipientsList,
                         message: message,
