@@ -39,6 +39,7 @@ CREATE OR REPLACE FUNCTION public.bulk_assign_ds_students_branch(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_updated_count INT := 0;
