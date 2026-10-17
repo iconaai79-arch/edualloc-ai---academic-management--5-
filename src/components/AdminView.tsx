@@ -1150,23 +1150,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         if (isLogistics && !isEdu && !isSchool) {
-            const isSavings = props.currentInstitution?.category === 'SACCO Savings' || 
-                              props.currentInstitution?.category === 'Transport SACCO & Savings' ||
-                              props.currentInstitution?.category?.toLowerCase().includes('savings');
-            return [
-                { 
-                    id: 'logistics', 
-                    label: isSavings ? 'SACCO Savings Hub' : 'Logistics Hub', 
-                    icon: <TruckIcon className="w-5 h-5 mr-2" /> 
-                },
-                { id: 'transport', label: 'Fleet Registry', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
-                { id: 'users', label: 'Drivers & Staff', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-                { id: 'comms', label: 'Broadcaster / SMS', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
-                ...(isModuleActive('fiscal_guard') ? [{ id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> }] : []),
-                { id: 'reports', label: 'Analytics & Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
-            ];
+            return [];
         }
+
 
         if (isCoop) {
             return [
@@ -1508,7 +1494,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
 
     return (
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
-            {(!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && (isDos || activeScope !== 'academics') && (tabs.length > 0 || ((isEdu || isSchool) && activeScope !== 'console_hub')) && (
+            {!(isLogistics && !isEdu && !isSchool) && (!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && (isDos || activeScope !== 'academics') && (tabs.length > 0 || ((isEdu || isSchool) && activeScope !== 'console_hub')) && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar-horizontal pb-2 no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
                     {(isEdu || isSchool) && !isDS && (activeScope !== 'console_hub' || activeTab === 'network_devices') && (
                         <button
@@ -2665,7 +2651,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 ) : (
                     <>
-                {activeTab === 'dashboard' && isLogistics && !isEdu && !isSchool && (
+                {isLogistics && !isEdu && !isSchool && (
                     <LogisticsManager 
                         currentInstitution={props.currentInstitution!}
                         users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
@@ -3988,7 +3974,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     />
                 )}
 
-                {activeTab === 'logistics' && (
+                {activeTab === 'logistics' && !(isLogistics && !isEdu && !isSchool) && (
                     <LogisticsManager 
                         currentInstitution={props.currentInstitution!}
                         users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
