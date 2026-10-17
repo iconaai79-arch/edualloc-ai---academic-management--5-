@@ -3397,9 +3397,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </select>
                     <button
                         onClick={() => setShowBulkDateModal(true)}
-                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-3 rounded-xl font-bold text-xs transition-all whitespace-nowrap"
+                        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-3 rounded-2xl font-bold text-xs transition-all whitespace-nowrap cursor-pointer"
                     >
                         <CalendarIcon className="w-4 h-4" /> Bulk Update Start Dates
+                    </button>
+                    <button
+                        onClick={() => setShowLeaseModal(true)}
+                        className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-blue-500/25 hover:scale-[1.02] transition-all whitespace-nowrap cursor-pointer"
+                        title="Create New Lease Agreement"
+                    >
+                        <PlusIcon className="w-4 h-4" /> New Lease
                     </button>
                 </div>
             </div>
@@ -3465,7 +3472,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 );
                             })}
                             {filteredLeases.length === 0 && (
-                                <tr><td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">No Leases Found</td></tr>
+                                <tr>
+                                    <td colSpan={6} className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.2em] italic">
+                                        <p className="mb-3">No Leases Found</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowLeaseModal(true)}
+                                            className="inline-flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all not-italic cursor-pointer"
+                                        >
+                                            <PlusIcon className="w-4 h-4" /> Create New Lease
+                                        </button>
+                                    </td>
+                                </tr>
                             )}
                         </tbody>
                     </table>
@@ -9321,11 +9339,6 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 {propertyActiveSubTab === 'tenants' && (
                                     <button onClick={() => setShowTenantModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
                                         <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">Onboard</span> Tenant
-                                    </button>
-                                )}
-                                {propertyActiveSubTab === 'leases' && (
-                                    <button onClick={() => setShowLeaseModal(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-2xl font-black text-[10px] md:text-sm uppercase tracking-widest shadow-xl shadow-blue-600/20 hover:scale-[1.02] active:scale-95 transition-all">
-                                        <PlusIcon className="w-5 h-5" /> <span className="hidden sm:inline">New</span> Lease
                                     </button>
                                 )}
                                 {propertyActiveSubTab === 'payments' && (
