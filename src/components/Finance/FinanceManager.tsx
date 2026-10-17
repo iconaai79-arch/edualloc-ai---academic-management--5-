@@ -11795,20 +11795,12 @@ export const FinanceManager: React.FC<FinanceManagerProps> = (props) => {
                                     </button>
                                 ))
                             ) : activeTab === 'payroll' ? (
-                                hrSubTabs.map(sub => (
-                                    <button
-                                        key={sub.id}
-                                        onClick={() => setHrSubTab(sub.id as any)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition-all duration-300 whitespace-nowrap ${
-                                            hrSubTab === sub.id
-                                            ? 'bg-teal-600 text-white shadow-xl shadow-teal-100 dark:shadow-none scale-105'
-                                            : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600'
-                                        }`}
-                                    >
-                                        <sub.icon className={`w-4 h-4 ${hrSubTab === sub.id ? 'text-white' : 'text-slate-400'}`} />
-                                        <span className="text-[11px] font-black uppercase tracking-widest">{sub.label}</span>
-                                    </button>
-                                ))
+                                <div className="flex items-center gap-2 px-2">
+                                    <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+                                    <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                                        Human Capital & Payroll Architecture
+                                    </span>
+                                </div>
                             ) : (
                                 <div className="flex items-center gap-2 px-2">
                                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

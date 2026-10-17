@@ -25,6 +25,11 @@ import { ArrowUpTrayIcon } from '../icons/ArrowUpTrayIcon';
 import { Cog8ToothIcon } from '../icons/Cog8ToothIcon';
 import { QrCodeIcon } from '../icons/QrCodeIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
+import { BriefcaseIcon } from '../icons/BriefcaseIcon';
+import { SparklesIcon } from '../icons/SparklesIcon';
+import { ActivityLogPanel } from '../common/ActivityLogPanel';
+
+const EduFlowManager = React.lazy(() => import('../common/EduFlowManager').then(m => ({ default: m.EduFlowManager })));
 import TeacherCheckInAdminView from '../TeacherCheckInAdminView';
 import { printGateQrSignboard } from '../TeacherCheckInView';
 import { BiometricAttendanceDashboard } from './BiometricAttendanceDashboard';
@@ -69,9 +74,13 @@ interface HRManagerProps {
     onDeleteUser?: (id: string) => Promise<void>;
     letterheadConfig?: LetterheadConfig;
     footerImageUrl?: string | null;
-    activeTab?: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories';
-    setActiveTab?: (tab: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories') => void;
+    activeTab?: 'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories' | 'activity_log' | 'eduflow';
+    setActiveTab?: (tab: any) => void;
     companyDetails?: any;
+    activityLog?: any[];
+    showEduFlow?: boolean;
+    users?: User[];
+    onLogAction?: (action: string) => Promise<void>;
 }
 
 export const HRManager: React.FC<HRManagerProps> = ({
@@ -89,7 +98,11 @@ export const HRManager: React.FC<HRManagerProps> = ({
     footerImageUrl,
     activeTab: propActiveTab,
     setActiveTab: propSetActiveTab,
-    companyDetails
+    companyDetails,
+    activityLog = [],
+    showEduFlow = false,
+    users = [],
+    onLogAction
 }) => {
     const staff = (rawStaff || []).filter(member => {
         if (!member || !member.role) return false;
@@ -97,7 +110,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return r !== 'student' && r !== 'parent' && r !== 'visitor';
     });
 
-    const [localActiveTab, setLocalActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories'>('roster');
+    const [localActiveTab, setLocalActiveTab] = useState<'roster' | 'payroll' | 'leave' | 'attendance' | 'reports' | 'analytics' | 'categories' | 'activity_log' | 'eduflow'>('roster');
     const activeTab = propActiveTab || localActiveTab;
     const setActiveTab = propSetActiveTab || setLocalActiveTab;
 
@@ -118,15 +131,95 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return DEFAULT_DEDUCTION_CATEGORIES.map((d, i) => ({ ...d, id: `def_d_${i}`, institutionId: institution.id || 'default', createdAt: new Date().toISOString() }));
     });
 
-    const tabs = [
-        { id: 'roster' as const, label: 'Staff Roster', icon: UserGroupIcon },
-        { id: 'payroll' as const, label: 'Payroll Engine', icon: BanknotesIcon },
-        { id: 'categories' as const, label: 'Allowances & Deductions', icon: ShieldCheckIcon },
-        { id: 'leave' as const, label: 'Leave Requests', icon: CalendarDaysIcon },
-        { id: 'attendance' as const, label: 'Biometrics & Logs', icon: ClockIcon },
-        { id: 'reports' as const, label: 'Payslips & P9', icon: DocumentTextIcon },
-        { id: 'analytics' as const, label: 'Staff Analytics', icon: BarChart3Icon }
-    ];
+    const isEdu = isEduInstitution(institution) || isSchoolInstitution(institution) || isHigherEdInstitution(institution);
+
+    const teachingStaff = useMemo(() => {
+        return staff.filter(s => {
+            const r = (s.role || '').toLowerCase();
+            return ['teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod', 'head_teacher', 'principal', 'deputy', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'].includes(r);
+        });
+    }, [staff]);
+
+    const supportStaff = useMemo(() => {
+        return staff.filter(s => {
+            const r = (s.role || '').toLowerCase();
+            return !['teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod', 'head_teacher', 'principal', 'deputy', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'].includes(r);
+        });
+    }, [staff]);
+
+    const pendingLeaveCount = useMemo(() => {
+        return leaveRequests.filter(l => l.status === 'pending').length;
+    }, [leaveRequests]);
+
+    const navTabs = useMemo(() => {
+        const list = [
+            { 
+                id: 'roster' as const, 
+                label: isEdu ? 'Faculty & Staff' : 'Staff Roster', 
+                subLabel: `${staff.length} Active Records`,
+                icon: UserGroupIcon 
+            },
+            { 
+                id: 'payroll' as const, 
+                label: 'Payroll Engine', 
+                subLabel: 'PAYE, SHIF, NSSF & Net',
+                icon: BanknotesIcon 
+            },
+            { 
+                id: 'categories' as const, 
+                label: 'Salary Structures', 
+                subLabel: 'Allowances & Deductions',
+                icon: ShieldCheckIcon 
+            },
+            { 
+                id: 'leave' as const, 
+                label: 'Leave & Absence', 
+                subLabel: pendingLeaveCount > 0 ? `${pendingLeaveCount} Pending Action` : 'Leave Approvals',
+                badge: pendingLeaveCount,
+                icon: CalendarDaysIcon 
+            },
+            { 
+                id: 'attendance' as const, 
+                label: 'Gate & Biometrics', 
+                subLabel: 'QR & Attendance Logs',
+                icon: ClockIcon 
+            },
+            { 
+                id: 'reports' as const, 
+                label: 'Tax P9 & Payslips', 
+                subLabel: 'Bulk PDF & Bank Advice',
+                icon: DocumentTextIcon 
+            },
+            { 
+                id: 'analytics' as const, 
+                label: 'Workforce Analytics', 
+                subLabel: 'Headcount & Salary Trends',
+                icon: BarChart3Icon 
+            }
+        ];
+
+        if (showEduFlow || (users && users.length > 0)) {
+            list.push({
+                id: 'eduflow' as any,
+                label: 'EduFlow Tasks',
+                subLabel: 'Workforce Assignments',
+                badge: 0,
+                icon: BriefcaseIcon
+            });
+        }
+
+        if (activityLog && activityLog.length > 0) {
+            list.push({
+                id: 'activity_log' as any,
+                label: 'Audit Trail',
+                subLabel: `${activityLog.length} System Records`,
+                badge: 0,
+                icon: SparklesIcon
+            });
+        }
+
+        return list;
+    }, [isEdu, staff.length, pendingLeaveCount, showEduFlow, users, activityLog]);
 
     // Dynamic Role Options based on Institution Type
     const staffRoleOptions = useMemo(() => {
@@ -1113,36 +1206,270 @@ export const HRManager: React.FC<HRManagerProps> = ({
         );
     };
 
-    return (
-        <div className="space-y-8">
-            {/* Elite Navigation Bar */}
-            {!propActiveTab && (
-                <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                    <div className="flex gap-2 flex-wrap">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-3 px-6 py-3 rounded-2xl transition-all duration-300 ${
-                                    activeTab === tab.id 
-                                    ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105' 
-                                    : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'
-                                }`}
-                            >
-                                <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
-                                <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                    <div className="hidden md:block px-6 border-l border-slate-100 dark:border-slate-700">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Human Capital</p>
-                        <p className="text-sm font-black text-slate-900 dark:text-white">{staff.length} Active Personnel</p>
-                    </div>
-                </div>
-            )}
+    const currentMonthPayroll = useMemo(() => {
+        const curM = selectedMonth || new Date().toISOString().substring(0, 7);
+        return payrollRecords.filter(p => p.month === curM);
+    }, [payrollRecords, selectedMonth]);
 
-            {/* Dynamic View Engine */}
-            <div>
+    const totalNetPay = useMemo(() => {
+        if (currentMonthPayroll.length > 0) {
+            return currentMonthPayroll.reduce((sum, p) => sum + (Number(p.netSalary) || 0), 0);
+        }
+        return payrollRecords.slice(0, 20).reduce((sum, p) => sum + (Number(p.netSalary) || 0), 0);
+    }, [currentMonthPayroll, payrollRecords]);
+
+    return (
+        <div className="space-y-8 w-full">
+            {/* Elite Top Header Banner */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-100 dark:border-slate-800 p-6 sm:p-8 rounded-[2.5rem] shadow-sm">
+                <div className="space-y-2">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-[0.2em] rounded-full border border-indigo-100/50 dark:border-indigo-900/30">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>{isEdu ? 'Educational Workforce & Payroll Hub' : 'Human Capital & Payroll Architecture'}</span>
+                    </div>
+                    <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                        {isEdu ? 'Faculty & Workforce Command' : 'Workforce & Payroll Operations'}
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium max-w-3xl leading-relaxed">
+                        Manage {isEdu ? 'teaching faculty, department heads, and non-teaching support personnel' : 'institutional staff'}: 
+                        statutory salary calculations (PAYE, SHIF 2.75%, NSSF, Affordable Housing Levy 1.5%), biometric attendance, leave approvals, and P9 tax certificates.
+                    </p>
+                </div>
+
+                {/* Header Action Shortcuts */}
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setShowStatutorySettingsModal(true)}
+                        className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        title="Configure KRA PAYE, NSSF, SHIF, Housing Levy Rates"
+                    >
+                        <Cog8ToothIcon className="w-4 h-4 text-indigo-500" />
+                        <span>Tax & Statutory</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowExcelImportModal(true)}
+                        className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                        title="Import Staff & Salary Records from Excel / CSV"
+                    >
+                        <ArrowUpTrayIcon className="w-4 h-4" />
+                        <span>Smart Import</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setEditingStaff(null);
+                            setOnboardForm({
+                                name: '',
+                                email: '',
+                                phoneNumber: '',
+                                role: defaultInitialRole,
+                                password: '',
+                                employmentDate: new Date().toISOString().split('T')[0],
+                                nationalId: '',
+                                employmentTerms: 'Permanent & Pensionable',
+                                basicSalary: 0,
+                                kraPin: '',
+                                nssfNo: '',
+                                shifNumber: '',
+                                bankName: 'Equity Bank',
+                                bankBranch: '',
+                                bankAccountNumber: '',
+                                assignedAllowances: [],
+                                assignedDeductions: []
+                            });
+                            setShowOnboardModal(true);
+                        }}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/30 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        <span>Onboard Staff</span>
+                    </button>
+                </div>
+            </div>
+
+            {/* Layout: Vertical Menu Sidebar (Left) + Content Workspace (Right) */}
+            <div className="flex flex-col lg:flex-row items-start gap-8 w-full text-left">
+                {/* Vertical Navigation Menu Sidebar */}
+                <aside className="w-full lg:w-72 xl:w-80 shrink-0 lg:sticky lg:top-6 self-start space-y-4">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-[2.5rem] shadow-sm p-4 sm:p-5">
+                        <div className="flex items-center justify-between px-3 py-2 mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                {isEdu ? 'Faculty & HR Suite' : 'HR & Payroll Menu'}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+                                {navTabs.length} Modules
+                            </span>
+                        </div>
+
+                        {/* Vertical Navigation Items */}
+                        <nav className="space-y-1.5" aria-label="HR & Payroll Hub Navigation">
+                            {navTabs.map((tab) => {
+                                const isCurrent = activeTab === tab.id;
+                                const Icon = tab.icon;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-200 group text-left cursor-pointer ${
+                                            isCurrent
+                                                ? 'bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white shadow-md shadow-indigo-600/25 font-black scale-[1.01]'
+                                                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-bold'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className={`p-2 rounded-xl transition-all ${
+                                                isCurrent 
+                                                    ? 'bg-white/20 text-white' 
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/30'
+                                            }`}>
+                                                <Icon className="w-4 h-4 shrink-0" />
+                                            </div>
+                                            <div className="min-w-0 truncate">
+                                                <div className="text-xs uppercase tracking-wider truncate">
+                                                    {tab.label}
+                                                </div>
+                                                {tab.subLabel && (
+                                                    <div className={`text-[10px] font-medium truncate leading-tight ${isCurrent ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'}`}>
+                                                        {tab.subLabel}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                            {tab.badge !== undefined && tab.badge > 0 && (
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                                    isCurrent 
+                                                        ? 'bg-white text-indigo-700' 
+                                                        : 'bg-rose-500 text-white animate-pulse'
+                                                }`}>
+                                                    {tab.badge}
+                                                </span>
+                                            )}
+                                            {isCurrent && (
+                                                <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                            )}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        {/* Sidebar Quick Breakdown Widget */}
+                        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800/80 px-2 space-y-2.5">
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                <span>{isEdu ? 'Teaching Faculty' : 'Core Staff'}</span>
+                                <span className="font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">
+                                    {teachingStaff.length}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                <span>{isEdu ? 'Support Personnel' : 'Auxiliary Team'}</span>
+                                <span className="font-black text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">
+                                    {supportStaff.length}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                <span>Total Personnel</span>
+                                <span className="font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg">
+                                    {staff.length}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Operational Gate QR Signboard Card */}
+                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-[2.5rem] p-5 border border-indigo-900/40 shadow-xl space-y-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 text-indigo-300">
+                                <QrCodeIcon className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-black uppercase tracking-wider text-white">Gate Signboard QR</h4>
+                                <p className="text-[10px] text-indigo-200">Print Clock-in Poster</p>
+                            </div>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                            Generate gate QR posters for teacher biometric self check-in via smartphone camera.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => printGateQrSignboard(institution.name, institution.id)}
+                            className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                        >
+                            <PrinterIcon className="w-3.5 h-3.5" />
+                            <span>Print Gate QR</span>
+                        </button>
+                    </div>
+                </aside>
+
+                {/* Main Content Workspace (Right Column) */}
+                <main className="flex-1 min-w-0 w-full space-y-8">
+                    {/* Quick Stats Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+                        {/* Stat 1: Total Personnel */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center">
+                                    <UserGroupIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Personnel</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{staff.length}</p>
+                                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">{teachingStaff.length} Faculty • {supportStaff.length} Staff</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stat 2: Monthly Payroll */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
+                                    <BanknotesIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Monthly Payroll</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">KES {totalNetPay > 0 ? totalNetPay.toLocaleString() : (payrollRecords.length > 0 ? payrollRecords.slice(0, 5).reduce((s, r) => s + (r.netSalary || 0), 0).toLocaleString() : '0')}</p>
+                                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{payrollRecords.length} Historical Records</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stat 3: Leave Requests */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="w-14 h-14 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center">
+                                    <CalendarDaysIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Leave Applications</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{leaveRequests.length}</p>
+                                    <p className={`text-[10px] font-bold ${pendingLeaveCount > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-400'}`}>
+                                        {pendingLeaveCount} Pending Action
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stat 4: Statutory Compliance */}
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+                            <div className="relative z-10 flex items-center gap-4">
+                                <div className="w-14 h-14 bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 rounded-2xl flex items-center justify-center">
+                                    <ShieldCheckIcon className="w-7 h-7" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Statutory Compliance</p>
+                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Active</p>
+                                    <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400">PAYE • SHIF • NSSF • Levy</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Dynamic View Engine */}
+                    <div className="min-h-[60vh]">
                 {activeTab === 'roster' && (
                     <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 space-y-6 p-6 sm:p-8">
                         {/* Header & Controls Bar */}
@@ -2125,6 +2452,29 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         </div>
                     </div>
                 )}
+
+                {activeTab === 'activity_log' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm p-6 sm:p-8 animate-in fade-in slide-in-from-bottom-4">
+                        <ActivityLogPanel logs={activityLog} module="HR" />
+                    </div>
+                )}
+
+                {activeTab === 'eduflow' && (
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm p-6 sm:p-8 animate-in fade-in slide-in-from-bottom-4">
+                        <React.Suspense fallback={<div className="h-96 flex items-center justify-center"><div className="w-8 h-8 animate-spin text-slate-350 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>}>
+                            <EduFlowManager 
+                                context="academic"
+                                currentUser={currentUser}
+                                currentInstitution={institution || null}
+                                subjects={[]}
+                                users={users && users.length > 0 ? users : staff}
+                                courses={[]}
+                            />
+                        </React.Suspense>
+                    </div>
+                )}
+                    </div>
+                </main>
             </div>
 
             {/* Gate QR Code Signboard Preview Modal */}
