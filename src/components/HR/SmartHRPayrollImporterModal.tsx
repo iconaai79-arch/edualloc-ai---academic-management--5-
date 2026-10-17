@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { XIcon } from '../icons/XIcon';
 import { SparklesIcon } from '../icons/SparklesIcon';
@@ -10,6 +10,11 @@ import { SearchIcon } from '../icons/SearchIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { UserGroupIcon } from '../icons/UserGroupIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
+import { ClockIcon } from '../icons/ClockIcon';
+import { ArrowPathIcon } from '../icons/ArrowPathIcon';
+import { TrashIcon } from '../icons/TrashIcon';
+import { XCircleIcon } from '../icons/XCircleIcon';
+import { DocumentTextIcon } from '../icons/DocumentTextIcon';
 import type { User, PayrollRecord, Institution } from '../../types';
 import { apiService } from '../../services/apiService';
 
@@ -21,6 +26,7 @@ export interface ParsedHREmployeeRow {
     role: string;
     bankAccount: string;
     basicSalary: number;
+    currentSalary?: number;
     // Allowances
     houseAllowance: number;
     medicalAllowance: number;
@@ -45,15 +51,51 @@ export interface ParsedHREmployeeRow {
     errors: string[];
 }
 
-interface SmartHRPayrollImporterModalProps {
+export interface StaffSnapshot {
+    staffId: string;
+    staffName: string;
+    isNewlyCreated: boolean;
+    previousSalary?: number;
+    previousMetadata?: any;
+}
+
+export interface HRImportBatch {
+    id: string;
+    institutionId: string;
+    fileName: string;
+    fileSize?: number;
+    importedAt: string;
+    period: string;
+    importMode: 'both' | 'roster_only' | 'payroll_only';
+    overwriteStrategy: 'overwrite' | 'skip_existing' | 'rollback_previous_then_import';
+    totalRows: number;
+    newStaffCount: number;
+    updatedStaffCount: number;
+    createdStaffIds: string[];
+    staffSnapshots: StaffSnapshot[];
+    payrollRecordIds: string[];
+    totalSalary: number;
+    totalGross: number;
+    totalDeductions: number;
+    totalNet: number;
+    status: 'applied' | 'rolled_back';
+    rolledBackAt?: string;
+    notes?: string;
+}
+
+export interface SmartHRPayrollImporterModalProps {
     isOpen: boolean;
     onClose: () => void;
     institution: Institution;
     existingStaff: User[];
+    existingPayrollRecords?: PayrollRecord[];
     onImportCompleted: (importedStaffCount: number, importedPayrollCount: number) => void;
     onAddUser?: (data: any) => Promise<void>;
     onEditUser?: (id: string, data: any) => Promise<void>;
+    onDeleteUser?: (id: string) => Promise<void>;
     onProcessPayroll?: (records: PayrollRecord[]) => Promise<void>;
+    initialBatchToRedo?: HRImportBatch | null;
+    initialTab?: 'import' | 'history';
 }
 
 // Map textual designation from sheet to normalized role code
@@ -78,18 +120,31 @@ const mapDesignationToRole = (desig: string): string => {
     return 'support_staff';
 };
 
+const getStaffSalary = (member: User): number => {
+    let m = member.metadata || {};
+    if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { m = {}; }
+    }
+    return Number(m.basicSalary || m.basic_salary || (member as any).basicSalary || (member as any).basic_salary || (member as any).basic) || 0;
+};
+
 export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalProps> = ({
     isOpen,
     onClose,
     institution,
     existingStaff,
+    existingPayrollRecords = [],
     onImportCompleted,
     onAddUser,
     onEditUser,
-    onProcessPayroll
+    onDeleteUser,
+    onProcessPayroll,
+    initialBatchToRedo = null,
+    initialTab = 'import'
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const [activeModalTab, setActiveModalTab] = useState<'import' | 'history'>('import');
     const [file, setFile] = useState<File | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [parsedRows, setParsedRows] = useState<ParsedHREmployeeRow[]>([]);
@@ -99,10 +154,70 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
         return `${months[d.getMonth()]} ${d.getFullYear()}`;
     });
     const [importMode, setImportMode] = useState<'both' | 'roster_only' | 'payroll_only'>('both');
+    const [overwriteStrategy, setOverwriteStrategy] = useState<'overwrite' | 'rollback_previous_then_import' | 'skip_existing'>('overwrite');
     const [searchFilter, setSearchFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'new' | 'existing'>('all');
     const [isImporting, setIsImporting] = useState(false);
+    const [isRollingBack, setIsRollingBack] = useState(false);
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0, step: '' });
+
+    // Batches state loaded from localStorage
+    const [batches, setBatches] = useState<HRImportBatch[]>(() => {
+        try {
+            const raw = localStorage.getItem(`eduai_hr_import_batches_${institution.id}`);
+            if (raw) return JSON.parse(raw);
+        } catch (e) {}
+        return [];
+    });
+
+    // Save Batches utility
+    const persistBatches = (updatedBatches: HRImportBatch[]) => {
+        try {
+            localStorage.setItem(`eduai_hr_import_batches_${institution.id}`, JSON.stringify(updatedBatches));
+            apiService.saveModuleRecord('institution_module_states', {
+                id: `hr_import_batches_${institution.id}`,
+                institutionId: institution.id,
+                institution_id: institution.id,
+                moduleId: 'hr_import_batches',
+                moduleName: 'HR Excel Import Batches',
+                state: updatedBatches,
+                data: updatedBatches,
+                updatedAt: new Date().toISOString()
+            }).catch(() => {});
+        } catch (e) {
+            console.error('Failed to persist batches:', e);
+        }
+    };
+
+    // Reload batches whenever modal opens or institution changes
+    useEffect(() => {
+        if (isOpen) {
+            try {
+                const raw = localStorage.getItem(`eduai_hr_import_batches_${institution.id}`);
+                if (raw) setBatches(JSON.parse(raw));
+            } catch (e) {}
+        }
+    }, [isOpen, institution.id]);
+
+    // Handle initial tab & initial redo batch
+    useEffect(() => {
+        if (isOpen) {
+            if (initialTab) setActiveModalTab(initialTab);
+            if (initialBatchToRedo) {
+                setImportPeriod(initialBatchToRedo.period);
+                setOverwriteStrategy('overwrite');
+                setActiveModalTab('import');
+            }
+        }
+    }, [isOpen, initialTab, initialBatchToRedo]);
+
+    // Check if an active batch exists for the selected importPeriod
+    const existingActiveBatchForPeriod = useMemo(() => {
+        return batches.find(b => 
+            b.period.trim().toLowerCase() === importPeriod.trim().toLowerCase() && 
+            b.status === 'applied'
+        );
+    }, [batches, importPeriod]);
 
     // Helper: Parse numeric cell value cleanly
     const parseNumber = (val: any): number => {
@@ -155,9 +270,6 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
 
                 const headerRow = rawSheetData[headerRowIdx].map(c => String(c).toUpperCase().trim());
                 
-                // Identify column indexes with positional awareness
-                // Notice the user's sheet layout:
-                // NO | NAME | DESIG | BANK ACC | SALARY | HSE ALL | MED | HL (Allow) | NSSF (Gross) | TOTAL | NSSF (Ded) | SHIF | WELFARE | SACCO.R | HL (Ded) | TOTAL DED | NET PAY
                 let idxNo = -1;
                 let idxName = -1;
                 let idxDesig = -1;
@@ -233,7 +345,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                     }
                 }
 
-                // Fallback column positions if header text was vague
+                // Fallback column positions
                 if (idxName === -1 && headerRow.length > 1) idxName = 1;
                 if (idxDesig === -1 && headerRow.length > 2) idxDesig = 2;
                 if (idxBank === -1 && headerRow.length > 3) idxBank = 3;
@@ -297,6 +409,8 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         return false;
                     });
 
+                    const currentSalary = matched ? getStaffSalary(matched) : 0;
+
                     const errors: string[] = [];
                     if (!name) errors.push('Name is missing');
                     if (basicSalary <= 0 && totalGross <= 0) errors.push('Salary is missing or zero');
@@ -309,6 +423,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         role: mapDesignationToRole(designation),
                         bankAccount,
                         basicSalary: basicSalary > 0 ? basicSalary : totalGross,
+                        currentSalary,
                         houseAllowance,
                         medicalAllowance,
                         housingLevyAllowance,
@@ -342,126 +457,191 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
         reader.readAsArrayBuffer(uploadedFile);
     };
 
-    // Download Sample Template matching user's exact format
+    // Download Sample Template
     const handleDownloadTemplate = () => {
         const sampleData = [
             {
                 'NO': 1,
                 'NAME': 'ELIZABETH KIPTOO',
-                'DESIG': 'FARM',
-                'BANK ACC': '1111175314',
-                'SALARY': 13893,
-                'HSE ALL': 1900,
-                'MED': 575,
-                'HL': 570,
-                'NSSF': 2043,
-                'TOTAL': 18981,
-                'NSSF ': 1996,
-                'SHIF': 459,
-                'WELFARE': 200,
-                'SACCO.R': 4666,
-                'HL ': 540,
-                'TOTAL DED': 7861,
-                'NET PAY': 11120
+                'DESIG': 'FARM MANAGER',
+                'BANK ACC': '1410182470743',
+                'SALARY': 31693,
+                'HSE ALL': 0,
+                'MED': 0,
+                'HL': 0,
+                'NSSF': 0,
+                'TOTAL': 31693,
+                'NSSF': 1080,
+                'SHIF': 872,
+                'WELFARE': 500,
+                'SACCO.R': 4000,
+                'HL': 475,
+                'TOTAL DED': 6927,
+                'NET PAY': 24766
             },
             {
                 'NO': 2,
-                'NAME': 'ANTHONY KIMUGE',
-                'DESIG': 'LAB ASS',
-                'BANK ACC': '1111476918',
-                'SALARY': 17260,
-                'HSE ALL': 1900,
-                'MED': 575,
-                'HL': 624,
-                'NSSF': 2373,
-                'TOTAL': 22732,
-                'NSSF ': 2425,
-                'SHIF': 555,
-                'WELFARE': 200,
-                'SACCO.R': 0,
-                'HL ': 648,
-                'TOTAL DED': 3828,
-                'NET PAY': 18904
-            },
-            {
-                'NO': 3,
-                'NAME': 'LUKA KIPTARUS RONOH',
-                'DESIG': 'CHAPLAIN',
-                'BANK ACC': '1140092294',
-                'SALARY': 19234,
-                'HSE ALL': 2200,
-                'MED': 900,
-                'HL': 673,
-                'NSSF': 3089,
-                'TOTAL': 26096,
-                'NSSF ': 2753,
-                'SHIF': 627,
-                'WELFARE': 200,
-                'SACCO.R': 0,
-                'HL ': 746,
-                'TOTAL DED': 4326,
-                'NET PAY': 21770
-            },
-            {
-                'NO': 4,
-                'NAME': 'PAUL KIPKEMOI KIMAIYO',
-                'DESIG': 'DRIVER',
-                'BANK ACC': '1126162647',
-                'SALARY': 18221,
-                'HSE ALL': 1900,
-                'MED': 575,
-                'HL': 645,
-                'NSSF': 2849,
-                'TOTAL': 24190,
-                'NSSF ': 2547,
-                'SHIF': 582,
-                'WELFARE': 200,
-                'SACCO.R': 3733,
-                'HL ': 690,
-                'TOTAL DED': 7752,
-                'NET PAY': 16438
-            },
-            {
-                'NO': 5,
-                'NAME': 'DAVID KIBET',
-                'DESIG': 'BURSAR',
-                'BANK ACC': '1116294583',
-                'SALARY': 38460,
-                'HSE ALL': 3245,
-                'MED': 950,
-                'HL': 1026,
-                'NSSF': 6973,
-                'TOTAL': 50654,
-                'NSSF ': 5368,
-                'SHIF': 1203,
-                'WELFARE': 200,
-                'SACCO.R': 0,
-                'HL ': 1455,
-                'TOTAL DED': 8226,
-                'NET PAY': 42428
+                'NAME': 'JOHN MAINA',
+                'DESIG': 'TEACHER',
+                'BANK ACC': '0112938475610',
+                'SALARY': 45000,
+                'HSE ALL': 6000,
+                'MED': 3000,
+                'HL': 0,
+                'NSSF': 0,
+                'TOTAL': 54000,
+                'NSSF': 1080,
+                'SHIF': 1485,
+                'WELFARE': 1000,
+                'SACCO.R': 5000,
+                'HL': 810,
+                'TOTAL DED': 9375,
+                'NET PAY': 44625
             }
         ];
 
         const ws = XLSX.utils.json_to_sheet(sampleData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'HR_Payroll_Register');
-        XLSX.writeFile(wb, `EduAI_HR_Payroll_Template_${institution.name.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Staff Payroll');
+        XLSX.writeFile(wb, `HR_Payroll_Import_Template_${institution.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'Standard'}.xlsx`);
     };
 
-    // Filtered Preview Rows
+    // Rollback batch silently (helper for re-import overwrite)
+    const handleRollbackBatchSilently = async (batchId: string) => {
+        const batch = batches.find(b => b.id === batchId);
+        if (!batch) return;
+
+        try {
+            // Revert created staff
+            if (batch.createdStaffIds && batch.createdStaffIds.length > 0) {
+                for (const staffId of batch.createdStaffIds) {
+                    try {
+                        if (onDeleteUser) await onDeleteUser(staffId);
+                        else await apiService.deleteModuleRecord('users', staffId);
+                    } catch (_) {}
+                }
+            }
+            // Restore updated staff
+            if (batch.staffSnapshots && batch.staffSnapshots.length > 0) {
+                for (const snap of batch.staffSnapshots) {
+                    if (snap.isNewlyCreated) continue;
+                    try {
+                        if (onEditUser) {
+                            await onEditUser(snap.staffId, { metadata: snap.previousMetadata, basicSalary: snap.previousSalary });
+                        } else {
+                            await apiService.updateModuleRecord('users', snap.staffId, { metadata: snap.previousMetadata, basicSalary: snap.previousSalary });
+                        }
+                    } catch (_) {}
+                }
+            }
+            // Delete payroll records
+            if (batch.payrollRecordIds && batch.payrollRecordIds.length > 0) {
+                try {
+                    await apiService.deleteModuleRecord('payroll_records', batch.payrollRecordIds);
+                } catch (_) {}
+            }
+
+            const updatedBatches = batches.map(b => b.id === batchId ? {
+                ...b,
+                status: 'rolled_back' as const,
+                rolledBackAt: new Date().toISOString()
+            } : b);
+            setBatches(updatedBatches);
+            persistBatches(updatedBatches);
+        } catch (e) {
+            console.warn('[Silent Rollback] Error:', e);
+        }
+    };
+
+    // Rollback batch with user confirmation
+    const handleRollbackBatch = async (batchId: string) => {
+        const batch = batches.find(b => b.id === batchId);
+        if (!batch) return;
+
+        const confirmText = `Are you sure you want to rollback import batch "${batch.fileName}" for ${batch.period}?\n\n` +
+            `• Delete ${batch.createdStaffIds?.length || 0} newly created staff accounts\n` +
+            `• Restore ${(batch.staffSnapshots || []).filter(s => !s.isNewlyCreated).length} existing staff profiles to their previous salary/allowance state\n` +
+            `• Delete ${batch.payrollRecordIds?.length || 0} generated payroll records for this period\n\n` +
+            `Do you wish to proceed?`;
+
+        if (!confirm(confirmText)) return;
+
+        setIsRollingBack(true);
+        try {
+            // 1. Delete newly created staff
+            if (batch.createdStaffIds && batch.createdStaffIds.length > 0) {
+                for (const staffId of batch.createdStaffIds) {
+                    try {
+                        if (onDeleteUser) await onDeleteUser(staffId);
+                        else await apiService.deleteModuleRecord('users', staffId);
+                    } catch (err) {
+                        console.warn(`[Rollback] Failed to delete user ${staffId}:`, err);
+                    }
+                }
+            }
+
+            // 2. Restore modified staff
+            if (batch.staffSnapshots && batch.staffSnapshots.length > 0) {
+                for (const snap of batch.staffSnapshots) {
+                    if (snap.isNewlyCreated) continue;
+                    try {
+                        if (onEditUser) {
+                            await onEditUser(snap.staffId, { metadata: snap.previousMetadata, basicSalary: snap.previousSalary });
+                        } else {
+                            await apiService.updateModuleRecord('users', snap.staffId, { metadata: snap.previousMetadata, basicSalary: snap.previousSalary });
+                        }
+                    } catch (err) {
+                        console.warn(`[Rollback] Failed to restore staff ${snap.staffId}:`, err);
+                    }
+                }
+            }
+
+            // 3. Delete payroll records
+            if (batch.payrollRecordIds && batch.payrollRecordIds.length > 0) {
+                try {
+                    await apiService.deleteModuleRecord('payroll_records', batch.payrollRecordIds);
+                } catch (err) {
+                    console.warn(`[Rollback] Failed to delete payroll records:`, err);
+                }
+            }
+
+            // 4. Update batch record
+            const updatedBatches = batches.map(b => b.id === batchId ? {
+                ...b,
+                status: 'rolled_back' as const,
+                rolledBackAt: new Date().toISOString()
+            } : b);
+
+            setBatches(updatedBatches);
+            persistBatches(updatedBatches);
+
+            alert(`✓ Batch "${batch.fileName}" (${batch.period}) was rolled back successfully.`);
+            onImportCompleted(batch.createdStaffIds?.length || 0, batch.payrollRecordIds?.length || 0);
+        } catch (err: any) {
+            console.error(err);
+            alert('Rollback failed: ' + (err?.message || err));
+        } finally {
+            setIsRollingBack(false);
+        }
+    };
+
+    // Filter preview rows
     const filteredRows = useMemo(() => {
         return parsedRows.filter(r => {
-            const q = searchFilter.toLowerCase().trim();
-            const matchesSearch = !q || r.name.toLowerCase().includes(q) || r.designation.toLowerCase().includes(q) || r.bankAccount.includes(q);
-            if (!matchesSearch) return false;
+            const matchesSearch = !searchFilter.trim() || 
+                r.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+                r.designation.toLowerCase().includes(searchFilter.toLowerCase()) ||
+                r.bankAccount.includes(searchFilter);
+            
+            const matchesStatus = statusFilter === 'all' ||
+                (statusFilter === 'new' && !r.isExisting) ||
+                (statusFilter === 'existing' && r.isExisting);
 
-            if (statusFilter === 'new') return !r.isExisting;
-            if (statusFilter === 'existing') return r.isExisting;
-            return true;
+            return matchesSearch && matchesStatus;
         });
     }, [parsedRows, searchFilter, statusFilter]);
 
-    // Computed Totals
+    // Financial Totals
     const totals = useMemo(() => {
         let totalSalary = 0;
         let totalGross = 0;
@@ -482,9 +662,19 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
         return { totalSalary, totalGross, totalDeductions, totalNet, newCount, existingCount, totalCount: parsedRows.length };
     }, [parsedRows]);
 
-    // Execute Import Process
+    // Execute Import & Redo Process
     const handleCommitImport = async () => {
         if (parsedRows.length === 0) return;
+
+        // If strategy is rollback_previous_then_import and an active batch for this period exists, roll it back first!
+        if (overwriteStrategy === 'rollback_previous_then_import' && existingActiveBatchForPeriod) {
+            setImportProgress({
+                current: 0,
+                total: parsedRows.length,
+                step: `Rolling back previous batch (${existingActiveBatchForPeriod.fileName})...`
+            });
+            await handleRollbackBatchSilently(existingActiveBatchForPeriod.id);
+        }
 
         setIsImporting(true);
         setImportProgress({ current: 0, total: parsedRows.length, step: 'Starting HR & Payroll Import...' });
@@ -492,6 +682,9 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
         try {
             let importedStaffCount = 0;
             let payrollRecordsToProcess: PayrollRecord[] = [];
+            const createdStaffIds: string[] = [];
+            const staffSnapshots: StaffSnapshot[] = [];
+            const payrollRecordIds: string[] = [];
 
             // Process each row
             for (let i = 0; i < parsedRows.length; i++) {
@@ -508,7 +701,6 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                 if (importMode === 'both' || importMode === 'roster_only') {
                     const cleanNameSlug = row.name.toLowerCase().replace(/[^a-z0-9]/g, '.');
                     const email = `${cleanNameSlug}@${(institution.name || 'school').toLowerCase().replace(/[^a-z0-9]/g, '')}.edu`;
-                    const username = row.bankAccount ? `usr_${row.bankAccount}` : `usr_${cleanNameSlug}`;
 
                     const staffMetadata = {
                         basicSalary: row.basicSalary,
@@ -531,8 +723,9 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
 
                     if (!row.isExisting || !staffId) {
                         // Create New Staff
+                        const newId = `usr_hr_${Date.now()}_${i}`;
                         const newStaffPayload: Partial<User> = {
-                            id: `usr_hr_${Date.now()}_${i}`,
+                            id: newId,
                             name: row.name,
                             email,
                             phoneNumber: row.bankAccount || '',
@@ -546,26 +739,52 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         } else {
                             await apiService.saveModuleRecord('users', newStaffPayload);
                         }
-                        staffId = newStaffPayload.id;
+                        staffId = newId;
+                        createdStaffIds.push(newId);
+                        staffSnapshots.push({
+                            staffId: newId,
+                            staffName: row.name,
+                            isNewlyCreated: true
+                        });
                         importedStaffCount++;
                     } else {
-                        // Update Existing Staff
+                        // Existing Staff
                         const existingObj = existingStaff.find(s => s.id === staffId);
                         let prevMeta = existingObj?.metadata || {};
                         if (typeof prevMeta === 'string') {
                             try { prevMeta = JSON.parse(prevMeta); } catch (e) { prevMeta = {}; }
                         }
-                        const updatedMeta = { ...prevMeta, ...staffMetadata };
 
-                        if (onEditUser) {
-                            await onEditUser(staffId, { metadata: updatedMeta, basicSalary: row.basicSalary });
+                        // Capture snapshot before modifying
+                        staffSnapshots.push({
+                            staffId,
+                            staffName: existingObj?.name || row.name,
+                            isNewlyCreated: false,
+                            previousSalary: Number(prevMeta.basicSalary || (existingObj as any)?.basicSalary || 0),
+                            previousMetadata: prevMeta
+                        });
+
+                        if (overwriteStrategy !== 'skip_existing') {
+                            const updatedMeta = { ...prevMeta, ...staffMetadata };
+                            if (onEditUser) {
+                                await onEditUser(staffId, { metadata: updatedMeta, basicSalary: row.basicSalary });
+                            }
+                            importedStaffCount++;
                         }
-                        importedStaffCount++;
                     }
                 }
 
                 // 2. Generate Monthly Payroll Record
                 if ((importMode === 'both' || importMode === 'payroll_only') && staffId) {
+                    const recordId = `pay_${staffId}_${importPeriod.replace(/\s+/g, '_')}`;
+
+                    if (overwriteStrategy === 'skip_existing') {
+                        const alreadyExists = (existingPayrollRecords || []).some(
+                            p => p.id === recordId || (p.staffId === staffId && p.month === importPeriod)
+                        );
+                        if (alreadyExists) continue;
+                    }
+
                     const allowancesList = [
                         ...(row.houseAllowance > 0 ? [{ name: 'House Allowance', amount: row.houseAllowance }] : []),
                         ...(row.medicalAllowance > 0 ? [{ name: 'Medical Allowance', amount: row.medicalAllowance }] : []),
@@ -582,7 +801,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                     ];
 
                     const record: PayrollRecord = {
-                        id: `pay_${staffId}_${importPeriod.replace(/\s+/g, '_')}`,
+                        id: recordId,
                         institutionId: institution.id,
                         staffId,
                         staffName: row.name,
@@ -597,6 +816,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                     };
 
                     payrollRecordsToProcess.push(record);
+                    payrollRecordIds.push(recordId);
                 }
             }
 
@@ -608,12 +828,42 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                     step: `Committing ${payrollRecordsToProcess.length} payroll records...`
                 });
 
+                await apiService.saveModuleRecords('payroll_records', payrollRecordsToProcess).catch(() => {});
+
                 if (onProcessPayroll) {
                     await onProcessPayroll(payrollRecordsToProcess);
                 } else {
                     await apiService.saveModuleRecord('payroll_records', payrollRecordsToProcess);
                 }
             }
+
+            // Record Batch Audit Trail
+            const newBatch: HRImportBatch = {
+                id: `batch_hr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                institutionId: institution.id,
+                fileName: file?.name || 'excel_import.xlsx',
+                fileSize: file?.size,
+                importedAt: new Date().toISOString(),
+                period: importPeriod,
+                importMode,
+                overwriteStrategy,
+                totalRows: parsedRows.length,
+                newStaffCount: createdStaffIds.length,
+                updatedStaffCount: staffSnapshots.filter(s => !s.isNewlyCreated).length,
+                createdStaffIds,
+                staffSnapshots,
+                payrollRecordIds,
+                totalSalary: totals.totalSalary,
+                totalGross: totals.totalGross,
+                totalDeductions: totals.totalDeductions,
+                totalNet: totals.totalNet,
+                status: 'applied',
+                notes: overwriteStrategy === 'overwrite' ? `Redo/Overwrite import for ${importPeriod}` : `Import for ${importPeriod}`
+            };
+
+            const updatedBatches = [newBatch, ...batches];
+            setBatches(updatedBatches);
+            persistBatches(updatedBatches);
 
             onImportCompleted(importedStaffCount, payrollRecordsToProcess.length);
             onClose();
@@ -627,46 +877,87 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
 
     if (!isOpen) return null;
 
+    const activeBatchesCount = batches.filter(b => b.status === 'applied').length;
+
     return (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md animate-fade-in">
             <div className="bg-white dark:bg-slate-900 w-full max-w-6xl max-h-[92vh] rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-in zoom-in-95 duration-200">
                 
-                {/* Header */}
-                <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-indigo-50/50 via-white to-purple-50/50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-850">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <SparklesIcon className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
-                                    Smart HR & Payroll Excel Importer
-                                </h3>
-                                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-800">
-                                    Kenya Standard Register
-                                </span>
+                {/* Header with Navigation Tabs */}
+                <div className="p-6 sm:p-7 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-indigo-50/60 via-white to-purple-50/60 dark:from-slate-900 dark:via-slate-900 dark:to-slate-850">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+                                <SparklesIcon className="w-6 h-6 text-white" />
                             </div>
-                            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
-                                Import staff registers, allowances (House, Med, Housing Levy) & deductions (NSSF, SHIF, Welfare, SACCO, Housing Levy)
-                            </p>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
+                                        Smart HR & Payroll Excel Importer
+                                    </h3>
+                                    <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-400 rounded-full border border-indigo-200 dark:border-indigo-800">
+                                        Kenya Standard & Redo Engine
+                                    </span>
+                                </div>
+                                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Import, redo updates, and rollback staff registers, allowances (House, Med, HL) & statutory deductions
+                                </p>
+                            </div>
+                        </div>
+                        
+                        {/* Right Action Buttons */}
+                        <div className="flex items-center gap-3 self-end md:self-auto">
+                            <button
+                                type="button"
+                                onClick={handleDownloadTemplate}
+                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                            >
+                                <DocumentArrowDownIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                <span>Template</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 transition-colors cursor-pointer"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
-                    
-                    <div className="flex items-center gap-3">
+
+                    {/* View Switching Navigation Pills */}
+                    <div className="flex items-center gap-2 mt-5 border-t border-slate-100 dark:border-slate-800/80 pt-4">
                         <button
                             type="button"
-                            onClick={handleDownloadTemplate}
-                            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                            onClick={() => setActiveModalTab('import')}
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                activeModalTab === 'import'
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
                         >
-                            <DocumentArrowDownIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                            <span>Download Excel Template</span>
+                            <ArrowUpTrayIcon className="w-4 h-4" />
+                            <span>Upload & Redo Import</span>
                         </button>
+
                         <button
                             type="button"
-                            onClick={onClose}
-                            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 transition-colors cursor-pointer"
+                            onClick={() => setActiveModalTab('history')}
+                            className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+                                activeModalTab === 'history'
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                                    : 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
                         >
-                            <XIcon className="w-5 h-5" />
+                            <ClockIcon className="w-4 h-4" />
+                            <span>Import History & Rollback</span>
+                            {activeBatchesCount > 0 && (
+                                <span className={`px-2 py-0.2 rounded-full text-[10px] font-black ${
+                                    activeModalTab === 'history' ? 'bg-white text-indigo-700' : 'bg-indigo-600 text-white'
+                                }`}>
+                                    {activeBatchesCount}
+                                </span>
+                            )}
                         </button>
                     </div>
                 </div>
@@ -674,246 +965,458 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                 {/* Main Scrollable Body */}
                 <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
 
-                    {/* Step 1: Upload & Period Configuration */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        
-                        {/* Drag & Drop Zone */}
-                        <div 
-                            onClick={() => fileInputRef.current?.click()}
-                            className="md:col-span-2 border-2 border-dashed border-indigo-200 dark:border-indigo-900/60 hover:border-indigo-500 rounded-3xl p-6 bg-indigo-50/20 dark:bg-indigo-950/10 hover:bg-indigo-50/40 transition-all flex flex-col items-center justify-center text-center cursor-pointer group min-h-[140px]"
-                        >
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".xlsx, .xls, .csv"
-                                onChange={handleFileUpload}
-                                className="hidden"
-                            />
-                            <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                                <ArrowUpTrayIcon className="w-6 h-6" />
-                            </div>
-                            <p className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">
-                                {file ? file.name : 'Click to Upload or Drag & Drop Excel / CSV Sheet'}
-                            </p>
-                            <p className="text-xs font-semibold text-slate-400 mt-1">
-                                {file ? `${(file.size / 1024).toFixed(1)} KB — Click to change file` : 'Supports columns: NO, NAME, DESIG, BANK ACC, SALARY, HSE ALL, MED, NSSF, SHIF, WELFARE, SACCO, HL, NET PAY'}
-                            </p>
-                        </div>
+                    {activeModalTab === 'import' ? (
+                        <>
+                            {/* Alert if Re-doing / Existing batch detected */}
+                            {existingActiveBatchForPeriod && (
+                                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
+                                    <div className="flex items-center gap-3">
+                                        <AlertTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                                Existing Import Batch Detected for {importPeriod}
+                                            </p>
+                                            <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 mt-0.5">
+                                                File: <span className="font-bold">{existingActiveBatchForPeriod.fileName}</span> with {existingActiveBatchForPeriod.totalRows} personnel was imported on {new Date(existingActiveBatchForPeriod.importedAt).toLocaleDateString()}. Re-importing will allow you to redo and overwrite this period.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRollbackBatch(existingActiveBatchForPeriod.id)}
+                                        className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer shadow-sm"
+                                    >
+                                        Rollback Batch First
+                                    </button>
+                                </div>
+                            )}
 
-                        {/* Import Settings Card */}
-                        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-3xl p-5 border border-slate-200 dark:border-slate-700/60 space-y-4">
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
-                                    Target Payroll Period
-                                </label>
-                                <input
-                                    type="text"
-                                    value={importPeriod}
-                                    onChange={e => setImportPeriod(e.target.value)}
-                                    placeholder="e.g. August 2026"
-                                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
-                                    Import Scope
-                                </label>
-                                <select
-                                    value={importMode}
-                                    onChange={e => setImportMode(e.target.value as any)}
-                                    className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                                >
-                                    <option value="both">Onboard Staff + Record Payroll</option>
-                                    <option value="roster_only">Staff Roster & Bank Details Only</option>
-                                    <option value="payroll_only">Payroll Month Entries Only</option>
-                                </select>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    {/* Step 2: Data Summary Cards */}
-                    {parsedRows.length > 0 && (
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                            {/* Step 1: Upload & Period Configuration */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Staff</span>
-                                    <span className="text-xl font-black text-slate-900 dark:text-white mt-1 block">{totals.totalCount}</span>
-                                    <span className="text-[10px] font-bold text-indigo-600 mt-0.5 block">{totals.newCount} New / {totals.existingCount} Existing</span>
-                                </div>
-
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Basic</span>
-                                    <span className="text-lg font-black text-slate-900 dark:text-white mt-1 block">KES {totals.totalSalary.toLocaleString()}</span>
-                                </div>
-
-                                <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-900/60">
-                                    <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block">Total Gross</span>
-                                    <span className="text-lg font-black text-indigo-700 dark:text-indigo-300 mt-1 block">KES {totals.totalGross.toLocaleString()}</span>
-                                </div>
-
-                                <div className="p-4 bg-rose-50/50 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-900/60">
-                                    <span className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest block">Total Deductions</span>
-                                    <span className="text-lg font-black text-rose-700 dark:text-rose-300 mt-1 block">KES {totals.totalDeductions.toLocaleString()}</span>
-                                </div>
-
-                                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 col-span-2">
-                                    <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest block">Net Disbursement</span>
-                                    <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-0.5 block">KES {totals.totalNet.toLocaleString()}</span>
-                                </div>
-
-                            </div>
-
-                            {/* Table Filters */}
-                            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                                <div className="relative flex-1 max-w-xs">
-                                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                {/* Drag & Drop Zone */}
+                                <div 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="md:col-span-2 border-2 border-dashed border-indigo-200 dark:border-indigo-900/60 hover:border-indigo-500 rounded-3xl p-6 bg-indigo-50/20 dark:bg-indigo-950/10 hover:bg-indigo-50/40 transition-all flex flex-col items-center justify-center text-center cursor-pointer group min-h-[140px]"
+                                >
                                     <input
-                                        type="text"
-                                        placeholder="Filter by name, designation, account..."
-                                        value={searchFilter}
-                                        onChange={e => setSearchFilter(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept=".xlsx, .xls, .csv"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
                                     />
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                        <ArrowUpTrayIcon className="w-6 h-6" />
+                                    </div>
+                                    <p className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">
+                                        {file ? file.name : 'Click to Upload or Drag & Drop Excel / CSV Sheet'}
+                                    </p>
+                                    <p className="text-xs font-semibold text-slate-400 mt-1">
+                                        {file ? `${(file.size / 1024).toFixed(1)} KB — Click to change file` : 'Supports columns: NO, NAME, DESIG, BANK ACC, SALARY, HSE ALL, MED, NSSF, SHIF, WELFARE, SACCO, HL, NET PAY'}
+                                    </p>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setStatusFilter('all')}
-                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
-                                    >
-                                        All ({parsedRows.length})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setStatusFilter('new')}
-                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === 'new' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
-                                    >
-                                        New Staff ({totals.newCount})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setStatusFilter('existing')}
-                                        className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === 'existing' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
-                                    >
-                                        Existing Staff ({totals.existingCount})
-                                    </button>
+                                {/* Import Settings Card */}
+                                <div className="bg-slate-50 dark:bg-slate-800/60 rounded-3xl p-5 border border-slate-200 dark:border-slate-700/60 space-y-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+                                            Target Payroll Period
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={importPeriod}
+                                            onChange={e => setImportPeriod(e.target.value)}
+                                            placeholder="e.g. August 2026"
+                                            className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-black text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+                                            Import Scope
+                                        </label>
+                                        <select
+                                            value={importMode}
+                                            onChange={e => setImportMode(e.target.value as any)}
+                                            className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="both">Onboard Staff + Record Payroll</option>
+                                            <option value="roster_only">Staff Roster & Bank Details Only</option>
+                                            <option value="payroll_only">Payroll Month Entries Only</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+                                            Redo & Overwrite Strategy
+                                        </label>
+                                        <select
+                                            value={overwriteStrategy}
+                                            onChange={e => setOverwriteStrategy(e.target.value as any)}
+                                            className="w-full px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                                        >
+                                            <option value="overwrite">Overwrite & Redo (Update Salary/Entries)</option>
+                                            <option value="rollback_previous_then_import">Rollback Previous Batch & Fresh Redo</option>
+                                            <option value="skip_existing">Skip Existing (New Staff Only)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Step 2: Data Summary Cards */}
+                            {parsedRows.length > 0 && (
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                                        
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Staff</span>
+                                            <span className="text-xl font-black text-slate-900 dark:text-white mt-1 block">{totals.totalCount}</span>
+                                            <span className="text-[10px] font-bold text-indigo-600 mt-0.5 block">{totals.newCount} New / {totals.existingCount} Existing</span>
+                                        </div>
+
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total Basic</span>
+                                            <span className="text-lg font-black text-slate-900 dark:text-white mt-1 block">KES {totals.totalSalary.toLocaleString()}</span>
+                                        </div>
+
+                                        <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-900/60">
+                                            <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block">Total Gross</span>
+                                            <span className="text-lg font-black text-indigo-700 dark:text-indigo-300 mt-1 block">KES {totals.totalGross.toLocaleString()}</span>
+                                        </div>
+
+                                        <div className="p-4 bg-rose-50/50 dark:bg-rose-950/30 rounded-2xl border border-rose-200 dark:border-rose-900/60">
+                                            <span className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest block">Total Deductions</span>
+                                            <span className="text-lg font-black text-rose-700 dark:text-rose-300 mt-1 block">KES {totals.totalDeductions.toLocaleString()}</span>
+                                        </div>
+
+                                        <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 col-span-2">
+                                            <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest block">Net Disbursement</span>
+                                            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-0.5 block">KES {totals.totalNet.toLocaleString()}</span>
+                                        </div>
+
+                                    </div>
+
+                                    {/* Table Filters */}
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                        <div className="relative flex-1 max-w-xs">
+                                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                            <input
+                                                type="text"
+                                                placeholder="Filter by name, designation, account..."
+                                                value={searchFilter}
+                                                onChange={e => setSearchFilter(e.target.value)}
+                                                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setStatusFilter('all')}
+                                                className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                                            >
+                                                All ({parsedRows.length})
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setStatusFilter('new')}
+                                                className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === 'new' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                                            >
+                                                New Staff ({totals.newCount})
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setStatusFilter('existing')}
+                                                className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === 'existing' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}
+                                            >
+                                                Existing Staff ({totals.existingCount})
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Preview Table */}
+                                    <div className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                                        <div className="overflow-x-auto max-h-[38vh]">
+                                            <table className="w-full text-left text-xs border-collapse">
+                                                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black uppercase tracking-wider text-[9px] border-b border-slate-200 dark:border-slate-700">
+                                                    <tr>
+                                                        <th className="py-3 px-3 text-center">#</th>
+                                                        <th className="py-3 px-3">Employee Name</th>
+                                                        <th className="py-3 px-3">Designation</th>
+                                                        <th className="py-3 px-3">Bank Account</th>
+                                                        <th className="py-3 px-3 text-right">Basic Salary</th>
+                                                        <th className="py-3 px-3 text-right">House All.</th>
+                                                        <th className="py-3 px-3 text-right">Med All.</th>
+                                                        <th className="py-3 px-3 text-right">HL (Gross)</th>
+                                                        <th className="py-3 px-3 text-right bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300">Total Gross</th>
+                                                        <th className="py-3 px-3 text-right">NSSF</th>
+                                                        <th className="py-3 px-3 text-right">SHIF</th>
+                                                        <th className="py-3 px-3 text-right">Welfare</th>
+                                                        <th className="py-3 px-3 text-right">SACCO</th>
+                                                        <th className="py-3 px-3 text-right">Housing Levy</th>
+                                                        <th className="py-3 px-3 text-right bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300">Total Ded.</th>
+                                                        <th className="py-3 px-3 text-right bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300">Net Pay</th>
+                                                        <th className="py-3 px-3 text-center">Redo / Action</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold text-slate-700 dark:text-slate-200">
+                                                    {filteredRows.map((r, idx) => {
+                                                        const isSalaryChanged = r.isExisting && r.currentSalary !== undefined && r.currentSalary > 0 && r.currentSalary !== r.basicSalary;
+
+                                                        return (
+                                                            <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                                                <td className="py-2.5 px-3 text-center font-mono text-[10px] text-slate-400">{r.no || idx + 1}</td>
+                                                                <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white uppercase truncate max-w-[180px]">{r.name}</td>
+                                                                <td className="py-2.5 px-3 uppercase text-[10px] font-bold text-slate-500">{r.designation}</td>
+                                                                <td className="py-2.5 px-3 font-mono text-[10px] text-slate-600 dark:text-slate-400">{r.bankAccount || '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-200">
+                                                                    <div>{r.basicSalary.toLocaleString()}</div>
+                                                                    {isSalaryChanged && (
+                                                                        <div className="text-[9px] text-amber-600 dark:text-amber-400 font-normal">
+                                                                            was {r.currentSalary?.toLocaleString()}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.houseAllowance > 0 ? r.houseAllowance.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.medicalAllowance > 0 ? r.medicalAllowance.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.housingLevyAllowance > 0 ? r.housingLevyAllowance.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right font-black bg-indigo-50/30 dark:bg-indigo-950/10 text-indigo-700 dark:text-indigo-300">{r.totalGross.toLocaleString()}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.nssfDeduction > 0 ? r.nssfDeduction.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.shifDeduction > 0 ? r.shifDeduction.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.welfareDeduction > 0 ? r.welfareDeduction.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.saccoDeduction > 0 ? r.saccoDeduction.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.housingLevyDeduction > 0 ? r.housingLevyDeduction.toLocaleString() : '-'}</td>
+                                                                <td className="py-2.5 px-3 text-right font-bold bg-rose-50/30 dark:bg-rose-950/10 text-rose-700 dark:text-rose-300">{r.totalDeductions.toLocaleString()}</td>
+                                                                <td className="py-2.5 px-3 text-right font-black bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400">{r.netPay.toLocaleString()}</td>
+                                                                <td className="py-2.5 px-3 text-center">
+                                                                    {r.isExisting ? (
+                                                                        isSalaryChanged ? (
+                                                                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 rounded-full border border-amber-200 dark:border-amber-800">
+                                                                                Redo/Update
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-800">
+                                                                                Sync
+                                                                            </span>
+                                                                        )
+                                                                    ) : (
+                                                                        <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                                                            New Staff
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        /* History & Rollback Tab Content */
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Batches Recorded</span>
+                                    <span className="text-2xl font-black text-slate-900 dark:text-white mt-1 block">{batches.length}</span>
+                                </div>
+                                <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-900/60">
+                                    <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest block">Active / Applied Batches</span>
+                                    <span className="text-2xl font-black text-emerald-700 dark:text-emerald-300 mt-1 block">{activeBatchesCount}</span>
+                                </div>
+                                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Rolled Back Batches</span>
+                                    <span className="text-2xl font-black text-slate-500 mt-1 block">{batches.filter(b => b.status === 'rolled_back').length}</span>
                                 </div>
                             </div>
 
-                            {/* Preview Table */}
-                            <div className="border border-slate-200 dark:border-slate-700/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                <div className="overflow-x-auto max-h-[38vh]">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black uppercase tracking-wider text-[9px] border-b border-slate-200 dark:border-slate-700">
-                                            <tr>
-                                                <th className="py-3 px-3 text-center">#</th>
-                                                <th className="py-3 px-3">Employee Name</th>
-                                                <th className="py-3 px-3">Designation</th>
-                                                <th className="py-3 px-3">Bank Account</th>
-                                                <th className="py-3 px-3 text-right">Basic Salary</th>
-                                                <th className="py-3 px-3 text-right">House All.</th>
-                                                <th className="py-3 px-3 text-right">Med All.</th>
-                                                <th className="py-3 px-3 text-right">HL (Gross)</th>
-                                                <th className="py-3 px-3 text-right bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300">Total Gross</th>
-                                                <th className="py-3 px-3 text-right">NSSF</th>
-                                                <th className="py-3 px-3 text-right">SHIF</th>
-                                                <th className="py-3 px-3 text-right">Welfare</th>
-                                                <th className="py-3 px-3 text-right">SACCO</th>
-                                                <th className="py-3 px-3 text-right">Housing Levy</th>
-                                                <th className="py-3 px-3 text-right bg-rose-50/50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-300">Total Ded.</th>
-                                                <th className="py-3 px-3 text-right bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300">Net Pay</th>
-                                                <th className="py-3 px-3 text-center">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-semibold text-slate-700 dark:text-slate-200">
-                                            {filteredRows.map((r, idx) => (
-                                                <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                                    <td className="py-2.5 px-3 text-center font-mono text-[10px] text-slate-400">{r.no || idx + 1}</td>
-                                                    <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white uppercase truncate max-w-[180px]">{r.name}</td>
-                                                    <td className="py-2.5 px-3 uppercase text-[10px] font-bold text-slate-500">{r.designation}</td>
-                                                    <td className="py-2.5 px-3 font-mono text-[10px] text-slate-600 dark:text-slate-400">{r.bankAccount || '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-200">{r.basicSalary.toLocaleString()}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.houseAllowance > 0 ? r.houseAllowance.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.medicalAllowance > 0 ? r.medicalAllowance.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.housingLevyAllowance > 0 ? r.housingLevyAllowance.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right font-black bg-indigo-50/30 dark:bg-indigo-950/10 text-indigo-700 dark:text-indigo-300">{r.totalGross.toLocaleString()}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.nssfDeduction > 0 ? r.nssfDeduction.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.shifDeduction > 0 ? r.shifDeduction.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.welfareDeduction > 0 ? r.welfareDeduction.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.saccoDeduction > 0 ? r.saccoDeduction.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-400">{r.housingLevyDeduction > 0 ? r.housingLevyDeduction.toLocaleString() : '-'}</td>
-                                                    <td className="py-2.5 px-3 text-right font-bold bg-rose-50/30 dark:bg-rose-950/10 text-rose-700 dark:text-rose-300">{r.totalDeductions.toLocaleString()}</td>
-                                                    <td className="py-2.5 px-3 text-right font-black bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400">{r.netPay.toLocaleString()}</td>
-                                                    <td className="py-2.5 px-3 text-center">
-                                                        {r.isExisting ? (
-                                                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-800">
-                                                                Update
-                                                            </span>
+                            {batches.length === 0 ? (
+                                <div className="py-16 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl p-8">
+                                    <ClockIcon className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                                    <h4 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">No Import Batches Recorded Yet</h4>
+                                    <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+                                        Imported Excel sheets will automatically record an audit batch here, allowing you to rollback or redo any import in 1 click.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {batches.map((batch) => {
+                                        const isApplied = batch.status === 'applied';
+
+                                        return (
+                                            <div
+                                                key={batch.id}
+                                                className={`p-5 rounded-3xl border transition-all ${
+                                                    isApplied
+                                                        ? 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md'
+                                                        : 'bg-slate-50/60 dark:bg-slate-900/60 border-slate-200/60 dark:border-slate-800/60 opacity-80'
+                                                }`}
+                                            >
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div className="flex items-start gap-3.5">
+                                                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                                                            isApplied 
+                                                                ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400' 
+                                                                : 'bg-slate-200 dark:bg-slate-800 text-slate-400'
+                                                        }`}>
+                                                            <DocumentTextIcon className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                                    {batch.fileName}
+                                                                </h4>
+                                                                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-full border border-indigo-200 dark:border-indigo-800">
+                                                                    {batch.period}
+                                                                </span>
+                                                                {isApplied ? (
+                                                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                                                        <CheckCircleIcon className="w-3 h-3" />
+                                                                        <span>Active / Applied</span>
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full">
+                                                                        <XCircleIcon className="w-3 h-3" />
+                                                                        <span>Rolled Back</span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-400 mt-1">
+                                                                Imported on {new Date(batch.importedAt).toLocaleDateString()} at {new Date(batch.importedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                {batch.rolledBackAt && ` • Undone on ${new Date(batch.rolledBackAt).toLocaleDateString()}`}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Batch Actions */}
+                                                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                                                        {isApplied ? (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setImportPeriod(batch.period);
+                                                                        setOverwriteStrategy('overwrite');
+                                                                        setActiveModalTab('import');
+                                                                    }}
+                                                                    className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                                                                >
+                                                                    <ArrowPathIcon className="w-3.5 h-3.5" />
+                                                                    <span>Redo This Import</span>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={isRollingBack}
+                                                                    onClick={() => handleRollbackBatch(batch.id)}
+                                                                    className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 border border-rose-200 dark:border-rose-900/60 cursor-pointer disabled:opacity-50"
+                                                                >
+                                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                                    <span>Rollback (Undo)</span>
+                                                                </button>
+                                                            </>
                                                         ) : (
-                                                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                                                New Staff
-                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setImportPeriod(batch.period);
+                                                                    setOverwriteStrategy('overwrite');
+                                                                    setActiveModalTab('import');
+                                                                }}
+                                                                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                                                            >
+                                                                <ArrowPathIcon className="w-3.5 h-3.5" />
+                                                                <span>Re-import Fresh</span>
+                                                            </button>
                                                         )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                                    </div>
+                                                </div>
+
+                                                {/* Batch Summary Row */}
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+                                                    <div>
+                                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Total Rows</span>
+                                                        <span className="font-black text-slate-800 dark:text-slate-200">{batch.totalRows}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">New Onboarded</span>
+                                                        <span className="font-black text-emerald-600">{batch.newStaffCount}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Existing Synced</span>
+                                                        <span className="font-black text-indigo-600">{batch.updatedStaffCount}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-wider block">Net Disbursement</span>
+                                                        <span className="font-black text-slate-900 dark:text-white">KES {batch.totalNet?.toLocaleString() || 0}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
 
                 </div>
 
-                {/* Footer Actions */}
-                <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex flex-wrap items-center justify-between gap-4">
-                    <div className="text-xs font-semibold text-slate-500">
-                        {isImporting ? (
-                            <span className="text-indigo-600 dark:text-indigo-400 font-bold animate-pulse">
-                                {importProgress.step}
-                            </span>
-                        ) : parsedRows.length > 0 ? (
-                            <span>Ready to import <strong className="text-slate-900 dark:text-white">{parsedRows.length} staff records</strong> into <strong className="text-indigo-600">{importPeriod}</strong></span>
-                        ) : (
-                            <span>Please select an Excel sheet (.xlsx, .xls, .csv) to begin.</span>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isImporting}
-                            className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
-                        >
-                            Cancel
-                        </button>
-                        
-                        <button
-                            type="button"
-                            onClick={handleCommitImport}
-                            disabled={parsedRows.length === 0 || isImporting}
-                            className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                        >
+                {/* Footer Actions (Only for Import Tab) */}
+                {activeModalTab === 'import' && (
+                    <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex flex-wrap items-center justify-between gap-4">
+                        <div className="text-xs font-semibold text-slate-500">
                             {isImporting ? (
-                                <>
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    <span>Importing ({importProgress.current}/{importProgress.total})...</span>
-                                </>
+                                <span className="text-indigo-600 dark:text-indigo-400 font-bold animate-pulse">
+                                    {importProgress.step}
+                                </span>
+                            ) : parsedRows.length > 0 ? (
+                                <span>
+                                    Ready to {existingActiveBatchForPeriod ? 'Redo & Overwrite' : 'Import'}{' '}
+                                    <strong className="text-slate-900 dark:text-white">{parsedRows.length} staff records</strong> into{' '}
+                                    <strong className="text-indigo-600">{importPeriod}</strong>
+                                </span>
                             ) : (
-                                <>
-                                    <CheckCircleIcon className="w-4 h-4" />
-                                    <span>Commit & Import ({parsedRows.length} Staff)</span>
-                                </>
+                                <span>Please select an Excel sheet (.xlsx, .xls, .csv) to begin.</span>
                             )}
-                        </button>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                disabled={isImporting}
+                                className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            
+                            <button
+                                type="button"
+                                onClick={handleCommitImport}
+                                disabled={parsedRows.length === 0 || isImporting}
+                                className="px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-500/20 active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isImporting ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        <span>Importing ({importProgress.current}/{importProgress.total})...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircleIcon className="w-4 h-4" />
+                                        <span>
+                                            {existingActiveBatchForPeriod ? 'Commit & Redo / Overwrite' : 'Commit & Import'} ({parsedRows.length} Staff)
+                                        </span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
 
             </div>
         </div>
