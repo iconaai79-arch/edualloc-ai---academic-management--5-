@@ -410,6 +410,24 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       </select>
                     </div>
                   )}
+                  {formData.institutionType === 'Logistics' && (
+                    <div className="animate-fade-in-up">
+                      <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Logistics & Fleet Category</label>
+                      <select
+                        value={formData.category}
+                        onChange={e => setFormData({ ...formData, category: e.target.value })}
+                        className="form-select border-2 border-indigo-200 font-bold"
+                        required
+                      >
+                        <option value="">-- Select Category --</option>
+                        <option value="Cargo & Delivery">Logistics & Cargo Delivery</option>
+                        <option value="Staff Shuttle">Corporate / Staff Shuttle</option>
+                        <option value="Educational Transport">Educational Transport</option>
+                        <option value="Public Transport SACCO">Public Transport (SACCO)</option>
+                        <option value="SACCO Savings">SACCO Savings & Transport</option>
+                      </select>
+                    </div>
+                  )}
                   {formData.institutionType === 'Hospitality' && (
                     <div className="animate-fade-in-up">
                       <label className="block text-[10px] font-black uppercase text-indigo-500 tracking-widest mb-1.5 ml-1">Hospitality & Tourism Focus</label>

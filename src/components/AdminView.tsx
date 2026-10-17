@@ -732,7 +732,12 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [props.currentInstitution, institutionType]);
 
     const isLogistics = useMemo(() => {
-        return props.currentInstitution?.category === 'Logistics' || institutionType === 'Logistics' || props.currentInstitution?.category === 'Educational Transport' || props.currentInstitution?.category === 'Staff Shuttle' || props.currentInstitution?.category?.includes('Public Transport');
+        return props.currentInstitution?.category === 'Logistics' || 
+               institutionType === 'Logistics' || 
+               props.currentInstitution?.category === 'Educational Transport' || 
+               props.currentInstitution?.category === 'Staff Shuttle' || 
+               props.currentInstitution?.category?.includes('Public Transport') ||
+               props.currentInstitution?.category?.includes('SACCO');
     }, [props.currentInstitution, institutionType]);
 
     const isCommunity = useMemo(() => {

@@ -36,7 +36,9 @@ export const TransportManager: React.FC<TransportManagerProps> = ({
     const isLogistics = currentInstitution.institutionType === 'Logistics' || 
                        currentInstitution.category === 'Cargo & Delivery' || 
                        currentInstitution.category === 'Staff Shuttle' ||
-                       currentInstitution.category === 'Public Transport';
+                       currentInstitution.category === 'Public Transport' ||
+                       currentInstitution.category === 'SACCO Savings' ||
+                       currentInstitution.category?.includes('SACCO');
                        
     const passengerTerm = isLogistics ? 'Passenger/Client' : 'Student';
     const registryTerm = isLogistics ? 'Manifest/Boarding' : 'Student Assignment';

@@ -4824,6 +4824,52 @@ export interface SaccoTransaction {
     reference?: string;
 }
 
+export type TransportSaccoSavingsCategory =
+    | 'Daily Sinking Fund'
+    | 'Member Savings'
+    | 'Share Capital'
+    | 'Welfare & Emergency'
+    | 'Fleet Expansion'
+    | 'Holiday Scheme';
+
+export interface TransportSaccoAccount {
+    id: string;
+    institutionId?: string;
+    memberId: string;
+    memberName: string;
+    memberNumber: string;
+    memberRole: 'Owner' | 'Driver' | 'Conductor' | 'Staff';
+    phoneNumber: string;
+    vehiclePlate: string;
+    vehicleModel?: string;
+    savingsCategory: TransportSaccoSavingsCategory;
+    savingsBalance: number;
+    shareCapital: number;
+    welfareBalance: number;
+    dailyTarget: number;
+    loanEligibility: number;
+    status: 'Active' | 'Dormant' | 'Suspended';
+    joinedDate: string;
+    lastDepositDate: string;
+}
+
+export interface TransportSaccoTransaction {
+    id: string;
+    institutionId?: string;
+    accountId: string;
+    memberId: string;
+    memberName: string;
+    vehiclePlate: string;
+    savingsCategory: TransportSaccoSavingsCategory;
+    transactionType: 'deposit' | 'withdrawal' | 'dividend' | 'welfare_claim';
+    amount: number;
+    paymentMethod: 'mpesa' | 'bank' | 'cash' | 'daily_deduction';
+    reference: string;
+    recordedAt: string;
+    notes?: string;
+}
+
+
 export interface CoopMonthlyPayout {
     id: string;
     institutionId: string;

@@ -144,6 +144,11 @@ export const SmartInstitutionImporterModal: React.FC<SmartInstitutionImporterMod
         if (c.includes('carwash') || c.includes('car wash')) return 'Car Wash';
         if (c.includes('fuel') || c.includes('petrol') || c.includes('station')) return 'Fuel Station';
         if (c.includes('retail') || c.includes('shop') || c.includes('supermarket')) return 'Retail Shop';
+        // Transport & Logistics categories
+        if (c.includes('sacco') && c.includes('savings')) return 'SACCO Savings';
+        if (c.includes('sacco') || c.includes('matatu')) return 'Public Transport SACCO';
+        if (c.includes('shuttle')) return 'Staff Shuttle';
+        if (c.includes('cargo') || c.includes('delivery') || c.includes('freight')) return 'Cargo & Delivery';
         return raw.trim();
     };
 

@@ -46,10 +46,18 @@ import {
     Cloud,
     RefreshCw,
     Radio,
-    UploadCloud
+    UploadCloud,
+    PiggyBank,
+    Wallet,
+    Coins,
+    CreditCard,
+    ArrowDownRight,
+    ArrowUpRight,
+    Percent,
+    Shield
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Institution, User as UserType, Course, StudentEnrollment } from '../types';
+import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
@@ -108,12 +116,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const { success: toastSuccess, error: toastError } = useToast();
     const isShuttle = currentInstitution.category === 'Staff Shuttle' || currentInstitution.category === 'Corporate Shuttle';
     const isPublicTransport = currentInstitution.category === 'Public Transport' || currentInstitution.institutionType === 'Logistics' && currentInstitution.category === 'Cargo & Delivery';
-    // Actually, based on user request, let's explicitly detect Public Transport
-    const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category?.includes('SACCO');
+    // Explicitly detect Public Transport & SACCO
+    const isSACCO = currentInstitution.category === 'Public Transport' || currentInstitution.category === 'Public Transport SACCO' || currentInstitution.category?.includes('SACCO');
+    const isSaccoSavings = currentInstitution.category === 'SACCO Savings' || currentInstitution.category === 'Transport SACCO & Savings' || currentInstitution.category?.toLowerCase().includes('savings');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'trips' | 'alerts' | 'billing' | 'reports'>(
-        isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'trips' | 'alerts' | 'billing' | 'reports'>(
+        isSaccoSavings ? 'sacco_savings' : isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
     const [searchTerm, setSearchTerm] = useState('');
     const [reportSubTab, setReportSubTab] = useState<'billing' | 'routes' | 'fleet' | 'trips' | 'alerts'>('billing');
@@ -270,6 +279,473 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             await apiService.saveTransportLogisticsHub(currentInstitution.id, hubPayload);
         } catch (_) {}
     };
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // TRANSPORT SACCO SAVINGS STATE & WORKFLOWS
+    // ═════════════════════════════════════════════════════════════════════════
+    const defaultSaccoAccounts: TransportSaccoAccount[] = [
+        {
+            id: 'ts_acc_1',
+            memberId: 'ts_mbr_1',
+            memberName: 'Joseph Mwaniki',
+            memberNumber: 'TS-MBR-1001',
+            memberRole: 'Owner',
+            phoneNumber: '0722123456',
+            vehiclePlate: 'KDC 992P',
+            vehicleModel: 'Isuzu NQR (33-Seater)',
+            savingsCategory: 'Daily Sinking Fund',
+            savingsBalance: 485000,
+            shareCapital: 100000,
+            welfareBalance: 25000,
+            dailyTarget: 500,
+            loanEligibility: 1455000,
+            status: 'Active',
+            joinedDate: '2023-01-15',
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        },
+        {
+            id: 'ts_acc_2',
+            memberId: 'ts_mbr_2',
+            memberName: 'Grace Wambui',
+            memberNumber: 'TS-MBR-1002',
+            memberRole: 'Owner',
+            phoneNumber: '0723456789',
+            vehiclePlate: 'KBB 120Z',
+            vehicleModel: 'Toyota HiAce (14-Seater)',
+            savingsCategory: 'Member Savings',
+            savingsBalance: 320000,
+            shareCapital: 80000,
+            welfareBalance: 20000,
+            dailyTarget: 300,
+            loanEligibility: 960000,
+            status: 'Active',
+            joinedDate: '2023-04-10',
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        },
+        {
+            id: 'ts_acc_3',
+            memberId: 'ts_mbr_3',
+            memberName: 'Douglas Omwamba',
+            memberNumber: 'TS-MBR-1003',
+            memberRole: 'Driver',
+            phoneNumber: '0712345678',
+            vehiclePlate: 'KDC 992P',
+            vehicleModel: 'Isuzu NQR (33-Seater)',
+            savingsCategory: 'Welfare & Emergency',
+            savingsBalance: 68000,
+            shareCapital: 20000,
+            welfareBalance: 15000,
+            dailyTarget: 150,
+            loanEligibility: 204000,
+            status: 'Active',
+            joinedDate: '2023-06-20',
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        },
+        {
+            id: 'ts_acc_4',
+            memberId: 'ts_mbr_4',
+            memberName: 'James Kamau',
+            memberNumber: 'TS-MBR-1004',
+            memberRole: 'Driver',
+            phoneNumber: '0722345678',
+            vehiclePlate: 'KBB 120Z',
+            vehicleModel: 'Toyota HiAce (14-Seater)',
+            savingsCategory: 'Daily Sinking Fund',
+            savingsBalance: 45000,
+            shareCapital: 15000,
+            welfareBalance: 12000,
+            dailyTarget: 150,
+            loanEligibility: 135000,
+            status: 'Active',
+            joinedDate: '2023-08-05',
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        },
+        {
+            id: 'ts_acc_5',
+            memberId: 'ts_mbr_5',
+            memberName: 'Kevin Otieno',
+            memberNumber: 'TS-MBR-1005',
+            memberRole: 'Owner',
+            phoneNumber: '0733567890',
+            vehiclePlate: 'KDM 441X',
+            vehicleModel: 'Mitsubishi Rosa (25-Seater)',
+            savingsCategory: 'Fleet Expansion',
+            savingsBalance: 610000,
+            shareCapital: 120000,
+            welfareBalance: 30000,
+            dailyTarget: 1000,
+            loanEligibility: 1830000,
+            status: 'Active',
+            joinedDate: '2022-11-12',
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        },
+        {
+            id: 'ts_acc_6',
+            memberId: 'ts_mbr_6',
+            memberName: 'Mary Atieno',
+            memberNumber: 'TS-MBR-1006',
+            memberRole: 'Conductor',
+            phoneNumber: '0745678901',
+            vehiclePlate: 'KDM 441X',
+            vehicleModel: 'Mitsubishi Rosa (25-Seater)',
+            savingsCategory: 'Holiday Scheme',
+            savingsBalance: 38500,
+            shareCapital: 10000,
+            welfareBalance: 10000,
+            dailyTarget: 100,
+            loanEligibility: 115500,
+            status: 'Active',
+            joinedDate: '2024-01-18',
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        }
+    ];
+
+    const defaultSaccoTransactions: TransportSaccoTransaction[] = [
+        {
+            id: 'tx_sav_1',
+            accountId: 'ts_acc_3',
+            memberId: 'ts_mbr_3',
+            memberName: 'Douglas Omwamba',
+            vehiclePlate: 'KDC 992P',
+            savingsCategory: 'Daily Sinking Fund',
+            transactionType: 'deposit',
+            amount: 150,
+            paymentMethod: 'mpesa',
+            reference: 'QHK9012KA',
+            recordedAt: new Date().toISOString(),
+            notes: 'Daily driver sinking fund contribution'
+        },
+        {
+            id: 'tx_sav_2',
+            accountId: 'ts_acc_1',
+            memberId: 'ts_mbr_1',
+            memberName: 'Joseph Mwaniki',
+            vehiclePlate: 'KDC 992P',
+            savingsCategory: 'Member Savings',
+            transactionType: 'deposit',
+            amount: 15000,
+            paymentMethod: 'bank',
+            reference: 'EQUIT-88192',
+            recordedAt: new Date(Date.now() - 86400000).toISOString(),
+            notes: 'Monthly voluntary member savings deposit'
+        },
+        {
+            id: 'tx_sav_3',
+            accountId: 'ts_acc_2',
+            memberId: 'ts_mbr_2',
+            memberName: 'Grace Wambui',
+            vehiclePlate: 'KBB 120Z',
+            savingsCategory: 'Daily Sinking Fund',
+            transactionType: 'deposit',
+            amount: 300,
+            paymentMethod: 'daily_deduction',
+            reference: 'DD-KBB120Z',
+            recordedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+            notes: 'Trip check-off daily route maintenance deduction'
+        },
+        {
+            id: 'tx_sav_4',
+            accountId: 'ts_acc_5',
+            memberId: 'ts_mbr_5',
+            memberName: 'Kevin Otieno',
+            vehiclePlate: 'KDM 441X',
+            savingsCategory: 'Fleet Expansion',
+            transactionType: 'deposit',
+            amount: 50000,
+            paymentMethod: 'bank',
+            reference: 'KCB-77102',
+            recordedAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+            notes: 'Asset finance savings for 33-seater chassis'
+        },
+        {
+            id: 'tx_sav_5',
+            accountId: 'ts_acc_6',
+            memberId: 'ts_mbr_6',
+            memberName: 'Mary Atieno',
+            vehiclePlate: 'KDM 441X',
+            savingsCategory: 'Welfare & Emergency',
+            transactionType: 'deposit',
+            amount: 200,
+            paymentMethod: 'mpesa',
+            reference: 'QHJ8839LM',
+            recordedAt: new Date(Date.now() - 86400000 * 4).toISOString(),
+            notes: 'Weekly conductor emergency benevolent cover'
+        }
+    ];
+
+    const [saccoAccounts, setSaccoAccounts] = useState<TransportSaccoAccount[]>(() => {
+        const key = currentInstitution?.id ? `eduai_transport_sacco_savings_${currentInstitution.id}` : null;
+        if (key) {
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            } catch (_) {}
+        }
+        return defaultSaccoAccounts;
+    });
+
+    const [saccoTransactions, setSaccoTransactions] = useState<TransportSaccoTransaction[]>(() => {
+        const key = currentInstitution?.id ? `eduai_transport_sacco_tx_${currentInstitution.id}` : null;
+        if (key) {
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+            } catch (_) {}
+        }
+        return defaultSaccoTransactions;
+    });
+
+    const [savingsSchemeFilter, setSavingsSchemeFilter] = useState<'ALL' | TransportSaccoSavingsCategory>('ALL');
+    const [savingsRoleFilter, setSavingsRoleFilter] = useState<'ALL' | 'Owner' | 'Driver' | 'Conductor' | 'Staff'>('ALL');
+    const [savingsSearchTerm, setSavingsSearchTerm] = useState('');
+
+    // Modal states for Deposit
+    const [isRecordDepositModalOpen, setIsRecordDepositModalOpen] = useState(false);
+    const [depositAccountId, setDepositAccountId] = useState('');
+    const [depositCategory, setDepositCategory] = useState<TransportSaccoSavingsCategory>('Daily Sinking Fund');
+    const [depositAmount, setDepositAmount] = useState<string>('');
+    const [depositMethod, setDepositMethod] = useState<'mpesa' | 'bank' | 'cash' | 'daily_deduction'>('mpesa');
+    const [depositRef, setDepositRef] = useState('');
+    const [depositNotes, setDepositNotes] = useState('');
+
+    // Modal states for Onboarding Member
+    const [isOnboardMemberModalOpen, setIsOnboardMemberModalOpen] = useState(false);
+    const [newMemberName, setNewMemberName] = useState('');
+    const [newMemberPhone, setNewMemberPhone] = useState('');
+    const [newMemberRole, setNewMemberRole] = useState<'Owner' | 'Driver' | 'Conductor' | 'Staff'>('Owner');
+    const [newMemberPlate, setNewMemberPlate] = useState('');
+    const [newMemberModel, setNewMemberModel] = useState('');
+    const [newMemberCategory, setNewMemberCategory] = useState<TransportSaccoSavingsCategory>('Daily Sinking Fund');
+    const [newMemberDeposit, setNewMemberDeposit] = useState<string>('5000');
+    const [newMemberShareCapital, setNewMemberShareCapital] = useState<string>('20000');
+    const [newMemberDailyTarget, setNewMemberDailyTarget] = useState<string>('300');
+
+    const handleRecordSavingsDeposit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const amt = parseFloat(depositAmount);
+        if (isNaN(amt) || amt <= 0) {
+            alert('Please enter a valid deposit amount greater than 0.');
+            return;
+        }
+
+        const account = saccoAccounts.find(a => a.id === depositAccountId);
+        if (!account) {
+            alert('Please select an active member savings account.');
+            return;
+        }
+
+        const updatedAccounts = saccoAccounts.map(acc => {
+            if (acc.id !== depositAccountId) return acc;
+            let updatedSavings = acc.savingsBalance;
+            let updatedShare = acc.shareCapital;
+            let updatedWelfare = acc.welfareBalance;
+
+            if (depositCategory === 'Share Capital') {
+                updatedShare += amt;
+            } else if (depositCategory === 'Welfare & Emergency') {
+                updatedWelfare += amt;
+            } else {
+                updatedSavings += amt;
+            }
+
+            return {
+                ...acc,
+                savingsBalance: updatedSavings,
+                shareCapital: updatedShare,
+                welfareBalance: updatedWelfare,
+                loanEligibility: Math.round(updatedSavings * 3),
+                lastDepositDate: new Date().toISOString().split('T')[0]
+            };
+        });
+
+        const newTx: TransportSaccoTransaction = {
+            id: `tx_sav_${Date.now()}`,
+            accountId: account.id,
+            memberId: account.memberId,
+            memberName: account.memberName,
+            vehiclePlate: account.vehiclePlate,
+            savingsCategory: depositCategory,
+            transactionType: 'deposit',
+            amount: amt,
+            paymentMethod: depositMethod,
+            reference: depositRef.trim() || `MPESA-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+            recordedAt: new Date().toISOString(),
+            notes: depositNotes.trim() || `${depositCategory} contribution`
+        };
+
+        const updatedTxs = [newTx, ...saccoTransactions];
+
+        setSaccoAccounts(updatedAccounts);
+        setSaccoTransactions(updatedTxs);
+
+        if (currentInstitution?.id) {
+            const accKey = `eduai_transport_sacco_savings_${currentInstitution.id}`;
+            const txKey = `eduai_transport_sacco_tx_${currentInstitution.id}`;
+            safeSetLocalItem(accKey, updatedAccounts);
+            safeSetLocalItem(txKey, updatedTxs);
+        }
+
+        persistHubToCloud({ saccoAccounts: updatedAccounts, saccoTransactions: updatedTxs });
+
+        toastSuccess(`✅ Deposit of KES ${amt.toLocaleString()} recorded for ${account.memberName} (${account.vehiclePlate}).`);
+        setIsRecordDepositModalOpen(false);
+        setDepositAmount('');
+        setDepositRef('');
+        setDepositNotes('');
+    };
+
+    const handleOnboardSaccoMember = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMemberName.trim() || !newMemberPhone.trim() || !newMemberPlate.trim()) {
+            alert('Please fill in Member Name, Phone Number, and Vehicle Plate.');
+            return;
+        }
+
+        const memberNum = `TS-MBR-${1000 + saccoAccounts.length + 1}`;
+        const initDeposit = parseFloat(newMemberDeposit) || 0;
+        const initShare = parseFloat(newMemberShareCapital) || 10000;
+        const target = parseFloat(newMemberDailyTarget) || 200;
+
+        const newAccount: TransportSaccoAccount = {
+            id: `ts_acc_${Date.now()}`,
+            memberId: `ts_mbr_${Date.now()}`,
+            memberName: newMemberName.trim(),
+            memberNumber: memberNum,
+            memberRole: newMemberRole,
+            phoneNumber: newMemberPhone.trim(),
+            vehiclePlate: newMemberPlate.trim().toUpperCase(),
+            vehicleModel: newMemberModel.trim() || 'PSV / Matatu',
+            savingsCategory: newMemberCategory,
+            savingsBalance: initDeposit,
+            shareCapital: initShare,
+            welfareBalance: 1000,
+            dailyTarget: target,
+            loanEligibility: Math.round(initDeposit * 3),
+            status: 'Active',
+            joinedDate: new Date().toISOString().split('T')[0],
+            lastDepositDate: new Date().toISOString().split('T')[0]
+        };
+
+        const updatedAccounts = [newAccount, ...saccoAccounts];
+        let updatedTxs = [...saccoTransactions];
+
+        if (initDeposit > 0) {
+            updatedTxs = [{
+                id: `tx_sav_${Date.now()}_dep`,
+                accountId: newAccount.id,
+                memberId: newAccount.memberId,
+                memberName: newAccount.memberName,
+                vehiclePlate: newAccount.vehiclePlate,
+                savingsCategory: newMemberCategory,
+                transactionType: 'deposit',
+                amount: initDeposit,
+                paymentMethod: 'cash',
+                reference: `OB-DEP-${memberNum}`,
+                recordedAt: new Date().toISOString(),
+                notes: 'Initial account opening savings deposit'
+            }, ...updatedTxs];
+        }
+
+        setSaccoAccounts(updatedAccounts);
+        setSaccoTransactions(updatedTxs);
+
+        if (currentInstitution?.id) {
+            const accKey = `eduai_transport_sacco_savings_${currentInstitution.id}`;
+            const txKey = `eduai_transport_sacco_tx_${currentInstitution.id}`;
+            safeSetLocalItem(accKey, updatedAccounts);
+            safeSetLocalItem(txKey, updatedTxs);
+        }
+
+        persistHubToCloud({ saccoAccounts: updatedAccounts, saccoTransactions: updatedTxs });
+
+        toastSuccess(`🎉 Member ${newMemberName} successfully onboarded with Account #${memberNum}!`);
+        setIsOnboardMemberModalOpen(false);
+        setNewMemberName('');
+        setNewMemberPhone('');
+        setNewMemberPlate('');
+        setNewMemberModel('');
+    };
+
+    const handleExportSavingsExcel = () => {
+        try {
+            const rows = filteredSaccoAccounts.map(acc => ({
+                'Member Number': acc.memberNumber,
+                'Member Name': acc.memberName,
+                'Role': acc.memberRole,
+                'Phone': acc.phoneNumber,
+                'Vehicle Plate': acc.vehiclePlate,
+                'Vehicle Model': acc.vehicleModel || 'N/A',
+                'Savings Scheme / Category': acc.savingsCategory,
+                'Savings Balance (KES)': acc.savingsBalance,
+                'Share Capital (KES)': acc.shareCapital,
+                'Welfare Reserve (KES)': acc.welfareBalance,
+                'Total Funds (KES)': acc.savingsBalance + acc.shareCapital + acc.welfareBalance,
+                'Daily Target (KES)': acc.dailyTarget,
+                '3x Loan Limit (KES)': acc.loanEligibility,
+                'Status': acc.status,
+                'Joined Date': acc.joinedDate,
+                'Last Deposit': acc.lastDepositDate
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'SACCO Savings');
+            const fileName = `Transport_SACCO_Savings_${(currentInstitution?.name || 'EduAI').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+            toastSuccess('📊 SACCO Savings portfolio exported to Excel successfully!');
+        } catch (e: any) {
+            console.error('Export error:', e);
+            toastError('Failed to generate Excel export.');
+        }
+    };
+
+    const openDepositModalForAccount = (accountId: string, category?: TransportSaccoSavingsCategory) => {
+        setDepositAccountId(accountId);
+        if (category) setDepositCategory(category);
+        else {
+            const acc = saccoAccounts.find(a => a.id === accountId);
+            if (acc) setDepositCategory(acc.savingsCategory);
+        }
+        setIsRecordDepositModalOpen(true);
+    };
+
+    const filteredSaccoAccounts = useMemo(() => {
+        return saccoAccounts.filter(acc => {
+            const matchesScheme = savingsSchemeFilter === 'ALL' || acc.savingsCategory === savingsSchemeFilter;
+            const matchesRole = savingsRoleFilter === 'ALL' || acc.memberRole === savingsRoleFilter;
+            const q = savingsSearchTerm.toLowerCase();
+            const matchesSearch = !q ||
+                acc.memberName.toLowerCase().includes(q) ||
+                acc.vehiclePlate.toLowerCase().includes(q) ||
+                acc.memberNumber.toLowerCase().includes(q) ||
+                acc.phoneNumber.includes(q);
+            return matchesScheme && matchesRole && matchesSearch;
+        });
+    }, [saccoAccounts, savingsSchemeFilter, savingsRoleFilter, savingsSearchTerm]);
+
+    const totalSaccoSavingsPool = useMemo(() => {
+        return saccoAccounts.reduce((sum, a) => sum + (a.savingsBalance || 0), 0);
+    }, [saccoAccounts]);
+
+    const totalSinkingFundPool = useMemo(() => {
+        return saccoAccounts
+            .filter(a => a.savingsCategory === 'Daily Sinking Fund')
+            .reduce((sum, a) => sum + (a.savingsBalance || 0), 0);
+    }, [saccoAccounts]);
+
+    const totalShareCapitalPool = useMemo(() => {
+        return saccoAccounts.reduce((sum, a) => sum + (a.shareCapital || 0), 0);
+    }, [saccoAccounts]);
+
+    const totalLoanCollateralPool = useMemo(() => {
+        return saccoAccounts.reduce((sum, a) => sum + (a.loanEligibility || 0), 0);
+    }, [saccoAccounts]);
 
     const handleAddVehicle = async (vehicleData: any) => {
         try {
@@ -3364,37 +3840,53 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             <UserPlus className="w-6 h-6 text-indigo-600" />
                             Member Registry
                         </h3>
-                        <button className="bg-indigo-600 text-white px-6 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none transition-all active:scale-95">
-                            Onboard Owner
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setActiveTab('sacco_savings')}
+                                className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-4 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-indigo-100 flex items-center gap-2"
+                            >
+                                <PiggyBank className="w-3.5 h-3.5" />
+                                SACCO Savings
+                            </button>
+                            <button
+                                onClick={() => setIsOnboardMemberModalOpen(true)}
+                                className="bg-indigo-600 text-white px-5 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-100 dark:shadow-none transition-all active:scale-95 flex items-center gap-2"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                Onboard Member
+                            </button>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Owner</th>
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Member / Owner</th>
                                     <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Vehicle (Plate)</th>
-                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Memb. Fee</th>
-                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Trips MTD</th>
-                                    <th className="px-6 py-4 text-right text-[9px] font-black uppercase text-slate-400 tracking-widest">Revenue</th>
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Status</th>
+                                    <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-400 tracking-widest">Savings Scheme</th>
+                                    <th className="px-6 py-4 text-right text-[9px] font-black uppercase text-slate-400 tracking-widest">Savings Balance</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                                {[
-                                    { owner: 'Joseph Mwaniki', plate: 'KDC 992P', fee: 'Paid', trips: 142, revenue: 'KES 42,500' },
-                                    { owner: 'Grace Wambui', plate: 'KBB 120Z', fee: 'Paid', trips: 89, revenue: 'KES 28,100' },
-                                    { owner: 'Kevin Otieno', plate: 'KDM 441X', fee: 'Pending', trips: 12, revenue: 'KES 4,200' },
-                                ].map((m, i) => (
-                                    <tr key={i} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
-                                        <td className="px-6 py-4 font-bold text-slate-700 dark:text-slate-200">{m.owner}</td>
-                                        <td className="px-6 py-4 font-black text-indigo-600">{m.plate}</td>
+                                {saccoAccounts.slice(0, 6).map((m, i) => (
+                                    <tr key={m.id || i} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
                                         <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${m.fee === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                {m.fee}
+                                            <div className="font-bold text-slate-700 dark:text-slate-200">{m.memberName}</div>
+                                            <div className="text-[10px] text-slate-400">{m.memberNumber} • {m.memberRole}</div>
+                                        </td>
+                                        <td className="px-6 py-4 font-black text-indigo-600">{m.vehiclePlate}</td>
+                                        <td className="px-6 py-4">
+                                            <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase tracking-widest bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-400">
+                                                Active
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 font-bold text-slate-600">{m.trips}</td>
-                                        <td className="px-6 py-4 text-right font-black text-slate-800 dark:text-white uppercase tracking-tighter">{m.revenue}</td>
+                                        <td className="px-6 py-4 font-bold text-slate-600 dark:text-slate-300">
+                                            <span className="text-xs font-black">{m.savingsCategory}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                                            KES {m.savingsBalance.toLocaleString()}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -3474,6 +3966,411 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             </div>
         </div>
     );
+
+    const renderSACCOSavings = () => {
+        const categoriesList: { category: 'ALL' | TransportSaccoSavingsCategory; label: string; desc: string; icon: any }[] = [
+            { category: 'ALL', label: 'All Schemes', desc: 'Consolidated member deposits', icon: Landmark },
+            { category: 'Daily Sinking Fund', label: 'Daily Sinking Fund', desc: 'Vehicle repair, tires & NTSA inspection', icon: Shield },
+            { category: 'Member Savings', label: 'Member Savings', desc: 'Voluntary dividend-earning deposits', icon: PiggyBank },
+            { category: 'Share Capital', label: 'Share Capital', desc: 'Statutory member equity & voting shares', icon: Coins },
+            { category: 'Welfare & Emergency', label: 'Welfare & Emergency', desc: 'Crew medical, legal & benevolent fund', icon: Wallet },
+            { category: 'Fleet Expansion', label: 'Fleet Expansion', desc: 'New bus & route acquisition fund', icon: TrendingUp },
+            { category: 'Holiday Scheme', label: 'Holiday Scheme', desc: 'End-year festive & school fees bonus', icon: Calendar }
+        ];
+
+        return (
+            <div className="animate-fade-in-up space-y-8">
+                {/* SACCO Savings Header Banner */}
+                <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 p-8 sm:p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border border-indigo-800/40">
+                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-300 mb-3 backdrop-blur-md">
+                                <PiggyBank className="w-3.5 h-3.5 text-indigo-400" />
+                                Cooperative Thrift & Credit Architecture
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight">
+                                SACCO Savings & <span className="text-indigo-400">Asset Finance</span>
+                            </h2>
+                            <p className="text-slate-300 text-sm max-w-2xl mt-2 font-medium">
+                                Manage Kenyan transport cooperative thrift schemes: daily vehicle sinking funds, dividend-yielding member savings, statutory share capital, crew emergency reserves, and 3x loan guarantee collateral.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                            <button
+                                onClick={handleExportSavingsExcel}
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-xs uppercase tracking-wider backdrop-blur-sm border border-white/10 transition-all active:scale-95 shadow-sm"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export Ledger
+                            </button>
+                            <button
+                                onClick={() => setIsOnboardMemberModalOpen(true)}
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-indigo-600/30"
+                            >
+                                <UserPlus className="w-4 h-4" />
+                                Onboard Member
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (saccoAccounts.length > 0) {
+                                        setDepositAccountId(saccoAccounts[0].id);
+                                        setDepositCategory(saccoAccounts[0].savingsCategory);
+                                    }
+                                    setIsRecordDepositModalOpen(true);
+                                }}
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl transition-all active:scale-95 shadow-lg shadow-emerald-500/20"
+                            >
+                                <Plus className="w-4 h-4 text-slate-950" />
+                                Record Deposit
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* KPI Stat Cards (4 Cards) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/60 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                        <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4 group-hover:scale-110 transition-transform">
+                            <PiggyBank className="w-6 h-6" />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Savings Pool</p>
+                        <h3 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                            KES {totalSaccoSavingsPool.toLocaleString()}
+                        </h3>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-2 font-bold flex items-center gap-1">
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                            {saccoAccounts.length} active member accounts
+                        </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/60 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                        <div className="w-12 h-12 bg-amber-50 dark:bg-amber-900/40 rounded-2xl flex items-center justify-center text-amber-600 dark:text-amber-400 mb-4 group-hover:scale-110 transition-transform">
+                            <Shield className="w-6 h-6" />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Daily Sinking Fund</p>
+                        <h3 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                            KES {totalSinkingFundPool.toLocaleString()}
+                        </h3>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 font-bold">
+                            Ring-fenced maintenance reserve
+                        </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/60 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                        <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/40 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4 group-hover:scale-110 transition-transform">
+                            <Coins className="w-6 h-6" />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">SACCO Share Capital</p>
+                        <h3 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                            KES {totalShareCapitalPool.toLocaleString()}
+                        </h3>
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-2 font-bold">
+                            Statutory equity (SASRA compliant)
+                        </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/60 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+                        <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/40 rounded-2xl flex items-center justify-center text-purple-600 dark:text-purple-400 mb-4 group-hover:scale-110 transition-transform">
+                            <Percent className="w-6 h-6" />
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">3x Loan Guarantee Limit</p>
+                        <h3 className="text-2xl lg:text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">
+                            KES {totalLoanCollateralPool.toLocaleString()}
+                        </h3>
+                        <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 font-bold">
+                            Available credit borrowing ceiling
+                        </p>
+                    </div>
+                </div>
+
+                {/* Scheme / Category Filter Pills */}
+                <div className="bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] border border-slate-100 dark:border-slate-700/60 shadow-sm">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                        {categoriesList.map(cat => {
+                            const count = cat.category === 'ALL'
+                                ? saccoAccounts.length
+                                : saccoAccounts.filter(a => a.savingsCategory === cat.category).length;
+                            const isSelected = savingsSchemeFilter === cat.category;
+                            const IconComponent = cat.icon;
+                            return (
+                                <button
+                                    key={cat.category}
+                                    onClick={() => setSavingsSchemeFilter(cat.category)}
+                                    className={`flex items-center gap-2.5 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-wider shrink-0 transition-all ${
+                                        isSelected
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+                                            : 'bg-slate-50 dark:bg-slate-900/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                                    }`}
+                                >
+                                    <IconComponent className="w-3.5 h-3.5" />
+                                    <span>{cat.label}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                                    }`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Search & Role Filter Bar */}
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+                    <div className="relative flex-1">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            value={savingsSearchTerm}
+                            onChange={e => setSavingsSearchTerm(e.target.value)}
+                            placeholder="Search member name, vehicle plate (e.g. KDC 992P), member ID, phone..."
+                            className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">Role:</span>
+                        {(['ALL', 'Owner', 'Driver', 'Conductor', 'Staff'] as const).map(role => (
+                            <button
+                                key={role}
+                                onClick={() => setSavingsRoleFilter(role)}
+                                className={`px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                    savingsRoleFilter === role
+                                        ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                                        : 'bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white border border-slate-200 dark:border-slate-700'
+                                }`}
+                            >
+                                {role}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Member Accounts Registry Table & Live Transaction Feed */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                    {/* Left: Accounts Registry (2 Columns) */}
+                    <div className="xl:col-span-2 bg-white dark:bg-slate-800 rounded-[3rem] p-6 sm:p-8 border border-slate-100 dark:border-slate-700/60 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+                                    <Users className="w-5 h-5 text-indigo-600" />
+                                    Member Savings Ledger
+                                </h3>
+                                <p className="text-slate-400 text-xs font-medium mt-0.5">
+                                    Showing {filteredSaccoAccounts.length} of {saccoAccounts.length} accounts
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setIsOnboardMemberModalOpen(true)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-indigo-100 transition-all"
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add Member
+                            </button>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                        <th className="px-4 py-3.5 rounded-l-2xl">Member</th>
+                                        <th className="px-4 py-3.5">Vehicle & Role</th>
+                                        <th className="px-4 py-3.5">Scheme</th>
+                                        <th className="px-4 py-3.5 text-right">Savings (KES)</th>
+                                        <th className="px-4 py-3.5 text-right">Share Cap.</th>
+                                        <th className="px-4 py-3.5 text-right">3x Loan Limit</th>
+                                        <th className="px-4 py-3.5 text-center rounded-r-2xl">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40 text-xs">
+                                    {filteredSaccoAccounts.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="text-center py-12 text-slate-400">
+                                                <PiggyBank className="w-10 h-10 mx-auto text-slate-300 mb-3 opacity-60" />
+                                                <p className="font-bold text-sm">No member savings accounts found</p>
+                                                <p className="text-xs text-slate-400 mt-1">Try resetting your filter or onboard a new member.</p>
+                                                <button
+                                                    onClick={() => {
+                                                        setSavingsSchemeFilter('ALL');
+                                                        setSavingsRoleFilter('ALL');
+                                                        setSavingsSearchTerm('');
+                                                    }}
+                                                    className="mt-3 text-[10px] font-black uppercase tracking-wider text-indigo-600 hover:underline"
+                                                >
+                                                    Clear Filters
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredSaccoAccounts.map(acc => {
+                                            const roleColor = acc.memberRole === 'Owner'
+                                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                                                : acc.memberRole === 'Driver'
+                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                                : acc.memberRole === 'Conductor'
+                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300'
+                                                : 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300';
+
+                                            return (
+                                                <tr key={acc.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+                                                    <td className="px-4 py-3.5">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm">
+                                                                {acc.memberName.charAt(0)}
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-black text-slate-900 dark:text-white leading-tight">
+                                                                    {acc.memberName}
+                                                                </p>
+                                                                <p className="text-[10px] font-semibold text-slate-400">
+                                                                    {acc.memberNumber} • {acc.phoneNumber}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="px-4 py-3.5">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-black font-mono px-2 py-0.5 bg-slate-100 dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] border border-slate-200 dark:border-slate-700">
+                                                                {acc.vehiclePlate}
+                                                            </span>
+                                                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider ${roleColor}`}>
+                                                                {acc.memberRole}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[140px]">
+                                                            {acc.vehicleModel || 'PSV Matatu'}
+                                                        </p>
+                                                    </td>
+
+                                                    <td className="px-4 py-3.5">
+                                                        <span className="inline-block px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80">
+                                                            {acc.savingsCategory}
+                                                        </span>
+                                                        <p className="text-[9px] text-slate-400 mt-0.5">
+                                                            KES {acc.dailyTarget}/day target
+                                                        </p>
+                                                    </td>
+
+                                                    <td className="px-4 py-3.5 text-right font-black text-slate-900 dark:text-white">
+                                                        KES {acc.savingsBalance.toLocaleString()}
+                                                        <p className="text-[9px] font-normal text-slate-400">
+                                                            Last: {acc.lastDepositDate || 'N/A'}
+                                                        </p>
+                                                    </td>
+
+                                                    <td className="px-4 py-3.5 text-right font-bold text-slate-600 dark:text-slate-300">
+                                                        KES {acc.shareCapital.toLocaleString()}
+                                                    </td>
+
+                                                    <td className="px-4 py-3.5 text-right">
+                                                        <span className="font-black text-purple-600 dark:text-purple-400">
+                                                            KES {acc.loanEligibility.toLocaleString()}
+                                                        </span>
+                                                        <span className="block text-[8px] font-bold uppercase text-purple-500">
+                                                            Collateralized
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="px-4 py-3.5 text-center">
+                                                        <button
+                                                            onClick={() => openDepositModalForAccount(acc.id, acc.savingsCategory)}
+                                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95"
+                                                        >
+                                                            + Deposit
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Right: Live Inflow Stream & Regulatory Summary */}
+                    <div className="space-y-6">
+                        {/* Live Inflow Feed */}
+                        <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-6 border border-slate-100 dark:border-slate-700/60 shadow-sm">
+                            <div className="flex justify-between items-center mb-5">
+                                <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-emerald-500" />
+                                    Live Inflow Stream
+                                </h3>
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-400">
+                                    Real-time
+                                </span>
+                            </div>
+
+                            <div className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
+                                {saccoTransactions.length === 0 ? (
+                                    <p className="text-center py-8 text-xs text-slate-400">No deposit transactions logged yet.</p>
+                                ) : (
+                                    saccoTransactions.slice(0, 8).map(tx => (
+                                        <div
+                                            key={tx.id}
+                                            className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 hover:bg-slate-100/70 dark:hover:bg-slate-900 transition-colors"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                    <span className="font-black text-xs text-slate-900 dark:text-white truncate">
+                                                        {tx.memberName}
+                                                    </span>
+                                                    <span className="font-mono text-[9px] font-bold px-1.5 py-0.2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded">
+                                                        {tx.vehiclePlate}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[10px] text-slate-400 truncate">
+                                                    {tx.savingsCategory} • {tx.paymentMethod.toUpperCase()}
+                                                    {tx.reference ? ` (${tx.reference})` : ''}
+                                                </p>
+                                                <p className="text-[9px] text-slate-400 font-mono mt-0.5">
+                                                    {new Date(tx.recordedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                                </p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                                    +KES {tx.amount.toLocaleString()}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* SASRA & Transport PSV Cooperative Framework */}
+                        <div className="bg-slate-900 rounded-[2.5rem] p-6 text-white border border-slate-800 shadow-xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl"></div>
+                            <div className="flex items-center gap-2 mb-3">
+                                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                <h4 className="text-xs font-black uppercase tracking-widest text-slate-300">
+                                    SASRA & NTSA PSV Compliance
+                                </h4>
+                            </div>
+                            <ul className="space-y-2 text-[11px] text-slate-300 font-medium">
+                                <li className="flex items-start gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0"></span>
+                                    <span><strong>Daily Sinking Funds</strong> are ring-fenced exclusively for vehicle mechanical overhaul, tire renewal, and mandatory NTSA PSV annual roadworthiness inspection.</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0"></span>
+                                    <span><strong>3x Credit Collateral:</strong> Active members can qualify for up to 300% of their cumulative savings balance in micro-loans or asset financing.</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0"></span>
+                                    <span><strong>Share Capital</strong> forms the permanent, non-withdrawable institutional equity qualifying owners & crews for annual statutory dividend payouts.</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     const renderEPOD = () => (
         <div className="animate-fade-in-up space-y-8">
@@ -4091,6 +4988,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             <div className="flex overflow-x-auto whitespace-nowrap items-center gap-2 bg-slate-100 dark:bg-slate-900/50 p-2 rounded-[2rem] w-full border border-slate-200 dark:border-slate-800 shadow-inner scrollbar-none">
                 {[
                     { id: 'sacco', label: 'SACCO Hub', icon: Landmark, show: isSACCO },
+                    { id: 'sacco_savings', label: 'SACCO Savings', icon: PiggyBank, show: isSACCO || isSaccoSavings },
                     { id: 'shuttle', label: 'Shuttle Control', icon: DoorOpen, show: isShuttle },
                     { id: 'manifest', label: isSACCO ? 'Trip Registry' : isShuttle ? 'Route History' : isEduTransport ? 'Student Commute' : 'Cargo Manifest', icon: isEduTransport ? MapPin : Package, show: true },
                     { id: 'trips', label: 'School Trips', icon: Calendar, show: isEduTransport },
@@ -4122,14 +5020,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 <div>
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-slate-900 border border-white/10 rounded-2xl flex items-center justify-center shadow-2xl">
-                            {isSACCO ? <Landmark className="w-6 h-6 text-indigo-400" /> : isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
+                            {isSaccoSavings ? <PiggyBank className="w-6 h-6 text-indigo-400" /> : isSACCO ? <Landmark className="w-6 h-6 text-indigo-400" /> : isShuttle ? <DoorOpen className="w-6 h-6 text-indigo-400" /> : <Truck className="w-6 h-6 text-indigo-400" />}
                         </div>
                         <h1 className="text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">
-                            {isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle' : isEduTransport ? 'School Commute' : 'Logistics'} <span className="text-indigo-600">{isSACCO ? 'Ledger' : isShuttle ? 'Operations' : isEduTransport ? 'Hub' : 'Control'}</span>
+                            {isSaccoSavings ? 'SACCO Savings & Transport' : isSACCO ? 'Transport SACCO' : isShuttle ? 'Shuttle' : isEduTransport ? 'School Commute' : 'Logistics'} <span className="text-indigo-600">{isSaccoSavings ? 'Treasury' : isSACCO ? 'Ledger' : isShuttle ? 'Operations' : isEduTransport ? 'Hub' : 'Control'}</span>
                         </h1>
                     </div>
                     <p className="text-slate-500 font-medium max-w-xl group-hover/logistics:text-slate-600 transition-colors">
-                        {isSACCO 
+                        {isSaccoSavings
+                            ? 'Cooperative thrift schemes, member savings accounts, vehicle sinking funds, and 3x loan guarantee collateral.'
+                            : isSACCO 
                             ? 'The cooperative management hub. Onboard individual vehicle owners, manage municipal licenses, track trip commissions, and oversee public online bookings.'
                             : isShuttle 
                             ? 'Corporate & staff mobility management. Track shuttle routes, manage seat reservations, and monitor real-time staff boarding and attendance.' 
@@ -4229,6 +5129,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 {activeTab === 'epod' && renderEPOD()}
                 {activeTab === 'shuttle' && renderShuttleHub()}
                 {activeTab === 'sacco' && renderSACCOHub()}
+                {activeTab === 'sacco_savings' && renderSACCOSavings()}
                 {activeTab === 'trips' && isEduTransport && renderSchoolTrips()}
                 {activeTab === 'analytics' && (
                     <div className="bg-white dark:bg-slate-800 p-20 rounded-[4rem] text-center border-4 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
@@ -4291,6 +5192,331 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     onImportOpeningBalances={handleImportOpeningBalances}
                     onDeleteOpeningBalance={handleDeleteOpeningBalance}
                 />
+            )}
+
+            {/* Modal: Record SACCO Savings Deposit */}
+            {isRecordDepositModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-lg p-6 sm:p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up my-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <PiggyBank className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Record Savings Deposit</h3>
+                                    <p className="text-slate-400 text-xs font-medium">Contribute to vehicle sinking fund or member savings</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsRecordDepositModalOpen(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleRecordSavingsDeposit} className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Member Account *
+                                </label>
+                                <select
+                                    required
+                                    value={depositAccountId}
+                                    onChange={e => {
+                                        setDepositAccountId(e.target.value);
+                                        const acc = saccoAccounts.find(a => a.id === e.target.value);
+                                        if (acc) setDepositCategory(acc.savingsCategory);
+                                    }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="" disabled>Select member account...</option>
+                                    {saccoAccounts.map(acc => (
+                                        <option key={acc.id} value={acc.id}>
+                                            {acc.memberName} ({acc.vehiclePlate}) - {acc.memberNumber} [{acc.memberRole}]
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Savings Scheme / Category *
+                                    </label>
+                                    <select
+                                        value={depositCategory}
+                                        onChange={e => setDepositCategory(e.target.value as TransportSaccoSavingsCategory)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="Daily Sinking Fund">Daily Sinking Fund</option>
+                                        <option value="Member Savings">Member Savings</option>
+                                        <option value="Share Capital">Share Capital</option>
+                                        <option value="Welfare & Emergency">Welfare & Emergency</option>
+                                        <option value="Fleet Expansion">Fleet Expansion</option>
+                                        <option value="Holiday Scheme">Holiday Scheme</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Deposit Amount (KES) *
+                                    </label>
+                                    <input
+                                        type="number"
+                                        required
+                                        min="1"
+                                        step="1"
+                                        value={depositAmount}
+                                        onChange={e => setDepositAmount(e.target.value)}
+                                        placeholder="e.g. 500"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Payment Method *
+                                    </label>
+                                    <select
+                                        value={depositMethod}
+                                        onChange={e => setDepositMethod(e.target.value as any)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="mpesa">M-PESA Paybill / Till</option>
+                                        <option value="daily_deduction">Daily Route Checkoff</option>
+                                        <option value="bank">Bank Transfer / EFT</option>
+                                        <option value="cash">Cash (Counter)</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Reference / M-PESA Code
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={depositRef}
+                                        onChange={e => setDepositRef(e.target.value)}
+                                        placeholder="e.g. QHK88231LA"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Notes / Narration
+                                </label>
+                                <input
+                                    type="text"
+                                    value={depositNotes}
+                                    onChange={e => setDepositNotes(e.target.value)}
+                                    placeholder="e.g. Daily conductor check-off remittance for morning shift"
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsRecordDepositModalOpen(false)}
+                                    className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30 active:scale-95"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Confirm Deposit
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Onboard SACCO Member */}
+            {isOnboardMemberModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+                    <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] w-full max-w-xl p-6 sm:p-8 border border-slate-100 dark:border-slate-700 shadow-2xl relative animate-fade-in-up my-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                    <UserPlus className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Onboard SACCO Member</h3>
+                                    <p className="text-slate-400 text-xs font-medium">Register owner, driver, or conductor with thrift savings account</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsOnboardMemberModalOpen(false)}
+                                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleOnboardSaccoMember} className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Full Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newMemberName}
+                                        onChange={e => setNewMemberName(e.target.value)}
+                                        placeholder="e.g. Samson Kiprono"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Phone Number *
+                                    </label>
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={newMemberPhone}
+                                        onChange={e => setNewMemberPhone(e.target.value)}
+                                        placeholder="e.g. 0712345678"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Member Role *
+                                    </label>
+                                    <select
+                                        value={newMemberRole}
+                                        onChange={e => setNewMemberRole(e.target.value as any)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    >
+                                        <option value="Owner">Vehicle Owner</option>
+                                        <option value="Driver">PSV Driver</option>
+                                        <option value="Conductor">Conductor</option>
+                                        <option value="Staff">SACCO Staff</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Vehicle Plate *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={newMemberPlate}
+                                        onChange={e => setNewMemberPlate(e.target.value.toUpperCase())}
+                                        placeholder="e.g. KDL 789B"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 font-mono uppercase"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Vehicle Model
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={newMemberModel}
+                                        onChange={e => setNewMemberModel(e.target.value)}
+                                        placeholder="e.g. Isuzu FRR 33-Seater"
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                    Primary Savings Category Scheme *
+                                </label>
+                                <select
+                                    value={newMemberCategory}
+                                    onChange={e => setNewMemberCategory(e.target.value as TransportSaccoSavingsCategory)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                >
+                                    <option value="Daily Sinking Fund">Daily Sinking Fund (Vehicle Maintenance & Tires)</option>
+                                    <option value="Member Savings">Member Savings (Voluntary Dividend-Earning)</option>
+                                    <option value="Share Capital">Share Capital (Permanent Membership Equity)</option>
+                                    <option value="Welfare & Emergency">Welfare & Emergency (Medical & Legal Relief)</option>
+                                    <option value="Fleet Expansion">Fleet Expansion (Chassis & New Bus Acquisition)</option>
+                                    <option value="Holiday Scheme">Holiday Scheme (End-Year Festive Payout)</option>
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Initial Deposit (KES)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={newMemberDeposit}
+                                        onChange={e => setNewMemberDeposit(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Share Capital (KES)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={newMemberShareCapital}
+                                        onChange={e => setNewMemberShareCapital(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                        Daily Target (KES)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={newMemberDailyTarget}
+                                        onChange={e => setNewMemberDailyTarget(e.target.value)}
+                                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 outline-none font-bold text-xs text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-700">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsOnboardMemberModalOpen(false)}
+                                    className="px-5 py-2.5 rounded-xl font-bold text-xs text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/30 active:scale-95"
+                                >
+                                    <UserPlus className="w-4 h-4" />
+                                    Register Account
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             )}
         </div>
     );
