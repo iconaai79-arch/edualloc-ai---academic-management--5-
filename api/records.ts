@@ -39,7 +39,7 @@ interface CachedServerModule {
   timestamp: number;
 }
 const _serverModuleMemoryCache = new Map<string, CachedServerModule>();
-const CACHEABLE_MODULES = ['institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings'];
+const CACHEABLE_MODULES = ['institutions', 'counties', 'constituencies', 'wards', 'political_parties', 'system_settings', 'school_registry'];
 
 
 const getPgPool = async () => {
@@ -1162,7 +1162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Fast-path: in-memory server cache for hot configuration modules (institutions, counties, etc.)
             if (CACHEABLE_MODULES.includes(moduleName) && !getStrParam(select)) {
                 const cached = _serverModuleMemoryCache.get(moduleName);
-                const ttl = moduleName === 'institutions' ? 60000 : 120000;
+                const ttl = moduleName === 'institutions' ? 60000 : (moduleName === 'school_registry' ? 300000 : 120000);
                 if (cached && (Date.now() - cached.timestamp) < ttl && Array.isArray(cached.data) && cached.data.length > 0) {
                     const explicitInstFilter = targetInstParam && !isSystemOrAll(targetInstParam) ? targetInstParam : '';
                     const reqId = getStrParam(id) || explicitInstFilter || (!isGroupOrSuperAdmin && !shouldSkipTenancy && user?.institutionId ? user.institutionId : '');
@@ -1184,14 +1184,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (matched.length > 0) {
                             return res.status(200).json(matched);
                         }
-                    } else if (!reqId && (!req.query.offset || req.query.offset === '0')) {
+                    } else if (!reqId) {
+                        const requestedOffset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
                         const requestedLimit = req.query.limit ? parseInt(getStrParam(req.query.limit)) : Infinity;
-                        // Never return full cached set if caller only asked for 1 or a tiny slice (e.g. limit=1 healthcheck)
-                        if (requestedLimit >= cached.data.length) {
-                            return res.status(200).json(cached.data);
-                        } else if (requestedLimit > 0 && requestedLimit < cached.data.length) {
-                            return res.status(200).json(cached.data.slice(0, requestedLimit));
+                        if (requestedOffset > 0 || isFinite(requestedLimit)) {
+                            const end = isFinite(requestedLimit) ? requestedOffset + requestedLimit : cached.data.length;
+                            return res.status(200).json(cached.data.slice(requestedOffset, end));
                         }
+                        return res.status(200).json(cached.data);
                     }
                 }
             }
@@ -1249,7 +1249,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('timestamp', { ascending: false }).order('id', { ascending: false });
                 } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['school_registry', 'timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
+                } else if (['timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
                 }
                 return q;
@@ -1612,7 +1612,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'timestamp.desc';
             } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
-            } else if (['student_enrollments', 'institutions', 'school_registry', 'timetable_entries', 'exam_timetable_entries',
+            } else if (['student_enrollments', 'institutions', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
                         'academic_years', 'semesters', 'allocation_requests', 'vote_heads', 'fee_structures'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
                 defaultOrderBy = 'id.asc';
@@ -1897,11 +1897,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn('[API GET] DB query failed on institutions with no memory cache. Returning empty list fallback to prevent crash.');
                             return res.status(200).json([]);
                         }
+                        if (moduleName === 'school_registry') {
+                            const fallbackCache = _serverModuleMemoryCache.get('school_registry');
+                            if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
+                                console.warn('[API GET] Recovered school_registry from memory cache on DB error/timeout:', error.message || error.code);
+                                const reqOffset = offset || 0;
+                                return res.status(200).json(fallbackCache.data.slice(reqOffset, reqOffset + finalLimit));
+                            }
+                            console.warn('[API GET] Statement timeout on school_registry with no memory cache. Returning empty array fallback to preserve frontend stability.');
+                            return res.status(200).json([]);
+                        }
                         // Non-critical modules: return empty array fallback on statement timeout to keep UI operational
                         const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)
+                            ['school_registry', 'app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
@@ -2476,6 +2486,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             timestamp: Date.now()
                         });
                     }
+                }
+            }
+
+            if (moduleName === 'school_registry' && Array.isArray(data) && data.length > 0) {
+                const existingCache = _serverModuleMemoryCache.get('school_registry');
+                if (!existingCache || !Array.isArray(existingCache.data) || data.length >= existingCache.data.length) {
+                    _serverModuleMemoryCache.set('school_registry', {
+                        data: [...data],
+                        timestamp: Date.now()
+                    });
                 }
             }
 
