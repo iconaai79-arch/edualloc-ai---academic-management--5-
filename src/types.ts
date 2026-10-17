@@ -4915,6 +4915,29 @@ export interface SaccoDailyRemittanceRecord {
     recordedBy?: string;
 }
 
+export interface SaccoRoleLoanThreshold {
+    driver: number; // e.g. 10000 (Driver must have saved above 10,000 to qualify)
+    owner: number; // e.g. 20000
+    conductor: number; // e.g. 5000
+    staff: number; // e.g. 10000
+}
+
+export interface SaccoLoanSettings {
+    enabled: boolean;
+    loanMultiplier: number; // e.g. 3 (member can borrow up to 3x their qualifying savings)
+    minSavingsThreshold: number; // General default threshold e.g. 10000
+    roleMinSavingsThresholds: SaccoRoleLoanThreshold; // Role-specific thresholds
+    interestRate: number; // e.g. 12 (12% per annum)
+    interestRatePeriod: 'annual' | 'monthly';
+    interestCalculationMethod: 'reducing_balance' | 'flat_rate';
+    maxRepaymentMonths: number; // e.g. 12 months
+    minMembershipMonths: number; // e.g. 3 months
+    guarantorsRequired: number; // e.g. 2 guarantors
+    processingFeePercent: number; // e.g. 1.5%
+    emergencyLoanMaxAmount?: number; // e.g. 30000
+    emergencyInterestRate?: number; // e.g. 10%
+}
+
 
 export interface CoopMonthlyPayout {
     id: string;

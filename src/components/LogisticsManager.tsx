@@ -61,7 +61,7 @@ import {
     Clock3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord } from '../types';
+import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord, SaccoLoanSettings, SaccoRoleLoanThreshold } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import type { TransportDisruption } from './TransportDisruptionAlert';
@@ -367,6 +367,111 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             status,
             ruleMessage
         };
+    };
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // TRANSPORT SACCO LOAN & SAVINGS-BACKED CREDIT POLICY CONFIGURATION
+    // ═════════════════════════════════════════════════════════════════════════
+    const DEFAULT_SACCO_LOAN_SETTINGS: SaccoLoanSettings = {
+        enabled: true,
+        loanMultiplier: 3, // 3x cumulative savings
+        minSavingsThreshold: 10000, // General fallback threshold KES 10,000
+        roleMinSavingsThresholds: {
+            driver: 10000, // PSV Driver must have saved above 10,000 to qualify
+            owner: 20000, // Vehicle Owner minimum threshold
+            conductor: 5000, // Conductor minimum threshold
+            staff: 10000 // SACCO Staff threshold
+        },
+        interestRate: 12, // 12% per annum (1.0% monthly)
+        interestRatePeriod: 'annual',
+        interestCalculationMethod: 'reducing_balance', // Reducing balance
+        maxRepaymentMonths: 12,
+        minMembershipMonths: 3,
+        guarantorsRequired: 2,
+        processingFeePercent: 1.5,
+        emergencyLoanMaxAmount: 30000,
+        emergencyInterestRate: 10
+    };
+
+    const computeMemberLoanEligibility = (
+        savingsBalance: number,
+        role: 'Owner' | 'Driver' | 'Conductor' | 'Staff' | string,
+        settings: SaccoLoanSettings
+    ) => {
+        if (!settings.enabled) {
+            return {
+                isEligible: false,
+                minRequired: 0,
+                maxLoanLimit: 0,
+                shortfall: 0,
+                reason: 'SACCO Credit Facility is currently disabled in settings.'
+            };
+        }
+
+        const roleKey = (role ? role.toLowerCase() : 'driver') as keyof SaccoRoleLoanThreshold;
+        const minRequired = settings.roleMinSavingsThresholds?.[roleKey] ?? settings.minSavingsThreshold;
+
+        if (savingsBalance < minRequired) {
+            const shortfall = minRequired - savingsBalance;
+            return {
+                isEligible: false,
+                minRequired,
+                maxLoanLimit: 0,
+                shortfall,
+                reason: `${role} must have saved above KES ${minRequired.toLocaleString()} to qualify (Shortfall: KES ${shortfall.toLocaleString()})`
+            };
+        }
+
+        const maxLoanLimit = Math.round(savingsBalance * (settings.loanMultiplier || 3));
+        return {
+            isEligible: true,
+            minRequired,
+            maxLoanLimit,
+            shortfall: 0,
+            reason: `Eligible for up to ${settings.loanMultiplier}x savings (Max KES ${maxLoanLimit.toLocaleString()})`
+        };
+    };
+
+    const calculateLoanRepayment = (
+        principal: number,
+        months: number,
+        interestRate: number,
+        method: 'reducing_balance' | 'flat_rate',
+        period: 'annual' | 'monthly' = 'annual'
+    ) => {
+        if (principal <= 0 || months <= 0) {
+            return { monthlyInstallment: 0, totalInterest: 0, totalRepayment: 0 };
+        }
+
+        const annualRate = period === 'monthly' ? interestRate * 12 : interestRate;
+        const monthlyRate = annualRate / 100 / 12;
+
+        if (method === 'flat_rate') {
+            const totalInterest = principal * (annualRate / 100) * (months / 12);
+            const totalRepayment = principal + totalInterest;
+            const monthlyInstallment = totalRepayment / months;
+            return {
+                monthlyInstallment: Math.round(monthlyInstallment),
+                totalInterest: Math.round(totalInterest),
+                totalRepayment: Math.round(totalRepayment)
+            };
+        } else {
+            if (monthlyRate === 0) {
+                return {
+                    monthlyInstallment: Math.round(principal / months),
+                    totalInterest: 0,
+                    totalRepayment: principal
+                };
+            }
+            const emi = (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);
+            const totalRepayment = emi * months;
+            const totalInterest = totalRepayment - principal;
+            return {
+                monthlyInstallment: Math.round(emi),
+                totalInterest: Math.max(0, Math.round(totalInterest)),
+                totalRepayment: Math.round(totalRepayment)
+            };
+        }
     };
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -682,6 +787,29 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [newTierDesc, setNewTierDesc] = useState('');
     const [newTierColor, setNewTierColor] = useState('indigo');
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // SACCO LOAN & CREDIT POLICY SETTINGS STATE
+    // ═════════════════════════════════════════════════════════════════════════
+    const [loanSettings, setLoanSettings] = useState<SaccoLoanSettings>(() => {
+        const key = currentInstitution?.id ? `eduai_sacco_loan_settings_${currentInstitution.id}` : null;
+        if (key) {
+            try {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && typeof parsed.loanMultiplier === 'number') return parsed;
+                }
+            } catch (_) {}
+        }
+        return DEFAULT_SACCO_LOAN_SETTINGS;
+    });
+
+    // Loan Simulator State (for SACCO Settings)
+    const [simLoanRole, setSimLoanRole] = useState<'Driver' | 'Owner' | 'Conductor' | 'Staff'>('Driver');
+    const [simLoanSavings, setSimLoanSavings] = useState<string>('15000'); // KES 15,000 (qualifies above KES 10,000 driver min)
+    const [simLoanAmount, setSimLoanAmount] = useState<string>('40000');
+    const [simLoanTenureMonths, setSimLoanTenureMonths] = useState<number>(12);
+
     const handleRecordSavingsDeposit = (e: React.FormEvent) => {
         e.preventDefault();
         const amt = parseFloat(depositAmount);
@@ -710,12 +838,14 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 updatedSavings += amt;
             }
 
+            const elig = computeMemberLoanEligibility(updatedSavings, acc.memberRole, loanSettings);
+
             return {
                 ...acc,
                 savingsBalance: updatedSavings,
                 shareCapital: updatedShare,
                 welfareBalance: updatedWelfare,
-                loanEligibility: Math.round(updatedSavings * 3),
+                loanEligibility: elig.maxLoanLimit,
                 lastDepositDate: new Date().toISOString().split('T')[0]
             };
         });
@@ -783,7 +913,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             welfareBalance: 1000,
             dailyTarget: target,
             remittanceTier: newMemberRemittanceTier || 'Silver',
-            loanEligibility: Math.round(initDeposit * 3),
+            loanEligibility: computeMemberLoanEligibility(initDeposit, newMemberRole, loanSettings).maxLoanLimit,
             status: 'Active',
             joinedDate: new Date().toISOString().split('T')[0],
             lastDepositDate: new Date().toISOString().split('T')[0]
@@ -832,24 +962,28 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
     const handleExportSavingsExcel = () => {
         try {
-            const rows = filteredSaccoAccounts.map(acc => ({
-                'Member Number': acc.memberNumber,
-                'Member Name': acc.memberName,
-                'Role': acc.memberRole,
-                'Phone': acc.phoneNumber,
-                'Vehicle Plate': acc.vehiclePlate,
-                'Vehicle Model': acc.vehicleModel || 'N/A',
-                'Savings Scheme / Category': acc.savingsCategory,
-                'Savings Balance (KES)': acc.savingsBalance,
-                'Share Capital (KES)': acc.shareCapital,
-                'Welfare Reserve (KES)': acc.welfareBalance,
-                'Total Funds (KES)': acc.savingsBalance + acc.shareCapital + acc.welfareBalance,
-                'Daily Target (KES)': acc.dailyTarget,
-                '3x Loan Limit (KES)': acc.loanEligibility,
-                'Status': acc.status,
-                'Joined Date': acc.joinedDate,
-                'Last Deposit': acc.lastDepositDate
-            }));
+            const rows = filteredSaccoAccounts.map(acc => {
+                const elig = computeMemberLoanEligibility(acc.savingsBalance, acc.memberRole, loanSettings);
+                return {
+                    'Member Number': acc.memberNumber,
+                    'Member Name': acc.memberName,
+                    'Role': acc.memberRole,
+                    'Phone': acc.phoneNumber,
+                    'Vehicle Plate': acc.vehiclePlate,
+                    'Vehicle Model': acc.vehicleModel || 'N/A',
+                    'Savings Scheme / Category': acc.savingsCategory,
+                    'Savings Balance (KES)': acc.savingsBalance,
+                    'Share Capital (KES)': acc.shareCapital,
+                    'Welfare Reserve (KES)': acc.welfareBalance,
+                    'Total Funds (KES)': acc.savingsBalance + acc.shareCapital + acc.welfareBalance,
+                    'Daily Target (KES)': acc.dailyTarget,
+                    'Loan Limit (KES)': elig.maxLoanLimit,
+                    'Loan Qualification Status': elig.isEligible ? `Qualified (${loanSettings.loanMultiplier}x Savings)` : `Ineligible (< KES ${elig.minRequired.toLocaleString()} Min)`,
+                    'Status': acc.status,
+                    'Joined Date': acc.joinedDate,
+                    'Last Deposit': acc.lastDepositDate
+                };
+            });
 
             const worksheet = XLSX.utils.json_to_sheet(rows);
             const workbook = XLSX.utils.book_new();
@@ -881,6 +1015,23 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         }
         persistHubToCloud({ saccoRemittanceSettings: DEFAULT_SACCO_REMITTANCE_SETTINGS });
         toastSuccess('🔄 Restored default remittance tiers (Silver KES 1500, Bronze KES 1600, Gold KES 1700) & cutoff rules (10 PM +100, 10 AM next day +200).');
+    };
+
+    const handleSaveLoanSettings = () => {
+        if (!currentInstitution?.id) return;
+        const key = `eduai_sacco_loan_settings_${currentInstitution.id}`;
+        safeSetLocalItem(key, loanSettings);
+        persistHubToCloud({ saccoLoanSettings: loanSettings });
+        toastSuccess('🏦 SACCO Loan & Credit Policy settings successfully saved & synced to cloud!');
+    };
+
+    const handleResetLoanSettings = () => {
+        setLoanSettings(DEFAULT_SACCO_LOAN_SETTINGS);
+        if (currentInstitution?.id) {
+            safeSetLocalItem(`eduai_sacco_loan_settings_${currentInstitution.id}`, DEFAULT_SACCO_LOAN_SETTINGS);
+        }
+        persistHubToCloud({ saccoLoanSettings: DEFAULT_SACCO_LOAN_SETTINGS });
+        toastSuccess('🔄 Restored default SACCO loan limits (Driver min KES 10,000, 3x savings, 12% p.a. reducing balance).');
     };
 
     const handleSaveTier = (e: React.FormEvent) => {
@@ -1113,8 +1264,11 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     }, [saccoAccounts]);
 
     const totalLoanCollateralPool = useMemo(() => {
-        return saccoAccounts.reduce((sum, a) => sum + (a.loanEligibility || 0), 0);
-    }, [saccoAccounts]);
+        return saccoAccounts.reduce((sum, a) => {
+            const elig = computeMemberLoanEligibility(a.savingsBalance, a.memberRole, loanSettings);
+            return sum + elig.maxLoanLimit;
+        }, 0);
+    }, [saccoAccounts, loanSettings]);
 
     const handleAddVehicle = async (vehicleData: any) => {
         try {
@@ -1407,6 +1561,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         saccoTransactions?: TransportSaccoTransaction[];
         saccoRemittanceSettings?: SaccoRemittanceSettings;
         saccoRemittanceRecords?: SaccoDailyRemittanceRecord[];
+        saccoLoanSettings?: SaccoLoanSettings;
     }>) => {
         if (!currentInstitution?.id) return;
         const studentVehiclesKey = `eduai_transport_student_vehicles_${currentInstitution.id}`;
@@ -1439,6 +1594,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             saccoTransactions: updates.saccoTransactions !== undefined ? updates.saccoTransactions : saccoTransactions,
             saccoRemittanceSettings: updates.saccoRemittanceSettings !== undefined ? updates.saccoRemittanceSettings : remittanceSettings,
             saccoRemittanceRecords: updates.saccoRemittanceRecords !== undefined ? updates.saccoRemittanceRecords : remittanceRecords,
+            saccoLoanSettings: updates.saccoLoanSettings !== undefined ? updates.saccoLoanSettings : loanSettings,
             updatedAt: new Date().toISOString()
         };
         apiService.saveTransportLogisticsHub(currentInstitution.id, payload).catch(err => {
@@ -1582,6 +1738,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     saccoTransactions: saccoTransactions,
                     saccoRemittanceSettings: remittanceSettings,
                     saccoRemittanceRecords: remittanceRecords,
+                    saccoLoanSettings: loanSettings,
                     updatedAt: new Date().toISOString()
                 };
                 await apiService.saveTransportLogisticsHub(instId, payload);
@@ -1633,6 +1790,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 if (Array.isArray(cloudData?.saccoRemittanceRecords)) {
                     setRemittanceRecords(cloudData.saccoRemittanceRecords);
                     safeSetLocalItem(`eduai_sacco_remittance_records_${instId}`, cloudData.saccoRemittanceRecords);
+                }
+                if (cloudData?.saccoLoanSettings && typeof cloudData.saccoLoanSettings.loanMultiplier === 'number') {
+                    setLoanSettings(cloudData.saccoLoanSettings);
+                    safeSetLocalItem(`eduai_sacco_loan_settings_${instId}`, cloudData.saccoLoanSettings);
                 }
                 if (Array.isArray(cloudData?.saccoAccounts) && cloudData.saccoAccounts.length > 0) {
                     setSaccoAccounts(cloudData.saccoAccounts);
@@ -4663,12 +4824,32 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                     </td>
 
                                                     <td className="px-4 py-3.5 text-right">
-                                                        <span className="font-black text-purple-600 dark:text-purple-400">
-                                                            KES {acc.loanEligibility.toLocaleString()}
-                                                        </span>
-                                                        <span className="block text-[8px] font-bold uppercase text-purple-500">
-                                                            Collateralized
-                                                        </span>
+                                                        {(() => {
+                                                            const elig = computeMemberLoanEligibility(acc.savingsBalance, acc.memberRole, loanSettings);
+                                                            if (elig.isEligible) {
+                                                                return (
+                                                                    <div>
+                                                                        <span className="font-black text-purple-600 dark:text-purple-400 font-mono">
+                                                                            KES {elig.maxLoanLimit.toLocaleString()}
+                                                                        </span>
+                                                                        <span className="block text-[8px] font-black uppercase text-emerald-600 dark:text-emerald-400">
+                                                                            {loanSettings.loanMultiplier}x Qualified
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            } else {
+                                                                return (
+                                                                    <div title={elig.reason}>
+                                                                        <span className="font-bold text-slate-400 font-mono text-xs line-through">
+                                                                            KES 0
+                                                                        </span>
+                                                                        <span className="block text-[8px] font-black uppercase text-rose-500">
+                                                                            &lt; KES {elig.minRequired.toLocaleString()} Min
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        })()}
                                                     </td>
 
                                                     <td className="px-4 py-3.5 text-center">
@@ -5794,25 +5975,31 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 <span>Cooperative Policy Engine</span>
                             </div>
                             <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight">
-                                SACCO Remittance & <span className="text-indigo-400">Late Penalty Rules</span>
+                                SACCO Remittance, Loans & <span className="text-indigo-400">Credit Policies</span>
                             </h2>
                             <p className="text-slate-300 text-sm max-w-2xl mt-2 font-medium">
-                                Configure daily vehicle remittance targets (Silver KES 1,500, Bronze KES 1,600, Gold KES 1,700), same-day cutoff time (10:00 PM), and automated tiered late penalty escalation (+100 for &gt;10:00 PM, +200 additional for &gt;10:00 AM next day).
+                                Configure daily vehicle remittance targets, cutoff deadlines & penalties, savings-backed loan limits (e.g. Driver minimum savings KES 10,000 for 3x loan eligibility), and cooperative interest rates.
                             </p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
                             <button
                                 type="button"
-                                onClick={handleResetRemittanceSettings}
+                                onClick={() => {
+                                    handleResetRemittanceSettings();
+                                    handleResetLoanSettings();
+                                }}
                                 className="flex items-center gap-2 px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-black text-xs uppercase tracking-wider backdrop-blur-sm border border-white/10 transition-all"
                             >
                                 <RefreshCw className="w-3.5 h-3.5" />
-                                Restore Defaults
+                                Restore All Defaults
                             </button>
                             <button
                                 type="button"
-                                onClick={handleSaveRemittanceSettings}
+                                onClick={() => {
+                                    handleSaveRemittanceSettings();
+                                    handleSaveLoanSettings();
+                                }}
                                 className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
                             >
                                 <CheckCircle2 className="w-4 h-4" />
@@ -6237,6 +6424,640 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         <span>Rule Outcome: {simResult.ruleMessage}</span>
                     </div>
                 </div>
+
+                {/* Section 4: SACCO Loan Limit & Savings Qualification Policy */}
+                <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 rounded-full text-[10px] font-black uppercase tracking-wider mb-2">
+                                <Wallet className="w-3.5 h-3.5" />
+                                <span>Savings-Backed Credit Policy</span>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+                                <PiggyBank className="w-5 h-5 text-purple-600" />
+                                Loan Limit Based on Member Savings
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium mt-1">
+                                Configure borrowing eligibility rules. Set the loan multiplier (e.g. 3x savings) and mandatory minimum qualifying savings threshold for drivers and members.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-3 cursor-pointer p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700">
+                                <input
+                                    type="checkbox"
+                                    checked={loanSettings.enabled}
+                                    onChange={e => setLoanSettings({ ...loanSettings, enabled: e.target.checked })}
+                                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 accent-purple-600"
+                                />
+                                <span className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                    Credit Facility Active
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Multiplier Card */}
+                        <div className="p-6 rounded-3xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/40 space-y-3">
+                            <div className="flex items-center gap-2.5 text-purple-700 dark:text-purple-300">
+                                <Percent className="w-5 h-5" />
+                                <h4 className="font-black text-sm uppercase tracking-wider">
+                                    Savings Loan Multiplier
+                                </h4>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                                Maximum loan amount a member can borrow relative to their qualifying savings balance.
+                            </p>
+                            <div className="relative pt-2">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-purple-500 font-mono">X</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    step="0.5"
+                                    value={loanSettings.loanMultiplier}
+                                    onChange={e => setLoanSettings({ ...loanSettings, loanMultiplier: parseFloat(e.target.value) || 3 })}
+                                    className="w-full pl-9 pr-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                                />
+                            </div>
+                            <div className="p-2.5 bg-purple-100/60 dark:bg-purple-900/30 rounded-xl text-[10px] font-bold text-purple-900 dark:text-purple-200">
+                                📊 e.g. With a <strong>{loanSettings.loanMultiplier}x</strong> ratio, a member with KES 20,000 savings qualifies for up to <strong>KES {(20000 * loanSettings.loanMultiplier).toLocaleString()}</strong>.
+                            </div>
+                        </div>
+
+                        {/* General Minimum Threshold Card */}
+                        <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                            <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
+                                <Shield className="w-5 h-5 text-indigo-600" />
+                                <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                    General Savings Threshold
+                                </h4>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                                Base qualifying floor across all members before credit assessment begins.
+                            </p>
+                            <div className="relative pt-2">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="500"
+                                    value={loanSettings.minSavingsThreshold}
+                                    onChange={e => setLoanSettings({ ...loanSettings, minSavingsThreshold: parseFloat(e.target.value) || 10000 })}
+                                    className="w-full pl-12 pr-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium">
+                                Fallback threshold applied if no role-specific override is set.
+                            </p>
+                        </div>
+
+                        {/* Minimum Tenure & Guarantors */}
+                        <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                            <div className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
+                                <Users className="w-5 h-5 text-emerald-600" />
+                                <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                    Vetting & Guarantorship
+                                </h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 pt-2">
+                                <div>
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                        Min Membership
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={loanSettings.minMembershipMonths}
+                                        onChange={e => setLoanSettings({ ...loanSettings, minMembershipMonths: parseInt(e.target.value) || 3 })}
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 outline-none text-center"
+                                    />
+                                    <span className="text-[9px] text-slate-400 block text-center mt-0.5">Months Active</span>
+                                </div>
+                                <div>
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                        Guarantors
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={loanSettings.guarantorsRequired}
+                                        onChange={e => setLoanSettings({ ...loanSettings, guarantorsRequired: parseInt(e.target.value) || 2 })}
+                                        className="w-full px-3 py-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 outline-none text-center"
+                                    />
+                                    <span className="text-[9px] text-slate-400 block text-center mt-0.5">Active Members</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Role-Specific Minimum Qualifying Savings Thresholds */}
+                    <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700/80 space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div>
+                                <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white flex items-center gap-2">
+                                    <Sliders className="w-4 h-4 text-purple-600" />
+                                    Role-Based Minimum Qualifying Savings Thresholds
+                                </h4>
+                                <p className="text-[11px] text-slate-400 font-medium">
+                                    Enforce customized qualifying savings balance floors depending on member role in the SACCO.
+                                </p>
+                            </div>
+                            <span className="px-3 py-1 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                                Strict Enforcement
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {/* PSV Driver Threshold */}
+                            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-500/40 space-y-2 shadow-sm relative">
+                                <span className="absolute -top-2.5 right-3 px-2 py-0.5 bg-emerald-500 text-white rounded-full text-[8px] font-black uppercase tracking-widest">
+                                    Primary Rule
+                                </span>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                        PSV Driver *
+                                    </span>
+                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Driver Fleet</span>
+                                </div>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="500"
+                                        value={loanSettings.roleMinSavingsThresholds.driver}
+                                        onChange={e => setLoanSettings({
+                                            ...loanSettings,
+                                            roleMinSavingsThresholds: {
+                                                ...loanSettings.roleMinSavingsThresholds,
+                                                driver: parseFloat(e.target.value) || 0
+                                            }
+                                        })}
+                                        className="w-full pl-11 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                                    Driver must save <strong>above KES {loanSettings.roleMinSavingsThresholds.driver.toLocaleString()}</strong> to qualify for credit.
+                                </p>
+                            </div>
+
+                            {/* Vehicle Owner Threshold */}
+                            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                        Vehicle Owner
+                                    </span>
+                                    <span className="text-[10px] font-bold text-indigo-500">Asset Holder</span>
+                                </div>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="500"
+                                        value={loanSettings.roleMinSavingsThresholds.owner}
+                                        onChange={e => setLoanSettings({
+                                            ...loanSettings,
+                                            roleMinSavingsThresholds: {
+                                                ...loanSettings.roleMinSavingsThresholds,
+                                                owner: parseFloat(e.target.value) || 0
+                                            }
+                                        })}
+                                        className="w-full pl-11 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                                    Owner must save <strong>above KES {loanSettings.roleMinSavingsThresholds.owner.toLocaleString()}</strong> to qualify.
+                                </p>
+                            </div>
+
+                            {/* Conductor Threshold */}
+                            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                        Conductor
+                                    </span>
+                                    <span className="text-[10px] font-bold text-amber-500">Fare Crew</span>
+                                </div>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="500"
+                                        value={loanSettings.roleMinSavingsThresholds.conductor}
+                                        onChange={e => setLoanSettings({
+                                            ...loanSettings,
+                                            roleMinSavingsThresholds: {
+                                                ...loanSettings.roleMinSavingsThresholds,
+                                                conductor: parseFloat(e.target.value) || 0
+                                            }
+                                        })}
+                                        className="w-full pl-11 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                                    Conductor must save <strong>above KES {loanSettings.roleMinSavingsThresholds.conductor.toLocaleString()}</strong> to qualify.
+                                </p>
+                            </div>
+
+                            {/* SACCO Staff Threshold */}
+                            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                        SACCO Staff
+                                    </span>
+                                    <span className="text-[10px] font-bold text-purple-500">Operations</span>
+                                </div>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="500"
+                                        value={loanSettings.roleMinSavingsThresholds.staff}
+                                        onChange={e => setLoanSettings({
+                                            ...loanSettings,
+                                            roleMinSavingsThresholds: {
+                                                ...loanSettings.roleMinSavingsThresholds,
+                                                staff: parseFloat(e.target.value) || 0
+                                            }
+                                        })}
+                                        className="w-full pl-11 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                                    Staff member must save <strong>above KES {loanSettings.roleMinSavingsThresholds.staff.toLocaleString()}</strong> to qualify.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 flex items-start gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <span>
+                                📌 <strong>Enforcement Mechanism:</strong> Any member whose cumulative savings balance is lower than their role threshold will automatically have a <strong>KES 0 borrowing limit</strong> displayed across the SACCO Savings Ledger, with an explicit shortfall indicator.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section 5: Interest Rate Settings & Repayment Tenure */}
+                <div className="bg-white dark:bg-slate-800 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-full text-[10px] font-black uppercase tracking-wider mb-2">
+                            <Percent className="w-3.5 h-3.5" />
+                            <span>Loan Pricing & Finance Charges</span>
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center gap-2.5">
+                            <Coins className="w-5 h-5 text-emerald-600" />
+                            SACCO Loan Interest Rates & Tenure Terms
+                        </h3>
+                        <p className="text-xs text-slate-400 font-medium mt-1">
+                            Define standard interest rate calculation methods (reducing balance vs flat rate), maximum repayment tenure, appraisal fees, and emergency loan rates.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Primary Interest Rate Card */}
+                        <div className="p-6 rounded-3xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                    Base Interest Rate *
+                                </h4>
+                                <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                                    {loanSettings.interestRatePeriod === 'annual' ? 'Per Annum' : 'Monthly'}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        value={loanSettings.interestRate}
+                                        onChange={e => setLoanSettings({ ...loanSettings, interestRate: parseFloat(e.target.value) || 0 })}
+                                        className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-sm text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                                    />
+                                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400">%</span>
+                                </div>
+
+                                <select
+                                    value={loanSettings.interestRatePeriod}
+                                    onChange={e => setLoanSettings({ ...loanSettings, interestRatePeriod: e.target.value as any })}
+                                    className="px-3 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="annual">p.a. (Annual)</option>
+                                    <option value="monthly">p.m. (Monthly)</option>
+                                </select>
+                            </div>
+
+                            <div className="p-2.5 bg-emerald-100/60 dark:bg-emerald-900/30 rounded-xl text-[10px] font-bold text-emerald-900 dark:text-emerald-200">
+                                📈 Equivalent to <strong>{loanSettings.interestRatePeriod === 'annual' ? (loanSettings.interestRate / 12).toFixed(2) : loanSettings.interestRate}%</strong> per month on outstanding loans.
+                            </div>
+                        </div>
+
+                        {/* Calculation Method Card */}
+                        <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                            <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                Interest Calculation Formula *
+                            </h4>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                                Choose how the cooperative levies monthly loan interest charges.
+                            </p>
+                            <select
+                                value={loanSettings.interestCalculationMethod}
+                                onChange={e => setLoanSettings({ ...loanSettings, interestCalculationMethod: e.target.value as any })}
+                                className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-black text-xs text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
+                                <option value="reducing_balance">Reducing Balance (SACCO Standard)</option>
+                                <option value="flat_rate">Flat Rate (Constant Principal)</option>
+                            </select>
+                            <p className="text-[10px] text-slate-400 font-medium">
+                                {loanSettings.interestCalculationMethod === 'reducing_balance'
+                                    ? '✔️ Reducing Balance charges interest only on the declining principal each month (fairer for borrowers).'
+                                    : 'ℹ️ Flat Rate calculates interest uniformly across the entire loan tenure.'}
+                            </p>
+                        </div>
+
+                        {/* Tenure & Processing Fee */}
+                        <div className="p-6 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                            <h4 className="font-black text-sm uppercase tracking-wider text-slate-900 dark:text-white">
+                                Max Tenure & Appraisal Fee
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                        Max Tenure
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max="60"
+                                            value={loanSettings.maxRepaymentMonths}
+                                            onChange={e => setLoanSettings({ ...loanSettings, maxRepaymentMonths: parseInt(e.target.value) || 12 })}
+                                            className="w-full pl-3 pr-8 py-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 outline-none font-mono"
+                                        />
+                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">Mo</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                        Appraisal Fee
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="10"
+                                            step="0.1"
+                                            value={loanSettings.processingFeePercent}
+                                            onChange={e => setLoanSettings({ ...loanSettings, processingFeePercent: parseFloat(e.target.value) || 0 })}
+                                            className="w-full pl-3 pr-7 py-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-800 dark:text-slate-200 outline-none font-mono"
+                                        />
+                                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 font-medium">
+                                Appraisal fee of {loanSettings.processingFeePercent}% deducted upon disbursement.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Section 6: Interactive Loan Eligibility & EMI Simulator */}
+                <div className="bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 text-white shadow-2xl space-y-6 border border-slate-800 relative overflow-hidden">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-[9px] font-black uppercase tracking-widest mb-2 border border-purple-500/30">
+                                <Calculator className="w-3.5 h-3.5" />
+                                <span>Credit Underwriting Sandbox</span>
+                            </div>
+                            <h3 className="text-xl font-black uppercase tracking-tight">
+                                Loan Eligibility & EMI Repayment Simulator
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Test any driver or member savings amount to verify loan qualification against the threshold (Driver min: KES {loanSettings.roleMinSavingsThresholds.driver.toLocaleString()}) and preview monthly installments (EMI).
+                            </p>
+                        </div>
+
+                        {/* Quick Presets */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimLoanRole('Driver');
+                                    setSimLoanSavings('8000');
+                                    setSimLoanAmount('20000');
+                                    setSimLoanTenureMonths(12);
+                                }}
+                                className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors border border-rose-500/30"
+                            >
+                                Driver KES 8,000 (Test &lt; 10K Fail)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimLoanRole('Driver');
+                                    setSimLoanSavings('15000');
+                                    setSimLoanAmount('40000');
+                                    setSimLoanTenureMonths(12);
+                                }}
+                                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors border border-emerald-500/30"
+                            >
+                                Driver KES 15,000 (Pass 3x = 45K)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimLoanRole('Driver');
+                                    setSimLoanSavings('25000');
+                                    setSimLoanAmount('75000');
+                                    setSimLoanTenureMonths(12);
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                            >
+                                Driver KES 25,000 (Pass 3x = 75K)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSimLoanRole('Owner');
+                                    setSimLoanSavings('60000');
+                                    setSimLoanAmount('150000');
+                                    setSimLoanTenureMonths(24);
+                                }}
+                                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors"
+                            >
+                                Owner KES 60,000 (Pass 3x = 180K)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Inputs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                Member Role
+                            </label>
+                            <select
+                                value={simLoanRole}
+                                onChange={e => setSimLoanRole(e.target.value as any)}
+                                className="w-full px-4 py-3 bg-slate-800 rounded-xl border border-slate-700 font-black text-xs text-white outline-none focus:ring-2 focus:ring-purple-500"
+                            >
+                                <option value="Driver">PSV Driver (Min: KES {loanSettings.roleMinSavingsThresholds.driver.toLocaleString()})</option>
+                                <option value="Owner">Vehicle Owner (Min: KES {loanSettings.roleMinSavingsThresholds.owner.toLocaleString()})</option>
+                                <option value="Conductor">Conductor (Min: KES {loanSettings.roleMinSavingsThresholds.conductor.toLocaleString()})</option>
+                                <option value="Staff">SACCO Staff (Min: KES {loanSettings.roleMinSavingsThresholds.staff.toLocaleString()})</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                Current Savings Balance (KES) *
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="500"
+                                    value={simLoanSavings}
+                                    onChange={e => setSimLoanSavings(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-800 rounded-xl border border-slate-700 font-black text-xs text-white outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                                Desired Borrowing Sum (KES) *
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-xs text-slate-400 font-mono">KES</span>
+                                <input
+                                    type="number"
+                                    min="1000"
+                                    step="1000"
+                                    value={simLoanAmount}
+                                    onChange={e => setSimLoanAmount(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-800 rounded-xl border border-slate-700 font-black text-xs text-white outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                                <span>Repayment Tenure</span>
+                                <span className="text-[9px] text-purple-400 font-mono">{simLoanTenureMonths} Months</span>
+                            </label>
+                            <input
+                                type="range"
+                                min="1"
+                                max={Math.max(24, loanSettings.maxRepaymentMonths)}
+                                value={simLoanTenureMonths}
+                                onChange={e => setSimLoanTenureMonths(parseInt(e.target.value) || 12)}
+                                className="w-full h-3 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500 mt-2"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Live Evaluation Box */}
+                    {(() => {
+                        const simSavingsVal = parseFloat(simLoanSavings) || 0;
+                        const simReqVal = parseFloat(simLoanAmount) || 0;
+                        const simElig = computeMemberLoanEligibility(simSavingsVal, simLoanRole, loanSettings);
+                        const effectivePrincipal = Math.min(simReqVal, simElig.maxLoanLimit);
+                        const simRepayment = calculateLoanRepayment(
+                            effectivePrincipal,
+                            simLoanTenureMonths,
+                            loanSettings.interestRate,
+                            loanSettings.interestCalculationMethod,
+                            loanSettings.interestRatePeriod
+                        );
+
+                        return (
+                            <div className="space-y-4 pt-1">
+                                {!simElig.isEligible ? (
+                                    <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-start gap-3">
+                                        <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                                        <div>
+                                            <h5 className="font-black text-xs uppercase tracking-wider text-rose-400">
+                                                DISQUALIFIED: Savings Below Minimum Threshold
+                                            </h5>
+                                            <p className="text-xs mt-1 leading-relaxed">
+                                                A <strong>{simLoanRole}</strong> must have cumulative savings strictly above <strong>KES {simElig.minRequired.toLocaleString()}</strong> to qualify for any loan. Current savings of <strong>KES {simSavingsVal.toLocaleString()}</strong> fall short by <strong className="underline font-bold">KES {simElig.shortfall.toLocaleString()}</strong>.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 flex items-start gap-3">
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                                        <div>
+                                            <h5 className="font-black text-xs uppercase tracking-wider text-emerald-400">
+                                                QUALIFIED FOR LOAN: Savings Threshold Attained
+                                            </h5>
+                                            <p className="text-xs mt-1 leading-relaxed">
+                                                {simLoanRole} savings of <strong>KES {simSavingsVal.toLocaleString()}</strong> exceed the KES {simElig.minRequired.toLocaleString()} qualification floor. The member qualifies for up to <strong>{loanSettings.loanMultiplier}x their savings</strong>, yielding a maximum credit ceiling of <strong>KES {simElig.maxLoanLimit.toLocaleString()}</strong>.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Results Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">1. Max Approved Ceiling</span>
+                                        <div className={`text-2xl font-black mt-1 font-mono ${simElig.isEligible ? 'text-purple-400' : 'text-slate-500 line-through'}`}>
+                                            KES {simElig.maxLoanLimit.toLocaleString()}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400">
+                                            {simElig.isEligible ? `${loanSettings.loanMultiplier}x Savings Multiplier` : 'Zero Borrowing Power'}
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">2. Monthly Installment (EMI)</span>
+                                        <div className="text-2xl font-black text-white mt-1 font-mono">
+                                            KES {simRepayment.monthlyInstallment.toLocaleString()}
+                                            <span className="text-xs font-normal text-slate-400 ml-1">/ mo</span>
+                                        </div>
+                                        <span className="text-[10px] text-slate-400">
+                                            Tenure: {simLoanTenureMonths} Months
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">3. Total Interest Levied</span>
+                                        <div className="text-2xl font-black text-emerald-400 mt-1 font-mono">
+                                            +KES {simRepayment.totalInterest.toLocaleString()}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400">
+                                            {loanSettings.interestRate}% {loanSettings.interestCalculationMethod === 'reducing_balance' ? 'Reducing Bal.' : 'Flat Rate'}
+                                        </span>
+                                    </div>
+
+                                    <div className="p-4 rounded-2xl bg-purple-600/30 border border-purple-500/40">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-300">4. Total Repayment Sum</span>
+                                        <div className="text-3xl font-black text-white mt-1 font-mono">
+                                            KES {simRepayment.totalRepayment.toLocaleString()}
+                                        </div>
+                                        <span className="text-[10px] text-purple-300 font-bold uppercase">
+                                            Principal: KES {effectivePrincipal.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
             </div>
         );
     };
@@ -6244,7 +7065,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const navTabs = [
         { id: 'sacco_savings', label: 'SACCO Savings', subLabel: 'Thrift & Sinking Funds', icon: PiggyBank, show: isSACCO || isSaccoSavings },
         { id: 'sacco_remittance', label: 'Daily Remittance', subLabel: 'Driver Check-off & Penalties', icon: Clock3, show: isSACCO || isSaccoSavings },
-        { id: 'sacco_settings', label: 'SACCO Settings', subLabel: 'Remittance Tiers & Cutoffs', icon: Sliders, show: isSACCO || isSaccoSavings },
+        { id: 'sacco_settings', label: 'SACCO Settings', subLabel: 'Remittance Tiers, Loans & Cutoffs', icon: Sliders, show: isSACCO || isSaccoSavings },
         { id: 'sacco', label: 'SACCO Hub', subLabel: 'Member Registry & Licences', icon: Landmark, show: isSACCO || isSaccoSavings },
         { id: 'fleet', label: isSACCO ? 'Vehicle Registry' : isEduTransport ? 'Bus Fleet' : 'Fleet Control', subLabel: 'Fleet Capacity & Live Status', icon: Truck, show: true },
         { id: 'vehicle_reg', label: 'Vehicle Registration', subLabel: 'Add & Onboard Vehicles', icon: Truck, show: true },
