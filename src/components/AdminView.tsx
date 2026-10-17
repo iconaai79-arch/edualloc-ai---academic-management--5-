@@ -732,13 +732,25 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [props.currentInstitution, institutionType]);
 
     const isLogistics = useMemo(() => {
-        return props.currentInstitution?.category === 'Logistics' || 
-               institutionType === 'Logistics' || 
-               props.currentInstitution?.category === 'Educational Transport' || 
-               props.currentInstitution?.category === 'Staff Shuttle' || 
-               props.currentInstitution?.category?.includes('Public Transport') ||
-               props.currentInstitution?.category?.includes('SACCO');
-    }, [props.currentInstitution, institutionType]);
+        const cat = props.currentInstitution?.category || '';
+        const type = institutionType || '';
+        const subType = businessSubType || '';
+
+        // Explicitly guard against agricultural / farmer cooperatives
+        if (type === 'Cooperative' || cat === 'Cooperative' || subType === 'Cooperative') {
+            return false;
+        }
+
+        return cat === 'Logistics' || 
+               type === 'Logistics' || 
+               subType === 'Logistics' ||
+               cat === 'Educational Transport' || 
+               cat === 'Staff Shuttle' || 
+               cat.includes('Public Transport') ||
+               cat === 'SACCO Savings' ||
+               cat === 'Transport SACCO & Savings' ||
+               (type === 'Logistics' && (cat.includes('SACCO') || cat.includes('Savings') || subType.includes('SACCO') || subType.includes('Savings')));
+    }, [props.currentInstitution, institutionType, businessSubType]);
 
     const isCommunity = useMemo(() => {
         const cat = props.currentInstitution?.category;
@@ -826,6 +838,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     }, [props.currentInstitution]);
 
     const isCoop = useMemo(() => {
+        // Logistics and Transport SACCOs must never be misclassified as agricultural farmer cooperatives
+        if (isLogistics) return false;
+
         const type = props.currentInstitution?.institutionType;
         const subType = props.currentInstitution?.businessSubType?.toLowerCase() || '';
         const name = props.currentInstitution?.name?.toLowerCase() || '';
@@ -833,16 +848,18 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         
         const isCoopRole = role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin';
         const isCoopType = (type as any) === 'Cooperative';
-        const hasCoopKeyword = ['coop', 'dairy', 'tea', 'coffee', 'milk', 'agri', 'farm', 'produce', 'sacco', 'agrovet'].some(k => subType.includes(k) || name.includes(k));
+        const hasCoopKeyword = ['coop', 'dairy', 'tea', 'coffee', 'milk', 'agri', 'farm', 'produce', 'agrovet'].some(k => subType.includes(k) || name.includes(k)) || (!isLogistics && (subType.includes('sacco') || name.includes('sacco')));
         const isCoopTab = ['farmers', 'collections', 'riders', 'payouts', 'finances', 'approvals'].includes(activeTab);
         
         return isCoopType || hasCoopKeyword || isCoopRole || isCoopTab;
-    }, [props.currentInstitution, props.activeRole, props.currentUser?.role, activeTab]);
+    }, [props.currentInstitution, props.activeRole, props.currentUser?.role, activeTab, isLogistics]);
 
     useEffect(() => {
         if (!hasSetDefaultTab && props.currentUser?.role) {
             const role = props.activeRole || props.currentUser.role;
-            if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin' || isCoop) {
+            if (isLogistics || role === 'transport_admin') {
+                setActiveTab('logistics');
+            } else if (role === 'cooperative_manager' || role === 'coop_chairman' || role === 'coop_admin' || isCoop) {
                 setActiveTab('farmers');
             } else if (role === 'agrovet_admin' || institutionType === 'Agrovet' || businessSubType === 'Agrovet') {
                 setActiveTab('agrovet');
@@ -864,8 +881,6 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveScope('ds');
             } else if (isLaw || role === 'legal_admin') {
                 setActiveTab('law');
-            } else if (isLogistics || role === 'transport_admin') {
-                setActiveTab('logistics');
             } else if (role === 'transport_assistant') {
                 setActiveTab('transport');
             } else if (isCommunity || institutionType === 'Political Campaign' || role === 'community_admin' || role === 'family_admin') {
@@ -887,7 +902,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             }
             setHasSetDefaultTab(true);
         }
-    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution, isChurch]);
+    }, [props.currentUser?.role, props.activeRole, hasSetDefaultTab, props.currentInstitution, isChurch, isLogistics, isCoop]);
 
     useEffect(() => {
         if (props.activeRole && hasSetDefaultTab) {
@@ -1131,6 +1146,24 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 { id: 'users', label: 'Millers & Staff', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
                 { id: 'comms', label: 'Communication', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
                 { id: 'reports', label: 'Milling Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
+            ];
+        }
+
+        if (isLogistics && !isEdu && !isSchool) {
+            const isSavings = props.currentInstitution?.category === 'SACCO Savings' || 
+                              props.currentInstitution?.category === 'Transport SACCO & Savings' ||
+                              props.currentInstitution?.category?.toLowerCase().includes('savings');
+            return [
+                { 
+                    id: 'logistics', 
+                    label: isSavings ? 'SACCO Savings Hub' : 'Logistics Hub', 
+                    icon: <TruckIcon className="w-5 h-5 mr-2" /> 
+                },
+                { id: 'transport', label: 'Fleet Registry', icon: <MapPinIcon className="w-5 h-5 mr-2" /> },
+                { id: 'users', label: 'Drivers & Staff', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
+                { id: 'comms', label: 'Broadcaster / SMS', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
+                ...(isModuleActive('fiscal_guard') ? [{ id: 'fiscal_guard', label: 'FiscalGuard AI', icon: <ShieldIcon className="w-5 h-5 mr-2" /> }] : []),
+                { id: 'reports', label: 'Analytics & Reports', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
                 { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
         }
@@ -1241,7 +1274,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'users') {
                 if (props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session')) return true;
                 if (isAutoMarket) return ['director', 'finance', 'finance_officer', 'admin'].includes(roleToUse || '');
-                if (isCoop || isCommunity || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS || isInvoicing) return true;
+                if (isCoop || isCommunity || isLogistics || institutionType === 'SACCO' || institutionType === 'Agrovet' || isDS || isInvoicing) return true;
                 return isEdu && !isDS;
             }
 
@@ -2632,7 +2665,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 ) : (
                     <>
-                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && !isLaw && !isInvoicing && activeScope !== 'ds' && activeScope !== 'bc' && (
+                {activeTab === 'dashboard' && isLogistics && !isEdu && !isSchool && (
+                    <LogisticsManager 
+                        currentInstitution={props.currentInstitution!}
+                        users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
+                        courses={props.courses || []}
+                    />
+                )}
+                {activeTab === 'dashboard' && !isCoop && !isDS && !isBC && !isAutoMarket && !isCampaign && !isLaw && !isInvoicing && !isLogistics && activeScope !== 'ds' && activeScope !== 'bc' && (
                     <div className="space-y-6">
                         {isCampaign ? (
                             <div className="animate-fade-in">
@@ -3432,7 +3472,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         mpesaConfig={props.companyDetails?.mpesaConfig}
                         smsConfig={props.smsConfig}
                         onRefreshData={props.onRefreshData}
-                        moduleContext={(isCoop ? 'cooperative' : (isAutoMarket ? 'auto_marketplace' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : 'school'))) as any}
+                        moduleContext={(isCoop ? 'cooperative' : (isAutoMarket ? 'auto_marketplace' : (isRetailAgency ? 'agrovet' : isChurch ? 'church' : isLogistics ? 'logistics' : 'school'))) as any}
                         courses={props.courses || []}
                     />
                 )}
