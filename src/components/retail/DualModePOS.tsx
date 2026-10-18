@@ -284,10 +284,22 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             }).catch(() => {});
         }
 
-        // Auto-migration for new schema fields in retail_sales (Safe execution)
+        // Auto-migration for new schema fields in retail_sales & conversion of retail IDs to TEXT (Safe execution)
         const migrations = [
             "ALTER TABLE public.retail_sales ADD COLUMN IF NOT EXISTS signature text;",
-            "ALTER TABLE public.retail_sales ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;"
+            "ALTER TABLE public.retail_sales ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;",
+            `DO $$ BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'retail_customers' AND column_name = 'id' AND data_type = 'uuid') THEN
+                    ALTER TABLE public.retail_sales DROP CONSTRAINT IF EXISTS retail_sales_customer_id_fkey CASCADE;
+                    ALTER TABLE public.retail_customers ALTER COLUMN id TYPE TEXT USING id::text;
+                    ALTER TABLE public.retail_customers ALTER COLUMN id SET DEFAULT gen_random_uuid()::text;
+                    ALTER TABLE public.retail_sales ALTER COLUMN customer_id TYPE TEXT USING customer_id::text;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'retail_sales' AND column_name = 'customer_id' AND data_type = 'uuid') THEN
+                    ALTER TABLE public.retail_sales DROP CONSTRAINT IF EXISTS retail_sales_customer_id_fkey CASCADE;
+                    ALTER TABLE public.retail_sales ALTER COLUMN customer_id TYPE TEXT USING customer_id::text;
+                END IF;
+            END $$;`
         ];
         migrations.forEach(sql => {
             apiService.runMigration(sql).catch(() => {
@@ -770,30 +782,44 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         setIsProcessing(true);
         try {
             // CRM Logic: Save or Update Customer and Loyalty (bypassed in education mode)
-            let finalCustomerId = selectedCustomer?.id;
+            const cleanPhone = (p?: string) => String(p || '').replace(/[^\d]/g, '');
+            const targetPhone = cleanPhone(customerInfo.phone) || cleanPhone(stkPhone);
+
+            const matchedExisting = selectedCustomer || (targetPhone && targetPhone.length >= 7
+                ? allCustomers.find(c => cleanPhone(c.phoneNumber) === targetPhone)
+                : null);
+
+            let finalCustomerId = matchedExisting?.id;
             const loyaltyPointsEarned = Math.floor(finalPayableAmount / 100);
 
-            if (!isEducation && (customerInfo.name || customerInfo.phone || stkPhone)) {
+            if (!isEducation && (customerInfo.name || targetPhone)) {
                 try {
+                    const newGeneratedUuid = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                        ? crypto.randomUUID()
+                        : undefined;
+
                     const customerData: any = {
                         institutionId,
-                        name: customerInfo.name || 'Walk-in Customer',
-                        phoneNumber: customerInfo.phone || stkPhone,
-                        email: customerInfo.email,
-                        totalSpent: (selectedCustomer?.totalSpent || 0) + finalPayableAmount,
-                        loyaltyPoints: (selectedCustomer?.loyaltyPoints || 0) + loyaltyPointsEarned,
+                        name: customerInfo.name || matchedExisting?.name || 'Walk-in Customer',
+                        phoneNumber: customerInfo.phone || stkPhone || matchedExisting?.phoneNumber,
+                        email: customerInfo.email || matchedExisting?.email,
+                        totalSpent: (matchedExisting?.totalSpent || 0) + finalPayableAmount,
+                        loyaltyPoints: (matchedExisting?.loyaltyPoints || 0) + loyaltyPointsEarned,
                         updatedAt: new Date().toISOString()
                     };
 
-                    if (selectedCustomer) {
-                        customerData.id = selectedCustomer.id;
+                    if (matchedExisting) {
+                        customerData.id = matchedExisting.id;
                     } else {
+                        if (newGeneratedUuid) customerData.id = newGeneratedUuid;
                         customerData.createdAt = new Date().toISOString();
                     }
 
                     const savedCustomer: any = await apiService.saveModuleRecord('retail_customers', customerData);
                     if (savedCustomer && savedCustomer.id) {
                         finalCustomerId = savedCustomer.id;
+                    } else if (newGeneratedUuid && !finalCustomerId) {
+                        finalCustomerId = newGeneratedUuid;
                     }
                 } catch (crmErr) {
                     console.error("CRM/Customer save failed, proceeding with sale only:", crmErr);
@@ -823,11 +849,11 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 institutionId,
                 storeId: targetStoreId,
                 agentId: isVanSale ? currentUser.id : undefined,
-                customerId: finalCustomerId,
+                customerId: finalCustomerId || null,
                 totalAmount: finalPayableAmount,
                 paymentMethod: isEducation ? 'issuance' : method,
-                customerName: isEducation ? (selectedStudent?.name || customerInfo.name) : (customerInfo.name || 'Retail Customer'),
-                customerPhone: isEducation ? (selectedStudent?.phoneNumber || customerInfo.phone) : (customerInfo.phone || stkPhone),
+                customerName: isEducation ? (selectedStudent?.name || customerInfo.name) : (customerInfo.name || matchedExisting?.name || 'Retail Customer'),
+                customerPhone: isEducation ? (selectedStudent?.phoneNumber || customerInfo.phone) : (customerInfo.phone || stkPhone || matchedExisting?.phoneNumber),
                 customerEmail: isEducation ? (selectedStudent?.email || customerInfo.email) : customerInfo.email,
                 items: cart.map(c => ({
                     itemId: c.item.id,

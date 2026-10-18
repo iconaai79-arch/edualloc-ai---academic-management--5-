@@ -3154,7 +3154,8 @@ export const apiService = {
                 'staff_attendance_daily', 'student_attendance',
                 'zkteco_commands', 'zkteco_attendance_raw',
                 'sms_logs', 'sms_outbox', 'sms_gateway_logs', 'integration_logs',
-                'audit_logs', 'activity_logs'
+                'audit_logs', 'activity_logs',
+                'retail_customers'
             ];
 
             const isValidUuid = (val: any) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -3299,6 +3300,36 @@ export const apiService = {
                 delete item.updatedAt;
                 delete item.created_at;
                 delete item.createdAt;
+            }
+
+            if (module === 'retail_customers') {
+                const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                if (!item.id || (!isValidUUID(item.id) && String(item.id).startsWith('ret_'))) {
+                    item.id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                        ? crypto.randomUUID()
+                        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                            const r = Math.random() * 16 | 0;
+                            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                        });
+                }
+                if (item.phoneNumber && !item.phone_number) item.phone_number = item.phoneNumber;
+                if (item.totalSpent !== undefined && item.total_spent === undefined) item.total_spent = item.totalSpent;
+                if (item.loyaltyPoints !== undefined && item.loyalty_points === undefined) item.loyalty_points = item.loyaltyPoints;
+                delete item.phoneNumber;
+                delete item.totalSpent;
+                delete item.loyaltyPoints;
+            }
+
+            if (module === 'retail_sales') {
+                const custId = item.customer_id ?? item.customerId;
+                if (custId !== undefined) {
+                    if (custId === '' || custId === 'null' || custId === 'undefined') {
+                        item.customer_id = null;
+                    } else {
+                        item.customer_id = custId;
+                    }
+                }
+                delete item.customerId;
             }
 
             if (module === 'sms_logs') {

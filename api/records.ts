@@ -4118,6 +4118,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRouterProfile) : cleanRouterProfile(currentPayload);
             }
 
+            if (moduleName === 'retail_customers') {
+                const cleanRetailCustomer = (cust: any) => {
+                    if (!cust || typeof cust !== 'object') return cust;
+                    const copy = { ...cust };
+                    const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+                    if (!copy.id || (!isValidUUID(copy.id) && String(copy.id).startsWith('ret_'))) {
+                        copy.id = randomUUID();
+                    }
+                    if (copy.phoneNumber && !copy.phone_number) copy.phone_number = copy.phoneNumber;
+                    if (copy.totalSpent !== undefined && copy.total_spent === undefined) copy.total_spent = copy.totalSpent;
+                    if (copy.loyaltyPoints !== undefined && copy.loyalty_points === undefined) copy.loyalty_points = copy.loyaltyPoints;
+                    delete copy.phoneNumber;
+                    delete copy.totalSpent;
+                    delete copy.loyaltyPoints;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRetailCustomer) : cleanRetailCustomer(currentPayload);
+            }
+
+            if (moduleName === 'retail_sales') {
+                const cleanRetailSale = (sale: any) => {
+                    if (!sale || typeof sale !== 'object') return sale;
+                    const copy = { ...sale };
+                    const custId = copy.customer_id ?? copy.customerId;
+                    if (custId !== undefined) {
+                        if (custId === '' || custId === 'null' || custId === 'undefined') {
+                            copy.customer_id = null;
+                        } else {
+                            copy.customer_id = custId;
+                        }
+                    }
+                    delete copy.customerId;
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRetailSale) : cleanRetailSale(currentPayload);
+            }
+
             if (moduleName === 'sms_logs') {
                 const cleanSmsLog = (log: any) => {
                     if (!log || typeof log !== 'object') return log;
@@ -7227,7 +7264,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             copy.id = randomUUID();
                         }
-                        ['institution_id', 'institutionId', 'sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id'].forEach(k => {
+                        ['institution_id', 'institutionId', 'sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id', 'customer_id', 'customerId'].forEach(k => {
                             if (k in copy && copy[k] && (!isValidUUID(copy[k]) || copy[k] === offendingVal)) {
                                 if (tableSupportsMetadata) {
                                     const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
