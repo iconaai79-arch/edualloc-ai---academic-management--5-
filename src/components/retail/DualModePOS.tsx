@@ -588,18 +588,24 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
     const checkKcbStatusOnce = async (checkoutRequestId: string): Promise<boolean> => {
         try {
-            const statusRes = await apiService.checkPaymentStatus('kcb', checkoutRequestId);
+            const statusRes = await apiService.checkPaymentStatus('kcb', checkoutRequestId, { institutionId });
             const statusStr = String(statusRes?.status || '').toLowerCase();
             const resCode = String(statusRes?.resultCode || statusRes?.ResultCode || '');
 
-            if (statusRes?.success && (statusStr === 'completed' || statusStr === 'success' || resCode === '0' || resCode === '00')) {
+            const isPending = statusStr === 'pending' || statusStr === 'processing' || statusStr === 'in-progress' || statusStr === 'queued' || statusStr === '';
+            const isCompleted = !isPending && statusRes?.success && (
+                statusStr === 'completed' || statusStr === 'success' ||
+                ((resCode === '0' || resCode === '00') && statusStr !== '')
+            );
+
+            if (isCompleted) {
                 stopStkPolling();
                 setStkState('completed');
                 setStkStatusMessage("Payment verified successfully via KCB Open Banking!");
                 const mpesaRef = statusRes.transactionId || statusRes.mpesaReceiptNumber || checkoutRequestId;
                 await completeFinalSale('kcb_stk', mpesaRef);
                 return true;
-            } else if (statusStr === 'failed' || (statusStr !== 'pending' && statusStr !== 'processing' && statusStr !== '' && (resCode === '1032' || resCode === '1031'))) {
+            } else if (statusStr === 'failed' || (!isPending && (resCode === '1032' || resCode === '1031'))) {
                 stopStkPolling();
                 setStkState('failed');
                 setStkErrorMessage(statusRes?.message || statusRes?.resultDesc || "Transaction was cancelled or declined on customer handset.");

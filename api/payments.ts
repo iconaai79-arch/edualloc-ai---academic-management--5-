@@ -957,49 +957,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Route 3: KCB Query Status
     if (subRoute === 'kcb-query') {
-        const kcbConfig = req.body.config || {};
         const checkoutRequestId = req.body.checkoutRequestId || '';
-        const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
-        const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
-        const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
-        const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
-        const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
-        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
-        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
-        let finalOrgShortCode = '522533';
-        if (environment === 'sandbox') {
-            finalOrgShortCode = '522533';
-        } else {
-            if (configShortCode) {
-                finalOrgShortCode = configShortCode;
-            }
-        }
-        const shortCode = finalOrgShortCode;
 
-        const isKcbQueryDemo = environment === 'mock' ||
-                               environment === 'demo' ||
-                               !appKey || !appSecret || 
-                               checkoutRequestId.includes('Mock') ||
-                               appKey === 'kcb_demo_key';
-
-        if (isKcbQueryDemo) {
-            console.log('[KCB Query] Mock Mode Active.');
-            return res.status(200).json({
-                success: true,
-                status: 'COMPLETED',
-                message: 'Transaction completed successfully (Mock sandbox status).',
-                mpesaReceiptNumber: null
-            });
-        }
-
-        // --- DB Fast Path: Check if IPN/webhook already confirmed the transaction ---
-        // This avoids full KCB API round-trip when the callback has already processed payment.
+        // --- DB Fast Path: Check if callback/IPN already confirmed or failed the transaction ---
         try {
             const supabaseDb = getSupabase();
             if (supabaseDb && checkoutRequestId) {
                 const { data: txnRows } = await supabaseDb
                     .from('mpesa_transactions')
-                    .select('status, transaction_id, mpesa_receipt')
+                    .select('status, transaction_id, mpesa_receipt, institution_id')
                     .or(`checkout_request_id.eq.${checkoutRequestId},transaction_id.eq.${checkoutRequestId}`)
                     .limit(5);
 
@@ -1018,14 +984,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             mpesaReceiptNumber: receipt
                         });
                     }
-                    // If record exists but still pending, return PENDING so frontend keeps polling
-                    const pendingTxn = txnRows.find((t: any) => {
+
+                    const failedTxn = txnRows.find((t: any) => {
                         const s = String(t.status || '').toLowerCase();
-                        return s === 'pending' || s === 'processing';
+                        return s === 'failed' || s === 'cancelled' || s === 'declined';
                     });
-                    if (pendingTxn) {
-                        console.log(`[KCB Query] DB fast path: transaction still pending, will query KCB API.`);
-                        // Fall through to KCB API query below
+                    if (failedTxn) {
+                        return res.status(200).json({
+                            success: false,
+                            status: 'FAILED',
+                            message: 'Transaction was cancelled or declined on handset.',
+                            mpesaReceiptNumber: null
+                        });
                     }
                 }
             }
@@ -1033,6 +1003,92 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             console.warn('[KCB Query] DB fast path error (non-fatal, will query KCB API):', dbFastPathErr);
         }
         // --- End DB Fast Path ---
+
+        let kcbConfig = { ...(req.body.config || {}) };
+        const institutionId = req.body.institutionId || req.body.institution_id || req.query.institutionId;
+
+        // Load institution kcb_config if not provided in body
+        if ((!kcbConfig.appKey && !kcbConfig.app_key) && institutionId && institutionId !== 'GLOBAL' && institutionId !== 'SYSTEM') {
+            try {
+                const supabaseDb = getSupabase();
+                if (supabaseDb) {
+                    const { data: instData } = await supabaseDb
+                        .from('institutions')
+                        .select('kcb_config')
+                        .eq('id', institutionId)
+                        .maybeSingle();
+                    if (instData?.kcb_config) {
+                        const parsed = typeof instData.kcb_config === 'string' ? JSON.parse(instData.kcb_config) : instData.kcb_config;
+                        kcbConfig = { ...parsed, ...kcbConfig };
+                    }
+                }
+            } catch (instErr) {
+                console.warn('[KCB Query] Error fetching institution kcb_config:', instErr);
+            }
+        }
+
+        // Fallback to system_settings if still missing
+        if (!kcbConfig.appKey && !kcbConfig.app_key) {
+            try {
+                const supabaseDb = getSupabase();
+                if (supabaseDb) {
+                    const { data: sData } = await supabaseDb
+                        .from('system_settings')
+                        .select('data')
+                        .eq('id', 1)
+                        .maybeSingle();
+                    if (sData?.data?.kcb_config || sData?.data?.kcbConfig) {
+                        const sc = sData.data.kcb_config || sData.data.kcbConfig;
+                        const parsed = typeof sc === 'string' ? JSON.parse(sc) : sc;
+                        kcbConfig = { ...parsed, ...kcbConfig };
+                    }
+                }
+            } catch (sysErr) {
+                console.warn('[KCB Query] Error fetching system_settings kcb_config:', sysErr);
+            }
+        }
+
+        const appKey = String(kcbConfig.appKey || kcbConfig.app_key || '').trim();
+        const appSecret = String(kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
+        const baseUrl = String(kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
+        const queryUrl = String(kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
+        const configShortCode = String(kcbConfig.shortCode || kcbConfig.short_code || '').trim();
+        const passkey = String(kcbConfig.passkey || kcbConfig.pass_key || '').trim();
+        const environment = String(kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
+        let finalOrgShortCode = '522533';
+        if (environment === 'sandbox') {
+            finalOrgShortCode = '522533';
+        } else {
+            if (configShortCode) {
+                finalOrgShortCode = configShortCode;
+            }
+        }
+        const shortCode = finalOrgShortCode;
+
+        const isExplicitMock = environment === 'mock' ||
+                               checkoutRequestId.startsWith('KCB_CO_Mock_') ||
+                               appKey === 'kcb_demo_key';
+
+        if (isExplicitMock) {
+            console.log('[KCB Query] Mock Mode Active.');
+            return res.status(200).json({
+                success: true,
+                status: 'COMPLETED',
+                message: 'Transaction completed successfully (Mock sandbox status).',
+                mpesaReceiptNumber: null
+            });
+        }
+
+        if (!appKey || !appSecret) {
+            // Cannot query live gateway without credentials; keep polling DB for callback
+            console.log(`[KCB Query] No API credentials available for CRID: ${checkoutRequestId}. Returning PENDING.`);
+            return res.status(200).json({
+                success: true,
+                status: 'PENDING',
+                message: 'Waiting for customer authorization on phone or callback confirmation.',
+                mpesaReceiptNumber: null
+            });
+        }
 
         try {
             const authHeaderVal = Buffer.from(`${appKey}:${appSecret}`).toString('base64');

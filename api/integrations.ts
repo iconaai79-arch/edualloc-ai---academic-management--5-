@@ -3756,14 +3756,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     finalStatus = 'completed';
                 }
             } else if (provider === 'kcb') {
-                const kcbConfig = bodyConfig || settings?.kcb_config || settings?.kcbConfig || {};
-                const appKey = (kcbConfig.appKey || '').trim();
-                const appSecret = (kcbConfig.appSecret || '').trim();
-                const baseUrl = (kcbConfig.baseUrl || '').trim();
-                const queryUrl = (kcbConfig.queryUrl || '').trim();
+                let kcbConfig = { ...(bodyConfig || settings?.kcb_config || settings?.kcbConfig || {}) };
+
+                // If institutionId is provided or recorded in transaction, load institution's kcb_config
+                const instId = getParam('institutionId') || getParam('institution_id') || bodyConfig?.institutionId || transaction?.institution_id;
+                if ((!kcbConfig.appKey && !kcbConfig.app_key) && instId && instId !== 'GLOBAL' && instId !== 'SYSTEM') {
+                    try {
+                        const { data: instRow } = await supabase
+                            .from('institutions')
+                            .select('kcb_config')
+                            .eq('id', instId)
+                            .maybeSingle();
+                        if (instRow?.kcb_config) {
+                            const parsed = typeof instRow.kcb_config === 'string' ? JSON.parse(instRow.kcb_config) : instRow.kcb_config;
+                            kcbConfig = { ...parsed, ...kcbConfig };
+                        }
+                    } catch (e) {
+                        console.warn('[QueryStatus KCB] Error fetching institution kcb_config:', e);
+                    }
+                }
+
+                // Fallback to system_settings if still missing
+                if (!kcbConfig.appKey && !kcbConfig.app_key) {
+                    try {
+                        const { data: sysRow } = await supabase
+                            .from('system_settings')
+                            .select('data')
+                            .eq('id', 1)
+                            .maybeSingle();
+                        if (sysRow?.data?.kcb_config || sysRow?.data?.kcbConfig) {
+                            const sc = sysRow.data.kcb_config || sysRow.data.kcbConfig;
+                            const parsed = typeof sc === 'string' ? JSON.parse(sc) : sc;
+                            kcbConfig = { ...parsed, ...kcbConfig };
+                        }
+                    } catch (e) {
+                        console.warn('[QueryStatus KCB] Error fetching system_settings kcb_config:', e);
+                    }
+                }
+
+                const appKey = (kcbConfig.appKey || kcbConfig.app_key || '').trim();
+                const appSecret = (kcbConfig.appSecret || kcbConfig.app_secret || '').trim();
+                const baseUrl = (kcbConfig.baseUrl || kcbConfig.base_url || '').trim();
+                const queryUrl = (kcbConfig.queryUrl || kcbConfig.query_url || '').trim();
                 const configShortCode = (kcbConfig.shortCode || kcbConfig.short_code || '').trim();
                 const passkey = (kcbConfig.passkey || kcbConfig.pass_key || '').trim();
-                const environment = (kcbConfig.environment || 'sandbox').trim();
+                const environment = (kcbConfig.environment || kcbConfig.env || 'sandbox').trim();
 
                 let finalOrgShortCode = '522533';
                 if (environment === 'sandbox') {
@@ -3780,19 +3817,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
                 const shortCode = finalOrgShortCode;
 
-                const isKcbQueryDemo = environment === 'mock' ||
-                                       environment === 'demo' ||
-                                       !appKey || !appSecret || 
-                                       checkoutRequestId.includes('Mock') ||
+                const isExplicitMock = environment === 'mock' ||
+                                       checkoutRequestId.startsWith('KCB_CO_Mock_') ||
                                        appKey === 'kcb_demo_key';
 
-                if (isKcbQueryDemo) {
+                if (isExplicitMock) {
                     finalStatus = 'completed';
                     externalData = { 
                         status: 'COMPLETED', 
-                        message: 'Transaction completed successfully (Mock sandbox status).',
+                        message: 'Transaction completed successfully (Mock test status).',
                         ResultCode: '0',
                         ResultDesc: 'Transaction checked successfully.'
+                    };
+                } else if (!appKey || !appSecret) {
+                    // Cannot query KCB API without credentials. Maintain pending status and wait for callback webhook.
+                    console.log(`[KCB Query] No API credentials available to query gateway for CRID: ${checkoutRequestId}. Awaiting bank callback.`);
+                    if (transaction && (transaction.status === 'completed' || transaction.status === 'success')) {
+                        finalStatus = 'completed';
+                    } else if (transaction && transaction.status === 'failed') {
+                        finalStatus = 'failed';
+                    } else {
+                        finalStatus = 'pending';
+                    }
+                    externalData = {
+                        status: finalStatus.toUpperCase(),
+                        message: finalStatus === 'pending'
+                            ? 'Awaiting customer authorization on phone or callback confirmation...'
+                            : (finalStatus === 'completed' ? 'Payment confirmed.' : 'Payment failed.')
                     };
                 } else {
                     try {
