@@ -51,6 +51,7 @@ import {
     Wallet,
     Coins,
     CreditCard,
+    Banknote,
     ArrowDownRight,
     ArrowUpRight,
     Percent,
