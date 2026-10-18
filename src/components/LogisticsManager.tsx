@@ -172,9 +172,12 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [isSavingBranding, setIsSavingBranding] = useState(false);
     const [previewDocType, setPreviewDocType] = useState<'waybill' | 'remittance' | 'permit'>('waybill');
     const [searchTerm, setSearchTerm] = useState('');
-    const [reportSubTab, setReportSubTab] = useState<'billing' | 'routes' | 'fleet' | 'trips' | 'alerts'>('billing');
+    const [reportSubTab, setReportSubTab] = useState<'sacco_savings' | 'sacco_remittance' | 'sacco_sinking_fund' | 'sacco_welfare' | 'billing' | 'routes' | 'fleet' | 'trips' | 'alerts'>(
+        (isSACCO || isSaccoSavings) ? 'sacco_savings' : 'billing'
+    );
     const [reportSearch, setReportSearch] = useState('');
     const [reportStatusFilter, setReportStatusFilter] = useState('ALL');
+    const [reportDateFilter, setReportDateFilter] = useState(new Date().toISOString().split('T')[0]);
 
     // Courses and Enrollments state for comprehensive class & stream resolving
     const [loadedCourses, setLoadedCourses] = useState<Course[]>(initialCourses);
@@ -5249,11 +5252,46 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     );
 
     const renderReports = () => {
+        // SACCO Aggregations
+        const totalSavingsOnly = saccoAccounts.reduce((sum, acc) => sum + (acc.savingsBalance || 0), 0);
+        const totalShareCapital = saccoAccounts.reduce((sum, acc) => sum + (acc.shareCapital || 0), 0);
+        const totalSinkingFund = saccoAccounts.reduce((sum, acc) => sum + (acc.sinkingFundBalance || 0), 0);
+        const totalWelfare = saccoAccounts.reduce((sum, acc) => sum + (acc.welfareBalance || 0), 0);
+        const totalConsolidatedSavings = totalSavingsOnly + totalShareCapital;
+
+        const dateTargetRemittanceRecords = remittanceRecords.filter(r => !reportDateFilter || r.scheduledDate === reportDateFilter);
+        const totalRemittanceTarget = dateTargetRemittanceRecords.reduce((sum, r) => sum + (r.targetAmount || 0), 0);
+        const totalRemittancePaid = dateTargetRemittanceRecords.reduce((sum, r) => sum + (r.paidAmount || 0), 0);
+        const totalRemittanceShortfall = dateTargetRemittanceRecords.reduce((sum, r) => sum + (r.shortfall || 0), 0);
+        const totalRemittancePenalty = dateTargetRemittanceRecords.reduce((sum, r) => sum + (r.penaltyAmount || 0), 0);
+        const remittanceComplianceRate = totalRemittanceTarget > 0 ? Math.round((totalRemittancePaid / totalRemittanceTarget) * 100) : 0;
+
+        // Educational Billing Aggregations
         const totalBilled = transportInvoices.reduce((acc, inv) => acc + (inv.amount || inv.finalAmount || 0), 0);
         const totalPaid = transportInvoices.reduce((acc, inv) => acc + (inv.paidAmount || (inv.status === 'paid' ? (inv.amount || inv.finalAmount || 0) : 0) || 0), 0);
         const totalOutstanding = Math.max(0, totalBilled - totalPaid);
         const collectionRate = totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
 
+        // SACCO Filtered Lists
+        const filteredSaccoAccounts = saccoAccounts.filter(acc => {
+            return !reportSearch ||
+                acc.memberName.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                acc.memberNumber.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                acc.vehiclePlate.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (acc.phoneNumber || '').toLowerCase().includes(reportSearch.toLowerCase());
+        });
+
+        const filteredRemittanceRecords = remittanceRecords.filter(r => {
+            const matchesDate = !reportDateFilter || r.scheduledDate === reportDateFilter;
+            const matchesSearch = !reportSearch ||
+                r.vehiclePlate.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                r.driverName.toLowerCase().includes(reportSearch.toLowerCase()) ||
+                (r.mpesaCode || '').toLowerCase().includes(reportSearch.toLowerCase());
+            const matchesStatus = reportStatusFilter === 'ALL' || (r.status || '').toLowerCase() === reportStatusFilter.toLowerCase();
+            return matchesDate && matchesSearch && matchesStatus;
+        });
+
+        // Transport Lists
         const filteredInvoices = transportInvoices.filter(inv => {
             const sName = inv.studentName || '';
             const adm = inv.admissionNumber || '';
@@ -5295,7 +5333,85 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         });
 
         const handleExportExcel = () => {
-            if (reportSubTab === 'billing') {
+            if (reportSubTab === 'sacco_savings') {
+                const data = filteredSaccoAccounts.map((acc, idx) => {
+                    const totalEquity = (acc.savingsBalance || 0) + (acc.shareCapital || 0) + (acc.sinkingFundBalance || 0) + (acc.welfareBalance || 0);
+                    return {
+                        '#': idx + 1,
+                        'Member Number': acc.memberNumber,
+                        'Member Name': acc.memberName,
+                        'Role': acc.memberRole,
+                        'Vehicle Plate': acc.vehiclePlate || 'Unassigned',
+                        'Phone Number': acc.phoneNumber,
+                        'Share Capital (KES)': acc.shareCapital || 0,
+                        'Sinking Fund (KES)': acc.sinkingFundBalance || 0,
+                        'Voluntary Thrift (KES)': acc.savingsBalance || 0,
+                        'Welfare Fund (KES)': acc.welfareBalance || 0,
+                        'Total Equity (KES)': totalEquity,
+                        'Loan Qualification (3x) (KES)': (acc.savingsBalance || 0) * 3,
+                        'Tier': acc.remittanceTier || 'Silver',
+                        'Daily Target (KES)': acc.dailyTarget || 1500,
+                        'Status': (acc.status || 'Active').toUpperCase()
+                    };
+                });
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'SACCO Savings');
+                XLSX.writeFile(wb, `SACCO_Member_Savings_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'sacco_remittance') {
+                const data = filteredRemittanceRecords.map((r, idx) => ({
+                    '#': idx + 1,
+                    'Date': r.scheduledDate,
+                    'Vehicle Plate': r.vehiclePlate,
+                    'Driver Name': r.driverName,
+                    'Daily Target (KES)': r.targetAmount || 0,
+                    'Paid Amount (KES)': r.paidAmount || 0,
+                    'Shortfall (KES)': r.shortfall || 0,
+                    'Penalty (KES)': r.penaltyAmount || 0,
+                    'Status': (r.status || 'Pending').toUpperCase(),
+                    'Payment Ref': r.mpesaCode || (r.paymentMethod ? r.paymentMethod.toUpperCase() : 'Cash / Stage'),
+                    'Timestamp': r.timestamp ? new Date(r.timestamp).toLocaleString() : 'N/A'
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Daily Remittances');
+                XLSX.writeFile(wb, `SACCO_Daily_Remittance_CheckOff_${reportDateFilter}_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'sacco_sinking_fund') {
+                const data = filteredSaccoAccounts.map((acc, idx) => {
+                    const matchedVehicle = dbVehicles.find(v => v.plateNumber?.toLowerCase() === acc.vehiclePlate?.toLowerCase());
+                    const buffer = acc.sinkingFundBalance || 0;
+                    return {
+                        '#': idx + 1,
+                        'Vehicle Plate': acc.vehiclePlate || 'Unassigned',
+                        'Assigned Driver / Member': acc.memberName,
+                        'Member Number': acc.memberNumber,
+                        'Vehicle Model': matchedVehicle?.model || 'Transit PSV',
+                        'Capacity': matchedVehicle?.capacity || 14,
+                        'Daily Target (KES)': acc.dailyTarget || 1500,
+                        'Sinking Fund Accumulated (KES)': buffer,
+                        'Maintenance Buffer Health': buffer >= 20000 ? 'Healthy' : buffer >= 8000 ? 'Adequate' : 'Critical Low'
+                    };
+                });
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Sinking Fund');
+                XLSX.writeFile(wb, `Fleet_Sinking_Fund_Reserve_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'sacco_welfare') {
+                const data = filteredSaccoAccounts.map((acc, idx) => ({
+                    '#': idx + 1,
+                    'Member Number': acc.memberNumber,
+                    'Member Name': acc.memberName,
+                    'Role': acc.memberRole,
+                    'Vehicle Plate': acc.vehiclePlate || 'N/A',
+                    'Phone Number': acc.phoneNumber,
+                    'Welfare & Emergency Pool (KES)': acc.welfareBalance || 0,
+                    'Coverage': 'Active Benevolent Cover'
+                }));
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Welfare Fund');
+                XLSX.writeFile(wb, `Crew_Welfare_Benevolent_Pool_${new Date().toISOString().split('T')[0]}.xlsx`);
+            } else if (reportSubTab === 'billing') {
                 const data = filteredInvoices.map((inv, idx) => {
                     const invAny = inv as any;
                     const amt = invAny.amount || inv.finalAmount || 0;
@@ -5331,7 +5447,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         'Assigned Bus': r.bus,
                         'Driver': r.driver,
                         'Attendant': r.attendant,
-                        'Enrolled Students': studentCount
+                        'Enrolled Commuters': studentCount
                     };
                 });
                 const ws = XLSX.utils.json_to_sheet(data);
@@ -5343,7 +5459,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     '#': idx + 1,
                     'Plate Number': v.plateNumber,
                     'Model': v.model,
-                    'Vehicle Type': v.vehicleType || 'Bus',
+                    'Vehicle Type': v.vehicleType || 'Bus / Van',
                     'Seating Capacity': v.capacity,
                     'Assigned Driver': v.driverName || 'Unassigned',
                     'Status': (v.status || 'Active').toUpperCase()
@@ -5359,15 +5475,15 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     'Destination': t.destination,
                     'Date': t.date,
                     'Time': t.time,
-                    'Lead Teacher': t.leadTeacher,
+                    'Lead Officer': t.leadTeacher,
                     'Vehicle Assigned': t.vehicle,
                     'Passengers': t.passengers,
                     'Status': t.status.toUpperCase()
                 }));
                 const ws = XLSX.utils.json_to_sheet(data);
                 const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'School Trips');
-                XLSX.writeFile(wb, `School_Trips_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+                XLSX.utils.book_append_sheet(wb, ws, 'Trips');
+                XLSX.writeFile(wb, `Transit_Trips_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
             } else if (reportSubTab === 'alerts') {
                 const data = filteredAlerts.map((a, idx) => {
                     const aAny = a as any;
@@ -5391,6 +5507,21 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         };
 
         const activeCommutersCount = Object.values(studentCommutePrefs).filter(p => p.preference !== 'none').length;
+
+        const subTabsList = (isSACCO || isSaccoSavings) ? [
+            { id: 'sacco_savings', label: 'Member Savings & Thrift', icon: PiggyBank, count: filteredSaccoAccounts.length },
+            { id: 'sacco_remittance', label: 'Daily Remittance & Check-Off', icon: Clock3, count: filteredRemittanceRecords.length },
+            { id: 'sacco_sinking_fund', label: 'Sinking Fund & Maintenance', icon: Shield, count: filteredSaccoAccounts.length },
+            { id: 'sacco_welfare', label: 'Welfare & Emergency Pool', icon: Wallet, count: filteredSaccoAccounts.length },
+            { id: 'fleet', label: 'Fleet & Vehicles', icon: Truck, count: filteredVehicles.length },
+            { id: 'routes', label: 'Route Manifests', icon: MapPin, count: filteredRoutes.length }
+        ] : [
+            { id: 'billing', label: 'Billing & Fee Balances', icon: Receipt, count: filteredInvoices.length },
+            { id: 'routes', label: 'Route Manifests', icon: MapPin, count: filteredRoutes.length },
+            { id: 'fleet', label: 'Fleet & Drivers', icon: Truck, count: filteredVehicles.length },
+            { id: 'trips', label: 'School Trips', icon: Calendar, count: filteredTrips.length },
+            { id: 'alerts', label: 'Disruptions Log', icon: Bell, count: filteredAlerts.length }
+        ];
 
         return (
             <div className="space-y-8 animate-in fade-in duration-300">
@@ -5425,110 +5556,155 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                 </div>
 
                 {/* Reports Header & KPI Strip */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-gradient-to-br from-indigo-650 via-indigo-700 to-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-1">Total Transport Invoiced</p>
-                        <h3 className="text-3xl font-black tracking-tight">KES {totalBilled.toLocaleString()}</h3>
-                        <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-indigo-200">
-                            <Receipt className="w-3.5 h-3.5" />
-                            <span>{transportInvoices.length} Total Invoices</span>
+                {(isSACCO || isSaccoSavings) ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-gradient-to-br from-indigo-650 via-indigo-700 to-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-1">Total SACCO Member Savings</p>
+                            <h3 className="text-3xl font-black tracking-tight">KES {totalConsolidatedSavings.toLocaleString()}</h3>
+                            <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-indigo-200">
+                                <PiggyBank className="w-3.5 h-3.5" />
+                                <span>KES {totalShareCapital.toLocaleString()} Share Cap • KES {totalSavingsOnly.toLocaleString()} Voluntary</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sinking Fund Reserve</p>
+                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                    Fleet Repairs
+                                </span>
+                            </div>
+                            <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">KES {totalSinkingFund.toLocaleString()}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                                <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Tires, Overhauls & NTSA Compliance Fund</span>
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Daily Remittance ({reportDateFilter})</p>
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                    remittanceComplianceRate >= 80 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                }`}>
+                                    {remittanceComplianceRate}% Rate
+                                </span>
+                            </div>
+                            <h3 className="text-3xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">KES {totalRemittancePaid.toLocaleString()}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                                <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>Target: KES {totalRemittanceTarget.toLocaleString()} • Shortfall: KES {totalRemittanceShortfall.toLocaleString()}</span>
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Welfare & Active Fleet</p>
+                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                                    {saccoAccounts.length} Members
+                                </span>
+                            </div>
+                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">KES {totalWelfare.toLocaleString()}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                                <Truck className="w-3.5 h-3.5 text-slate-500" />
+                                <span>{dbVehicles.length} Registered Transit Buses / Vans</span>
+                            </p>
                         </div>
                     </div>
-
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <div className="flex justify-between items-start mb-2">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Collected</p>
-                            <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
-                                {collectionRate}% Rate
-                            </span>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-gradient-to-br from-indigo-650 via-indigo-700 to-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-200 mb-1">Total Transport Invoiced</p>
+                            <h3 className="text-3xl font-black tracking-tight">KES {totalBilled.toLocaleString()}</h3>
+                            <div className="flex items-center gap-2 mt-4 text-[10px] font-bold text-indigo-200">
+                                <Receipt className="w-3.5 h-3.5" />
+                                <span>{transportInvoices.length} Total Invoices</span>
+                            </div>
                         </div>
-                        <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">KES {totalPaid.toLocaleString()}</h3>
-                        <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
-                            <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
-                            <span>Net verified revenue</span>
-                        </p>
-                    </div>
 
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Outstanding Balance</p>
-                        <h3 className="text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">KES {totalOutstanding.toLocaleString()}</h3>
-                        <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                            <span>Pending fee settlements</span>
-                        </p>
-                    </div>
-
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Fleet & Commuters</p>
-                        <div className="flex items-baseline gap-2">
-                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{dbVehicles.length}</h3>
-                            <span className="text-xs font-bold text-slate-400">Buses / {busRoutes.length} Routes</span>
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <div className="flex justify-between items-start mb-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Collected</p>
+                                <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+                                    {collectionRate}% Rate
+                                </span>
+                            </div>
+                            <h3 className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">KES {totalPaid.toLocaleString()}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Net verified revenue</span>
+                            </p>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5 text-indigo-500" />
-                            <span>{activeCommutersCount} Active Commuters</span>
-                        </p>
+
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Outstanding Balance</p>
+                            <h3 className="text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">KES {totalOutstanding.toLocaleString()}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                                <span>Pending fee settlements</span>
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Fleet & Commuters</p>
+                            <div className="flex items-baseline gap-2">
+                                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{dbVehicles.length}</h3>
+                                <span className="text-xs font-bold text-slate-400">Buses / {busRoutes.length} Routes</span>
+                            </div>
+                            <p className="text-[10px] font-bold text-slate-400 mt-4 flex items-center gap-1.5">
+                                <Users className="w-3.5 h-3.5 text-indigo-500" />
+                                <span>{activeCommutersCount} Active Commuters</span>
+                            </p>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Sub-Tabs & Action Bar */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm space-y-6">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-6 border-b border-slate-100 dark:border-slate-700">
                         {/* Sub-tab Pills */}
                         <div className="flex flex-wrap items-center gap-2">
-                            {[
-                                { id: 'billing', label: 'Billing & Fee Balances', icon: Receipt, count: filteredInvoices.length },
-                                { id: 'routes', label: 'Route Manifests', icon: MapPin, count: filteredRoutes.length },
-                                { id: 'fleet', label: 'Fleet & Drivers', icon: Truck, count: filteredVehicles.length },
-                                { id: 'trips', label: 'School Trips', icon: Calendar, count: filteredTrips.length, show: isEduTransport },
-                                { id: 'alerts', label: 'Disruptions Log', icon: Bell, count: filteredAlerts.length, show: isEduTransport },
-                            ].filter(t => t.show !== false).map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setReportSubTab(tab.id as any)}
-                                    className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer ${
-                                        reportSubTab === tab.id
-                                            ? 'bg-slate-900 text-white shadow-lg shadow-slate-200 dark:shadow-none scale-105'
-                                            : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                    }`}
-                                >
-                                    <tab.icon className="w-3.5 h-3.5" />
-                                    <span>{tab.label}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[9px] ${
-                                        reportSubTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                                    }`}>
-                                        {tab.count}
-                                    </span>
-                                </button>
-                            ))}
+                            {subTabsList.map(tab => {
+                                const TabIcon = tab.icon;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setReportSubTab(tab.id as any)}
+                                        className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer ${
+                                            reportSubTab === tab.id
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                                                : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                                        }`}
+                                    >
+                                        <TabIcon className="w-4 h-4" />
+                                        <span>{tab.label}</span>
+                                        <span className={`ml-1 px-2 py-0.5 rounded-full text-[9px] font-mono ${
+                                            reportSubTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
 
-                        {/* Export Actions */}
-                        <div className="flex items-center gap-2">
-                            {reportSubTab === 'billing' && isEduTransport && (
-                                <button
-                                    onClick={() => setIsOpeningBalancesModalOpen(true)}
-                                    className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
-                                    title="Update or import commuter opening balances (B/F Arrears & Advance)"
-                                >
-                                    <UploadCloud className="w-3.5 h-3.5" />
-                                    <span>Opening Balances (B/F)</span>
-                                </button>
-                            )}
+                        {/* Export & Action Buttons */}
+                        <div className="flex items-center gap-3 w-full lg:w-auto">
                             <button
                                 onClick={handleExportExcel}
-                                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all shadow-md active:scale-95 cursor-pointer"
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 font-black text-xs uppercase tracking-wider transition-all"
                             >
                                 <Download className="w-3.5 h-3.5" />
                                 <span>Export Excel</span>
                             </button>
                             <button
                                 onClick={() => window.print()}
-                                className="flex items-center gap-2 px-5 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer"
+                                className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-wider transition-all"
                             >
                                 <Printer className="w-3.5 h-3.5" />
-                                <span>Print</span>
+                                <span>Print / PDF</span>
                             </button>
                         </div>
                     </div>
@@ -5542,6 +5718,10 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 value={reportSearch}
                                 onChange={e => setReportSearch(e.target.value)}
                                 placeholder={
+                                    reportSubTab === 'sacco_savings' ? 'Search member name, member number, vehicle plate, or phone...' :
+                                    reportSubTab === 'sacco_remittance' ? 'Search vehicle plate, driver name, or M-Pesa code...' :
+                                    reportSubTab === 'sacco_sinking_fund' ? 'Search vehicle plate, member, or model...' :
+                                    reportSubTab === 'sacco_welfare' ? 'Search member name, role, or vehicle plate...' :
                                     reportSubTab === 'billing' ? 'Search student name, adm no, route, or invoice...' :
                                     reportSubTab === 'routes' ? 'Search route name, bus, or driver...' :
                                     reportSubTab === 'fleet' ? 'Search plate number, model, or driver...' :
@@ -5551,6 +5731,33 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:border-indigo-500 transition-colors"
                             />
                         </div>
+
+                        {reportSubTab === 'sacco_remittance' && (
+                            <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shrink-0">
+                                <Calendar className="w-4 h-4 text-slate-400" />
+                                <span className="text-[10px] font-black uppercase text-slate-400">Date:</span>
+                                <input
+                                    type="date"
+                                    value={reportDateFilter}
+                                    onChange={e => setReportDateFilter(e.target.value)}
+                                    className="bg-transparent text-xs font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer"
+                                />
+                            </div>
+                        )}
+
+                        {reportSubTab === 'sacco_remittance' && (
+                            <select
+                                value={reportStatusFilter}
+                                onChange={e => setReportStatusFilter(e.target.value)}
+                                className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer shrink-0"
+                            >
+                                <option value="ALL">All Remittance Statuses</option>
+                                <option value="cleared">Cleared / On Time</option>
+                                <option value="shortfall">Shortfall / Partial</option>
+                                <option value="pending">Pending Remittance</option>
+                                <option value="late">Late Penalty Applied</option>
+                            </select>
+                        )}
 
                         {reportSubTab === 'billing' && (
                             <select
@@ -5567,6 +5774,253 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     </div>
 
                     {/* Report Content Tables */}
+                    {reportSubTab === 'sacco_savings' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Member Details</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vehicle Assigned</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Share Capital</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Sinking Fund</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Voluntary Thrift</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Welfare Fund</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Total Equity</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Loan Ceiling (3x)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredSaccoAccounts.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="p-12 text-center text-slate-400 font-bold">No SACCO member savings records match the search filter.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredSaccoAccounts.map(acc => {
+                                            const totalEquity = (acc.savingsBalance || 0) + (acc.shareCapital || 0) + (acc.sinkingFundBalance || 0) + (acc.welfareBalance || 0);
+                                            const loanCeiling = (acc.savingsBalance || 0) * 3;
+                                            return (
+                                                <tr key={acc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4">
+                                                        <p className="font-black text-slate-900 dark:text-white uppercase">{acc.memberName}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="font-mono text-[10px] text-indigo-600 font-bold">{acc.memberNumber}</span>
+                                                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                {acc.memberRole}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">{acc.phoneNumber}</p>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 font-mono font-black text-slate-800 dark:text-slate-200 text-xs">
+                                                            {acc.vehiclePlate || 'Unassigned'}
+                                                        </span>
+                                                        <p className="text-[10px] text-slate-400 mt-1 font-bold">Tier: {acc.remittanceTier || 'Silver'}</p>
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                        KES {(acc.shareCapital || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                                        KES {(acc.sinkingFundBalance || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                                        KES {(acc.savingsBalance || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-amber-600 dark:text-amber-400">
+                                                        KES {(acc.welfareBalance || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-black text-slate-900 dark:text-white">
+                                                        KES {totalEquity.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <span className="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-[10px]">
+                                                            KES {loanCeiling.toLocaleString()}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'sacco_remittance' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vehicle Plate</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Driver / Crew</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Daily Target</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Paid Amount</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Shortfall</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Penalty</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Status</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Payment Ref</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredRemittanceRecords.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="p-12 text-center text-slate-400 font-bold">No remittance check-off records for date {reportDateFilter}.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredRemittanceRecords.map(r => {
+                                            const status = (r.status || 'pending').toLowerCase();
+                                            return (
+                                                <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4 font-mono font-black text-slate-900 dark:text-white">
+                                                        {r.vehiclePlate}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{r.driverName}</p>
+                                                        <p className="text-[10px] text-slate-400">{r.scheduledDate}</p>
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-slate-600 dark:text-slate-300">
+                                                        KES {(r.targetAmount || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                                                        KES {(r.paidAmount || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-rose-600">
+                                                        KES {(r.shortfall || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-amber-600">
+                                                        KES {(r.penaltyAmount || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                            status === 'cleared' || status === 'on_time' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                            status === 'shortfall' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                            status === 'late' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
+                                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                                        }`}>
+                                                            {status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                                                        {r.mpesaCode || (r.paymentMethod ? r.paymentMethod.toUpperCase() : 'Cash / Stage')}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'sacco_sinking_fund' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vehicle Plate</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Driver / Member</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vehicle Model & Type</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Daily Target</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Sinking Fund Accumulated</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Maintenance Buffer Health</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredSaccoAccounts.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="p-12 text-center text-slate-400 font-bold">No vehicle sinking fund records available.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredSaccoAccounts.map(acc => {
+                                            const matchedVehicle = dbVehicles.find(v => v.plateNumber?.toLowerCase() === acc.vehiclePlate?.toLowerCase());
+                                            const buffer = acc.sinkingFundBalance || 0;
+                                            const health = buffer >= 20000 ? 'Healthy' : buffer >= 8000 ? 'Adequate' : 'Critical Low';
+                                            return (
+                                                <tr key={acc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4 font-mono font-black text-slate-900 dark:text-white">
+                                                        {acc.vehiclePlate || 'Unassigned'}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{acc.memberName}</p>
+                                                        <p className="text-[10px] text-slate-400">{acc.memberNumber}</p>
+                                                    </td>
+                                                    <td className="p-4 text-slate-600 dark:text-slate-300">
+                                                        {matchedVehicle?.model || 'Transit PSV Matatu'} ({matchedVehicle?.capacity || 14} Seats)
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-bold text-slate-600">
+                                                        KES {(acc.dailyTarget || 1500).toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                                                        KES {buffer.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                            health === 'Healthy' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                            health === 'Adequate' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                            'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                        }`}>
+                                                            {health}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {reportSubTab === 'sacco_welfare' && (
+                        <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Member Details</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Vehicle Plate</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Role</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Welfare & Emergency Pool</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Coverage Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
+                                    {filteredSaccoAccounts.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No member welfare records found.</td>
+                                        </tr>
+                                    ) : (
+                                        filteredSaccoAccounts.map(acc => {
+                                            const welfare = acc.welfareBalance || 0;
+                                            return (
+                                                <tr key={acc.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200 uppercase">{acc.memberName}</p>
+                                                        <p className="text-[10px] text-slate-400 font-mono">{acc.memberNumber} • {acc.phoneNumber}</p>
+                                                    </td>
+                                                    <td className="p-4 font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                        {acc.vehiclePlate || 'N/A'}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                            {acc.memberRole}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 text-right font-mono font-black text-amber-600 dark:text-amber-400 text-sm">
+                                                        KES {welfare.toLocaleString()}
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                                            Active Benevolent Cover
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
                     {reportSubTab === 'billing' && (
                         <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-700">
                             <table className="w-full text-left border-collapse">
@@ -5585,9 +6039,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
                                     {filteredInvoices.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="p-12 text-center text-slate-400 font-bold">
-                                                No transport invoices found matching your filter criteria.
-                                            </td>
+                                            <td colSpan={8} className="p-12 text-center text-slate-400 font-bold">No transport fee records found matching filters.</td>
                                         </tr>
                                     ) : (
                                         filteredInvoices.map(inv => {
@@ -5598,24 +6050,24 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                             return (
                                                 <tr key={inv.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
                                                     <td className="p-4">
-                                                        <p className="font-black text-slate-900 dark:text-white">{inv.studentName}</p>
-                                                        <p className="text-[10px] font-bold text-slate-400">{inv.admissionNumber || invAny.invoiceNumber || inv.id}</p>
+                                                        <p className="font-bold text-slate-900 dark:text-white">{inv.studentName}</p>
+                                                        <p className="text-[10px] font-mono text-slate-400">{inv.admissionNumber}</p>
                                                     </td>
                                                     <td className="p-4">
-                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{inv.routeName}</p>
-                                                        <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                                                            {inv.preference || (inv as any).commutePreference || 'Round Trip'}
+                                                        <p className="font-medium text-slate-700 dark:text-slate-300">{inv.routeName}</p>
+                                                        <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                                            {inv.preference || invAny.commutePreference || 'Round Trip'}
                                                         </span>
                                                     </td>
-                                                    <td className="p-4 font-bold text-slate-600 dark:text-slate-300">{inv.period}</td>
+                                                    <td className="p-4 text-slate-600 dark:text-slate-400 font-medium">{inv.period}</td>
                                                     <td className="p-4 text-right font-mono font-bold text-slate-900 dark:text-white">KES {amt.toLocaleString()}</td>
                                                     <td className="p-4 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">KES {paid.toLocaleString()}</td>
-                                                    <td className="p-4 text-right font-mono font-black text-rose-600 dark:text-rose-400">KES {bal.toLocaleString()}</td>
+                                                    <td className="p-4 text-right font-mono font-bold text-rose-600 dark:text-rose-400">KES {bal.toLocaleString()}</td>
                                                     <td className="p-4 text-center">
                                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
                                                             inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                                            inv.status === 'waived' ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300' :
-                                                            'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                                                            inv.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                                                         }`}>
                                                             {inv.status}
                                                         </span>
@@ -5637,38 +6089,43 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-700">
-                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Route Name</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Route Details</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Coverage Points</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Bus</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Crew (Driver & Attendant)</th>
-                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Commuting Students</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Commuting Passengers</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
                                     {filteredRoutes.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No route records found.</td>
+                                            <td colSpan={5} className="p-12 text-center text-slate-400 font-bold">No transit routes found.</td>
                                         </tr>
                                     ) : (
                                         filteredRoutes.map(r => {
                                             const studentCount = Object.values(studentCommutePrefs).filter(p => p.routeId === r.id && p.preference !== 'none').length;
                                             return (
                                                 <tr key={r.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
-                                                    <td className="p-4 font-black text-slate-900 dark:text-white">{r.name}</td>
-                                                    <td className="p-4 font-medium text-slate-600 dark:text-slate-300">
-                                                        <span className="font-bold">{r.startPoint}</span> ➔ <span>{r.endPoint}</span>
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-900 dark:text-white">{r.name}</p>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">{r.startPoint} ➔ {r.endPoint}</p>
                                                     </td>
                                                     <td className="p-4">
-                                                        <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-black rounded-lg text-xs">
-                                                            {r.bus}
-                                                        </span>
+                                                        <div className="flex flex-wrap gap-1 max-w-xs">
+                                                            {(r.stops || []).map((st: any, i: number) => (
+                                                                <span key={i} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-medium text-slate-600 dark:text-slate-300">
+                                                                    {typeof st === 'string' ? st : (st.name || st.stage || 'Stop')}
+                                                                </span>
+                                                            ))}
+                                                        </div>
                                                     </td>
+                                                    <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">{r.bus || 'Unassigned'}</td>
                                                     <td className="p-4">
-                                                        <p className="font-bold text-slate-800 dark:text-slate-200">👨‍✈️ {r.driver}</p>
-                                                        <p className="text-[10px] text-slate-400">👩‍💼 {r.attendant || 'No attendant assigned'}</p>
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{r.driver || 'No Driver'}</p>
+                                                        <p className="text-[10px] text-slate-400">{r.attendant ? `Attendant: ${r.attendant}` : 'No Attendant'}</p>
                                                     </td>
-                                                    <td className="p-4 text-right font-mono font-black text-indigo-600 dark:text-indigo-400 text-sm">
-                                                        {studentCount} Students
+                                                    <td className="p-4 text-right font-mono font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                                                        {studentCount} Commuters
                                                     </td>
                                                 </tr>
                                             );
@@ -5699,23 +6156,21 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                     ) : (
                                         filteredVehicles.map(v => (
                                             <tr key={v.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
-                                                <td className="p-4">
-                                                    <span className="font-mono font-black text-slate-900 dark:text-white px-2.5 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
-                                                        {v.plateNumber}
-                                                    </span>
+                                                <td className="p-4 font-mono font-black text-slate-900 dark:text-white text-sm">
+                                                    {v.plateNumber}
                                                 </td>
                                                 <td className="p-4">
                                                     <p className="font-bold text-slate-800 dark:text-slate-200">{v.model}</p>
-                                                    <p className="text-[10px] text-slate-400 uppercase">{v.vehicleType || 'School Bus'}</p>
+                                                    <p className="text-[10px] text-slate-400 uppercase font-medium">{v.vehicleType || 'Transit Bus'}</p>
                                                 </td>
-                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-300">
-                                                    {v.driverName || 'Unassigned'}
-                                                </td>
-                                                <td className="p-4 text-center font-mono font-bold text-slate-800 dark:text-slate-200">
-                                                    {v.capacity} Seats
-                                                </td>
+                                                <td className="p-4 font-medium text-slate-700 dark:text-slate-300">{v.driverName || 'Unassigned'}</td>
+                                                <td className="p-4 text-center font-mono font-bold text-slate-800 dark:text-slate-200">{v.capacity} Seats</td>
                                                 <td className="p-4 text-center">
-                                                    <span className="px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] font-black uppercase rounded-full">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
+                                                        v.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                        v.status === 'maintenance' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' :
+                                                        'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                                                    }`}>
                                                         {v.status || 'Active'}
                                                     </span>
                                                 </td>
@@ -5735,30 +6190,29 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Trip Title</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Destination</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Date & Time</th>
-                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Lead Teacher</th>
-                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Bus</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Lead Officer</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Assigned Vehicle</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
                                     {filteredTrips.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className="p-12 text-center text-slate-400 font-bold">No school excursion records found.</td>
+                                            <td colSpan={6} className="p-12 text-center text-slate-400 font-bold">No transit trips or excursions recorded.</td>
                                         </tr>
                                     ) : (
                                         filteredTrips.map(t => (
                                             <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-750/30 transition-colors">
-                                                <td className="p-4 font-black text-slate-900 dark:text-white">{t.name}</td>
-                                                <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">{t.destination}</td>
-                                                <td className="p-4 text-slate-600 dark:text-slate-300 font-medium">
-                                                    {t.date} at {t.time}
-                                                </td>
-                                                <td className="p-4 font-bold text-slate-700 dark:text-slate-300">{t.leadTeacher}</td>
-                                                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{t.vehicle}</td>
+                                                <td className="p-4 font-bold text-slate-900 dark:text-white">{t.name}</td>
+                                                <td className="p-4 text-slate-700 dark:text-slate-300 font-medium">{t.destination}</td>
+                                                <td className="p-4 font-mono text-slate-600 dark:text-slate-400">{t.date} at {t.time}</td>
+                                                <td className="p-4 text-slate-700 dark:text-slate-300">{t.leadTeacher || 'N/A'}</td>
+                                                <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200">{t.vehicle || 'Unassigned'}</td>
                                                 <td className="p-4 text-center">
                                                     <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase ${
-                                                        t.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
-                                                        t.status === 'completed' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                        t.status === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                                        t.status === 'in_progress' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
+                                                        t.status === 'cancelled' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' :
                                                         'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                                                     }`}>
                                                         {t.status}
@@ -5827,8 +6281,26 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     )}
                 </div>
 
-                {/* Print-Only Document Footer */}
+                {/* Print-Only Document Footer & Stamp */}
                 <div className="hidden print:block mt-8 pt-4 border-t border-slate-300">
+                    <div className="flex justify-between items-end mb-4">
+                        <div className="text-xs text-slate-600 space-y-4">
+                            <div>
+                                <div className="border-b border-slate-400 pb-1 w-48 h-8"></div>
+                                <p className="text-[9px] font-bold uppercase tracking-wider mt-1">Prepared By: Head of SACCO Operations / Stage Marshal</p>
+                            </div>
+                        </div>
+                        {brandingStampMode === 'custom' && brandingStampUrl ? (
+                            <img src={brandingStampUrl} alt="Seal" className="w-20 h-20 object-contain -rotate-6" />
+                        ) : brandingStampMode === 'system' ? (
+                            <div className="w-20 h-20 rounded-full border-2 border-indigo-700 text-indigo-700 flex flex-col items-center justify-center text-center p-1 -rotate-6">
+                                <span className="text-[6px] font-black uppercase">OFFICIAL SEAL</span>
+                                <span className="text-[8px] font-black uppercase">VERIFIED</span>
+                                <span className="text-[5px] font-bold">{new Date().getFullYear()} NTSA REG</span>
+                            </div>
+                        ) : null}
+                    </div>
+
                     {brandingFooter && (
                         <img 
                             src={brandingFooter} 
@@ -5837,7 +6309,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         />
                     )}
                     <p className="text-center text-[9px] text-slate-500 font-medium uppercase tracking-wider">
-                        {brandingFooterText || `${currentInstitution.name} • Certified Transit Document • Generated via EduAI`}
+                        {brandingFooterText || `${currentInstitution.name} • Certified Transit & SACCO Audit Report • Generated via EduAI`}
                     </p>
                 </div>
             </div>
