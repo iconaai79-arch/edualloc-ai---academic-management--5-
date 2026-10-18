@@ -1901,7 +1901,8 @@ export const generateRetailReceiptPdf = async (
 
     // 80mm Thermal Receipt (width: 80mm, dynamic height)
     // We estimate height based on items
-    const baseHeight = isEducation ? 170 : 150;
+    const carrierFee = Number(saleData.carrierFee || saleData.metadata?.carrierFee || saleData.metadata?.carrier?.fee || 0);
+    const baseHeight = (isEducation ? 170 : 155) + (carrierFee > 0 ? 25 : 0);
     const itemHeight = 10;
     const itemsCount = saleData.items?.length || 0;
     const estimatedHeight = baseHeight + (itemsCount * itemHeight);
@@ -2041,19 +2042,51 @@ export const generateRetailReceiptPdf = async (
         doc.setLineDashPattern([], 0);
         yPos += 8;
     } else {
+        const carrierFee = Number(saleData.carrierFee || saleData.metadata?.carrierFee || saleData.metadata?.carrier?.fee || 0);
+        if (carrierFee > 0) {
+            const subtotal = Math.max(0, (saleData.totalAmount || 0) - carrierFee);
+            const carrierLabel = saleData.carrierName || saleData.metadata?.carrierName || saleData.metadata?.carrier?.name || 'Carrier Fee';
+            const carrierDest = saleData.carrierDestination || saleData.metadata?.carrierDestination || saleData.metadata?.carrier?.destination || '';
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text("Items Subtotal:", 25, yPos);
+            doc.text(`Kes ${subtotal?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+            yPos += 4;
+
+            const displayLabel = carrierDest ? `Delivery (${carrierLabel} - ${carrierDest})` : `Delivery (${carrierLabel})`;
+            const truncatedLabel = displayLabel.length > 24 ? displayLabel.substring(0, 22) + '..' : displayLabel;
+            doc.text(truncatedLabel, margin, yPos);
+            doc.text(`Kes ${carrierFee?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
+            yPos += 5;
+
+            doc.setLineDashPattern([1, 1], 0);
+            doc.line(margin, yPos, pageWidth - margin, yPos);
+            doc.setLineDashPattern([], 0);
+            yPos += 4;
+        }
+
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text("TOTAL DUE:", 30, yPos);
+        doc.text("TOTAL DUE:", 25, yPos);
         doc.text(`Kes ${saleData.totalAmount?.toLocaleString()}`, pageWidth - margin, yPos, { align: 'right' });
         yPos += 6;
 
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.text("Payment Method:", 30, yPos);
-        doc.text(saleData.paymentMethod?.toUpperCase() || 'CASH', pageWidth - margin, yPos, { align: 'right' });
-        yPos += 6;
+        doc.text("Payment Method:", 25, yPos);
+        const pMethodDisplay = saleData.paymentMethod === 'kcb_stk' ? 'KCB STK PUSH' : (saleData.paymentMethod?.toUpperCase() || 'CASH');
+        doc.text(pMethodDisplay, pageWidth - margin, yPos, { align: 'right' });
+        yPos += 5;
 
-        doc.text("Items Count:", 30, yPos);
+        const mpesaRef = saleData.metadata?.mpesaReceiptNumber || saleData.mpesaReceiptNumber;
+        if (mpesaRef) {
+            doc.text("M-Pesa Ref:", 25, yPos);
+            doc.text(String(mpesaRef).toUpperCase(), pageWidth - margin, yPos, { align: 'right' });
+            yPos += 5;
+        }
+
+        doc.text("Items Count:", 25, yPos);
         doc.text(totalItems.toString(), pageWidth - margin, yPos, { align: 'right' });
         yPos += 8;
     }

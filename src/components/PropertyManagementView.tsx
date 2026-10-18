@@ -1862,20 +1862,26 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             
         // 3. Terminate Lease(s)
         if (targetLease) {
+            const effectiveLeaseInstId = targetLease.institutionId || (targetLease as any).institution_id || institutionId || currentUser?.institutionId || 'GLOBAL';
             const updatedLease = {
                 ...targetLease,
+                institutionId: effectiveLeaseInstId,
+                institution_id: effectiveLeaseInstId,
                 status: 'Terminated' as const,
                 endDate: todayStr,
                 end_date: todayStr
             };
             await apiService.saveModuleRecord('pm_leases', updatedLease).catch(() => {});
             await apiService.updateModuleRecord('pm_leases', targetLease.id, {
+                institution_id: effectiveLeaseInstId,
                 status: 'Terminated',
                 endDate: todayStr,
                 end_date: todayStr
             }).catch(() => {});
         } else if (options.leaseId) {
+            const effectiveLeaseInstId = institutionId || currentUser?.institutionId || 'GLOBAL';
             await apiService.updateModuleRecord('pm_leases', options.leaseId, {
+                institution_id: effectiveLeaseInstId,
                 status: 'Terminated',
                 endDate: todayStr,
                 end_date: todayStr
@@ -1891,13 +1897,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 l.id !== (targetLease?.id || options.leaseId)
             );
             for (const oLease of otherActiveLeases) {
+                const effectiveOLeaseInstId = oLease.institutionId || (oLease as any).institution_id || institutionId || currentUser?.institutionId || 'GLOBAL';
                 await apiService.saveModuleRecord('pm_leases', {
                     ...oLease,
+                    institutionId: effectiveOLeaseInstId,
+                    institution_id: effectiveOLeaseInstId,
                     status: 'Terminated',
                     endDate: todayStr,
                     end_date: todayStr
                 }).catch(() => {});
                 await apiService.updateModuleRecord('pm_leases', oLease.id, {
+                    institution_id: effectiveOLeaseInstId,
                     status: 'Terminated',
                     endDate: todayStr,
                     end_date: todayStr
@@ -2092,10 +2102,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             const leaseNextNum = pmSettings?.numbering?.leaseNextNumber || 1000;
             const leaseNumber = `${leasePrefix}-${leaseNextNum}`;
 
+            const effectiveInstId = institutionId || currentUser?.institutionId || (data as any)?.institutionId || (data as any)?.institution_id || 'GLOBAL';
+            const rawTenantId = data.tenantId || (data as any)?.tenant_id;
+            const effectiveTenantId = rawTenantId && String(rawTenantId).trim() !== '' && rawTenantId !== 'null' && rawTenantId !== 'undefined' ? String(rawTenantId).trim() : undefined;
+            const rawUnitId = data.unitId || (data as any)?.unit_id;
+            const effectiveUnitId = rawUnitId && String(rawUnitId).trim() !== '' && rawUnitId !== 'null' && rawUnitId !== 'undefined' ? String(rawUnitId).trim() : undefined;
+
             const newLease: PMLease = {
                 id: `lease_${Date.now()}`,
-                unitId: data.unitId || '',
-                tenantId: data.tenantId || '',
+                unitId: effectiveUnitId || '',
+                tenantId: effectiveTenantId || '',
                 startDate,
                 rentAmount: data.rentAmount || 0,
                 depositAmount: data.depositAmount || 0,
@@ -2109,9 +2125,12 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 tenantSignatureUrl: data.tenantSignatureUrl,
                 landlordSignatureUrl: data.landlordSignatureUrl,
                 leaseNumber,
-                institutionId,
+                institutionId: effectiveInstId,
                 createdAt: new Date().toISOString()
             };
+            (newLease as any).institution_id = effectiveInstId;
+            (newLease as any).tenant_id = effectiveTenantId || null;
+            (newLease as any).unit_id = effectiveUnitId || null;
             await apiService.saveModuleRecord('pm_leases', newLease);
 
             if (pmSettings) {
@@ -5238,6 +5257,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 return;
             }
 
+            const effectiveInstId = oldLease.institutionId || (oldLease as any).institution_id || institutionId || currentUser?.institutionId || 'GLOBAL';
+
             // Create renewed lease record
             const newLease: PMLease = {
                 ...oldLease,
@@ -5250,14 +5271,18 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 escalationPercentage: data.escalationPercentage,
                 renewedFromLeaseId: oldLease.id,
                 leaseNumber: oldLease.leaseNumber ? `${oldLease.leaseNumber}-R` : undefined,
+                institutionId: effectiveInstId,
                 createdAt: new Date().toISOString()
             };
+            (newLease as any).institution_id = effectiveInstId;
 
             // Terminate/Expire old lease
             const updatedOldLease: PMLease = {
                 ...oldLease,
+                institutionId: effectiveInstId,
                 status: 'Expired'
             };
+            (updatedOldLease as any).institution_id = effectiveInstId;
 
             // Save both
             await apiService.saveModuleRecord('pm_leases', updatedOldLease);
@@ -8966,18 +8991,22 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         } catch (_) {}
                     }
 
+                    const effectiveTargetInstId = targetInstitutionId || institutionId || currentUser?.institutionId || 'GLOBAL';
                     const lease = {
                         id: leaseId,
-                        unitId: unit.id,
-                        tenantId: tenantId,
+                        unitId: unit?.id || null,
+                        tenantId: tenantId || null,
                         startDate: leaseStartDate,
                         rentAmount: monthlyRent,
                         depositAmount: depositPaid,
                         billingCycle: 'Monthly',
                         status: 'Active',
-                        institutionId: targetInstitutionId,
+                        institutionId: effectiveTargetInstId,
+                        institution_id: effectiveTargetInstId,
                         createdAt: new Date().toISOString()
                     } as PMLease;
+                    (lease as any).unit_id = unit?.id || null;
+                    (lease as any).tenant_id = tenantId || null;
                     leasePayloads.push(lease);
 
                     // 5. Opening Balance Processing
@@ -11605,8 +11634,14 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         e.preventDefault();
                         setIsBulkUpdating(true);
                         try {
+                            const effectiveInstId = institutionId || currentUser?.institutionId || 'GLOBAL';
                             const activeLeases = leases.filter(l => l.status === 'Active');
-                            const updatedLeases = activeLeases.map(l => ({ ...l, startDate: bulkUpdateDate }));
+                            const updatedLeases = activeLeases.map(l => ({ 
+                                ...l, 
+                                startDate: bulkUpdateDate,
+                                institutionId: l.institutionId || (l as any).institution_id || effectiveInstId,
+                                institution_id: l.institutionId || (l as any).institution_id || effectiveInstId
+                            }));
                             await apiService.saveModuleRecords('pm_leases', updatedLeases);
                             alert(`Successfully updated start date for ${updatedLeases.length} leases.`);
                             setShowBulkDateModal(false);

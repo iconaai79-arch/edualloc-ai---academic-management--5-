@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { apiService } from '../../services/apiService';
 import { generateRetailReceiptPdf } from '../../services/pdfService';
 import { RetailInventoryItem, RetailStore, User, CafeMenuItem, RetailCustomer } from '../../types';
@@ -23,6 +23,13 @@ import { PrinterIcon as Printer } from '../icons/PrinterIcon';
 import { CoffeeIcon as Coffee } from '../icons/CoffeeIcon';
 import { ZapIcon as Zap } from '../icons/ZapIcon';
 import { TargetIcon as Target } from '../icons/TargetIcon';
+import { KcbIcon } from '../icons/KcbIcon';
+import { MpesaIcon } from '../icons/MpesaIcon';
+import { TruckIcon as Truck } from '../icons/TruckIcon';
+import { PhoneIcon as Phone } from '../icons/PhoneIcon';
+import { ArrowPathIcon as RefreshCw } from '../icons/ArrowPathIcon';
+import { ShieldCheckIcon as ShieldCheck } from '../icons/ShieldCheckIcon';
+import { CheckBadgeIcon } from '../icons/CheckBadgeIcon';
 
 interface DualModePOSProps {
     institutionId: string;
@@ -103,10 +110,31 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     // Checkout state
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
     const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', email: '' });
-    const [paymentMethod, setPaymentMethod] = useState('cash');
+    const [paymentMethod, setPaymentMethod] = useState<'kcb_stk' | 'mpesa' | 'cash' | 'card' | string>('kcb_stk');
     const [isProcessing, setIsProcessing] = useState(false);
     const [checkoutSuccess, setCheckoutSuccess] = useState<any>(null);
     const [receiptPdfUrl, setReceiptPdfUrl] = useState<string | null>(null);
+
+    // Logistics & Carrier Charges state
+    const [couriers, setCouriers] = useState<any[]>([]);
+    const [deliveryRates, setDeliveryRates] = useState<any[]>([]);
+    const [includeCarrierCharges, setIncludeCarrierCharges] = useState(false);
+    const [selectedDeliveryRateId, setSelectedDeliveryRateId] = useState<string>('');
+    const [customCarrierName, setCustomCarrierName] = useState('');
+    const [customDestination, setCustomDestination] = useState('');
+    const [customCarrierFee, setCustomCarrierFee] = useState<string>('250');
+    const [customEstimatedDays, setCustomEstimatedDays] = useState<string>('1');
+
+    // KCB STK Push state
+    const [stkPhone, setStkPhone] = useState('');
+    const [stkState, setStkState] = useState<'idle' | 'initiating' | 'prompt_sent' | 'polling' | 'completed' | 'failed'>('idle');
+    const [stkCheckoutRequestId, setStkCheckoutRequestId] = useState<string | null>(null);
+    const [stkErrorMessage, setStkErrorMessage] = useState<string | null>(null);
+    const [stkStatusMessage, setStkStatusMessage] = useState<string>('');
+    const [stkCountdown, setStkCountdown] = useState<number>(60);
+    const [manualMpesaCode, setManualMpesaCode] = useState<string>('');
+    const [isManualMpesaModalOpen, setIsManualMpesaModalOpen] = useState(false);
+    const stkPollingIntervalRef = useRef<any>(null);
 
     // Selected item for pricing negotiation
     const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | CafeMenuItem | null>(null);
@@ -241,6 +269,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         fetchCustomers();
         fetchStores();
         fetchCategories();
+        fetchLogistics();
         if (isEducation) {
             fetchStudents();
         }
@@ -263,7 +292,36 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 // Silently ignore
             });
         });
+
+        return () => {
+            stopStkPolling();
+        };
     }, [institutionId, isEducation]);
+
+    // Keep STK phone in sync with customer phone if not manually overridden
+    useEffect(() => {
+        if (customerInfo.phone && !stkPhone) {
+            setStkPhone(customerInfo.phone);
+        }
+    }, [customerInfo.phone]);
+
+    const fetchLogistics = async () => {
+        try {
+            const [cData, rData] = await Promise.all([
+                apiService.fetchModuleRecords('retail_couriers', institutionId).catch(() => []),
+                apiService.fetchModuleRecords('retail_delivery_rates', institutionId).catch(() => [])
+            ]);
+            const cleanCouriers = Array.isArray(cData) ? cData : [];
+            const cleanRates = Array.isArray(rData) ? rData : [];
+            setCouriers(cleanCouriers);
+            setDeliveryRates(cleanRates);
+            if (cleanRates.length > 0 && !selectedDeliveryRateId) {
+                setSelectedDeliveryRateId(cleanRates[0].id);
+            }
+        } catch (e) {
+            console.error("Failed to load logistics for checkout:", e);
+        }
+    };
 
     const fetchCategories = async () => {
         try {
@@ -454,33 +512,219 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         return sum + ((cartItem.finalPrice - basePrice) * cartItem.quantity);
     }, 0);
 
-    const handleCheckout = async () => {
-        if (cart.length === 0) return;
-        if (isEducation && !selectedStudent) {
-            alert("Please search and select a student before processing issuance.");
-            return;
+    // Dynamic carrier charges calculation
+    const selectedDeliveryRate = deliveryRates.find(r => r.id === selectedDeliveryRateId);
+    const carrierCharge = useMemo(() => {
+        if (!includeCarrierCharges) return 0;
+        if (selectedDeliveryRateId && selectedDeliveryRateId !== 'custom' && selectedDeliveryRate) {
+            return Number(selectedDeliveryRate.rate) || 0;
         }
-        if (isEducation && !signatureData) {
-            const proceedWithoutSignature = window.confirm("No recipient signature has been captured. Would you like to proceed with the issuance anyway?");
-            if (!proceedWithoutSignature) {
+        if (selectedDeliveryRateId === 'custom' || (!selectedDeliveryRateId && customCarrierFee)) {
+            return parseFloat(String(customCarrierFee)) || 0;
+        }
+        return 0;
+    }, [includeCarrierCharges, selectedDeliveryRateId, selectedDeliveryRate, customCarrierFee]);
+
+    const finalPayableAmount = totalAmount + carrierCharge;
+
+    const resolvedCarrierDetails = useMemo(() => {
+        if (!includeCarrierCharges) return null;
+        if (selectedDeliveryRateId && selectedDeliveryRateId !== 'custom' && selectedDeliveryRate) {
+            const matchedCourier = couriers.find(c => c.id === (selectedDeliveryRate.courier_id || selectedDeliveryRate.courierId));
+            const courierName = selectedDeliveryRate.courier_name || selectedDeliveryRate.courierName || matchedCourier?.name || 'Courier Partner';
+            return {
+                carrierName: courierName,
+                destination: selectedDeliveryRate.destination || 'Standard Delivery',
+                fee: carrierCharge,
+                estimatedDays: selectedDeliveryRate.estimated_days || selectedDeliveryRate.estimatedDays || 1,
+                rateId: selectedDeliveryRate.id
+            };
+        }
+        return {
+            carrierName: customCarrierName.trim() || 'Express Dispatch',
+            destination: customDestination.trim() || 'Customer Destination',
+            fee: carrierCharge,
+            estimatedDays: parseInt(String(customEstimatedDays)) || 1,
+            rateId: 'custom'
+        };
+    }, [includeCarrierCharges, selectedDeliveryRateId, selectedDeliveryRate, couriers, carrierCharge, customCarrierName, customDestination, customEstimatedDays]);
+
+    const normalizeKenyanPhone = (input: string): string => {
+        let p = String(input || '').replace(/[^\d]/g, '');
+        if (p.startsWith('2540')) p = '254' + p.substring(4);
+        else if (p.startsWith('0')) p = '254' + p.substring(1);
+        else if (p.length === 9) p = '254' + p;
+        return p;
+    };
+
+    const stopStkPolling = () => {
+        if (stkPollingIntervalRef.current) {
+            clearInterval(stkPollingIntervalRef.current);
+            stkPollingIntervalRef.current = null;
+        }
+    };
+
+    const startStkPolling = (checkoutRequestId: string) => {
+        stopStkPolling();
+        let secondsLeft = 60;
+
+        const interval = setInterval(async () => {
+            secondsLeft -= 3;
+            setStkCountdown(Math.max(0, secondsLeft));
+
+            if (secondsLeft <= 0) {
+                stopStkPolling();
+                setStkState('failed');
+                setStkErrorMessage("STK Push prompt timed out. If the customer completed payment on their phone, click 'Enter M-Pesa Code' below to record the transaction.");
                 return;
             }
-        }
-        setIsProcessing(true);
 
+            try {
+                const statusRes = await apiService.checkPaymentStatus('kcb', checkoutRequestId);
+                const statusStr = String(statusRes?.status || '').toLowerCase();
+                const resCode = String(statusRes?.resultCode || statusRes?.ResultCode || '');
+
+                if (statusRes?.success && (statusStr === 'completed' || statusStr === 'success' || resCode === '0' || resCode === '00')) {
+                    stopStkPolling();
+                    setStkState('completed');
+                    setStkStatusMessage("Payment verified successfully via KCB Open Banking!");
+                    const mpesaRef = statusRes.transactionId || statusRes.mpesaReceiptNumber || checkoutRequestId;
+                    await completeFinalSale('kcb_stk', mpesaRef);
+                } else if (statusStr === 'failed' || resCode === '1' || resCode === '1032') {
+                    stopStkPolling();
+                    setStkState('failed');
+                    setStkErrorMessage(statusRes?.message || statusRes?.resultDesc || "Transaction was cancelled or declined on customer handset.");
+                }
+            } catch (pollErr) {
+                console.warn("Polling payment status warning:", pollErr);
+            }
+        }, 3500);
+
+        stkPollingIntervalRef.current = interval;
+    };
+
+    const handleInitiateKcbStk = async () => {
+        const rawTargetPhone = stkPhone || customerInfo.phone;
+        if (!rawTargetPhone) {
+            alert("Please provide the customer's phone number for the KCB STK Push prompt.");
+            return;
+        }
+        const cleanPhone = normalizeKenyanPhone(rawTargetPhone);
+        if (!cleanPhone.startsWith('254') || cleanPhone.length !== 12) {
+            alert(`Invalid phone number format: "${rawTargetPhone}". Please enter a valid 10-digit number (e.g. 0712345678 or 254712345678).`);
+            return;
+        }
+
+        // Resolve target store
+        let targetStore: RetailStore | undefined;
+        if (activeMode === 'field') {
+            targetStore = allStores.find(s => s.agentId === currentUser.id && s.storeType === 'van_stock')
+                || activeStore
+                || allStores[0];
+        } else {
+            targetStore = activeStore || allStores[0];
+        }
+
+        const targetStoreId = targetStore?.id;
+        if (!targetStoreId) {
+            alert("Please create a Store in the 'Stores' tab before checking out.");
+            return;
+        }
+
+        setStkState('initiating');
+        setStkErrorMessage(null);
+        setStkStatusMessage(`Connecting to KCB Open Banking Gateway for ${cleanPhone}...`);
+        setStkCountdown(60);
+
+        try {
+            const orderRef = `POS-${Date.now().toString().slice(-6)}`;
+            const res = await apiService.post('/api/payments/kcb-stk-push', {
+                customerMobileNumber: cleanPhone,
+                phoneNumber: cleanPhone,
+                transactionAmount: String(finalPayableAmount),
+                amount: finalPayableAmount,
+                customerReference: orderRef,
+                customerName: customerInfo.name || 'Retail Customer',
+                narration: `Retail POS Order`,
+                creditAccountIdentifier: institutionId,
+                institutionId: institutionId,
+                metadata: {
+                    type: 'retail_pos_sale',
+                    storeId: targetStoreId,
+                    customerId: selectedCustomer?.id,
+                    carrierIncluded: includeCarrierCharges,
+                    carrierFee: carrierCharge,
+                    carrierName: resolvedCarrierDetails?.carrierName,
+                    carrierDestination: resolvedCarrierDetails?.destination,
+                    itemsCount: cart.reduce((s, c) => s + c.quantity, 0)
+                }
+            });
+
+            if (res.success || res.ResponseCode === '0' || res.ResponseCode === '00') {
+                const checkoutReqId = res.CheckoutRequestID || res.checkoutRequestId || `KCB_CO_${Date.now()}`;
+                setStkCheckoutRequestId(checkoutReqId);
+                setStkState('prompt_sent');
+                setStkStatusMessage(`STK Push dispatched to ${cleanPhone}. Please enter your M-Pesa PIN on your phone.`);
+
+                // Save pending transaction in mpesa_transactions for DB fast path
+                try {
+                    await apiService.saveModuleRecord('mpesa_transactions', {
+                        id: `txn_${Date.now()}`,
+                        transactionId: checkoutReqId,
+                        checkoutRequestId: checkoutReqId,
+                        institutionId: institutionId || 'SYSTEM',
+                        amount: finalPayableAmount,
+                        phoneNumber: cleanPhone,
+                        payerName: customerInfo.name || 'Retail Customer',
+                        status: 'pending',
+                        provider: 'kcb',
+                        customer_reference: orderRef,
+                        narration: `Retail POS Order`,
+                        credit_account_identifier: institutionId,
+                        metadata: {
+                            type: 'retail_pos_sale',
+                            storeId: targetStoreId,
+                            customerId: selectedCustomer?.id,
+                            carrierIncluded: includeCarrierCharges,
+                            carrierFee: carrierCharge,
+                            carrierName: resolvedCarrierDetails?.carrierName,
+                            carrierDestination: resolvedCarrierDetails?.destination
+                        },
+                        timestamp: new Date().toISOString()
+                    });
+                } catch (pErr) {
+                    console.warn("Could not write pending mpesa_transaction record:", pErr);
+                }
+
+                startStkPolling(checkoutReqId);
+            } else {
+                const errorMsg = res.message || res.ResponseDescription || "KCB Gateway rejected the STK Push prompt.";
+                const detailsMsg = res.details ? ` (${typeof res.details === 'object' ? JSON.stringify(res.details) : res.details})` : '';
+                setStkState('failed');
+                setStkErrorMessage(`${errorMsg}${detailsMsg}`);
+            }
+        } catch (err: any) {
+            console.error("KCB STK Push error:", err);
+            setStkState('failed');
+            setStkErrorMessage(err?.message || "Failed to initiate KCB STK Push prompt. Please verify gateway settings.");
+        }
+    };
+
+    const completeFinalSale = async (method: string, mpesaRefCode?: string) => {
+        setIsProcessing(true);
         try {
             // CRM Logic: Save or Update Customer and Loyalty (bypassed in education mode)
             let finalCustomerId = selectedCustomer?.id;
-            const loyaltyPointsEarned = Math.floor(totalAmount / 100);
+            const loyaltyPointsEarned = Math.floor(finalPayableAmount / 100);
 
-            if (!isEducation && (customerInfo.name || customerInfo.phone)) {
+            if (!isEducation && (customerInfo.name || customerInfo.phone || stkPhone)) {
                 try {
                     const customerData: any = {
                         institutionId,
                         name: customerInfo.name || 'Walk-in Customer',
-                        phoneNumber: customerInfo.phone,
+                        phoneNumber: customerInfo.phone || stkPhone,
                         email: customerInfo.email,
-                        totalSpent: (selectedCustomer?.totalSpent || 0) + totalAmount,
+                        totalSpent: (selectedCustomer?.totalSpent || 0) + finalPayableAmount,
                         loyaltyPoints: (selectedCustomer?.loyaltyPoints || 0) + loyaltyPointsEarned,
                         updatedAt: new Date().toISOString()
                     };
@@ -503,7 +747,6 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             // Resolve the best store for this transaction
             let targetStore: RetailStore | undefined;
             if (activeMode === 'field') {
-                // Field Ops: prefer agent's own van_stock, then any store
                 targetStore = allStores.find(s => s.agentId === currentUser.id && s.storeType === 'van_stock')
                     || activeStore
                     || allStores[0];
@@ -518,7 +761,6 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 return;
             }
 
-            // Only pass agentId if in field mode and store type is van_stock (to satisfy UUID FK constraint)
             const isVanSale = activeMode === 'field' && targetStore?.storeType === 'van_stock';
 
             const saleData = {
@@ -526,10 +768,10 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 storeId: targetStoreId,
                 agentId: isVanSale ? currentUser.id : undefined,
                 customerId: finalCustomerId,
-                totalAmount,
-                paymentMethod: isEducation ? 'issuance' : paymentMethod,
-                customerName: isEducation ? (selectedStudent?.name || customerInfo.name) : customerInfo.name,
-                customerPhone: isEducation ? (selectedStudent?.phoneNumber || customerInfo.phone) : customerInfo.phone,
+                totalAmount: finalPayableAmount,
+                paymentMethod: isEducation ? 'issuance' : method,
+                customerName: isEducation ? (selectedStudent?.name || customerInfo.name) : (customerInfo.name || 'Retail Customer'),
+                customerPhone: isEducation ? (selectedStudent?.phoneNumber || customerInfo.phone) : (customerInfo.phone || stkPhone),
                 customerEmail: isEducation ? (selectedStudent?.email || customerInfo.email) : customerInfo.email,
                 items: cart.map(c => ({
                     itemId: c.item.id,
@@ -539,11 +781,21 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                     source: (c.item as any).source
                 })),
                 signature: isEducation ? signatureData : undefined,
-                metadata: isEducation ? {
-                    studentId: selectedStudent?.id,
-                    admissionNumber: getStudentId(selectedStudent),
-                    isEducationIssuance: true
-                } : undefined,
+                metadata: {
+                    ...(isEducation ? {
+                        studentId: selectedStudent?.id,
+                        admissionNumber: getStudentId(selectedStudent),
+                        isEducationIssuance: true
+                    } : {}),
+                    carrier: includeCarrierCharges ? resolvedCarrierDetails : undefined,
+                    carrierFee: carrierCharge,
+                    carrierName: resolvedCarrierDetails?.carrierName,
+                    carrierDestination: resolvedCarrierDetails?.destination,
+                    carrierEstimatedDays: resolvedCarrierDetails?.estimatedDays,
+                    kcbCheckoutRequestId: stkCheckoutRequestId || undefined,
+                    mpesaReceiptNumber: mpesaRefCode || undefined,
+                    paymentGateway: method === 'kcb_stk' ? 'kcb_buni_open_banking' : method
+                },
                 createdAt: new Date().toISOString()
             };
 
@@ -552,7 +804,6 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 savedSale = await apiService.saveModuleRecord('retail_sales', saleData);
             } catch (saveErr: any) {
                 console.warn("First save attempt failed, trying fallback without signature/metadata fields:", saveErr);
-                // Fallback: strip signature and metadata which might not exist in old database schemas
                 const fallbackSaleData = {
                     ...saleData,
                     signature: undefined,
@@ -562,6 +813,28 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
             }
 
             if (savedSale && (savedSale as any).id) {
+                // If carrier was included and marketplace orders table exists, optionally log dispatch order
+                if (includeCarrierCharges && carrierCharge > 0) {
+                    try {
+                        await apiService.saveModuleRecord('retail_marketplace_orders', {
+                            id: `dsp_${Date.now()}_${String((savedSale as any).id).slice(0, 8)}`,
+                            institution_id: institutionId,
+                            customer_name: saleData.customerName,
+                            customer_phone: saleData.customerPhone,
+                            delivery_address: resolvedCarrierDetails?.destination || 'Customer Address',
+                            destination_id: selectedDeliveryRate?.id || undefined,
+                            items_json: saleData.items,
+                            items_total: totalAmount,
+                            delivery_fee: carrierCharge,
+                            total_amount: finalPayableAmount,
+                            payment_status: 'Paid',
+                            order_status: 'Received',
+                            payment_ref: mpesaRefCode || (savedSale as any).id,
+                            created_at: new Date().toISOString()
+                        }).catch(() => {});
+                    } catch (_) {}
+                }
+
                 const commissionPromises: Promise<any>[] = [];
                 const stockUpdatePromises: Promise<any>[] = [];
 
@@ -591,7 +864,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 // 2. Prepare Stock Reductions
                 for (const c of cart) {
                     const isCafe = (c.item as any).source === 'cafe';
-                    if (isCafe) continue; // Cafe menu items don't track quantity
+                    if (isCafe) continue;
 
                     const retailItem = c.item as RetailInventoryItem;
                     const newQty = Math.max(0, (retailItem.quantity || 0) - c.quantity);
@@ -607,35 +880,25 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                     );
                 }
 
-                // 3. Await all in parallel
                 await Promise.all([...commissionPromises, ...stockUpdatePromises]);
 
-                if (customerInfo.phone) {
-                    console.log(`[Mock SMS] Sending receipt to ${customerInfo.phone} for KES ${totalAmount}`);
-                }
-                if (customerInfo.email) {
-                    console.log(`[Mock Email] Sending invoice to ${customerInfo.email}`);
-                }
-
-                // Generate and trigger Receipt Auto-Preview
+                // Thermal Receipt Preview
                 try {
-                    console.log("Generating thermal receipt preview...");
-
-                    // Add totalAmount and paymentMethod to items since generator expects root level properties on saleData
                     const completeSaleData = {
                         ...saleData,
                         id: (savedSale as any).id || Date.now().toString(),
-                    }
-
-                    // We generate the Blob URL for the PDF
-                    const actualInst = institution || { name: 'School Store', phoneNumber: '', email: '' };
+                        carrierFee: carrierCharge,
+                        carrierName: resolvedCarrierDetails?.carrierName,
+                        carrierDestination: resolvedCarrierDetails?.destination
+                    };
+                    const actualInst = institution || { name: 'Retail Agency', phoneNumber: '', email: '' };
                     const pdfUrl = await generateRetailReceiptPdf(
                         completeSaleData,
                         actualInst,
-                        {} as any, // company details
-                        actualInst.logoUrl || null, // default logo
-                        false, // isReprint
-                        isEducation // isEducation
+                        {} as any,
+                        actualInst.logoUrl || null,
+                        false,
+                        isEducation
                     );
                     setReceiptPdfUrl(pdfUrl);
                 } catch (pdfErr) {
@@ -644,10 +907,12 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
                 setCheckoutSuccess(savedSale);
                 setCart([]);
-                fetchCustomers(); // Refresh list to catch new/updated customer
-                fetchProducts();  // Refresh inventory to show updated stock quantities
+                setIncludeCarrierCharges(false);
+                setStkState('idle');
+                setStkCheckoutRequestId(null);
+                fetchCustomers();
+                fetchProducts();
             }
-
         } catch (err: any) {
             console.error("Checkout error:", err);
             const msg = err?.message || "";
@@ -661,6 +926,27 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) return;
+        if (isEducation && !selectedStudent) {
+            alert("Please search and select a student before processing issuance.");
+            return;
+        }
+        if (isEducation && !signatureData) {
+            const proceedWithoutSignature = window.confirm("No recipient signature has been captured. Would you like to proceed with the issuance anyway?");
+            if (!proceedWithoutSignature) {
+                return;
+            }
+        }
+
+        if (!isEducation && paymentMethod === 'kcb_stk') {
+            await handleInitiateKcbStk();
+            return;
+        }
+
+        await completeFinalSale(paymentMethod);
     };
 
     const filteredProducts = products.filter(p => {
@@ -1685,26 +1971,242 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
                                     {!isEducation && (
                                         <div className="space-y-4">
-                                            <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400 ml-4">Transfer Protocol</label>
-                                            <div className="grid grid-cols-3 gap-4">
-                                                {['mpesa', 'card', 'cash'].map(method => (
-                                                    <button
-                                                        key={method}
-                                                        onClick={() => setPaymentMethod(method)}
-                                                        className={`group relative py-4 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${paymentMethod === method
-                                                            ? 'bg-indigo-600 border-indigo-600 shadow-xl shadow-indigo-500/20'
-                                                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-200'}`}
-                                                    >
-                                                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${paymentMethod === method ? 'text-white' : 'text-slate-400 group-hover:text-indigo-500'}`}>
-                                                            {method}
-                                                        </span>
-                                                        {paymentMethod === method && (
-                                                            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border-2 border-indigo-600 text-indigo-600">
-                                                                <CheckCircleIcon className="w-3 h-3" />
+                                            {/* Carrier & Delivery Charges Section */}
+                                            <div className="p-6 bg-slate-50 dark:bg-slate-800/40 rounded-[2rem] border border-slate-200/80 dark:border-slate-700/60 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${includeCarrierCharges ? 'bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400' : 'bg-slate-200/50 dark:bg-slate-700/50 text-slate-400'}`}>
+                                                            <Truck className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                                                                Delivery & Carrier Charges
+                                                            </h5>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                                                Add courier freight or transport fee to checkout
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={includeCarrierCharges}
+                                                            onChange={e => setIncludeCarrierCharges(e.target.checked)}
+                                                            className="sr-only peer"
+                                                        />
+                                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-amber-500"></div>
+                                                    </label>
+                                                </div>
+
+                                                {includeCarrierCharges && (
+                                                    <div className="space-y-4 pt-3 border-t border-slate-200/60 dark:border-slate-700/50 animate-in fade-in slide-in-from-top-2">
+                                                        {deliveryRates.length > 0 && (
+                                                            <div className="space-y-2">
+                                                                <span className="text-[9px] font-black uppercase tracking-[.2em] text-slate-400">
+                                                                    Preset Delivery Destination Rates
+                                                                </span>
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                                                                    {deliveryRates.map(rate => {
+                                                                        const isSelected = selectedDeliveryRateId === rate.id;
+                                                                        const courierName = rate.courier_name || rate.courierName || couriers.find(c => c.id === (rate.courier_id || rate.courierId))?.name || 'Courier';
+                                                                        return (
+                                                                            <button
+                                                                                key={rate.id}
+                                                                                type="button"
+                                                                                onClick={() => setSelectedDeliveryRateId(rate.id)}
+                                                                                className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between ${isSelected
+                                                                                    ? 'border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-sm'
+                                                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                                                                            >
+                                                                                <div className="flex justify-between items-start gap-1">
+                                                                                    <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate">
+                                                                                        {rate.destination}
+                                                                                    </span>
+                                                                                    <span className="text-xs font-black text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                                                                                        KES {Number(rate.rate).toLocaleString()}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="flex items-center justify-between text-[9px] text-slate-400 mt-1">
+                                                                                    <span>{courierName}</span>
+                                                                                    <span>{rate.estimated_days || 1}d turnaround</span>
+                                                                                </div>
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setSelectedDeliveryRateId('custom')}
+                                                                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between ${selectedDeliveryRateId === 'custom'
+                                                                            ? 'border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-sm'
+                                                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300'}`}
+                                                                    >
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100">
+                                                                                Custom Carrier / Manual Rate
+                                                                            </span>
+                                                                            <span className="text-[9px] text-slate-400">Specify courier & amount</span>
+                                                                        </div>
+                                                                        <Tag className="w-4 h-4 text-amber-600" />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         )}
-                                                    </button>
-                                                ))}
+
+                                                        {(selectedDeliveryRateId === 'custom' || deliveryRates.length === 0) && (
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
+                                                                <div>
+                                                                    <label className="text-[8px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                                                        Transporter / Carrier Name
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={customCarrierName}
+                                                                        onChange={e => setCustomCarrierName(e.target.value)}
+                                                                        placeholder="e.g. Fargo, Modern Coast, Rider"
+                                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[8px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                                                        Destination / Area Drop
+                                                                    </label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={customDestination}
+                                                                        onChange={e => setCustomDestination(e.target.value)}
+                                                                        placeholder="e.g. Mombasa Town, Busia Stage"
+                                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[8px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                                                        Carrier Fee (KES)
+                                                                    </label>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="10"
+                                                                        value={customCarrierFee}
+                                                                        onChange={e => setCustomCarrierFee(e.target.value)}
+                                                                        placeholder="250"
+                                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[8px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                                                                        Est. Delivery (Days)
+                                                                    </label>
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        value={customEstimatedDays}
+                                                                        onChange={e => setCustomEstimatedDays(e.target.value)}
+                                                                        placeholder="1"
+                                                                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex items-center justify-between px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-xl text-xs font-bold text-amber-800 dark:text-amber-300">
+                                                            <span className="flex items-center gap-1.5">
+                                                                <Truck className="w-3.5 h-3.5 text-amber-600" />
+                                                                Carrier Charge Added
+                                                            </span>
+                                                            <span className="font-black text-amber-700 dark:text-amber-300">
+                                                                + KES {carrierCharge.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Transfer Protocol Section */}
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center ml-2">
+                                                    <label className="text-[9px] font-black uppercase tracking-[.3em] text-slate-400">
+                                                        Settlement / Transfer Protocol
+                                                    </label>
+                                                    {paymentMethod === 'kcb_stk' && (
+                                                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
+                                                            <Zap className="w-2.5 h-2.5" /> Instant STK Push
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                    {[
+                                                        { id: 'kcb_stk', label: 'KCB STK Push', sub: 'Instant Mobile Prompt', icon: KcbIcon },
+                                                        { id: 'mpesa', label: 'M-Pesa Manual', sub: 'Till / Paybill Code', icon: MpesaIcon },
+                                                        { id: 'card', label: 'Card Payment', sub: 'POS Terminal / Debit', icon: CreditCard },
+                                                        { id: 'cash', label: 'Cash Tender', sub: 'Direct Physical Note', icon: HandCoins }
+                                                    ].map(item => {
+                                                        const isSelected = paymentMethod === item.id;
+                                                        const IconComp = item.icon;
+                                                        return (
+                                                            <button
+                                                                key={item.id}
+                                                                type="button"
+                                                                onClick={() => setPaymentMethod(item.id)}
+                                                                className={`group relative p-3 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 text-center ${isSelected
+                                                                    ? item.id === 'kcb_stk'
+                                                                        ? 'bg-emerald-600 border-emerald-600 text-white shadow-xl shadow-emerald-600/20'
+                                                                        : 'bg-indigo-600 border-indigo-600 text-white shadow-xl shadow-indigo-500/20'
+                                                                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300'}`}
+                                                            >
+                                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'}`}>
+                                                                    <IconComp className="w-5 h-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className={`text-[10px] font-black uppercase tracking-wider ${isSelected ? 'text-white' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                                        {item.label}
+                                                                    </div>
+                                                                    <div className={`text-[8px] tracking-tight ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
+                                                                        {item.sub}
+                                                                    </div>
+                                                                </div>
+                                                                {isSelected && (
+                                                                    <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center border-2 border-emerald-600 text-emerald-600 shadow">
+                                                                        <CheckCircleIcon className="w-3 h-3" />
+                                                                    </div>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* KCB STK Phone Input Panel */}
+                                                {paymentMethod === 'kcb_stk' && (
+                                                    <div className="p-4 bg-gradient-to-r from-emerald-500/5 via-teal-500/5 to-emerald-500/10 dark:from-emerald-950/30 dark:to-teal-950/20 rounded-2xl border border-emerald-500/20 space-y-3 animate-in fade-in slide-in-from-top-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <KcbIcon className="w-5 h-5 text-emerald-600" />
+                                                                <span className="text-xs font-black text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">
+                                                                    Target Customer M-Pesa Handset
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                                <ShieldCheck className="w-3 h-3" /> KCB Secure Push
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="relative">
+                                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                                                                <Phone className="w-4 h-4 text-emerald-600" />
+                                                            </div>
+                                                            <input
+                                                                type="tel"
+                                                                value={stkPhone}
+                                                                onChange={e => setStkPhone(e.target.value)}
+                                                                placeholder="e.g. 0712 345 678 or 254712345678"
+                                                                className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-xl text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                                                            />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                            A payment push for <strong className="text-emerald-600 dark:text-emerald-400">KES {finalPayableAmount.toLocaleString()}</strong> will trigger instantly on this customer's screen requiring their M-Pesa PIN.
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}
@@ -1729,14 +2231,32 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                         </div>
                                     ) : (
                                         <div className="p-5 bg-slate-900 dark:bg-slate-800 rounded-2xl flex justify-between items-center shadow-xl">
-                                            <div className="space-y-0.5">
-                                                <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
-                                                    Net Liability
-                                                </span>
-                                                <h4 className="text-2xl font-black text-white tracking-tighter">KES {totalAmount?.toLocaleString()}</h4>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-[10px] font-black uppercase tracking-[.4em] text-slate-400">
+                                                        Net Liability
+                                                    </span>
+                                                    {includeCarrierCharges && carrierCharge > 0 && (
+                                                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                                                            Incl. KES {carrierCharge.toLocaleString()} Delivery
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h4 className="text-2xl font-black text-white tracking-tighter">
+                                                    KES {finalPayableAmount?.toLocaleString()}
+                                                </h4>
+                                                {includeCarrierCharges && carrierCharge > 0 && (
+                                                    <p className="text-[10px] text-slate-400">
+                                                        Items: KES {totalAmount.toLocaleString()} &bull; Carrier: {resolvedCarrierDetails?.carrierName || 'Courier'}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md">
-                                                <ShoppingCart className="w-6 h-6 text-white/50" />
+                                                {paymentMethod === 'kcb_stk' ? (
+                                                    <KcbIcon className="w-6 h-6 text-emerald-400" />
+                                                ) : (
+                                                    <ShoppingCart className="w-6 h-6 text-white/50" />
+                                                )}
                                             </div>
                                         </div>
                                     )}
@@ -1744,18 +2264,210 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                     <button
                                         onClick={handleCheckout}
                                         disabled={isProcessing}
-                                        className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[12px] tracking-[0.4em] shadow-2xl hover:bg-indigo-500 active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-50"
+                                        className={`w-full py-5 rounded-2xl font-black uppercase text-[12px] tracking-[0.4em] shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-50 ${
+                                            paymentMethod === 'kcb_stk' && !isEducation
+                                                ? 'bg-[#008148] hover:bg-[#006e3d] text-white shadow-emerald-600/30'
+                                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30'
+                                        }`}
                                     >
                                         {isProcessing ? (
                                             <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin" />
                                         ) : (
                                             <>
-                                                <Zap className="w-6 h-6" />
-                                                {isEducation ? "Log Issuance" : "Process Settlement"}
+                                                {paymentMethod === 'kcb_stk' && !isEducation ? (
+                                                    <>
+                                                        <KcbIcon className="w-5 h-5 text-white" />
+                                                        <span>Dispatch KCB STK Push (KES {finalPayableAmount.toLocaleString()})</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Zap className="w-6 h-6" />
+                                                        <span>{isEducation ? "Log Issuance" : `Process Settlement (KES ${finalPayableAmount.toLocaleString()})`}</span>
+                                                    </>
+                                                )}
                                             </>
                                         )}
                                     </button>
                                 </div>
+
+                                {/* KCB STK Live Progress & Verification Overlay */}
+                                {stkState !== 'idle' && (
+                                    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl max-w-md w-full p-8 text-center space-y-6 relative overflow-hidden animate-in zoom-in-95 duration-200">
+                                            {/* Glowing header banner */}
+                                            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-400 to-[#008148]" />
+
+                                            {/* Status Icon Graphic */}
+                                            <div className="relative mx-auto w-24 h-24 flex items-center justify-center">
+                                                {stkState === 'completed' ? (
+                                                    <div className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center border-2 border-emerald-500 animate-in zoom-in">
+                                                        <CheckCircleIcon className="w-12 h-12" />
+                                                    </div>
+                                                ) : stkState === 'failed' ? (
+                                                    <div className="w-20 h-20 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center border-2 border-rose-500">
+                                                        <AlertCircle className="w-12 h-12" />
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+                                                        <div className="w-20 h-20 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 relative">
+                                                            <Phone className="w-9 h-9 animate-bounce" />
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Title & Status Message */}
+                                            <div className="space-y-2">
+                                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-black uppercase tracking-wider">
+                                                    <KcbIcon className="w-4 h-4" /> KCB Open Banking Gateway
+                                                </div>
+                                                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                                                    {stkState === 'initiating' && "Dispatching STK Prompt..."}
+                                                    {(stkState === 'prompt_sent' || stkState === 'polling') && "Awaiting Customer PIN"}
+                                                    {stkState === 'completed' && "Payment Verified!"}
+                                                    {stkState === 'failed' && "Transaction Incomplete"}
+                                                </h3>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto">
+                                                    {stkState === 'initiating' && "Communicating with KCB API to trigger prompt on handset..."}
+                                                    {(stkState === 'prompt_sent' || stkState === 'polling') && `An M-Pesa prompt has been sent to +${normalizeKenyanPhone(stkPhone || customerInfo.phone)}. Please ask the customer to enter their PIN.`}
+                                                    {stkState === 'completed' && (stkStatusMessage || "M-Pesa transaction confirmed. Finalizing receipt...")}
+                                                    {stkState === 'failed' && (stkErrorMessage || "The payment prompt was not completed or was declined.")}
+                                                </p>
+                                            </div>
+
+                                            {/* Financial details card */}
+                                            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 text-left space-y-2">
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-slate-400 font-bold uppercase tracking-wider">Total Payable</span>
+                                                    <span className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                                                        KES {finalPayableAmount.toLocaleString()}
+                                                    </span>
+                                                </div>
+                                                {includeCarrierCharges && carrierCharge > 0 && (
+                                                    <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-200/60 dark:border-slate-700/50 pt-1">
+                                                        <span>Included Carrier Fee:</span>
+                                                        <span className="font-bold">KES {carrierCharge.toLocaleString()} ({resolvedCarrierDetails?.carrierName})</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-200/60 dark:border-slate-700/50 pt-1">
+                                                    <span>Recipient Handset:</span>
+                                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300">+{normalizeKenyanPhone(stkPhone || customerInfo.phone)}</span>
+                                                </div>
+                                                {stkCheckoutRequestId && (
+                                                    <div className="flex justify-between items-center text-[9px] text-slate-400 border-t border-slate-200/60 dark:border-slate-700/50 pt-1 truncate">
+                                                        <span>Request ID:</span>
+                                                        <span className="font-mono truncate max-w-[180px]">{stkCheckoutRequestId}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Countdown timer & Polling spinner */}
+                                            {(stkState === 'prompt_sent' || stkState === 'polling') && (
+                                                <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+                                                    <span className="flex items-center gap-2">
+                                                        <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                                                        Live Open Banking Polling
+                                                    </span>
+                                                    <span className="font-mono font-black text-sm">
+                                                        {stkCountdown}s
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* Action Buttons */}
+                                            <div className="space-y-2">
+                                                {(stkState === 'prompt_sent' || stkState === 'polling' || stkState === 'failed') && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsManualMpesaModalOpen(true)}
+                                                        className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg"
+                                                    >
+                                                        <CheckBadgeIcon className="w-4 h-4 text-emerald-400" />
+                                                        Enter M-Pesa Code Manually
+                                                    </button>
+                                                )}
+
+                                                {stkState === 'failed' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleInitiateKcbStk}
+                                                        className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg"
+                                                    >
+                                                        <RefreshCw className="w-4 h-4" />
+                                                        Retry KCB STK Push
+                                                    </button>
+                                                )}
+
+                                                {stkState !== 'completed' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            stopStkPolling();
+                                                            setStkState('idle');
+                                                        }}
+                                                        className="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+                                                    >
+                                                        Dismiss / Choose Another Payment Method
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Manual M-Pesa Code Verification Sub-Modal */}
+                                {isManualMpesaModalOpen && (
+                                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+                                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center space-y-5 animate-in zoom-in-95">
+                                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-500/20">
+                                                <MpesaIcon className="w-7 h-7" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                                    Manual M-Pesa Code
+                                                </h4>
+                                                <p className="text-xs text-slate-500 mt-1">
+                                                    Enter the 10-character confirmation code from the customer's M-Pesa receipt SMS (e.g. SHK9810ABC).
+                                                </p>
+                                            </div>
+
+                                            <input
+                                                type="text"
+                                                autoFocus
+                                                value={manualMpesaCode}
+                                                onChange={e => setManualMpesaCode(e.target.value.toUpperCase())}
+                                                placeholder="e.g. TKA4928JDL"
+                                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center font-mono font-black text-lg tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                            />
+
+                                            <div className="grid grid-cols-2 gap-3 pt-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsManualMpesaModalOpen(false)}
+                                                    className="py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+                                                >
+                                                    Back
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={!manualMpesaCode.trim() || isProcessing}
+                                                    onClick={async () => {
+                                                        const code = manualMpesaCode.trim().toUpperCase();
+                                                        if (!code) return;
+                                                        setIsManualMpesaModalOpen(false);
+                                                        stopStkPolling();
+                                                        setStkState('idle');
+                                                        await completeFinalSale('kcb_stk', code);
+                                                    }}
+                                                    className="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-600/30"
+                                                >
+                                                    Verify & Complete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

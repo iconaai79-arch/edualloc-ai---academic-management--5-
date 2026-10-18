@@ -163,7 +163,7 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     const isReseller = formData.institutionType === 'Reseller';
     const saveData: Partial<Omit<Institution, 'id'>> = {
       name: formData.name,
-      email: formData.email,
+      email: (formData.email && formData.email.trim()) ? formData.email.trim() : undefined,
       phoneNumber: formData.phoneNumber,
       institutionType: formData.institutionType as Institution['institutionType'],
       countyId: formData.countyId || undefined,

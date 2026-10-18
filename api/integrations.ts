@@ -1067,11 +1067,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     const { data: instData } = await supabase
                         .from('institutions')
-                        .select('email_config, emailConfig')
+                        .select('email_config')
                         .eq('id', targetInstId)
                         .maybeSingle();
                     if (instData) {
-                        instEmailConfig = instData.email_config || instData.emailConfig;
+                        instEmailConfig = (instData as any).email_config || (instData as any).emailConfig;
                     }
                 } catch (_) {}
             }
@@ -1239,11 +1239,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 try {
                     const { data: instData } = await supabase
                         .from('institutions')
-                        .select('email_config, emailConfig')
+                        .select('email_config')
                         .eq('id', instId)
                         .maybeSingle();
                     if (instData) {
-                        instEmailConfig = instData.email_config || instData.emailConfig;
+                        instEmailConfig = (instData as any).email_config || (instData as any).emailConfig;
                     }
                 } catch (_) {}
             }
@@ -1806,7 +1806,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
                 let { data: institution, error: configError } = await supabase
                     .from('institutions')
-                    .select('id, name, sms_balance, smsBalance, sms_config, smsConfig')
+                    .select('id, name, sms_balance, sms_config')
                     .eq('id', institutionId)
                     .maybeSingle();
 
@@ -1823,7 +1823,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         effectiveBillableInstId = bData.institution_id;
                         const { data: parentInst, error: parentErr } = await supabase
                             .from('institutions')
-                            .select('id, name, sms_balance, smsBalance, sms_config, smsConfig')
+                            .select('id, name, sms_balance, sms_config')
                             .eq('id', effectiveBillableInstId)
                             .maybeSingle();
 
@@ -1933,15 +1933,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.warn('[SMS Gateway] decrement_sms_balance RPC failed/missing, executing direct fallback:', rpcErr);
                         const { data: currInst } = await supabase
                             .from('institutions')
-                            .select('sms_balance, smsBalance')
+                            .select('sms_balance')
                             .eq('id', effectiveBillableInstId)
                             .maybeSingle();
                         if (currInst) {
-                            const currentBal = currInst.sms_balance ?? currInst.smsBalance ?? 0;
+                            const currentBal = currInst.sms_balance ?? (currInst as any).smsBalance ?? 0;
                             remainingBalance = Math.max(0, currentBal - deductedFromGeneral);
                             await supabase
                                 .from('institutions')
-                                .update({ sms_balance: remainingBalance, smsBalance: remainingBalance })
+                                .update({ sms_balance: remainingBalance })
                                 .eq('id', effectiveBillableInstId);
                         }
                     } else {
@@ -2003,8 +2003,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 } else {
                     // Try Institution first
                     if (targetInstId) {
-                        const { data: inst } = await supabase.from('institutions').select('google_drive_config, googleDriveConfig').eq('id', targetInstId).maybeSingle();
-                        const instConfig = (inst?.google_drive_config || (inst as any)?.googleDriveConfig) as GoogleDriveConfig;
+                        const { data: inst } = await supabase.from('institutions').select('google_drive_config').eq('id', targetInstId).maybeSingle();
+                        const instConfig = ((inst as any)?.google_drive_config || (inst as any)?.googleDriveConfig) as GoogleDriveConfig;
                         if (instConfig) {
                             // Normailze/check if active
                             const activeFlag = instConfig.isActive ?? (instConfig as any).is_active;
@@ -2190,10 +2190,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (targetInstId && targetInstId !== 'SYSTEM' && targetInstId !== 'GLOBAL') {
                     const { data: instData } = await supabase
                         .from('institutions')
-                        .select('sms_config, smsConfig')
+                        .select('sms_config')
                         .eq('id', targetInstId)
                         .maybeSingle();
-                    if (instData) instConfig = instData.sms_config || instData.smsConfig || {};
+                    if (instData) instConfig = (instData as any).sms_config || (instData as any).smsConfig || {};
                 }
 
                 const candidates = buildCandidateGateways(bodyConfig, instConfig, settings.sms_config || settings.smsConfig, true);
@@ -4083,9 +4083,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             if (!mpesa && instId && instId !== 'GLOBAL' && instId !== 'SYSTEM') {
                 try {
-                    const { data: inst } = await supabase.from('institutions').select('mpesa_config, mpesaConfig').eq('id', instId).maybeSingle();
+                    const { data: inst } = await supabase.from('institutions').select('mpesa_config').eq('id', instId).maybeSingle();
                     if (inst) {
-                        mpesa = inst.mpesa_config || inst.mpesaConfig;
+                        mpesa = (inst as any).mpesa_config || (inst as any).mpesaConfig;
                     }
                 } catch (e) {
                     console.warn('[M-Pesa] Failed to fetch institution mpesa config:', e);
@@ -4196,9 +4196,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (!mpesa && instId && instId !== 'GLOBAL' && instId !== 'SYSTEM') {
                 try {
-                    const { data: inst } = await supabase.from('institutions').select('name, mpesa_config, mpesaConfig').eq('id', instId).maybeSingle();
+                    const { data: inst } = await supabase.from('institutions').select('name, mpesa_config').eq('id', instId).maybeSingle();
                     if (inst) {
-                        mpesa = inst.mpesa_config || inst.mpesaConfig;
+                        mpesa = (inst as any).mpesa_config || (inst as any).mpesaConfig;
                         if (!paramsMap.merchantName && !paramsMap.MerchantName && inst.name) {
                             paramsMap.merchantName = inst.name;
                         }

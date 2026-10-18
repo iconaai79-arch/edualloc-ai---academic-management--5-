@@ -3340,6 +3340,13 @@ export const apiService = {
                 delete item.logs;
             }
 
+            if (module === 'institutions') {
+                if (item.email !== undefined) {
+                    const rawEmail = typeof item.email === 'string' ? item.email.trim() : '';
+                    item.email = rawEmail && rawEmail.toLowerCase() !== 'null' && rawEmail.toLowerCase() !== 'undefined' ? rawEmail : null;
+                }
+            }
+
             if (module === 'receipts') {
                 const isPseudoInvoice = (id: any) => !id || (typeof id === 'string' && (id.trim() === '' || id.startsWith('__opening_balance__') || id.startsWith('__')));
                 if (isPseudoInvoice(item.invoice_id)) item.invoice_id = null;
@@ -3483,6 +3490,9 @@ export const apiService = {
                 item.status = item.status || 'active';
                 item.module_id = item.module_id || item.moduleId || (item.id ? item.id.split('_')[1] : 'general');
                 item.institution_id = item.institution_id || item.institutionId || 'default';
+                if (!item.id || item.id === 'null' || item.id === 'undefined' || item.id.startsWith('institution_module_states_')) {
+                    item.id = `ims_${item.module_id}_${item.institution_id}`;
+                }
                 delete item.settings;
                 delete item.state_data;
                 delete item.stateData;
@@ -5339,37 +5349,45 @@ export const apiService = {
                         imsData = updateRes.data;
                         imsErr = updateRes.error;
                     } else {
-                        // 2. Otherwise upsert on (institution_id, module_id) compound unique constraint
+                        // 2. Upsert by primary key id (matches DB schema after unique constraint relaxation)
                         const upsertRes = await _supabase
                             .from('institution_module_states')
-                            .upsert(cleanPayload, { onConflict: 'institution_id,module_id' })
+                            .upsert(cleanPayload, { onConflict: 'id' })
                             .select();
                         imsData = upsertRes.data;
                         imsErr = upsertRes.error;
 
-                        if (imsErr && (imsErr.message?.includes('ON CONFLICT') || imsErr.code === '42P10')) {
-                            // Fallback to id on conflict if index syntax differs
-                            const retryId = await _supabase
+                        if (imsErr && (imsErr.code === '23505' || String(imsErr.code) === '23505' || imsErr.message?.includes('unique constraint') || imsErr.message?.includes('duplicate key'))) {
+                            // Fallback to (institution_id, module_id) conflict if legacy constraint is still present
+                            const retryCompound = await _supabase
                                 .from('institution_module_states')
-                                .upsert(cleanPayload, { onConflict: 'id' })
+                                .upsert(cleanPayload, { onConflict: 'institution_id,module_id' })
                                 .select();
-                            imsData = retryId.data;
-                            imsErr = retryId.error;
+                            if (!retryCompound.error) {
+                                imsData = retryCompound.data;
+                                imsErr = null;
+                            }
                         }
                     }
 
                     // 3. Fallback for unique constraint violation: re-check and perform update by matched row ID
                     if (imsErr && (imsErr.code === '23505' || String(imsErr.code) === '23505' || imsErr.message?.includes('unique constraint') || imsErr.message?.includes('duplicate key'))) {
+                        const trimmedInst = String(instId).trim();
+                        const cleanInst = trimmedInst.replace(/^inst_/, '');
+                        const prefixedInst = trimmedInst.startsWith('inst_') ? trimmedInst : `inst_${trimmedInst}`;
                         const { data: latestRows } = await _supabase
                             .from('institution_module_states')
                             .select('id')
-                            .eq('institution_id', instId)
+                            .or(`institution_id.eq.${trimmedInst},institution_id.eq.${cleanInst},institution_id.eq.${prefixedInst}`)
                             .eq('module_id', modId)
+                            .order('updated_at', { ascending: false })
                             .limit(1);
                         if (latestRows && latestRows.length > 0 && latestRows[0].id) {
+                            const updatePayload = { ...cleanPayload };
+                            delete updatePayload.id;
                             const latestUpdate = await _supabase
                                 .from('institution_module_states')
-                                .update(cleanPayload)
+                                .update(updatePayload)
                                 .eq('id', latestRows[0].id)
                                 .select();
                             imsData = latestUpdate.data;
@@ -6395,8 +6413,11 @@ export const apiService = {
         const isOtpOn = otpVal === true || otpVal === 'true' || otpVal === 1 || otpVal === '1';
 
         const resId = inst.resellerId || (inst as any).reseller_id || null;
+        const instEmail = typeof inst.email === 'string' ? inst.email.trim() : '';
+        const cleanEmail = instEmail && instEmail.toLowerCase() !== 'null' && instEmail.toLowerCase() !== 'undefined' ? instEmail : null;
         await apiService.saveModuleRecord('institutions', { 
             ...rest, 
+            email: cleanEmail, 
             isOtpEnabled: isOtpOn,
             is_otp_enabled: isOtpOn,
             reseller_id: resId,
