@@ -69,7 +69,7 @@ import {
     Building2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord, SaccoLoanSettings, SaccoRoleLoanThreshold } from '../types';
+import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord, SaccoLoanSettings, SaccoLoanApplication, SaccoRoleLoanThreshold } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
 import { SaccoMemberStatementModal } from './SaccoMemberStatementModal';
@@ -143,7 +143,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSaccoSavings = currentInstitution.category === 'SACCO Savings' || currentInstitution.category === 'Transport SACCO & Savings' || currentInstitution.category?.toLowerCase().includes('savings');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_settings' | 'sacco_driver_app' | 'trips' | 'alerts' | 'billing' | 'reports' | 'branding'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_loans' | 'sacco_settings' | 'sacco_driver_app' | 'trips' | 'alerts' | 'billing' | 'reports' | 'branding'>(
         isSaccoSavings ? 'sacco_savings' : isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
 
@@ -1012,6 +1012,137 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     // ═════════════════════════════════════════════════════════════════════════
     // SACCO LOAN & CREDIT POLICY SETTINGS STATE
     // ═════════════════════════════════════════════════════════════════════════
+    // SACCO DRIVER & MEMBER LOAN APPLICATIONS DESK
+    const DEFAULT_SACCO_LOANS: SaccoLoanApplication[] = [
+        {
+            id: 'loan-seed-001',
+            institutionId: currentInstitution?.id || 'default',
+            driverId: 'drv-001',
+            driverName: 'John Mwangi Kinyanjui',
+            memberNumber: 'SACCO-DRV-0042',
+            vehicleReg: 'KDA 489X',
+            amount: 35000,
+            tenure: 6,
+            monthlyEmi: 6035,
+            interestRate: 12,
+            purpose: 'Emergency Gearbox & Clutch Overhaul',
+            guarantor: '+254 722 998877',
+            guarantorName: 'Peter Omondi (KDB 112Y)',
+            appliedAt: new Date(Date.now() - 3600000 * 28).toISOString(),
+            status: 'pending',
+            notes: 'Driver has active savings of KES 48,500. Fully eligible for up to 3x savings (KES 145,500).'
+        },
+        {
+            id: 'loan-seed-002',
+            institutionId: currentInstitution?.id || 'default',
+            driverId: 'drv-002',
+            driverName: 'Peter Omondi',
+            memberNumber: 'SACCO-DRV-0019',
+            vehicleReg: 'KDB 112Y',
+            amount: 20000,
+            tenure: 4,
+            monthlyEmi: 5125,
+            interestRate: 12,
+            purpose: 'Term 3 Secondary School Tuition Fees',
+            guarantor: '+254 711 334455',
+            guarantorName: 'Francis Kamau (KDC 774A)',
+            appliedAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+            status: 'approved',
+            approvedBy: 'Credit Committee Chairman',
+            notes: 'Approved pending M-Pesa B2C batch disbursement.'
+        },
+        {
+            id: 'loan-seed-003',
+            institutionId: currentInstitution?.id || 'default',
+            driverId: 'drv-004',
+            driverName: 'Kennedy Kiprop',
+            memberNumber: 'SACCO-DRV-0056',
+            vehicleReg: 'KDC 998C',
+            amount: 15000,
+            tenure: 3,
+            monthlyEmi: 5100,
+            interestRate: 12,
+            purpose: 'Annual PSV Comprehensive Insurance Levy',
+            guarantor: '+254 722 001122',
+            guarantorName: 'Mary Atieno (SACCO-OWN-0004)',
+            appliedAt: new Date(Date.now() - 3600000 * 120).toISOString(),
+            status: 'disbursed',
+            disbursedAt: new Date(Date.now() - 3600000 * 96).toISOString(),
+            disbursementMethod: 'mpesa',
+            disbursementRef: 'QJD89102KL',
+            approvedBy: 'SACCO Treasurer',
+            notes: 'Disbursed via M-Pesa B2C Bulk Float.'
+        }
+    ];
+
+    const [saccoLoanApplications, setSaccoLoanApplications] = useState<SaccoLoanApplication[]>(() => {
+        if (!currentInstitution?.id) return DEFAULT_SACCO_LOANS;
+        const key = `eduai_sacco_loan_applications_${currentInstitution.id}`;
+        const saved = safeGetLocalItem(key, null);
+        return saved && Array.isArray(saved) && saved.length > 0 ? saved : DEFAULT_SACCO_LOANS;
+    });
+
+    const [loanStatusFilter, setLoanStatusFilter] = useState<'all' | 'pending' | 'approved' | 'disbursed' | 'rejected'>('all');
+    const [loanSearchQuery, setLoanSearchQuery] = useState('');
+
+    const handleApproveLoan = (loanId: string) => {
+        setSaccoLoanApplications(prev => {
+            const updated = prev.map(l => l.id === loanId ? { 
+                ...l, 
+                status: 'approved' as const, 
+                approvedBy: currentUser?.name || 'SACCO Credit Desk Admin' 
+            } : l);
+            if (currentInstitution?.id) {
+                safeSetLocalItem(`eduai_sacco_loan_applications_${currentInstitution.id}`, updated);
+                persistHubToCloud({ saccoLoanApplications: updated });
+            }
+            return updated;
+        });
+        toastSuccess('✅ Loan application approved! Ready for M-Pesa / Bank disbursement.');
+    };
+
+    const handleDisburseLoan = (loanId: string) => {
+        const refPrompt = window.prompt('Enter M-Pesa B2C / Bank Disbursement Reference (or leave blank to auto-generate):');
+        const ref = refPrompt && refPrompt.trim() ? refPrompt.trim() : `MPESA-B2C-${Date.now().toString().slice(-6)}`;
+
+        setSaccoLoanApplications(prev => {
+            const updated = prev.map(l => l.id === loanId ? {
+                ...l,
+                status: 'disbursed' as const,
+                disbursedAt: new Date().toISOString(),
+                disbursementMethod: 'mpesa' as const,
+                disbursementRef: ref,
+                approvedBy: currentUser?.name || 'SACCO Credit Desk Admin'
+            } : l);
+            if (currentInstitution?.id) {
+                safeSetLocalItem(`eduai_sacco_loan_applications_${currentInstitution.id}`, updated);
+                persistHubToCloud({ saccoLoanApplications: updated });
+            }
+            return updated;
+        });
+        toastSuccess(`💸 Loan successfully marked as Disbursed! Reference: ${ref}`);
+    };
+
+    const handleRejectLoan = (loanId: string) => {
+        const reason = window.prompt('Enter rejection reason (e.g. Insufficient savings, multiple active defaults):');
+        if (reason === null) return;
+
+        setSaccoLoanApplications(prev => {
+            const updated = prev.map(l => l.id === loanId ? {
+                ...l,
+                status: 'rejected' as const,
+                rejectionReason: reason || 'Did not meet current credit policy criteria'
+            } : l);
+            if (currentInstitution?.id) {
+                safeSetLocalItem(`eduai_sacco_loan_applications_${currentInstitution.id}`, updated);
+                persistHubToCloud({ saccoLoanApplications: updated });
+            }
+            return updated;
+        });
+        toastSuccess('Loan application marked as Rejected.');
+    };
+
+
     const [loanSettings, setLoanSettings] = useState<SaccoLoanSettings>(() => {
         const key = currentInstitution?.id ? `eduai_sacco_loan_settings_${currentInstitution.id}` : null;
         if (key) {
@@ -8655,9 +8786,313 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         );
     };
 
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // RENDER: SACCO LOANS & CREDIT DESK (ADMIN APPROVALS & DISBURSEMENT)
+    // ═════════════════════════════════════════════════════════════════════════
+    const renderSACCOLoansDesk = () => {
+        const filteredLoans = saccoLoanApplications.filter(app => {
+            const matchesStatus = loanStatusFilter === 'all' || app.status === loanStatusFilter;
+            const matchesSearch = !loanSearchQuery || 
+                app.driverName.toLowerCase().includes(loanSearchQuery.toLowerCase()) ||
+                (app.vehicleReg || '').toLowerCase().includes(loanSearchQuery.toLowerCase()) ||
+                (app.purpose || '').toLowerCase().includes(loanSearchQuery.toLowerCase()) ||
+                app.id.toLowerCase().includes(loanSearchQuery.toLowerCase());
+            return matchesStatus && matchesSearch;
+        });
+
+        const pendingCount = saccoLoanApplications.filter(l => l.status === 'pending').length;
+        const approvedCount = saccoLoanApplications.filter(l => l.status === 'approved').length;
+        const disbursedCount = saccoLoanApplications.filter(l => l.status === 'disbursed').length;
+        const totalDisbursedAmount = saccoLoanApplications
+            .filter(l => l.status === 'disbursed')
+            .reduce((sum, l) => sum + l.amount, 0);
+
+        return (
+            <div className="space-y-8 animate-fade-in-up">
+                {/* Credit Desk Header HUD */}
+                <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 p-8 sm:p-10 rounded-[3rem] text-white shadow-2xl relative overflow-hidden border border-indigo-800/40">
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="space-y-3 max-w-2xl">
+                            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-black uppercase tracking-wider border border-indigo-500/30">
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Driver Credit Desk &amp; Lending Operations</span>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-tight">
+                                SACCO Loans &amp; <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-emerald-400">Credit Approvals</span>
+                            </h2>
+                            <p className="text-slate-300 text-xs sm:text-sm font-medium leading-relaxed">
+                                Review incoming mobile loan applications from drivers and owners. Verify savings qualification, 3x borrowing eligibility, guarantors, approve, and disburse via M-Pesa B2C or bank float.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={() => setActiveTab('sacco_settings')}
+                                className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-wider transition-all border border-white/10 flex items-center gap-2 active:scale-95"
+                            >
+                                <Sliders className="w-4 h-4 text-amber-400" />
+                                <span>Credit Policy Settings</span>
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('sacco_driver_app')}
+                                className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2 active:scale-95"
+                            >
+                                <Smartphone className="w-4 h-4" />
+                                <span>Simulate Driver Mobile App</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Quick Metric Tiles */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8 pt-8 border-t border-indigo-800/40">
+                        <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-2xl border border-indigo-500/20">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Pending Applications</span>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="text-2xl font-black font-mono text-amber-400">{pendingCount}</span>
+                                {pendingCount > 0 && (
+                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 animate-pulse">
+                                        Needs Review
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Awaiting credit committee action</span>
+                        </div>
+
+                        <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-2xl border border-indigo-500/20">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Approved for Payout</span>
+                            <div className="text-2xl font-black font-mono text-indigo-400 mt-1">{approvedCount}</div>
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Ready for M-Pesa disbursement</span>
+                        </div>
+
+                        <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-2xl border border-indigo-500/20">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Disbursed Loans</span>
+                            <div className="text-2xl font-black font-mono text-emerald-400 mt-1">{disbursedCount}</div>
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Active borrowing contracts</span>
+                        </div>
+
+                        <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-2xl border border-indigo-500/20">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Total Disbursed Capital</span>
+                            <div className="text-2xl font-black font-mono text-white mt-1">KES {totalDisbursedAmount.toLocaleString()}</div>
+                            <span className="text-[9px] text-slate-400 block mt-0.5">Cumulative credit portfolio</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    {/* Status Tabs */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                            { id: 'all', label: 'All Requests', count: saccoLoanApplications.length },
+                            { id: 'pending', label: 'Pending Review', count: pendingCount, highlight: pendingCount > 0 },
+                            { id: 'approved', label: 'Approved', count: approvedCount },
+                            { id: 'disbursed', label: 'Disbursed', count: disbursedCount },
+                            { id: 'rejected', label: 'Rejected', count: saccoLoanApplications.filter(l => l.status === 'rejected').length }
+                        ].map(t => (
+                            <button
+                                key={t.id}
+                                onClick={() => setLoanStatusFilter(t.id as any)}
+                                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                                    loanStatusFilter === t.id
+                                        ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
+                                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                                }`}
+                            >
+                                <span>{t.label}</span>
+                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                                    t.highlight ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                                }`}>
+                                    {t.count}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Search Field */}
+                    <div className="relative w-full lg:w-72">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                            type="text"
+                            value={loanSearchQuery}
+                            onChange={e => setLoanSearchQuery(e.target.value)}
+                            placeholder="Search driver, vehicle plate, or purpose..."
+                            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                    </div>
+                </div>
+
+                {/* Applications Table */}
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+                                    <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Applicant / Driver</th>
+                                    <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Loan Request</th>
+                                    <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Tenure &amp; EMI</th>
+                                    <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Purpose &amp; Guarantor</th>
+                                    <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Status</th>
+                                    <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Credit Desk Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                {filteredLoans.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="p-12 text-center text-slate-400 font-bold">
+                                            No loan applications found matching the selected filter.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredLoans.map(app => {
+                                        const memberAcc = saccoAccounts.find(a => a.memberName.toLowerCase().includes(app.driverName.toLowerCase()) || (app.vehicleReg && a.vehiclePlate === app.vehicleReg));
+                                        const savings = memberAcc ? memberAcc.savingsBalance : 0;
+                                        const maxEligible = savings * (loanSettings.loanMultiplier || 3);
+                                        const minSavings = loanSettings.roleMinSavingsThresholds?.driver || 10000;
+                                        const meetsThreshold = savings >= minSavings;
+
+                                        return (
+                                            <tr key={app.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                                {/* Applicant Bio */}
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-xs shrink-0">
+                                                            {app.driverName.slice(0, 2).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-black text-slate-900 dark:text-white text-xs">
+                                                                {app.driverName}
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mt-0.5">
+                                                                <span className="font-bold text-indigo-600">{app.vehicleReg || 'Stage Driver'}</span>
+                                                                <span>•</span>
+                                                                <span>{new Date(app.appliedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 mt-0.5">
+                                                                Savings: <span className="font-bold text-slate-700 dark:text-slate-300">KES {savings.toLocaleString()}</span> (3x Cap: <span className="font-bold text-emerald-600">KES {maxEligible.toLocaleString()}</span>)
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Loan Amount */}
+                                                <td className="p-4 text-right">
+                                                    <div className="font-black font-mono text-sm text-slate-900 dark:text-white">
+                                                        KES {app.amount.toLocaleString()}
+                                                    </div>
+                                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase mt-1 ${
+                                                        meetsThreshold ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300'
+                                                    }`}>
+                                                        {meetsThreshold ? '3x Backed' : 'Low Savings Warning'}
+                                                    </span>
+                                                </td>
+
+                                                {/* Tenure & EMI */}
+                                                <td className="p-4 text-right">
+                                                    <div className="font-black font-mono text-xs text-indigo-600 dark:text-indigo-400">
+                                                        KES {app.monthlyEmi.toLocaleString()} / mo
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 font-bold mt-0.5">
+                                                        {app.tenure} Months @ {app.interestRate}% p.a.
+                                                    </div>
+                                                </td>
+
+                                                {/* Purpose & Guarantor */}
+                                                <td className="p-4 max-w-xs">
+                                                    <div className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate">
+                                                        {app.purpose || 'Emergency Working Capital'}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1.5">
+                                                        <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                                        <span>Guarantor: {app.guarantorName || app.guarantor || 'Direct Sacco Savings Backed'}</span>
+                                                    </div>
+                                                    {app.disbursementRef && (
+                                                        <div className="text-[9px] font-mono text-emerald-600 mt-0.5">
+                                                            Ref: {app.disbursementRef}
+                                                        </div>
+                                                    )}
+                                                    {app.rejectionReason && (
+                                                        <div className="text-[9px] text-rose-500 mt-0.5">
+                                                            Reason: {app.rejectionReason}
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                {/* Status */}
+                                                <td className="p-4 text-center">
+                                                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                                        app.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50' :
+                                                        app.status === 'approved' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700/50' :
+                                                        app.status === 'disbursed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50' :
+                                                        'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300 dark:border-rose-700/50'
+                                                    }`}>
+                                                        {app.status === 'pending' && <Clock className="w-3 h-3" />}
+                                                        {app.status === 'approved' && <CheckCircle className="w-3 h-3" />}
+                                                        {app.status === 'disbursed' && <CheckCircle2 className="w-3 h-3" />}
+                                                        {app.status === 'rejected' && <AlertCircle className="w-3 h-3" />}
+                                                        <span>{app.status}</span>
+                                                    </span>
+                                                </td>
+
+                                                {/* Actions */}
+                                                <td className="p-4 text-right">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {memberAcc && (
+                                                            <button
+                                                                onClick={() => handleOpenMemberStatement(memberAcc)}
+                                                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-[10px] uppercase transition-all flex items-center gap-1"
+                                                                title="View full A4 statement to inspect savings consistency"
+                                                            >
+                                                                <FileText className="w-3 h-3 text-indigo-500" />
+                                                                <span>Statement</span>
+                                                            </button>
+                                                        )}
+
+                                                        {app.status === 'pending' && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleApproveLoan(app.id)}
+                                                                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                                                                >
+                                                                    <CheckCircle2 className="w-3 h-3" />
+                                                                    <span>Approve</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRejectLoan(app.id)}
+                                                                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all"
+                                                                >
+                                                                    Reject
+                                                                </button>
+                                                            </>
+                                                        )}
+
+                                                        {app.status === 'approved' && (
+                                                            <button
+                                                                onClick={() => handleDisburseLoan(app.id)}
+                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all shadow-sm active:scale-95 flex items-center gap-1"
+                                                            >
+                                                                <Banknote className="w-3.5 h-3.5" />
+                                                                <span>Disburse KES</span>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const navTabs = [
         { id: 'sacco_savings', label: 'SACCO Savings', subLabel: 'Thrift & Sinking Funds', icon: PiggyBank, show: isSACCO || isSaccoSavings },
         { id: 'sacco_remittance', label: 'Daily Remittance', subLabel: 'Driver Check-off & Penalties', icon: Clock3, show: isSACCO || isSaccoSavings },
+        { id: 'sacco_loans', label: 'SACCO Loans Desk', subLabel: 'Driver Applications & Approvals', icon: CreditCard, show: isSACCO || isSaccoSavings },
         { id: 'sacco_driver_app', label: 'Driver Mobile App', subLabel: 'Daily Remit, Loans & Statements', icon: Smartphone, show: isSACCO || isSaccoSavings },
         { id: 'sacco_settings', label: 'SACCO Settings', subLabel: 'Remittance Tiers, Loans & Cutoffs', icon: Sliders, show: isSACCO || isSaccoSavings },
         { id: 'sacco', label: 'SACCO Hub', subLabel: 'Member Registry & Licences', icon: Landmark, show: isSACCO || isSaccoSavings },
@@ -8879,6 +9314,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                         {activeTab === 'sacco_savings' && renderSACCOSavings()}
                         {activeTab === 'sacco_remittance' && renderSACCORemittance()}
                         {activeTab === 'sacco_settings' && renderSACCOSettings()}
+                        {activeTab === 'sacco_loans' && renderSACCOLoansDesk()}
                         {activeTab === 'sacco_driver_app' && (
                             <SaccoDriverPortalView
                                 currentInstitution={currentInstitution}

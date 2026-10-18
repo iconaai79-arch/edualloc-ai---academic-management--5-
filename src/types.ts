@@ -4924,6 +4924,31 @@ export interface SaccoRoleLoanThreshold {
     staff: number; // e.g. 10000
 }
 
+
+export interface SaccoLoanApplication {
+    id: string;
+    institutionId: string;
+    driverId: string;
+    driverName: string;
+    memberNumber?: string;
+    vehicleReg?: string;
+    amount: number;
+    tenure: number; // months
+    monthlyEmi: number;
+    interestRate: number;
+    purpose?: string;
+    guarantor?: string;
+    guarantorName?: string;
+    appliedAt: string;
+    status: 'pending' | 'approved' | 'disbursed' | 'rejected';
+    disbursedAt?: string;
+    disbursementMethod?: 'mpesa' | 'bank' | 'cash';
+    disbursementRef?: string;
+    rejectionReason?: string;
+    approvedBy?: string;
+    notes?: string;
+}
+
 export interface SaccoLoanSettings {
     enabled: boolean;
     loanMultiplier: number; // e.g. 3 (member can borrow up to 3x their qualifying savings)
