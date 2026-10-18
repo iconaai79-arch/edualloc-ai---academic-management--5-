@@ -91,6 +91,16 @@ const safeSetLocalItem = (key: string, value: any) => {
     }
 };
 
+const safeGetLocalItem = <T,>(key: string, defaultValue: T): T => {
+    try {
+        const item = safeLocalStorage.getItem(key);
+        if (!item) return defaultValue;
+        return JSON.parse(item);
+    } catch (_) {
+        return defaultValue;
+    }
+};
+
 const filterActiveCommutePrefs = (prefs: Record<string, any>) => {
     if (!prefs || typeof prefs !== 'object') return {};
     const clean: Record<string, any> = {};
