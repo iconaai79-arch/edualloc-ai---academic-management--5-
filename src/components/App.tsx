@@ -10137,6 +10137,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             }
                                             if (emailResult && emailResult.success === false) {
                                                 console.error("[OTP] Email Dispatch Failure:", emailResult.message);
+                                                toastError(`Email OTP Delivery Failed: ${emailResult.message || "Could not deliver email"}. Check spam folder or email configuration.`);
                                             }
                                         }).catch(err => {
                                             console.error("[OTP] Dispatch Exception:", err);

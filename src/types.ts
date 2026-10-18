@@ -1294,6 +1294,7 @@ export interface EmailConfig {
     resendApiKey?: string;
     fromName: string;
     fromEmail: string;
+    replyTo?: string;
 }
 
 export interface WhatsAppConfig {

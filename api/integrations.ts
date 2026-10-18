@@ -1136,9 +1136,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Ensure From address uses authorized sender on this SMTP server
-            if (!mailOptions.from || mailOptions.from.includes('info@eduai.co.ke')) {
-                mailOptions.from = `"${brandingOverride?.name || 'EduAi Support'}" <${username}>`;
+            // If mailOptions.from uses a domain that doesn't match the SMTP username domain,
+            // preserve the display name and set replyTo, but use the authenticated username for the From envelope.
+            const smtpUserEmail = (username && username.includes('@')) ? username : ((activeConfig as any).fromEmail || defaultPlatformSmtp.username);
+            const smtpUserDomain = smtpUserEmail.split('@')[1]?.toLowerCase();
+
+            let originalFromEmail = '';
+            let fromDisplayName = brandingOverride?.name || (activeConfig as any).fromName || 'EduAi Support';
+
+            if (mailOptions.from) {
+                const match = mailOptions.from.match(/<([^>]+)>/) || [null, mailOptions.from];
+                originalFromEmail = (match[1] || '').trim();
+                const nameMatch = mailOptions.from.match(/^"?([^"<]+)"?\s*</);
+                if (nameMatch && nameMatch[1]) {
+                    fromDisplayName = nameMatch[1].trim();
+                }
             }
+
+            const fromDomain = originalFromEmail.split('@')[1]?.toLowerCase();
+            const isDomainMismatch = fromDomain && smtpUserDomain && fromDomain !== smtpUserDomain;
+            const isForbiddenGeneric = !originalFromEmail || originalFromEmail.includes('info@eduai.co.ke') || (originalFromEmail === 'support@eduai.co.ke' && smtpUserDomain !== 'eduai.co.ke');
+
+            if (isDomainMismatch || isForbiddenGeneric || !mailOptions.from) {
+                if (originalFromEmail && !mailOptions.replyTo && originalFromEmail !== smtpUserEmail) {
+                    mailOptions.replyTo = originalFromEmail;
+                }
+                mailOptions.from = `"${fromDisplayName}" <${smtpUserEmail}>`;
+            }
+
+            if ((activeConfig as any).replyTo && !mailOptions.replyTo) {
+                mailOptions.replyTo = (activeConfig as any).replyTo;
+            }
+
+            if (!mailOptions.headers) mailOptions.headers = {};
+            mailOptions.headers['X-Auto-Response-Suppress'] = 'All';
+            mailOptions.headers['Auto-Submitted'] = 'auto-generated';
+
 
             const trySendAttempt = async (pNum: number, pSecure: boolean, authMethod?: string) => {
                 const opts: any = {
@@ -2312,7 +2345,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             // Default Email Recovery
-            const rawEmailConfig = bodyConfig || settings.email_config || settings.emailConfig;
+            const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId || institutionIdOverride;
+            let instEmailConfig: any = null;
+            if (instId && instId !== 'SYSTEM' && instId !== 'GLOBAL') {
+                try {
+                    const { data: instData } = await supabase
+                        .from('institutions')
+                        .select('email_config')
+                        .eq('id', instId)
+                        .maybeSingle();
+                    if (instData) {
+                        instEmailConfig = (instData as any).email_config || (instData as any).emailConfig;
+                    }
+                } catch (_) {}
+            }
+
+            const rawEmailConfig = (bodyConfig && bodyConfig.host)
+                ? bodyConfig
+                : (instEmailConfig && instEmailConfig.host)
+                    ? instEmailConfig
+                    : (settings.email_config || settings.emailConfig);
+
             const emailConfig = (rawEmailConfig && rawEmailConfig.host && rawEmailConfig.username && !isPlaceholderPass(rawEmailConfig.password) && rawEmailConfig.username !== 'info@eduai.co.ke')
                 ? rawEmailConfig
                 : DEFAULT_PLATFORM_SMTP;
@@ -2349,7 +2402,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const hostHeader = req.headers.host || 'eduai.co.ke';
             const resetLink = `${protocol}://${hostHeader}/?resetToken=${token}`;
 
-            const instId = user.user_metadata?.institutionId || user.institution_id || user.institutionId;
             const branding = await getBranding(instId);
 
             const recoverySubject = `Password Reset Request - ${branding.name}`;

@@ -34,10 +34,13 @@ export const sendEmailNotification = async (
  * if the institution hasn't configured their own.
  */
 export const getInstitutionEmailConfig = (institution: { name: string; email: string }, existingConfig?: EmailConfig): EmailConfig => {
+    // Preserve authenticated SMTP username/fromEmail so SMTP servers don't reject sending or fail DMARC/SPF checks
+    const authenticatedEmail = existingConfig?.fromEmail || existingConfig?.username;
     return {
         ...(existingConfig || { provider: 'smtp', fromName: institution.name, fromEmail: institution.email }),
-        fromName: institution.name,
-        fromEmail: institution.email
+        fromName: existingConfig?.fromName || institution.name,
+        fromEmail: authenticatedEmail || institution.email,
+        replyTo: institution.email
     };
 };
 
