@@ -72,6 +72,7 @@ import * as XLSX from 'xlsx';
 import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord, SaccoLoanSettings, SaccoRoleLoanThreshold } from '../types';
 import { getStudentResolvedAdm, getStudentResolvedClass } from './his/RegisterPatientModal';
 import { TransportDisruptionAlert } from './TransportDisruptionAlert';
+import { SaccoMemberStatementModal } from './SaccoMemberStatementModal';
 import type { TransportDisruption } from './TransportDisruptionAlert';
 import { TransportBillingManager } from './TransportBillingManager';
 import type { RouteFeeSetting, TransportFeeInvoice, BillingCycle } from './TransportBillingManager';
@@ -178,6 +179,13 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const [reportSearch, setReportSearch] = useState('');
     const [reportStatusFilter, setReportStatusFilter] = useState('ALL');
     const [reportDateFilter, setReportDateFilter] = useState(new Date().toISOString().split('T')[0]);
+    const [isStatementModalOpen, setIsStatementModalOpen] = useState(false);
+    const [selectedStatementMember, setSelectedStatementMember] = useState<TransportSaccoAccount | null>(null);
+
+    const handleOpenMemberStatement = (member: TransportSaccoAccount) => {
+        setSelectedStatementMember(member);
+        setIsStatementModalOpen(true);
+    };
 
     // Courses and Enrollments state for comprehensive class & stream resolving
     const [loadedCourses, setLoadedCourses] = useState<Course[]>(initialCourses);
@@ -5692,6 +5700,22 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
                         {/* Export & Action Buttons */}
                         <div className="flex items-center gap-3 w-full lg:w-auto">
+                            {(isSACCO || isSaccoSavings) && (
+                                <button
+                                    onClick={() => {
+                                        if (saccoAccounts.length > 0) {
+                                            handleOpenMemberStatement(saccoAccounts[0]);
+                                        } else {
+                                            alert('No registered member accounts available.');
+                                        }
+                                    }}
+                                    className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 font-black text-xs uppercase tracking-wider transition-all shadow-sm"
+                                    title="Generate official account statement for any driver or owner"
+                                >
+                                    <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>Member Statement</span>
+                                </button>
+                            )}
                             <button
                                 onClick={handleExportExcel}
                                 className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 font-black text-xs uppercase tracking-wider transition-all"
@@ -5787,6 +5811,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Welfare Fund</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Total Equity</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Loan Ceiling (3x)</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Statement</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
@@ -5835,6 +5860,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                         <span className="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-mono font-bold text-[10px]">
                                                             KES {loanCeiling.toLocaleString()}
                                                         </span>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <button
+                                                            onClick={() => handleOpenMemberStatement(acc)}
+                                                            className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-black text-[10px] uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 ml-auto active:scale-95"
+                                                            title={`View official statement for ${acc.memberName}`}
+                                                        >
+                                                            <FileText className="w-3 h-3 text-indigo-400" />
+                                                            <span>Statement</span>
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             );
@@ -5899,6 +5934,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                                             {status}
                                                         </span>
                                                     </td>
+                                                    <td className="p-4 text-right">
+                                                        <button
+                                                            onClick={() => handleOpenMemberStatement(acc)}
+                                                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 ml-auto active:scale-95"
+                                                            title={`View sinking fund statement for ${acc.memberName}`}
+                                                        >
+                                                            <FileText className="w-3 h-3 text-emerald-600" />
+                                                            <span>Statement</span>
+                                                        </button>
+                                                    </td>
                                                     <td className="p-4 font-mono text-[11px] text-slate-600 dark:text-slate-300">
                                                         {r.mpesaCode || (r.paymentMethod ? r.paymentMethod.toUpperCase() : 'Cash / Stage')}
                                                     </td>
@@ -5922,6 +5967,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Daily Target</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Sinking Fund Accumulated</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Maintenance Buffer Health</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Statement</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
@@ -5980,6 +6026,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Role</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Welfare & Emergency Pool</th>
                                         <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-center">Coverage Status</th>
+                                        <th className="p-4 text-[10px] font-black uppercase text-slate-400 tracking-wider text-right">Statement</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60 text-xs">
@@ -9657,6 +9704,28 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                     </div>
                 );
             })()}
+
+            
+            {/* Modal: Official SACCO Member Statement */}
+            {isStatementModalOpen && selectedStatementMember && (
+                <SaccoMemberStatementModal
+                    isOpen={isStatementModalOpen}
+                    onClose={() => setIsStatementModalOpen(false)}
+                    memberAccount={selectedStatementMember}
+                    allMembers={saccoAccounts}
+                    onSelectMember={(acc) => setSelectedStatementMember(acc)}
+                    transactions={saccoTransactions}
+                    remittanceRecords={remittanceRecords}
+                    currentInstitution={currentInstitution}
+                    brandingLogo={brandingLogo}
+                    brandingLetterhead={brandingLetterhead}
+                    brandingFooter={brandingFooter}
+                    brandingFooterText={brandingFooterText}
+                    brandingTagline={brandingTagline}
+                    brandingStampMode={brandingStampMode}
+                    brandingStampUrl={brandingStampUrl}
+                />
+            )}
 
             {/* Modal: Add / Edit Remittance Tier */}
             {isAddTierModalOpen && (
