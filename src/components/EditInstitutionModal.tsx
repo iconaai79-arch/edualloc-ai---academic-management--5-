@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Institution, SubscriptionConfig, County, InstitutionModuleState } from '../types';
 import { apiService } from '../services/apiService';
+import { Upload, Image as ImageIcon, Trash2, CheckCircle2, Palette } from 'lucide-react';
 
 interface EditInstitutionModalProps {
   institution: Institution;
@@ -61,6 +62,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
     status: 'active' as 'active' | 'trial' | 'suspended' | 'expired',
     subscriptionEndsAt: '',
     isSuspendedForBilling: false,
+    logoUrl: '',
+    letterheadUrl: '',
+    footerImageUrl: '',
   });
 
   const [activeTab, setActiveTab] = useState<'identity' | 'financials' | 'modules'>(initialTab);
@@ -114,6 +118,9 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         status: (institution.status as any) || 'active',
         subscriptionEndsAt: formattedSubEnd,
         isSuspendedForBilling: institution.isSuspendedForBilling ?? (institution as any).is_suspended_for_billing ?? false,
+        logoUrl: institution.logoUrl || (institution as any).logo || '',
+        letterheadUrl: institution.letterheadConfig?.headerImageUrl || institution.letterheadUrl || (institution as any).header_image_url || '',
+        footerImageUrl: institution.letterheadConfig?.footerImageUrl || institution.footerImageUrl || (institution as any).footer_image_url || '',
       });
       fetchLatestModuleStates();
     }
@@ -139,6 +146,37 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       alert("Failed to extend module subscription: " + (e.message || e));
     } finally {
       setIsExtendingModule(false);
+    }
+  };
+
+  const [uploadingImage, setUploadingImage] = useState<'logo' | 'letterhead' | 'footer' | null>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+    setUploadingImage(type);
+    try {
+      const timestamp = Date.now();
+      const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const path = `institutions/${institution.id}/branding/${type}_${timestamp}_${cleanName}`;
+      const url = await apiService.uploadFile('eduai', path, file);
+      if (url) {
+        if (type === 'logo') setFormData(prev => ({ ...prev, logoUrl: url }));
+        if (type === 'letterhead') setFormData(prev => ({ ...prev, letterheadUrl: url }));
+        if (type === 'footer') setFormData(prev => ({ ...prev, footerImageUrl: url }));
+      } else {
+        alert(`Failed to upload ${type}. Empty URL received.`);
+      }
+    } catch (err: any) {
+      console.error(`Failed to upload ${type}:`, err);
+      alert(`Failed to upload ${type}: ${err.message || 'Network error'}`);
+    } finally {
+      setUploadingImage(null);
+      e.target.value = '';
     }
   };
 
@@ -190,6 +228,25 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
       rate_per_student: isReseller ? 0 : (parseFloat(formData.ratePerStudent) || 0),
       resellerId: isReseller ? undefined : (formData.resellerId || null as any),
       reseller_id: isReseller ? undefined : (formData.resellerId || null as any),
+      logoUrl: formData.logoUrl || null,
+      logo_url: formData.logoUrl || null,
+      logo: formData.logoUrl || null,
+      letterheadUrl: formData.letterheadUrl || null,
+      letterhead_url: formData.letterheadUrl || null,
+      headerImageUrl: formData.letterheadUrl || null,
+      header_image_url: formData.letterheadUrl || null,
+      footerImageUrl: formData.footerImageUrl || null,
+      footer_image_url: formData.footerImageUrl || null,
+      letterheadConfig: {
+        ...(institution.letterheadConfig || {}),
+        headerImageUrl: formData.letterheadUrl || null,
+        footerImageUrl: formData.footerImageUrl || null,
+      },
+      letterhead_config: {
+        ...(institution.letterheadConfig || {}),
+        headerImageUrl: formData.letterheadUrl || null,
+        footerImageUrl: formData.footerImageUrl || null,
+      },
     };
     onSave(institution.id, saveData);
   };
@@ -467,6 +524,148 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
                       <div>
                         <label htmlFor="modal-enable-2fa" className="text-sm font-bold text-slate-700 dark:text-slate-300">Enforce Two-Factor Authentication (2FA)</label>
                         <p className="text-xs text-slate-400 uppercase tracking-tight">Requirement for all users in this institution to verify identity via SMS/Email OTP.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fleet & Institutional Document Branding */}
+                  <div className="md:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="p-2 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                        <Palette className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                          Fleet & Document Branding
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          Upload official Logo, Header Letterhead banner, and Footer banner for printed documents, manifests, and waybills.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* Logo Upload Card */}
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Corporate Logo</span>
+                            {formData.logoUrl && (
+                              <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <CheckCircle2 className="w-2.5 h-2.5" /> Uploaded
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-24 w-full bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden mb-3">
+                            {formData.logoUrl ? (
+                              <img src={formData.logoUrl} alt="Logo preview" className="max-h-20 max-w-full object-contain" />
+                            ) : (
+                              <div className="text-center text-slate-400">
+                                <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                <span className="text-[9px] font-bold">No logo</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <label className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[9px] uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1.5">
+                            <Upload className="w-3 h-3" />
+                            <span>{uploadingImage === 'logo' ? 'Uploading...' : formData.logoUrl ? 'Change' : 'Upload'}</span>
+                            <input type="file" accept="image/*" className="hidden" disabled={uploadingImage !== null} onChange={e => handleImageUpload(e, 'logo')} />
+                          </label>
+                          {formData.logoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, logoUrl: '' }))}
+                              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all"
+                              title="Remove logo"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Letterhead Banner Card */}
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Letterhead Header</span>
+                            {formData.letterheadUrl && (
+                              <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <CheckCircle2 className="w-2.5 h-2.5" /> Uploaded
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-24 w-full bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden mb-3">
+                            {formData.letterheadUrl ? (
+                              <img src={formData.letterheadUrl} alt="Letterhead preview" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="text-center text-slate-400">
+                                <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                <span className="text-[9px] font-bold">No header banner</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <label className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[9px] uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1.5">
+                            <Upload className="w-3 h-3" />
+                            <span>{uploadingImage === 'letterhead' ? 'Uploading...' : formData.letterheadUrl ? 'Change' : 'Upload'}</span>
+                            <input type="file" accept="image/*" className="hidden" disabled={uploadingImage !== null} onChange={e => handleImageUpload(e, 'letterhead')} />
+                          </label>
+                          {formData.letterheadUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, letterheadUrl: '' }))}
+                              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all"
+                              title="Remove letterhead"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Footer Banner Card */}
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">Document Footer</span>
+                            {formData.footerImageUrl && (
+                              <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <CheckCircle2 className="w-2.5 h-2.5" /> Uploaded
+                              </span>
+                            )}
+                          </div>
+                          <div className="h-24 w-full bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden mb-3">
+                            {formData.footerImageUrl ? (
+                              <img src={formData.footerImageUrl} alt="Footer preview" className="h-full w-full object-cover" />
+                            ) : (
+                              <div className="text-center text-slate-400">
+                                <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                <span className="text-[9px] font-bold">No footer banner</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <label className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-[9px] uppercase tracking-wider text-center cursor-pointer transition-all flex items-center justify-center gap-1.5">
+                            <Upload className="w-3 h-3" />
+                            <span>{uploadingImage === 'footer' ? 'Uploading...' : formData.footerImageUrl ? 'Change' : 'Upload'}</span>
+                            <input type="file" accept="image/*" className="hidden" disabled={uploadingImage !== null} onChange={e => handleImageUpload(e, 'footer')} />
+                          </label>
+                          {formData.footerImageUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, footerImageUrl: '' }))}
+                              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-all"
+                              title="Remove footer banner"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

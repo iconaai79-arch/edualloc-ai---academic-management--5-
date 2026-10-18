@@ -719,6 +719,7 @@ export interface Institution {
     themeColor?: string;
     logoUrl?: string | null;
     headerImageUrl?: string | null;
+    letterheadUrl?: string | null;
     stampUrl?: string | null;
     footerImageUrl?: string | null;
     letterheadConfig?: LetterheadConfig;

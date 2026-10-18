@@ -3516,7 +3516,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     othersExamSettings: 'others_exam_settings',
                     isOtpEnabled: 'is_otp_enabled',
                     customSmsPrice: 'custom_sms_price',
-                    businessSubType: 'business_sub_type'
+                    businessSubType: 'business_sub_type',
+                        logoUrl: 'logo_url',
+                        footerImageUrl: 'footer_image_url',
+                        letterheadConfig: 'letterhead_config',
+                        headerImageUrl: 'header_image_url',
+                        stampUrl: 'stamp_url',
+                        letterheadUrl: 'header_image_url',
                 };
                 Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
                     if (copy[camelKey] !== undefined) {
@@ -6614,7 +6620,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 othersExamSettings: 'others_exam_settings',
                                 isOtpEnabled: 'is_otp_enabled',
                                 customSmsPrice: 'custom_sms_price',
-                                businessSubType: 'business_sub_type'
+                                businessSubType: 'business_sub_type',
+                        logoUrl: 'logo_url',
+                        footerImageUrl: 'footer_image_url',
+                        letterheadConfig: 'letterhead_config',
+                        headerImageUrl: 'header_image_url',
+                        stampUrl: 'stamp_url',
+                        letterheadUrl: 'header_image_url',
                             };
                             Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
                                 if (copy[camelKey] !== undefined) {
@@ -8694,7 +8706,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         othersExamSettings: 'others_exam_settings',
                         isOtpEnabled: 'is_otp_enabled',
                         customSmsPrice: 'custom_sms_price',
-                        businessSubType: 'business_sub_type'
+                        businessSubType: 'business_sub_type',
+                        logoUrl: 'logo_url',
+                        footerImageUrl: 'footer_image_url',
+                        letterheadConfig: 'letterhead_config',
+                        headerImageUrl: 'header_image_url',
+                        stampUrl: 'stamp_url',
+                        letterheadUrl: 'header_image_url',
                     };
                     Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
                         if (copy[camelKey] !== undefined) {
@@ -9000,7 +9018,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 othersExamSettings: 'others_exam_settings',
                                 isOtpEnabled: 'is_otp_enabled',
                                 customSmsPrice: 'custom_sms_price',
-                                businessSubType: 'business_sub_type'
+                                businessSubType: 'business_sub_type',
+                        logoUrl: 'logo_url',
+                        footerImageUrl: 'footer_image_url',
+                        letterheadConfig: 'letterhead_config',
+                        headerImageUrl: 'header_image_url',
+                        stampUrl: 'stamp_url',
+                        letterheadUrl: 'header_image_url',
                             };
                             Object.entries(camelMap).forEach(([camelKey, snakeKey]) => {
                                 if (currentUpdateData[camelKey] !== undefined) {

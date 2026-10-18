@@ -58,7 +58,15 @@ import {
     Sliders,
     AlertTriangle,
     Calculator,
-    Clock3
+    Clock3,
+    Palette,
+    Sparkles,
+    Upload,
+    Image as ImageIcon,
+    Eye,
+    Check,
+    RotateCcw,
+    Building2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Institution, User as UserType, Course, StudentEnrollment, TransportSaccoAccount, TransportSaccoTransaction, TransportSaccoSavingsCategory, SaccoRemittanceTier, SaccoRemittanceSettings, SaccoDailyRemittanceRecord, SaccoLoanSettings, SaccoRoleLoanThreshold } from '../types';
@@ -116,9 +124,10 @@ interface LogisticsManagerProps {
     users: UserType[];
     courses?: Course[];
     currentUser?: UserType;
+    onUpdateInstitution?: (id: string, data: Partial<Institution>) => void;
 }
 
-export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users, courses: initialCourses = [], currentUser }) => {
+export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInstitution, users, courses: initialCourses = [], currentUser, onUpdateInstitution }) => {
     const { success: toastSuccess, error: toastError } = useToast();
     const activeUser = currentUser || apiService.getSession();
     const isSuperAdmin = activeUser?.role === 'super_admin' || 
@@ -133,9 +142,35 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
     const isSaccoSavings = currentInstitution.category === 'SACCO Savings' || currentInstitution.category === 'Transport SACCO & Savings' || currentInstitution.category?.toLowerCase().includes('savings');
     const isEduTransport = currentInstitution.category === 'Educational Transport' || currentInstitution.institutionType === 'Education' || currentInstitution.institutionType === 'Primary' || currentInstitution.institutionType === 'Secondary';
 
-    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_settings' | 'sacco_driver_app' | 'trips' | 'alerts' | 'billing' | 'reports'>(
+    const [activeTab, setActiveTab] = useState<'manifest' | 'fleet' | 'vehicle_reg' | 'analytics' | 'epod' | 'shuttle' | 'sacco' | 'sacco_savings' | 'sacco_remittance' | 'sacco_settings' | 'sacco_driver_app' | 'trips' | 'alerts' | 'billing' | 'reports' | 'branding'>(
         isSaccoSavings ? 'sacco_savings' : isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
+
+    // Branding State
+    const [brandingLogo, setBrandingLogo] = useState<string>(
+        currentInstitution?.logoUrl || (currentInstitution as any)?.logo || ''
+    );
+    const [brandingLetterhead, setBrandingLetterhead] = useState<string>(
+        currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.letterheadUrl || (currentInstitution as any)?.header_image_url || ''
+    );
+    const [brandingFooter, setBrandingFooter] = useState<string>(
+        currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || (currentInstitution as any)?.footer_image_url || ''
+    );
+    const [brandingFooterText, setBrandingFooterText] = useState<string>(
+        currentInstitution?.letterheadConfig?.footerText || ''
+    );
+    const [brandingTagline, setBrandingTagline] = useState<string>(
+        (currentInstitution as any)?.tagline || ''
+    );
+    const [brandingStampMode, setBrandingStampMode] = useState<'system' | 'custom' | 'none'>(
+        currentInstitution?.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'custom' : (currentInstitution?.letterheadConfig?.stampConfig?.mode === 'none' ? 'none' : 'system')
+    );
+    const [brandingStampUrl, setBrandingStampUrl] = useState<string>(
+        currentInstitution?.letterheadConfig?.stampImageUrl || currentInstitution?.stampUrl || (currentInstitution as any)?.stamp_image_url || ''
+    );
+    const [isUploadingBranding, setIsUploadingBranding] = useState<'logo' | 'letterhead' | 'footer' | 'stamp' | null>(null);
+    const [isSavingBranding, setIsSavingBranding] = useState(false);
+    const [previewDocType, setPreviewDocType] = useState<'waybill' | 'remittance' | 'permit'>('waybill');
     const [searchTerm, setSearchTerm] = useState('');
     const [reportSubTab, setReportSubTab] = useState<'billing' | 'routes' | 'fleet' | 'trips' | 'alerts'>('billing');
     const [reportSearch, setReportSearch] = useState('');
@@ -170,6 +205,114 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             setLoadedCourses(initialCourses);
         }
     }, [initialCourses]);
+
+    useEffect(() => {
+        if (currentInstitution) {
+            setBrandingLogo(currentInstitution.logoUrl || (currentInstitution as any).logo || '');
+            setBrandingLetterhead(currentInstitution.letterheadConfig?.headerImageUrl || currentInstitution.letterheadUrl || (currentInstitution as any).header_image_url || '');
+            setBrandingFooter(currentInstitution.letterheadConfig?.footerImageUrl || currentInstitution.footerImageUrl || (currentInstitution as any).footer_image_url || '');
+            setBrandingFooterText(currentInstitution.letterheadConfig?.footerText || '');
+            setBrandingTagline((currentInstitution as any).tagline || '');
+            setBrandingStampUrl(currentInstitution.letterheadConfig?.stampImageUrl || currentInstitution.stampUrl || (currentInstitution as any).stamp_image_url || '');
+            setBrandingStampMode(currentInstitution.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'custom' : (currentInstitution.letterheadConfig?.stampConfig?.mode === 'none' ? 'none' : 'system'));
+        }
+    }, [currentInstitution]);
+
+    const handleBrandingUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'letterhead' | 'footer' | 'stamp') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            toastError('Please select a valid image file (PNG, JPG, SVG, WebP).');
+            return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            toastError('Image file size must be less than 10MB.');
+            return;
+        }
+
+        setIsUploadingBranding(type);
+        try {
+            const timestamp = Date.now();
+            const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+            const path = `institutions/${currentInstitution.id}/branding/${type}_${timestamp}_${cleanName}`;
+
+            const uploadedUrl = await apiService.uploadFile('eduai', path, file);
+            if (uploadedUrl) {
+                if (type === 'logo') setBrandingLogo(uploadedUrl);
+                else if (type === 'letterhead') setBrandingLetterhead(uploadedUrl);
+                else if (type === 'footer') setBrandingFooter(uploadedUrl);
+                else if (type === 'stamp') setBrandingStampUrl(uploadedUrl);
+
+                toastSuccess(`${type === 'letterhead' ? 'Letterhead header banner' : type === 'logo' ? 'Corporate logo' : type === 'footer' ? 'Document footer banner' : 'Official stamp'} uploaded successfully.`);
+            } else {
+                toastError(`Failed to upload ${type}. Server returned empty URL.`);
+            }
+        } catch (err: any) {
+            console.error(`[Logistics Branding] Upload error for ${type}:`, err);
+            toastError(`Failed to upload ${type}: ${err.message || 'Network error'}`);
+        } finally {
+            setIsUploadingBranding(null);
+            e.target.value = '';
+        }
+    };
+
+    const handleSaveBranding = async () => {
+        if (!currentInstitution?.id) return;
+        setIsSavingBranding(true);
+        try {
+            const updatedLetterheadConfig = {
+                ...(currentInstitution.letterheadConfig || {}),
+                headerImageUrl: brandingLetterhead || null,
+                footerImageUrl: brandingFooter || null,
+                footerText: brandingFooterText || undefined,
+                stampImageUrl: brandingStampUrl || null,
+                showStamp: brandingStampMode !== 'none',
+                stampConfig: {
+                    ...(currentInstitution.letterheadConfig?.stampConfig || {}),
+                    mode: (brandingStampMode === 'custom' ? 'uploaded' : brandingStampMode === 'none' ? 'none' : 'system_generated') as any,
+                    stampImageUrl: brandingStampUrl || null
+                }
+            };
+
+            const payload: any = {
+                logoUrl: brandingLogo || null,
+                logo_url: brandingLogo || null,
+                logo: brandingLogo || null,
+                letterheadUrl: brandingLetterhead || null,
+                letterhead_url: brandingLetterhead || null,
+                headerImageUrl: brandingLetterhead || null,
+                header_image_url: brandingLetterhead || null,
+                footerImageUrl: brandingFooter || null,
+                footer_image_url: brandingFooter || null,
+                letterheadConfig: updatedLetterheadConfig,
+                letterhead_config: updatedLetterheadConfig,
+                tagline: brandingTagline || undefined
+            };
+
+            // 1. Persist to Supabase Database
+            await apiService.saveInstitution({ ...currentInstitution, ...payload } as any);
+
+            // 2. Notify parent if onUpdateInstitution prop provided
+            if (onUpdateInstitution) {
+                onUpdateInstitution(currentInstitution.id, payload);
+            }
+
+            // 3. Mutate local currentInstitution copy
+            Object.assign(currentInstitution, payload);
+
+            // 4. Update in local storage
+            const instCacheKey = `eduai_inst_${currentInstitution.id}`;
+            safeLocalStorage.setItem(instCacheKey, JSON.stringify(currentInstitution));
+
+            toastSuccess('Fleet & Transit branding saved and synced across all documents!');
+        } catch (err: any) {
+            console.error('[Logistics Branding] Save error:', err);
+            toastError(`Failed to save branding: ${err.message || 'Database error'}`);
+        } finally {
+            setIsSavingBranding(false);
+        }
+    };
 
     // Vehicles state & API operations for Vehicle Registration tab & fleet selections
     const [dbVehicles, setDbVehicles] = useState<any[]>(() => {
@@ -5251,6 +5394,36 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
         return (
             <div className="space-y-8 animate-in fade-in duration-300">
+                {/* Print-Only Official Letterhead Header */}
+                <div className="hidden print:block mb-8">
+                    {brandingLetterhead ? (
+                        <img 
+                            src={brandingLetterhead} 
+                            alt="Official Letterhead" 
+                            className="w-full max-h-32 object-contain mx-auto mb-4" 
+                        />
+                    ) : (
+                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
+                            <div className="flex items-center gap-4">
+                                {brandingLogo && (
+                                    <img src={brandingLogo} alt="Logo" className="w-16 h-16 object-contain rounded-xl" />
+                                )}
+                                <div>
+                                    <h1 className="text-xl font-black uppercase text-slate-900">{currentInstitution.name}</h1>
+                                    <p className="text-xs text-slate-600 font-bold">{brandingTagline || (currentInstitution as any).tagline || 'Logistics & Transit Services'}</p>
+                                    <p className="text-[10px] text-slate-500">{currentInstitution.address || ''} • {currentInstitution.phone || ''} • {currentInstitution.email || ''}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="inline-block px-3 py-1 bg-slate-100 text-slate-800 text-[10px] font-black uppercase tracking-wider rounded">
+                                    Official Audit Report
+                                </span>
+                                <p className="text-[10px] text-slate-500 mt-1">Generated: {new Date().toLocaleString()}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 {/* Reports Header & KPI Strip */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="bg-gradient-to-br from-indigo-650 via-indigo-700 to-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
@@ -5652,6 +5825,20 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             </table>
                         </div>
                     )}
+                </div>
+
+                {/* Print-Only Document Footer */}
+                <div className="hidden print:block mt-8 pt-4 border-t border-slate-300">
+                    {brandingFooter && (
+                        <img 
+                            src={brandingFooter} 
+                            alt="Official Footer" 
+                            className="w-full max-h-20 object-contain mx-auto mb-2" 
+                        />
+                    )}
+                    <p className="text-center text-[9px] text-slate-500 font-medium uppercase tracking-wider">
+                        {brandingFooterText || `${currentInstitution.name} • Certified Transit Document • Generated via EduAI`}
+                    </p>
                 </div>
             </div>
         );
@@ -7159,6 +7346,796 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         );
     };
 
+    const renderBranding = () => {
+        return (
+            <div className="space-y-8 animate-in fade-in duration-300">
+                {/* Print-specific stylesheet so clicking Test Print prints ONLY the preview sheet */}
+                <style>{`
+                    @media print {
+                        body * {
+                            visibility: hidden !important;
+                        }
+                        #logistics-branding-preview-sheet, #logistics-branding-preview-sheet * {
+                            visibility: visible !important;
+                        }
+                        #logistics-branding-preview-sheet {
+                            position: absolute !important;
+                            left: 0 !important;
+                            top: 0 !important;
+                            width: 100% !important;
+                            margin: 0 !important;
+                            padding: 12mm 15mm !important;
+                            box-shadow: none !important;
+                            border: none !important;
+                            background: white !important;
+                            color: #0f172a !important;
+                        }
+                    }
+                `}</style>
+
+                {/* Header Action Banner */}
+                <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white p-6 sm:p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden border border-indigo-800/40">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="space-y-2 max-w-2xl">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                                <Sparkles className="w-3 h-3 text-indigo-400" />
+                                <span>Stationery & Identity Engine</span>
+                            </div>
+                            <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight">
+                                Fleet & Transit <span className="text-indigo-400">Branding</span>
+                            </h2>
+                            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+                                Configure your official Corporate or SACCO logo, high-resolution letterhead header banner, and legal document footer. These assets automatically brand all consignment waybills, SACCO remittance vouchers, trip manifests, and audit reports.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setBrandingLogo(currentInstitution?.logoUrl || (currentInstitution as any)?.logo || '');
+                                    setBrandingLetterhead(currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.letterheadUrl || (currentInstitution as any)?.header_image_url || '');
+                                    setBrandingFooter(currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || (currentInstitution as any)?.footer_image_url || '');
+                                    setBrandingFooterText(currentInstitution?.letterheadConfig?.footerText || '');
+                                    setBrandingTagline((currentInstitution as any)?.tagline || '');
+                                    setBrandingStampUrl(currentInstitution?.letterheadConfig?.stampImageUrl || currentInstitution?.stampUrl || (currentInstitution as any)?.stamp_image_url || '');
+                                    setBrandingStampMode(currentInstitution?.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'custom' : (currentInstitution?.letterheadConfig?.stampConfig?.mode === 'none' ? 'none' : 'system'));
+                                    toastSuccess('Branding form reset to currently saved database settings.');
+                                }}
+                                disabled={isSavingBranding}
+                                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 border border-white/15 cursor-pointer disabled:opacity-50"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Reset</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveBranding}
+                                disabled={isSavingBranding || Boolean(isUploadingBranding)}
+                                className="px-6 py-3 bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+                            >
+                                {isSavingBranding ? (
+                                    <>
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        <span>Saving Branding...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Check className="w-4 h-4" />
+                                        <span>Save & Sync Branding</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3 Main Upload Cards Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Card 1: Corporate / Fleet / SACCO Logo */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 sm:p-7 rounded-[2.5rem] shadow-sm flex flex-col justify-between space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black">
+                                        <Building2 className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                                            1. Corporate Logo
+                                        </h3>
+                                        <p className="text-[10px] text-slate-400 font-medium">Official Insignia / SACCO Crest</p>
+                                    </div>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                    brandingLogo ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                }`}>
+                                    {brandingLogo ? 'Active' : 'Not Set'}
+                                </span>
+                            </div>
+
+                            {/* Preview Area */}
+                            <div className="relative w-full h-44 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center p-4 overflow-hidden group">
+                                {brandingLogo ? (
+                                    <div className="relative flex flex-col items-center justify-center w-full h-full">
+                                        <img
+                                            src={brandingLogo}
+                                            alt="Corporate Logo"
+                                            className="max-h-28 max-w-full object-contain drop-shadow-sm transition-transform group-hover:scale-105"
+                                        />
+                                        <span className="absolute bottom-1 text-[9px] font-bold text-slate-400 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded-full">
+                                            Preview
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="text-center space-y-2">
+                                        <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                                            <ImageIcon className="w-6 h-6" />
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-500">No logo uploaded</p>
+                                        <p className="text-[10px] text-slate-400">Square PNG, SVG, or JPG</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                Displays on all waybill headers, driver app profiles, commuter tickets, and SACCO dividend vouchers.
+                            </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <label className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-md active:scale-95">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{isUploadingBranding === 'logo' ? 'Uploading...' : brandingLogo ? 'Change Logo' : 'Upload Logo'}</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleBrandingUpload(e, 'logo')}
+                                    disabled={Boolean(isUploadingBranding)}
+                                />
+                            </label>
+                            {brandingLogo && (
+                                <button
+                                    type="button"
+                                    onClick={() => setBrandingLogo('')}
+                                    className="w-full py-2 text-slate-400 hover:text-rose-500 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                    Remove Logo
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Card 2: Official Letterhead (Header Banner) */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 sm:p-7 rounded-[2.5rem] shadow-sm flex flex-col justify-between space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center font-black">
+                                        <FileText className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                                            2. Letterhead Banner
+                                        </h3>
+                                        <p className="text-[10px] text-slate-400 font-medium">Full-Width Header Graphic</p>
+                                    </div>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                    brandingLetterhead ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                }`}>
+                                    {brandingLetterhead ? 'Active' : 'Optional'}
+                                </span>
+                            </div>
+
+                            {/* Preview Area */}
+                            <div className="relative w-full h-44 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center p-3 overflow-hidden group">
+                                {brandingLetterhead ? (
+                                    <div className="relative flex flex-col items-center justify-center w-full h-full">
+                                        <img
+                                            src={brandingLetterhead}
+                                            alt="Letterhead Banner"
+                                            className="max-h-32 max-w-full object-contain rounded-xl shadow-xs transition-transform group-hover:scale-105"
+                                        />
+                                        <span className="absolute bottom-1 text-[9px] font-bold text-slate-400 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded-full">
+                                            Header Banner Preview
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="text-center space-y-2">
+                                        <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                                            <FileText className="w-6 h-6" />
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-500">No letterhead banner</p>
+                                        <p className="text-[10px] text-slate-400">Recommended 2480 × 350 px (A4 Header)</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                Replaces the plain text header at the top of printed documents with your corporate stationery design.
+                            </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <label className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-md active:scale-95">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{isUploadingBranding === 'letterhead' ? 'Uploading...' : brandingLetterhead ? 'Change Letterhead' : 'Upload Letterhead'}</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleBrandingUpload(e, 'letterhead')}
+                                    disabled={Boolean(isUploadingBranding)}
+                                />
+                            </label>
+                            {brandingLetterhead && (
+                                <button
+                                    type="button"
+                                    onClick={() => setBrandingLetterhead('')}
+                                    className="w-full py-2 text-slate-400 hover:text-rose-500 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                    Remove Letterhead
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Card 3: Document Footer Banner & Disclosures */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 sm:p-7 rounded-[2.5rem] shadow-sm flex flex-col justify-between space-y-6">
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black">
+                                        <ShieldCheck className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-wider">
+                                            3. Document Footer
+                                        </h3>
+                                        <p className="text-[10px] text-slate-400 font-medium">Footer Graphic & Legal Text</p>
+                                    </div>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                    brandingFooter || brandingFooterText ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                                }`}>
+                                    {brandingFooter ? 'Banner + Text' : brandingFooterText ? 'Text Set' : 'Optional'}
+                                </span>
+                            </div>
+
+                            {/* Preview Area */}
+                            <div className="relative w-full h-44 rounded-3xl bg-slate-50 dark:bg-slate-950/60 border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center p-3 overflow-hidden group">
+                                {brandingFooter ? (
+                                    <div className="relative flex flex-col items-center justify-center w-full h-full">
+                                        <img
+                                            src={brandingFooter}
+                                            alt="Footer Banner"
+                                            className="max-h-28 max-w-full object-contain rounded-xl shadow-xs transition-transform group-hover:scale-105"
+                                        />
+                                        <span className="absolute bottom-1 text-[9px] font-bold text-slate-400 bg-white/80 dark:bg-slate-900/80 px-2 py-0.5 rounded-full">
+                                            Footer Banner Preview
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="text-center space-y-2">
+                                        <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                                            <ShieldCheck className="w-6 h-6" />
+                                        </div>
+                                        <p className="text-xs font-bold text-slate-500">No footer banner image</p>
+                                        <p className="text-[10px] text-slate-400">Security strip, QR or bank details</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+                                Appears at the very bottom of every A4 page with legal disclaimer & NTSA carrier certifications.
+                            </p>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <label className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-md active:scale-95">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{isUploadingBranding === 'footer' ? 'Uploading...' : brandingFooter ? 'Change Footer Graphic' : 'Upload Footer Graphic'}</span>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleBrandingUpload(e, 'footer')}
+                                    disabled={Boolean(isUploadingBranding)}
+                                />
+                            </label>
+                            {brandingFooter && (
+                                <button
+                                    type="button"
+                                    onClick={() => setBrandingFooter('')}
+                                    className="w-full py-2 text-slate-400 hover:text-rose-500 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                                >
+                                    Remove Footer Graphic
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Additional Branding Settings: Tagline, Legal Footer Text, and Official Stamp Mode */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 sm:p-8 rounded-[2.5rem] shadow-sm space-y-6">
+                    <div className="flex items-center gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                            <Sliders className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-black uppercase text-slate-900 dark:text-white tracking-wide">
+                                Transit Disclosures & Verification Stamp
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Configure printed disclaimers, transit slogans, and official digital stamp seals.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Legal Disclaimer / Footer Text */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                Legal Disclaimer / Printed Footer Text
+                            </label>
+                            <textarea
+                                value={brandingFooterText}
+                                onChange={(e) => setBrandingFooterText(e.target.value)}
+                                rows={3}
+                                placeholder="e.g. Regulated by NTSA & SASRA • Licensed Commercial Cargo & Passenger Operator • Valid Electronic Consignment & Waybill"
+                                className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-indigo-500 transition-colors"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                                Prints along the bottom edge of all waybills, vouchers, and movement sheets.
+                            </p>
+                        </div>
+
+                        {/* Fleet Tagline / Slogan */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                Corporate Tagline / Fleet Slogan
+                            </label>
+                            <input
+                                type="text"
+                                value={brandingTagline}
+                                onChange={(e) => setBrandingTagline(e.target.value)}
+                                placeholder="e.g. Premier Express Transit & Freight Logistics Across East Africa"
+                                className="w-full p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-white outline-none focus:border-indigo-500 transition-colors"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                                Displayed beneath the corporate name when a letterhead banner graphic is not uploaded.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Stamp Mode & Upload */}
+                    <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                        <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 block">
+                            Official Document Stamp / Verification Seal
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {[
+                                { id: 'system', label: 'System Digital Seal', desc: 'Auto-generated NTSA & Fleet verified seal' },
+                                { id: 'custom', label: 'Custom Rubber Stamp', desc: 'Upload scanned official circular or boxed stamp' },
+                                { id: 'none', label: 'No Stamp', desc: 'Hide stamps and seals on generated documents' }
+                            ].map((mode) => (
+                                <button
+                                    key={mode.id}
+                                    type="button"
+                                    onClick={() => setBrandingStampMode(mode.id as any)}
+                                    className={`p-4 rounded-2xl text-left border transition-all cursor-pointer ${
+                                        brandingStampMode === mode.id
+                                            ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 text-indigo-900 dark:text-white ring-2 ring-indigo-500/20'
+                                            : 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-black uppercase tracking-wider">{mode.label}</span>
+                                        {brandingStampMode === mode.id && <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />}
+                                    </div>
+                                    <p className="text-[10px] opacity-75">{mode.desc}</p>
+                                </button>
+                            ))}
+                        </div>
+
+                        {brandingStampMode === 'custom' && (
+                            <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    {brandingStampUrl ? (
+                                        <img src={brandingStampUrl} alt="Custom Stamp" className="w-14 h-14 object-contain rounded-xl border border-indigo-200 bg-white p-1" />
+                                    ) : (
+                                        <div className="w-14 h-14 rounded-xl bg-white dark:bg-slate-800 border border-dashed border-indigo-300 flex items-center justify-center text-indigo-400">
+                                            <Camera className="w-6 h-6" />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-xs font-black uppercase text-slate-800 dark:text-white">Custom Stamp PNG</p>
+                                        <p className="text-[10px] text-slate-500">Transparent PNG stamp with dark blue, red, or purple ink</p>
+                                    </div>
+                                </div>
+                                <label className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer transition-all shadow-sm">
+                                    <span>{isUploadingBranding === 'stamp' ? 'Uploading...' : brandingStampUrl ? 'Change Stamp' : 'Upload Stamp'}</span>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => handleBrandingUpload(e, 'stamp')}
+                                        disabled={Boolean(isUploadingBranding)}
+                                    />
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Interactive Live Document Simulator (A4 Print Preview) */}
+                <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <div className="space-y-1">
+                            <div className="inline-flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-wider">
+                                <Eye className="w-4 h-4" />
+                                <span>Real-Time A4 Live Document Simulator</span>
+                            </div>
+                            <h3 className="text-lg font-black uppercase text-slate-900 dark:text-white">
+                                Interactive Stationery Preview
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Review how your uploaded letterhead banner, logo, stamp, and footer render on live documents.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Document Type Switcher */}
+                            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+                                {[
+                                    { id: 'waybill', label: 'Waybill & Consignment', icon: Truck },
+                                    { id: 'remittance', label: 'SACCO Remittance Slip', icon: Landmark },
+                                    { id: 'permit', label: 'Trip Movement Permit', icon: MapPin }
+                                ].map((doc) => (
+                                    <button
+                                        key={doc.id}
+                                        type="button"
+                                        onClick={() => setPreviewDocType(doc.id as any)}
+                                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                                            previewDocType === doc.id
+                                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                                        }`}
+                                    >
+                                        <doc.icon className="w-3.5 h-3.5" />
+                                        <span>{doc.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Test Print Button */}
+                            <button
+                                type="button"
+                                onClick={() => window.print()}
+                                className="flex items-center gap-2 px-5 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
+                                title="Print this preview document directly to your physical printer or Save as PDF"
+                            >
+                                <Printer className="w-4 h-4" />
+                                <span>Test Print Document</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* A4 Paper Sheet Preview Card */}
+                    <div className="p-4 sm:p-8 bg-slate-200/60 dark:bg-slate-950/60 rounded-[3rem] border border-slate-300/60 dark:border-slate-800 flex justify-center overflow-x-auto">
+                        <div
+                            id="logistics-branding-preview-sheet"
+                            className="w-full max-w-3xl bg-white text-slate-900 p-8 sm:p-12 rounded-3xl shadow-2xl border border-slate-200 font-sans space-y-6 min-h-[850px] flex flex-col justify-between"
+                        >
+                            {/* Document Header */}
+                            <div>
+                                {brandingLetterhead ? (
+                                    <div className="w-full border-b border-slate-200 pb-4 mb-4">
+                                        <img
+                                            src={brandingLetterhead}
+                                            alt="Letterhead Header Banner"
+                                            className="w-full max-h-36 object-contain mx-auto"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-6">
+                                        <div className="flex items-center gap-4">
+                                            {brandingLogo ? (
+                                                <img
+                                                    src={brandingLogo}
+                                                    alt="Logo"
+                                                    className="w-16 h-16 object-contain rounded-xl p-1 border border-slate-200"
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-black">
+                                                    <Truck className="w-8 h-8 text-indigo-600" />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-900">
+                                                    {currentInstitution.name}
+                                                </h1>
+                                                <p className="text-xs font-bold text-indigo-700 tracking-wide uppercase">
+                                                    {brandingTagline || (currentInstitution as any).tagline || 'Logistics & Transit Services'}
+                                                </p>
+                                                <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                                                    {currentInstitution.address || 'Headquarters, Logistics Hub'} • Tel: {currentInstitution.phone || '+254 700 000000'} • Email: {currentInstitution.email || 'dispatch@fleet.eduai.ke'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-right space-y-1">
+                                            <span className="inline-block px-3 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg">
+                                                {previewDocType === 'waybill' ? 'CONSIGNMENT NOTE' : previewDocType === 'remittance' ? 'REMITTANCE VOUCHER' : 'MOVEMENT PERMIT'}
+                                            </span>
+                                            <p className="text-xs font-mono font-bold text-slate-700">
+                                                {previewDocType === 'waybill' ? 'WB-2026-8841' : previewDocType === 'remittance' ? 'REM-2026-0429' : 'FMP-2026-118'}
+                                            </p>
+                                            <p className="text-[10px] text-slate-500">
+                                                Date: {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Document Type Specific Content */}
+                                {previewDocType === 'waybill' && (
+                                    <div className="space-y-6 text-xs text-slate-800">
+                                        {/* Consignor & Consignee Columns */}
+                                        <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                    Consignor (Sender)
+                                                </span>
+                                                <p className="font-bold text-slate-900">Amani Trading Enterprises Ltd</p>
+                                                <p className="text-[11px] text-slate-600">Mombasa Industrial Area, Warehouse 4B</p>
+                                                <p className="text-[11px] text-slate-600">Contact: +254 711 234 567</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                    Consignee (Receiver)
+                                                </span>
+                                                <p className="font-bold text-slate-900">Nairobi Central Wholesale Depot</p>
+                                                <p className="text-[11px] text-slate-600">Embakasi Inland Container Depot, Gate 2</p>
+                                                <p className="text-[11px] text-slate-600">Contact: +254 722 987 654</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Dispatch Transit Meta */}
+                                        <div className="grid grid-cols-4 gap-3 text-center border border-slate-200 rounded-xl p-3 bg-white">
+                                            <div>
+                                                <span className="text-[9px] uppercase tracking-wider text-slate-400 block">Assigned Fleet</span>
+                                                <span className="font-mono font-black text-slate-900">{dbVehicles[0]?.plateNumber || 'KDA 782X'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] uppercase tracking-wider text-slate-400 block">Driver In Charge</span>
+                                                <span className="font-bold text-slate-900">{dbVehicles[0]?.driverName || 'John Mwangi'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] uppercase tracking-wider text-slate-400 block">Transit Route</span>
+                                                <span className="font-bold text-slate-900">MSA - NBO Highway</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[9px] uppercase tracking-wider text-slate-400 block">Insurance Policy</span>
+                                                <span className="font-bold text-emerald-600">Marine & Cargo Goods Covered</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Consignment Items Table */}
+                                        <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                                    <tr>
+                                                        <th className="p-2.5">Item Description</th>
+                                                        <th className="p-2.5 text-center">Package</th>
+                                                        <th className="p-2.5 text-right">Qty</th>
+                                                        <th className="p-2.5 text-right">Gross Wt</th>
+                                                        <th className="p-2.5 text-right">Declared Value</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200">
+                                                    <tr>
+                                                        <td className="p-2.5 font-bold">Fast-Moving Consumer Goods (Palletized)</td>
+                                                        <td className="p-2.5 text-center">Cartons</td>
+                                                        <td className="p-2.5 text-right font-mono">140</td>
+                                                        <td className="p-2.5 text-right font-mono">2,800 KG</td>
+                                                        <td className="p-2.5 text-right font-mono">KES 1,450,000</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="p-2.5 font-bold">Automotive Spares & Hardware Kits</td>
+                                                        <td className="p-2.5 text-center">Wooden Crates</td>
+                                                        <td className="p-2.5 text-right font-mono">25</td>
+                                                        <td className="p-2.5 text-right font-mono">1,150 KG</td>
+                                                        <td className="p-2.5 text-right font-mono">KES 620,000</td>
+                                                    </tr>
+                                                </tbody>
+                                                <tfoot className="bg-slate-50 font-bold border-t border-slate-200">
+                                                    <tr>
+                                                        <td colSpan={2} className="p-2.5 text-right uppercase text-[10px]">Total Consignment:</td>
+                                                        <td className="p-2.5 text-right font-mono">165 Pkgs</td>
+                                                        <td className="p-2.5 text-right font-mono">3,950 KG</td>
+                                                        <td className="p-2.5 text-right font-mono text-indigo-700">KES 2,070,000</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {previewDocType === 'remittance' && (
+                                    <div className="space-y-6 text-xs text-slate-800">
+                                        {/* Member & Vehicle Details */}
+                                        <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                    SACCO Member / Operator
+                                                </span>
+                                                <p className="font-bold text-slate-900">David Kiprono Rotich</p>
+                                                <p className="text-[11px] text-slate-600">Member No: <span className="font-mono font-bold">SACCO-MBR-0184</span></p>
+                                                <p className="text-[11px] text-slate-600">Phone: +254 722 345 678</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                                                    Vehicle & Route Info
+                                                </span>
+                                                <p className="font-bold text-slate-900 font-mono">{dbVehicles[0]?.plateNumber || 'KDC 992P'}</p>
+                                                <p className="text-[11px] text-slate-600">Assigned Route: <span className="font-bold">Nairobi - Thika Superhighway</span></p>
+                                                <p className="text-[11px] text-slate-600">Seating: 33 Seater PSV</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Remittance Breakdown Table */}
+                                        <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                            <table className="w-full text-left text-xs">
+                                                <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                                    <tr>
+                                                        <th className="p-2.5">SACCO Remittance Allocation</th>
+                                                        <th className="p-2.5">Category</th>
+                                                        <th className="p-2.5 text-right">Target</th>
+                                                        <th className="p-2.5 text-right">Amount Paid</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200 font-medium">
+                                                    <tr>
+                                                        <td className="p-2.5 font-bold">Daily Management & SACCO Operational Levy</td>
+                                                        <td className="p-2.5 text-slate-500">SACCO Levy</td>
+                                                        <td className="p-2.5 text-right font-mono">KES 1,200</td>
+                                                        <td className="p-2.5 text-right font-mono font-bold">KES 1,200</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="p-2.5 font-bold">Vehicle Maintenance Sinking Fund</td>
+                                                        <td className="p-2.5 text-slate-500">Sinking Reserve</td>
+                                                        <td className="p-2.5 text-right font-mono">KES 500</td>
+                                                        <td className="p-2.5 text-right font-mono font-bold">KES 500</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="p-2.5 font-bold">Driver Welfare & Benevolent Scheme</td>
+                                                        <td className="p-2.5 text-slate-500">Welfare Fund</td>
+                                                        <td className="p-2.5 text-right font-mono">KES 200</td>
+                                                        <td className="p-2.5 text-right font-mono font-bold">KES 200</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="p-2.5 font-bold text-indigo-700">Voluntary Member Thrift Savings (Deposit)</td>
+                                                        <td className="p-2.5 text-slate-500">SACCO Savings</td>
+                                                        <td className="p-2.5 text-right font-mono">KES 600</td>
+                                                        <td className="p-2.5 text-right font-mono font-bold text-indigo-700">KES 600</td>
+                                                    </tr>
+                                                </tbody>
+                                                <tfoot className="bg-indigo-50/70 font-black border-t border-slate-300">
+                                                    <tr>
+                                                        <td colSpan={2} className="p-2.5 uppercase tracking-wider text-slate-800">Total Remitted Today:</td>
+                                                        <td className="p-2.5 text-right font-mono text-slate-500">KES 2,500</td>
+                                                        <td className="p-2.5 text-right font-mono text-indigo-900 text-sm">KES 2,500</td>
+                                                    </tr>
+                                                </tfoot>
+                                            </table>
+                                        </div>
+
+                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                                            <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                                <span>Settlement Confirmed via M-PESA Till #984210</span>
+                                            </div>
+                                            <span className="font-mono text-[11px] text-emerald-700">Ref: QA9812KL91</span>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {previewDocType === 'permit' && (
+                                    <div className="space-y-6 text-xs text-slate-800">
+                                        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                                            <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                                                <span className="font-black uppercase tracking-wider text-slate-700">Vehicle Authorization</span>
+                                                <span className="font-mono font-black text-indigo-600 text-sm">{dbVehicles[0]?.plateNumber || 'KDA 782X'}</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 text-[11px]">
+                                                <div>
+                                                    <span className="text-slate-400 block uppercase text-[9px]">Permitted Route</span>
+                                                    <span className="font-bold">Nairobi CBD - Nakuru Express Route</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 block uppercase text-[9px]">Speed Governor Cert</span>
+                                                    <span className="font-bold">NTSA-GOV-2026-9912 (Active)</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 block uppercase text-[9px]">Passenger Capacity</span>
+                                                    <span className="font-bold">{dbVehicles[0]?.capacity || 33} Passengers Licensed</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 block uppercase text-[9px]">Permit Validity</span>
+                                                    <span className="font-bold text-emerald-700">Valid 24 Hours From Dispatch</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Signatures and Official Stamp Strip */}
+                                <div className="pt-6 border-t border-slate-200 flex justify-between items-end gap-6">
+                                    <div className="space-y-8 flex-1">
+                                        <div className="grid grid-cols-2 gap-6 text-xs text-slate-600">
+                                            <div>
+                                                <div className="border-b border-slate-400 pb-1 h-8"></div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider mt-1">Authorized Dispatch Officer</p>
+                                            </div>
+                                            <div>
+                                                <div className="border-b border-slate-400 pb-1 h-8"></div>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider mt-1">Driver / Carrier Acceptance</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Verification Stamp Area */}
+                                    <div className="shrink-0 flex flex-col items-center justify-center">
+                                        {brandingStampMode === 'custom' && brandingStampUrl ? (
+                                            <div className="relative -rotate-6 transition-transform">
+                                                <img
+                                                    src={brandingStampUrl}
+                                                    alt="Official Seal"
+                                                    className="w-24 h-24 object-contain drop-shadow"
+                                                />
+                                            </div>
+                                        ) : brandingStampMode === 'system' ? (
+                                            <div className="relative w-24 h-24 rounded-full border-2 border-indigo-700 text-indigo-700 flex flex-col items-center justify-center text-center p-1 -rotate-6 select-none bg-indigo-50/40">
+                                                <div className="w-20 h-20 rounded-full border border-dashed border-indigo-500 flex flex-col items-center justify-center">
+                                                    <span className="text-[7px] font-black uppercase tracking-tighter">OFFICIAL SEAL</span>
+                                                    <span className="text-[9px] font-black uppercase tracking-tight text-indigo-900 leading-none my-0.5">VERIFIED</span>
+                                                    <span className="text-[6px] font-bold tracking-widest">{new Date().getFullYear()} NTSA REG</span>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Document Footer Banner & Legal Text */}
+                            <div className="pt-4 border-t border-slate-200 text-center space-y-2 mt-4">
+                                {brandingFooter ? (
+                                    <div className="w-full">
+                                        <img
+                                            src={brandingFooter}
+                                            alt="Document Footer Banner"
+                                            className="w-full max-h-20 object-contain mx-auto"
+                                        />
+                                    </div>
+                                ) : null}
+
+                                <p className="text-[9px] text-slate-500 uppercase tracking-widest font-medium">
+                                    {brandingFooterText || `${currentInstitution.name} • Official Carrier & Logistics Documentation • Regulated by NTSA`}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const navTabs = [
         { id: 'sacco_savings', label: 'SACCO Savings', subLabel: 'Thrift & Sinking Funds', icon: PiggyBank, show: isSACCO || isSaccoSavings },
         { id: 'sacco_remittance', label: 'Daily Remittance', subLabel: 'Driver Check-off & Penalties', icon: Clock3, show: isSACCO || isSaccoSavings },
@@ -7173,6 +8150,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         { id: 'analytics', label: isSACCO ? 'Dividend & Yield' : isShuttle ? 'Commute Data' : isEduTransport ? 'Commute Insights' : 'Route Science', subLabel: 'Performance & Revenue Data', icon: BarChart3, show: true },
         { id: 'alerts',  label: 'Disruption Alerts', subLabel: 'Delays & Route Issues', icon: Bell, show: isEduTransport },
         { id: 'billing', label: 'Transport Billing', subLabel: 'Fee Invoices & Commuter Fares', icon: Receipt, show: isEduTransport },
+        { id: 'branding', label: 'Fleet & Transit Branding', subLabel: 'Letterhead, Logo & Footer', icon: Palette, show: true },
         { id: 'reports', label: 'Reports & Logs', subLabel: 'Exportable Audit Spreadsheets', icon: FileText, show: true },
         { id: 'epod', label: 'Proof Center', subLabel: 'Digital Delivery Signatures', icon: Signature, show: !isShuttle && !isSACCO && !isEduTransport }
     ].filter(t => t.show);
@@ -7451,6 +8429,7 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
                             />
                         )}
                         {activeTab === 'reports' && renderReports()}
+                        {activeTab === 'branding' && renderBranding()}
                     </div>
                 </main>
             </div>

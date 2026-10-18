@@ -6370,6 +6370,14 @@ export const apiService = {
         return insts;
     },
 
+        async updateInstitution(id: string, updates: Partial<Institution>): Promise<void> {
+        let inst = await this.getInstitution(id);
+        if (!inst) {
+            const list = ls.get('institutions') || [];
+            inst = list.find((i: any) => i.id === id) || ({ id, name: '' } as Institution);
+        }
+        await this.saveInstitution({ ...inst, ...updates });
+    },
     async saveInstitution(inst: Institution): Promise<void> { 
         const { countyId, moduleStates, coopConfig, coopSettings, treeGradingNodes, tree_grading_nodes, classExamConfigs, class_exam_configs, classTeacherCommentsConfig, class_teacher_comments_config, classRankingConfigs, class_ranking_configs, othersExamSettings, others_exam_settings, imConfig, im_config, ...rest } = inst as any;
         const coop_settings = {
