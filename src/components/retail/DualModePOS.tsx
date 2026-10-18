@@ -131,10 +131,12 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
     const [stkCheckoutRequestId, setStkCheckoutRequestId] = useState<string | null>(null);
     const [stkErrorMessage, setStkErrorMessage] = useState<string | null>(null);
     const [stkStatusMessage, setStkStatusMessage] = useState<string>('');
-    const [stkCountdown, setStkCountdown] = useState<number>(60);
+    const [stkCountdown, setStkCountdown] = useState<number>(120);
+    const [isCheckingStatusManually, setIsCheckingStatusManually] = useState(false);
     const [manualMpesaCode, setManualMpesaCode] = useState<string>('');
     const [isManualMpesaModalOpen, setIsManualMpesaModalOpen] = useState(false);
     const stkPollingIntervalRef = useRef<any>(null);
+    const stkSecondsLeftRef = useRef<number>(120);
 
     // Selected item for pricing negotiation
     const [selectedItem, setSelectedItem] = useState<RetailInventoryItem | CafeMenuItem | null>(null);
@@ -298,10 +300,14 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         };
     }, [institutionId, isEducation]);
 
-    // Keep STK phone in sync with customer phone if not manually overridden
+    // Keep STK phone in sync with customer phone
     useEffect(() => {
-        if (customerInfo.phone && !stkPhone) {
-            setStkPhone(customerInfo.phone);
+        if (customerInfo.phone) {
+            const rawClean = String(stkPhone || '').replace(/[^\d]/g, '');
+            // If stkPhone is empty or clearly incomplete (e.g. "0" or < 9 digits), sync with customerInfo.phone
+            if (!rawClean || rawClean.length < 9) {
+                setStkPhone(customerInfo.phone);
+            }
         }
     }, [customerInfo.phone]);
 
@@ -551,10 +557,26 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
     const normalizeKenyanPhone = (input: string): string => {
         let p = String(input || '').replace(/[^\d]/g, '');
-        if (p.startsWith('2540')) p = '254' + p.substring(4);
-        else if (p.startsWith('0')) p = '254' + p.substring(1);
-        else if (p.length === 9) p = '254' + p;
+        if (!p || p.length < 3) return '';
+        if (p.startsWith('2540') && p.length >= 13) p = '254' + p.substring(4);
+        else if (p.startsWith('0') && p.length === 10) p = '254' + p.substring(1);
+        else if (p.length === 9 && (p.startsWith('7') || p.startsWith('1'))) p = '254' + p;
         return p;
+    };
+
+    const resolveKenyanPhone = (primary?: string, fallback?: string): { cleanPhone: string; rawPhone: string; isValid: boolean } => {
+        const cleanPrimary = normalizeKenyanPhone(primary || '');
+        if (cleanPrimary.startsWith('254') && cleanPrimary.length === 12) {
+            return { cleanPhone: cleanPrimary, rawPhone: primary || '', isValid: true };
+        }
+
+        const cleanFallback = normalizeKenyanPhone(fallback || '');
+        if (cleanFallback.startsWith('254') && cleanFallback.length === 12) {
+            return { cleanPhone: cleanFallback, rawPhone: fallback || '', isValid: true };
+        }
+
+        const chosenRaw = (primary && primary.trim().length > 1) ? primary.trim() : (fallback || primary || '');
+        return { cleanPhone: normalizeKenyanPhone(chosenRaw), rawPhone: chosenRaw, isValid: false };
     };
 
     const stopStkPolling = () => {
@@ -564,55 +586,83 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         }
     };
 
-    const startStkPolling = (checkoutRequestId: string) => {
-        stopStkPolling();
-        let secondsLeft = 60;
+    const checkKcbStatusOnce = async (checkoutRequestId: string): Promise<boolean> => {
+        try {
+            const statusRes = await apiService.checkPaymentStatus('kcb', checkoutRequestId);
+            const statusStr = String(statusRes?.status || '').toLowerCase();
+            const resCode = String(statusRes?.resultCode || statusRes?.ResultCode || '');
 
-        const interval = setInterval(async () => {
-            secondsLeft -= 3;
-            setStkCountdown(Math.max(0, secondsLeft));
-
-            if (secondsLeft <= 0) {
+            if (statusRes?.success && (statusStr === 'completed' || statusStr === 'success' || resCode === '0' || resCode === '00')) {
+                stopStkPolling();
+                setStkState('completed');
+                setStkStatusMessage("Payment verified successfully via KCB Open Banking!");
+                const mpesaRef = statusRes.transactionId || statusRes.mpesaReceiptNumber || checkoutRequestId;
+                await completeFinalSale('kcb_stk', mpesaRef);
+                return true;
+            } else if (statusStr === 'failed' || (statusStr !== 'pending' && statusStr !== 'processing' && statusStr !== '' && (resCode === '1032' || resCode === '1031'))) {
                 stopStkPolling();
                 setStkState('failed');
-                setStkErrorMessage("STK Push prompt timed out. If the customer completed payment on their phone, click 'Enter M-Pesa Code' below to record the transaction.");
+                setStkErrorMessage(statusRes?.message || statusRes?.resultDesc || "Transaction was cancelled or declined on customer handset.");
+                return false;
+            }
+        } catch (pollErr) {
+            console.warn("Polling payment status warning:", pollErr);
+        }
+        return false;
+    };
+
+    const startStkPolling = (checkoutRequestId: string, initialSeconds = 120) => {
+        stopStkPolling();
+        stkSecondsLeftRef.current = initialSeconds;
+        setStkCountdown(initialSeconds);
+
+        const interval = setInterval(async () => {
+            stkSecondsLeftRef.current = Math.max(0, stkSecondsLeftRef.current - 3);
+            setStkCountdown(stkSecondsLeftRef.current);
+
+            if (stkSecondsLeftRef.current <= 0) {
+                stopStkPolling();
+                setStkState('failed');
+                setStkErrorMessage("STK Push prompt has taken longer than expected. If the customer completed payment on their phone, click 'Check Status Now' or 'Enter M-Pesa Code' below.");
                 return;
             }
 
-            try {
-                const statusRes = await apiService.checkPaymentStatus('kcb', checkoutRequestId);
-                const statusStr = String(statusRes?.status || '').toLowerCase();
-                const resCode = String(statusRes?.resultCode || statusRes?.ResultCode || '');
-
-                if (statusRes?.success && (statusStr === 'completed' || statusStr === 'success' || resCode === '0' || resCode === '00')) {
-                    stopStkPolling();
-                    setStkState('completed');
-                    setStkStatusMessage("Payment verified successfully via KCB Open Banking!");
-                    const mpesaRef = statusRes.transactionId || statusRes.mpesaReceiptNumber || checkoutRequestId;
-                    await completeFinalSale('kcb_stk', mpesaRef);
-                } else if (statusStr === 'failed' || resCode === '1' || resCode === '1032') {
-                    stopStkPolling();
-                    setStkState('failed');
-                    setStkErrorMessage(statusRes?.message || statusRes?.resultDesc || "Transaction was cancelled or declined on customer handset.");
-                }
-            } catch (pollErr) {
-                console.warn("Polling payment status warning:", pollErr);
-            }
+            await checkKcbStatusOnce(checkoutRequestId);
         }, 3500);
 
         stkPollingIntervalRef.current = interval;
     };
 
+    const handleExtendStkTime = (additionalSeconds = 60) => {
+        stkSecondsLeftRef.current += additionalSeconds;
+        setStkCountdown(stkSecondsLeftRef.current);
+        if (stkState === 'failed' && stkCheckoutRequestId) {
+            setStkState('polling');
+            setStkErrorMessage(null);
+            setStkStatusMessage("Resuming live open banking verification...");
+            startStkPolling(stkCheckoutRequestId, stkSecondsLeftRef.current);
+        }
+    };
+
+    const handleManualStatusCheck = async () => {
+        if (!stkCheckoutRequestId) return;
+        setIsCheckingStatusManually(true);
+        const done = await checkKcbStatusOnce(stkCheckoutRequestId);
+        setIsCheckingStatusManually(false);
+        if (!done && stkState === 'failed') {
+            setStkStatusMessage("Status is still pending on KCB gateway. Please wait a moment or enter the M-Pesa receipt code manually.");
+        }
+    };
+
     const handleInitiateKcbStk = async () => {
-        const rawTargetPhone = stkPhone || customerInfo.phone;
-        if (!rawTargetPhone) {
-            alert("Please provide the customer's phone number for the KCB STK Push prompt.");
+        const { cleanPhone, rawPhone, isValid } = resolveKenyanPhone(stkPhone, customerInfo.phone);
+        if (!rawPhone || !cleanPhone || !isValid) {
+            alert(`Invalid phone number format: "${rawPhone || 'empty'}". Please enter a valid 10-digit number (e.g. 0712345678 or 254712345678).`);
             return;
         }
-        const cleanPhone = normalizeKenyanPhone(rawTargetPhone);
-        if (!cleanPhone.startsWith('254') || cleanPhone.length !== 12) {
-            alert(`Invalid phone number format: "${rawTargetPhone}". Please enter a valid 10-digit number (e.g. 0712345678 or 254712345678).`);
-            return;
+
+        if (stkPhone !== cleanPhone) {
+            setStkPhone(cleanPhone);
         }
 
         // Resolve target store
@@ -634,7 +684,7 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
         setStkState('initiating');
         setStkErrorMessage(null);
         setStkStatusMessage(`Connecting to KCB Open Banking Gateway for ${cleanPhone}...`);
-        setStkCountdown(60);
+        setStkCountdown(120);
 
         try {
             const orderRef = `POS-${Date.now().toString().slice(-6)}`;
@@ -2196,12 +2246,22 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                             </div>
                                                             <input
                                                                 type="tel"
-                                                                value={stkPhone}
-                                                                onChange={e => setStkPhone(e.target.value)}
+                                                                value={stkPhone || customerInfo.phone || ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setStkPhone(val);
+                                                                    setCustomerInfo(prev => ({ ...prev, phone: val }));
+                                                                }}
                                                                 placeholder="e.g. 0712 345 678 or 254712345678"
                                                                 className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-900 border border-emerald-500/30 rounded-xl text-sm font-black text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                                                             />
                                                         </div>
+                                                        {customerInfo.phone && (
+                                                            <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 px-1">
+                                                                <span>Customer Handset:</span>
+                                                                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">+{normalizeKenyanPhone(customerInfo.phone)}</span>
+                                                            </div>
+                                                        )}
                                                         <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
                                                             A payment push for <strong className="text-emerald-600 dark:text-emerald-400">KES {finalPayableAmount.toLocaleString()}</strong> will trigger instantly on this customer's screen requiring their M-Pesa PIN.
                                                         </p>
@@ -2364,19 +2424,62 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
 
                                             {/* Countdown timer & Polling spinner */}
                                             {(stkState === 'prompt_sent' || stkState === 'polling') && (
-                                                <div className="flex items-center justify-between px-4 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
-                                                    <span className="flex items-center gap-2">
-                                                        <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
-                                                        Live Open Banking Polling
-                                                    </span>
-                                                    <span className="font-mono font-black text-sm">
-                                                        {stkCountdown}s
-                                                    </span>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
+                                                        <span className="flex items-center gap-2">
+                                                            <RefreshCw className="w-4 h-4 animate-spin text-emerald-600" />
+                                                            Live Open Banking Verification
+                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono font-black text-sm">
+                                                                {stkCountdown}s
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleExtendStkTime(60)}
+                                                                className="px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-sm"
+                                                                title="Add 60 seconds to countdown"
+                                                            >
+                                                                +60s
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={isCheckingStatusManually}
+                                                        onClick={handleManualStatusCheck}
+                                                        className="w-full py-2 px-3 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-emerald-500/20"
+                                                    >
+                                                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingStatusManually ? 'animate-spin text-emerald-600' : ''}`} />
+                                                        {isCheckingStatusManually ? 'Checking Gateway...' : 'Check Status Now'}
+                                                    </button>
                                                 </div>
                                             )}
 
                                             {/* Action Buttons */}
                                             <div className="space-y-2">
+                                                {stkState === 'failed' && stkCheckoutRequestId && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={isCheckingStatusManually}
+                                                        onClick={handleManualStatusCheck}
+                                                        className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                                                    >
+                                                        <RefreshCw className={`w-4 h-4 ${isCheckingStatusManually ? 'animate-spin' : ''}`} />
+                                                        {isCheckingStatusManually ? 'Checking Gateway...' : 'Check Status Now (Customer Paid)'}
+                                                    </button>
+                                                )}
+
+                                                {stkState === 'failed' && stkCheckoutRequestId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleExtendStkTime(90)}
+                                                        className="w-full py-2.5 px-4 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 border border-emerald-500/20"
+                                                    >
+                                                        Add +90s & Resume Checking
+                                                    </button>
+                                                )}
+
                                                 {(stkState === 'prompt_sent' || stkState === 'polling' || stkState === 'failed') && (
                                                     <button
                                                         type="button"
@@ -2392,10 +2495,10 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                                                     <button
                                                         type="button"
                                                         onClick={handleInitiateKcbStk}
-                                                        className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg"
+                                                        className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                                                     >
-                                                        <RefreshCw className="w-4 h-4" />
-                                                        Retry KCB STK Push
+                                                        <RefreshCw className="w-3.5 h-3.5" />
+                                                        Send New STK Push Prompt
                                                     </button>
                                                 )}
 

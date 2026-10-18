@@ -701,6 +701,126 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const [previewPdfUrl, setPreviewPdfUrl] = useState('');
     const [previewPdfTitle, setPreviewPdfTitle] = useState('');
 
+    // Reusable pagination helper with responsive windowing, ellipsis, and first/last page controls
+    const renderPagination = (
+        currentPage: number,
+        totalPages: number,
+        onPageChange: (page: number | ((prev: number) => number)) => void,
+        totalItems: number,
+        itemName: string,
+        pageSize: number = PAGE_SIZE,
+        themeColor: 'blue' | 'purple' = 'blue'
+    ) => {
+        if (totalPages <= 1) return null;
+
+        const startItem = ((currentPage - 1) * pageSize) + 1;
+        const endItem = Math.min(currentPage * pageSize, totalItems);
+
+        const getVisiblePages = () => {
+            if (totalPages <= 7) {
+                return Array.from({ length: totalPages }, (_, i) => i + 1);
+            }
+            const pages: (number | 'ellipsis-start' | 'ellipsis-end')[] = [];
+            if (currentPage <= 4) {
+                for (let p = 1; p <= 5; p++) {
+                    pages.push(p);
+                }
+                pages.push('ellipsis-end');
+                pages.push(totalPages);
+            } else if (currentPage >= totalPages - 3) {
+                pages.push(1);
+                pages.push('ellipsis-start');
+                for (let p = totalPages - 4; p <= totalPages; p++) {
+                    pages.push(p);
+                }
+            } else {
+                pages.push(1);
+                pages.push('ellipsis-start');
+                pages.push(currentPage - 1);
+                pages.push(currentPage);
+                pages.push(currentPage + 1);
+                pages.push('ellipsis-end');
+                pages.push(totalPages);
+            }
+            return pages;
+        };
+
+        const visiblePages = getVisiblePages();
+        const activeColorClass = themeColor === 'purple'
+            ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+            : 'bg-blue-600 text-white shadow-lg shadow-blue-500/20';
+
+        return (
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700/60 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
+                    Showing {startItem}–{endItem} of {totalItems} {itemName}
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap justify-center sm:justify-end">
+                    <button
+                        type="button"
+                        onClick={() => onPageChange(1)}
+                        disabled={currentPage === 1}
+                        title="First Page"
+                        className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        «
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onPageChange(p => Math.max(1, (typeof p === 'number' ? p : currentPage) - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                    >
+                        ← Prev
+                    </button>
+
+                    {visiblePages.map((item, idx) => {
+                        if (typeof item === 'string') {
+                            return (
+                                <span key={`${item}-${idx}`} className="px-1 text-xs font-black text-slate-400 select-none">
+                                    ...
+                                </span>
+                            );
+                        }
+                        const isCurrent = item === currentPage;
+                        return (
+                            <button
+                                key={item}
+                                type="button"
+                                onClick={() => onPageChange(item)}
+                                className={`min-w-[2rem] h-8 px-2 rounded-xl text-[10px] font-black transition-all ${
+                                    isCurrent
+                                        ? activeColorClass
+                                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'
+                                }`}
+                            >
+                                {item}
+                            </button>
+                        );
+                    })}
+
+                    <button
+                        type="button"
+                        onClick={() => onPageChange(p => Math.min(totalPages, (typeof p === 'number' ? p : currentPage) + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                    >
+                        Next →
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onPageChange(totalPages)}
+                        disabled={currentPage === totalPages}
+                        title="Last Page"
+                        className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        »
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     // Derived for Communications
     const commsUsers = useMemo(() => {
         const mappedTenants = tenants.map(t => ({
@@ -2442,20 +2562,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
 
                 {/* Pagination Footer */}
-                {totalLandlordPages > 1 && (
-                    <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Showing {((landlordPage - 1) * PAGE_SIZE) + 1}–{Math.min(landlordPage * PAGE_SIZE, filtered.length)} of {filtered.length}
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => setLandlordPage(p => Math.max(1, p - 1))} disabled={landlordPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                            {Array.from({ length: totalLandlordPages }, (_, i) => i + 1).map(pg => (
-                                <button key={pg} onClick={() => setLandlordPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === landlordPage ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
-                            ))}
-                            <button onClick={() => setLandlordPage(p => Math.min(totalLandlordPages, p + 1))} disabled={landlordPage === totalLandlordPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
-                        </div>
-                    </div>
-                )}
+                {renderPagination(landlordPage, totalLandlordPages, setLandlordPage, filtered.length, 'landlords', PAGE_SIZE, 'purple')}
             </div>
         </div>
         );
@@ -2618,42 +2725,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
 
                         {/* Pagination Footer */}
-                        {totalPages > 1 && (
-                            <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Showing {((propertyPage - 1) * PROPERTY_PAGE_SIZE) + 1}–{Math.min(propertyPage * PROPERTY_PAGE_SIZE, properties.length)} of {properties.length} properties
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setPropertyPage(p => Math.max(1, p - 1))}
-                                        disabled={propertyPage === 1}
-                                        className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        ← Prev
-                                    </button>
-                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pg => (
-                                        <button
-                                            key={pg}
-                                            onClick={() => setPropertyPage(pg)}
-                                            className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${
-                                                pg === propertyPage
-                                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                                    : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                            }`}
-                                        >
-                                            {pg}
-                                        </button>
-                                    ))}
-                                    <button
-                                        onClick={() => setPropertyPage(p => Math.min(totalPages, p + 1))}
-                                        disabled={propertyPage === totalPages}
-                                        className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                        Next →
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        {renderPagination(propertyPage, totalPages, setPropertyPage, properties.length, 'properties', PROPERTY_PAGE_SIZE, 'blue')}
                     </div>
                 );
             })()}
@@ -2795,20 +2867,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         </div>
 
                         {/* Pagination Footer */}
-                        {totalUnitPages > 1 && (
-                            <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                    Showing {((unitPage - 1) * PAGE_SIZE) + 1}–{Math.min(unitPage * PAGE_SIZE, filteredUnits.length)} of {filteredUnits.length} units
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={() => setUnitPage(p => Math.max(1, p - 1))} disabled={unitPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                                    {Array.from({ length: totalUnitPages }, (_, i) => i + 1).map(pg => (
-                                        <button key={pg} onClick={() => setUnitPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === unitPage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
-                                    ))}
-                                    <button onClick={() => setUnitPage(p => Math.min(totalUnitPages, p + 1))} disabled={unitPage === totalUnitPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
-                                </div>
-                            </div>
-                        )}
+                        {renderPagination(unitPage, totalUnitPages, setUnitPage, filteredUnits.length, 'units')}
                     </div>
                 </div>
                 );
@@ -2940,20 +2999,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
 
                 {/* Pagination Footer */}
-                {totalTenantPages > 1 && (
-                    <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Showing {((tenantPage - 1) * PAGE_SIZE) + 1}–{Math.min(tenantPage * PAGE_SIZE, filteredTenants.length)} of {filteredTenants.length} tenants
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => setTenantPage(p => Math.max(1, p - 1))} disabled={tenantPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                            {Array.from({ length: totalTenantPages }, (_, i) => i + 1).map(pg => (
-                                <button key={pg} onClick={() => setTenantPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === tenantPage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
-                            ))}
-                            <button onClick={() => setTenantPage(p => Math.min(totalTenantPages, p + 1))} disabled={tenantPage === totalTenantPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
-                        </div>
-                    </div>
-                )}
+                {renderPagination(tenantPage, totalTenantPages, setTenantPage, filteredTenants.length, 'tenants')}
             </div>
         </div>
         );
@@ -3562,20 +3608,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 </div>
 
                 {/* Pagination Footer */}
-                {totalLeasePages > 1 && (
-                    <div className="px-6 py-4 border-t border-slate-50 dark:border-slate-700 flex items-center justify-between gap-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Showing {((leasePage - 1) * PAGE_SIZE) + 1}–{Math.min(leasePage * PAGE_SIZE, filteredLeases.length)} of {filteredLeases.length} leases
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => setLeasePage(p => Math.max(1, p - 1))} disabled={leasePage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                            {Array.from({ length: totalLeasePages }, (_, i) => i + 1).map(pg => (
-                                <button key={pg} onClick={() => setLeasePage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === leasePage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
-                            ))}
-                            <button onClick={() => setLeasePage(p => Math.min(totalLeasePages, p + 1))} disabled={leasePage === totalLeasePages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
-                        </div>
-                    </div>
-                )}
+                {renderPagination(leasePage, totalLeasePages, setLeasePage, filteredLeases.length, 'leases')}
             </div>
         </div>
         );
@@ -6416,20 +6449,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     </div>
 
                     {/* Pagination Footer */}
-                    {totalExpensesPages > 1 && (
-                        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/10">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                Showing {((expensePage - 1) * PAGE_SIZE) + 1}–{Math.min(expensePage * PAGE_SIZE, filteredExpenses.length)} of {filteredExpenses.length} expense vouchers
-                            </p>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setExpensePage(p => Math.max(1, p - 1))} disabled={expensePage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                                {Array.from({ length: totalExpensesPages }, (_, i) => i + 1).map(pg => (
-                                    <button key={pg} onClick={() => setExpensePage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === expensePage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
-                                ))}
-                                <button onClick={() => setExpensePage(p => Math.min(totalExpensesPages, p + 1))} disabled={expensePage === totalExpensesPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
-                            </div>
-                        </div>
-                    )}
+                    {renderPagination(expensePage, totalExpensesPages, setExpensePage, filteredExpenses.length, 'expense vouchers')}
                 </div>
             </div>
         );
@@ -9810,20 +9830,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         </table>
 
                                         {/* Pagination Footer */}
-                                        {totalDashPropPages > 1 && (
-                                            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                    Showing {((dashPropPage - 1) * PAGE_SIZE) + 1}–{Math.min(dashPropPage * PAGE_SIZE, filteredDashProps.length)} of {filteredDashProps.length} properties
-                                                </p>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => setDashPropPage(p => Math.max(1, p - 1))} disabled={dashPropPage === 1} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">← Prev</button>
-                                                    {Array.from({ length: totalDashPropPages }, (_, i) => i + 1).map(pg => (
-                                                        <button key={pg} onClick={() => setDashPropPage(pg)} className={`w-8 h-8 rounded-xl text-[10px] font-black transition-colors ${pg === dashPropPage ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}>{pg}</button>
-                                                    ))}
-                                                    <button onClick={() => setDashPropPage(p => Math.min(totalDashPropPages, p + 1))} disabled={dashPropPage === totalDashPropPages} className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Next →</button>
-                                                </div>
-                                            </div>
-                                        )}
+                                        {renderPagination(dashPropPage, totalDashPropPages, setDashPropPage, filteredDashProps.length, 'properties')}
                                     </>
                                 );
                             })()}
