@@ -169,8 +169,13 @@ export function isSchoolInstitution(institution: Partial<Institution> | null | u
     if (!institution) return false;
     // Driving schools are independent commercial academies, never K-12 schools
     if (isDSInstitution(institution)) return false;
+    const name = (institution.name || (institution as any)?.institution_name || (institution as any)?.name || '').toLowerCase();
     const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
     const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const subType = (institution.businessSubType || (institution as any)?.business_sub_type || '').toLowerCase();
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving') || subType.includes('driving')) {
+        return false;
+    }
     const schoolCats = ['primary', 'secondary', 'kindergarten', 'ecd', 'international', 'pre-primary', 'junior secondary'];
     return (type === 'education' && schoolCats.includes(category)) || schoolCats.includes(type);
 }
@@ -184,6 +189,7 @@ export function isPrimaryInstitution(institution: Partial<Institution> | null | 
     const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
     const category = (institution.category || (institution as any)?.category || '').toLowerCase();
     const name = (institution.name || (institution as any)?.name || '').toLowerCase();
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving')) return false;
     const primaryTerms = ['primary', 'kindergarten', 'ecd', 'pre-primary', 'nursery', 'daycare', 'cbc'];
     return primaryTerms.some(term => type.includes(term) || category.includes(term) || name.includes(term));
 }
@@ -197,6 +203,7 @@ export function isSecondaryInstitution(institution: Partial<Institution> | null 
     const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
     const category = (institution.category || (institution as any)?.category || '').toLowerCase();
     const name = (institution.name || (institution as any)?.name || '').toLowerCase();
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving')) return false;
     const secondaryTerms = ['secondary', 'junior secondary', 'high school', 'senior school', 'k12'];
     return secondaryTerms.some(term => type.includes(term) || category.includes(term) || name.includes(term));
 }
@@ -209,6 +216,8 @@ export function isHigherEdInstitution(institution: Partial<Institution> | null |
     if (isDSInstitution(institution)) return false;
     const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
     const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const name = (institution.name || (institution as any)?.name || '').toLowerCase();
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving')) return false;
     const higherEdCats = ['university', 'college', 'tvet', 'polytechnic', 'institute'];
     return (type === 'education' && higherEdCats.includes(category)) || higherEdCats.includes(type);
 }
@@ -223,11 +232,26 @@ export function isDSInstitution(institution: Partial<Institution> | null | undef
     const subType = (institution.businessSubType || (institution as any)?.business_sub_type || '').toLowerCase();
     const name = (institution.name || (institution as any)?.institution_name || (institution as any)?.name || '').toLowerCase();
     const id = (institution.id || '').toLowerCase();
-    const hasModule = institution.moduleStates?.some(m => ((m as any).moduleId === 'driving_school' || (m as any).module_id === 'driving_school' || (m as any).moduleId === 'ds' || (m as any).module_id === 'ds') && (m.status === 'active' || m.status === 'trial'));
+    const parentType = ((institution as any)?.parentInstitutionType || (institution as any)?.parent_institution_type || '').toLowerCase();
+    const parentCategory = ((institution as any)?.parentCategory || (institution as any)?.parent_category || '').toLowerCase();
+    const parentName = ((institution as any)?.parentName || (institution as any)?.parent_name || '').toLowerCase();
+    const parentId = ((institution as any)?.parentInstitutionId || (institution as any)?.parent_institution_id || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => {
+        const modId = ((m as any).moduleId || (m as any).module_id || '').toLowerCase();
+        return (modId === 'driving_school' || modId === 'ds' || modId === 'driving' || modId === 'driving_school_management') && (m.status === 'active' || m.status === 'trial');
+    });
+
+    if ((institution as any)?.parentInstitution && isDSInstitution((institution as any).parentInstitution)) {
+        return true;
+    }
+
     return type === 'driving school' || type === 'driving_school' || type.includes('driving') ||
            subType.includes('driving school') || subType.includes('driving_school') || subType.includes('driving') ||
            category.includes('driving school') || category.includes('driving_school') || category.includes('driving') ||
            name.includes('driving school') || name.includes('driving academy') || name.includes('motoring') || name.includes('drivers academy') ||
+           name.includes('driving') || name.includes('driver') ||
+           parentType.includes('driving') || parentCategory.includes('driving') || parentName.includes('driving') ||
+           parentId.startsWith('ds_') || parentId.includes('driving') ||
            id.startsWith('ds_') || id.includes('driving') ||
            !!hasModule;
 }
@@ -258,10 +282,15 @@ export function isEduInstitution(institution: Partial<Institution> | null | unde
     // Driving School accounts are independent commercial businesses — never part of the educational school pipeline
     if (isDSInstitution(institution)) return false;
 
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
-    const subType = (institution.businessSubType || '').toLowerCase();
-    const name = (institution.name || '').toLowerCase();
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const subType = (institution.businessSubType || (institution as any)?.business_sub_type || '').toLowerCase();
+    const name = (institution.name || (institution as any)?.institution_name || (institution as any)?.name || '').toLowerCase();
+
+    // Guard: Any driving school or driver academy must never be classified as education
+    if (name.includes('driving') || name.includes('driver') || type.includes('driving') || category.includes('driving') || subType.includes('driving')) {
+        return false;
+    }
 
     // Dedicated standalone HIS / Hospital / Medical institutions are NOT education
     if (type === 'his' || type === 'hospital' || type === 'clinic' || subType.includes('hospital') || subType.includes('clinic')) {

@@ -499,10 +499,13 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         const isDSInst = props.currentInstitution && (
             isDSInstitution(props.currentInstitution) || 
             props.currentInstitution.institutionType === 'Driving School' || 
-            props.currentInstitution.category?.toLowerCase().includes('driving school') ||
-            props.currentInstitution.businessSubType?.toLowerCase().includes('driving school') ||
-            props.currentInstitution.name?.toLowerCase().includes('driving school') ||
-            props.currentInstitution.id?.startsWith('ds_')
+            (props.currentInstitution.institutionType || '').toLowerCase().includes('driving') ||
+            (props.currentInstitution.category || '').toLowerCase().includes('driving') ||
+            (props.currentInstitution.businessSubType || '').toLowerCase().includes('driving') ||
+            (props.currentInstitution.name || '').toLowerCase().includes('driving') ||
+            (props.currentInstitution.name || '').toLowerCase().includes('driver') ||
+            props.currentInstitution.id?.startsWith('ds_') ||
+            props.currentInstitution.id?.includes('driving')
         );
         const isDSUser = props.activeRole === 'driving_instructor' || props.currentUser?.role === 'driving_instructor';
         return (isDSInst || isDSUser) ? 'ds' : 'console_hub';
@@ -713,9 +716,16 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const isDS = useMemo(() => {
         return isDSInstitution(props.currentInstitution) || 
                institutionType === 'Driving School' || 
-               props.currentInstitution?.category?.toLowerCase().includes('driving school') ||
-               props.currentInstitution?.businessSubType?.toLowerCase().includes('driving school');
-    }, [props.currentInstitution, institutionType]);
+               (institutionType || '').toLowerCase().includes('driving') ||
+               (props.currentInstitution?.category || '').toLowerCase().includes('driving') ||
+               (props.currentInstitution?.businessSubType || '').toLowerCase().includes('driving') ||
+               (props.currentInstitution?.name || '').toLowerCase().includes('driving') ||
+               (props.currentInstitution?.name || '').toLowerCase().includes('driver') ||
+               (props.currentInstitution?.id || '').startsWith('ds_') ||
+               (props.currentInstitution?.id || '').includes('driving') ||
+               props.activeRole === 'driving_instructor' ||
+               props.currentUser?.role === 'driving_instructor';
+    }, [props.currentInstitution, institutionType, props.activeRole, props.currentUser?.role]);
 
     const isBC = useMemo(() => {
         const cat = props.currentInstitution?.category?.toLowerCase() || '';
@@ -887,7 +897,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 setActiveTab('hospitality');
             } else if (isRetailAgency) {
                 setActiveTab('retail');
-            } else if (isDS || role === 'driving_instructor' || (institutionType?.toLowerCase().includes('driving school'))) {
+            } else if (isDS || role === 'driving_instructor' || (institutionType?.toLowerCase().includes('driving')) || isDSInstitution(props.currentInstitution)) {
                 setActiveTab('dashboard');
                 setActiveScope('ds');
             } else if (isLaw || role === 'legal_admin') {
@@ -921,7 +931,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (role === 'mechanic_admin') {
                 setActiveTab('car_service');
                 setActiveScope('logistics');
-            } else if (['admin', 'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'dos', 'director_of_studies'].includes(role) && (isEdu || isSchool) && !isDS) {
+            } else if (['admin', 'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'dos', 'director_of_studies'].includes(role) && (isEdu || isSchool) && !isDS && !isDSInstitution(props.currentInstitution)) {
                 const isLeadership = ['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'dos', 'director_of_studies', 'admin', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(role || '');
                 setActiveTab(isLeadership ? 'dashboard' : 'timetable');
                 setActiveScope('console_hub');
@@ -1521,7 +1531,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100">
             {!(isLogistics && !isEdu && !isSchool) && (!(isEdu || isSchool) || activeScope !== 'console_hub' || activeTab === 'network_devices') && (isDos || activeScope !== 'academics') && (tabs.length > 0 || ((isEdu || isSchool) && activeScope !== 'console_hub')) && (
                 <div className="flex border-b border-slate-200 dark:border-slate-700 overflow-x-auto custom-scrollbar-horizontal pb-2 no-print bg-white dark:bg-slate-800 rounded-2xl shadow-sm px-2 items-center">
-                    {(isEdu || isSchool) && !isDS && activeScope !== 'ds' && (activeScope !== 'console_hub' || activeTab === 'network_devices') && (
+                    {(isEdu || isSchool) && !isDS && !isDSInstitution(props.currentInstitution) && activeScope !== 'ds' && (activeScope !== 'console_hub' || activeTab === 'network_devices') && (
                         <button
                             onClick={() => {
                                 setActiveScope('console_hub');
@@ -1586,7 +1596,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">{isRetailAgency ? 'Initializing Communications Hub...' : 'Synchronizing Perspective Hub...'}</p>
                     </div>
                 }>
-                {((isEdu || isSchool) && !isDS && activeScope !== 'ds' && activeScope === 'console_hub' && activeTab !== 'network_devices') ? (
+                {((isEdu || isSchool) && !isDS && !isDSInstitution(props.currentInstitution) && activeScope !== 'ds' && activeScope === 'console_hub' && activeTab !== 'network_devices') ? (
                     <div className="py-12 animate-fade-in-up">
                         {/* Hub Header */}
                         <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
@@ -3967,7 +3977,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </Suspense>
                 )}
 
-                {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_')) && (isDS || activeScope === 'ds') && (
+                {(activeTab === 'driving_school' || activeTab === 'dashboard' || activeTab.startsWith('ds_') || isDS || activeScope === 'ds' || isDSInstitution(props.currentInstitution)) && (isDS || activeScope === 'ds' || isDSInstitution(props.currentInstitution)) && (
                     <DrivingSchoolProvider institutionId={props.currentInstitution?.id} currentUser={props.currentUser}>
                         <DrivingSchoolManager
                             currentUser={props.currentUser!}

@@ -139,7 +139,12 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
 
     // Stats
     const totalGroupedInstitutions = useMemo(() => {
-        return institutions.filter(inst => (branchMap.get(inst.id) || []).length > 1).length;
+        return institutions.filter(inst => {
+            if ((inst as any)?.isBranch || (inst as any)?.is_branch || (inst as any)?.parentInstitutionId || (inst as any)?.parent_institution_id) {
+                return false;
+            }
+            return (branchMap.get(inst.id) || []).length > 1;
+        }).length;
     }, [institutions, branchMap]);
 
     const groupAdminUsers = useMemo(() => {
@@ -149,6 +154,11 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
     // Filtered institutions
     const filteredInstitutions = useMemo(() => {
         return institutions.filter(inst => {
+            // A child branch should not be listed as an independent top-level group institution
+            if ((inst as any)?.isBranch || (inst as any)?.is_branch || (inst as any)?.parentInstitutionId || (inst as any)?.parent_institution_id) {
+                return false;
+            }
+
             const instBranches = branchMap.get(inst.id) || [];
             const isGrouped = instBranches.length > 1;
 
@@ -207,7 +217,9 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                     id: newInstId,
                     name: `${selectedInstForNewBranch.name} (${branchName})`,
                     institutionCode: `${(selectedInstForNewBranch.institutionCode || 'INST').toUpperCase()}-${branchName.replace(/\s+/g, '').slice(0, 3).toUpperCase()}`,
-                    institutionType: selectedInstForNewBranch.institutionType || 'Secondary',
+                    institutionType: selectedInstForNewBranch.institutionType || 'Driving School',
+                    category: selectedInstForNewBranch.category || selectedInstForNewBranch.institutionType || 'Driving School',
+                    businessSubType: selectedInstForNewBranch.businessSubType || (selectedInstForNewBranch.institutionType === 'Driving School' ? 'Driving School' : undefined),
                     address: branchLoc,
                     status: 'active',
                     parentInstitutionId: selectedInstForNewBranch.id,

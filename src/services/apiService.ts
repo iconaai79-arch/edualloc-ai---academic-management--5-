@@ -6321,15 +6321,18 @@ export const apiService = {
             inst.business_sub_type = inst.businessSubType;
             inst.category = inst.category || inst.institution_category || '';
 
-            // Auto-correct Driving School institutions registered with 'Education'
-            const isDSCandidate = (inst.category || '').toLowerCase().includes('driving school') ||
-                                  (inst.businessSubType || '').toLowerCase().includes('driving school') ||
-                                  (inst.name || '').toLowerCase().includes('driving school') ||
-                                  (inst.name || '').toLowerCase().includes('driving academy') ||
-                                  (inst.id || '').toLowerCase().startsWith('ds_');
-            if (isDSCandidate && (inst.institutionType === 'Education' || inst.institution_type === 'Education')) {
+            // Auto-correct Driving School institutions registered with 'Education' or generic types
+            const isDSCandidate = (inst.category || '').toLowerCase().includes('driving') ||
+                                  (inst.businessSubType || '').toLowerCase().includes('driving') ||
+                                  (inst.name || '').toLowerCase().includes('driving') ||
+                                  (inst.name || '').toLowerCase().includes('driver') ||
+                                  (inst.id || '').toLowerCase().startsWith('ds_') ||
+                                  (inst.id || '').toLowerCase().includes('driving');
+            if (isDSCandidate && inst.institutionType !== 'Driving School') {
                 inst.institutionType = 'Driving School';
                 inst.institution_type = 'Driving School';
+                if (!inst.category || inst.category === 'Education') inst.category = 'Driving School';
+                if (!inst.businessSubType) inst.businessSubType = 'Driving School';
             }
 
             inst.phoneNumber = inst.phoneNumber || inst.phone_number || inst.phone || '';

@@ -768,7 +768,7 @@ export const App: React.FC = () => {
 
         // Support showroom/school context via URL param or subdomain (even if not logged in)
         const targetId = activeStoreTenantId || (currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : null);
-        if (targetId) {
+        if (targetId && String(targetId).trim() !== '' && targetId !== 'SYSTEM' && targetId !== 'ALL') {
             const normTarget = cleanId(targetId);
             let found = institutions.find(i => i && (
                 i.id === targetId || 
@@ -779,7 +779,11 @@ export const App: React.FC = () => {
 
             const branchMatch = (branches || []).find((b: any) => {
                 if (!b) return false;
-                return b.id === targetId || b.linked_institution_id === targetId || b.id === `br_${targetId}` || (cleanId(b.id) === normTarget);
+                return (b.id && b.id === targetId) || 
+                       (b.linked_institution_id && b.linked_institution_id === targetId) || 
+                       (b.id && b.id === `br_${targetId}`) || 
+                       (normTarget && cleanId(b.id) === normTarget) ||
+                       (normTarget && b.linked_institution_id && cleanId(b.linked_institution_id) === normTarget);
             });
 
             if (found) {
@@ -789,9 +793,13 @@ export const App: React.FC = () => {
                     if (parentInst) {
                         const parentBal = parentInst.smsBalance ?? (parentInst as any)?.sms_balance ?? 0;
                         const parentCfg = parentInst.smsConfig || (parentInst as any)?.sms_config || {};
+                        const isParentDS = isDSInstitution(parentInst);
                         found = {
                             ...parentInst,
                             ...found,
+                            institutionType: isParentDS ? (parentInst.institutionType || 'Driving School') : (found.institutionType || parentInst.institutionType),
+                            category: isParentDS ? (parentInst.category || 'Driving School') : (found.category || parentInst.category),
+                            businessSubType: isParentDS ? (parentInst.businessSubType || 'Driving School') : (found.businessSubType || parentInst.businessSubType),
                             smsBalance: found.smsBalance ?? (found as any).sms_balance ?? parentBal,
                             sms_balance: (found as any).sms_balance ?? found.smsBalance ?? parentBal,
                             smsConfig: found.smsConfig || (found as any).sms_config || parentCfg,
@@ -808,11 +816,14 @@ export const App: React.FC = () => {
                 const parentInst = institutions.find(i => i && (i.id === branchMatch.institution_id || (cleanId(branchMatch.institution_id) && cleanId(i.id) === cleanId(branchMatch.institution_id))));
                 const parentBal = parentInst?.smsBalance ?? (parentInst as any)?.sms_balance ?? 0;
                 const parentCfg = parentInst?.smsConfig || (parentInst as any)?.sms_config || {};
+                const isParentDS = isDSInstitution(parentInst);
                 return mergeModules({
                     ...(parentInst || {}),
                     id: targetId,
-                    name: branchMatch.name ? `${parentInst?.name || 'Group'} (${branchMatch.name})` : (parentInst?.name || 'Branch'),
-                    institutionType: parentInst?.institutionType || 'Driving School',
+                    name: branchMatch.name ? `${parentInst?.name || (isParentDS ? 'Driving School' : 'Institution')} (${branchMatch.name})` : (parentInst?.name || 'Branch'),
+                    institutionType: isParentDS ? (parentInst?.institutionType || 'Driving School') : (parentInst?.institutionType || 'Education'),
+                    category: isParentDS ? (parentInst?.category || 'Driving School') : parentInst?.category,
+                    businessSubType: isParentDS ? (parentInst?.businessSubType || 'Driving School') : parentInst?.businessSubType,
                     parentInstitutionId: branchMatch.institution_id,
                     isBranch: true,
                     branchId: branchMatch.id,
@@ -870,17 +881,29 @@ export const App: React.FC = () => {
                 } as any);
             }
         }
+        // Only resolve user-specific institution if currentUser is NOT an unimpersonated super_admin
+        const isSuperAdminUnimpersonated = currentUser && 
+            (currentUser.role === 'super_admin' || (currentUser as any)?.role === 'super_admin') && 
+            !currentUser.isImpersonated && 
+            !(currentUser as any).impersonated;
 
-        if (currentUser) {
-            const normUserInstId = cleanId(currentUser.institutionId);
+        const rawUserInstId = currentUser?.institutionId;
+        const validUserInstId = (rawUserInstId && typeof rawUserInstId === 'string' && rawUserInstId.trim() !== '' && rawUserInstId !== 'SYSTEM' && rawUserInstId !== 'ALL') ? rawUserInstId.trim() : null;
+
+        if (currentUser && !isSuperAdminUnimpersonated && validUserInstId) {
+            const normUserInstId = cleanId(validUserInstId);
             let found = (institutions || []).find(i => i && (
-                i.id === currentUser.institutionId || 
+                i.id === validUserInstId || 
                 (normUserInstId && cleanId(i.id) === normUserInstId)
             ));
 
             const userBranchMatch = (branches || []).find((b: any) => {
                 if (!b) return false;
-                return b.id === currentUser.institutionId || b.linked_institution_id === currentUser.institutionId || b.id === `br_${currentUser.institutionId}` || (cleanId(b.id) === normUserInstId);
+                return (b.id && b.id === validUserInstId) || 
+                       (b.linked_institution_id && b.linked_institution_id === validUserInstId) || 
+                       (b.id && b.id === `br_${validUserInstId}`) || 
+                       (normUserInstId && cleanId(b.id) === normUserInstId) ||
+                       (normUserInstId && b.linked_institution_id && cleanId(b.linked_institution_id) === normUserInstId);
             });
 
             if (found) {
@@ -890,9 +913,13 @@ export const App: React.FC = () => {
                     if (parentInst) {
                         const parentBal = parentInst.smsBalance ?? (parentInst as any)?.sms_balance ?? 0;
                         const parentCfg = parentInst.smsConfig || (parentInst as any)?.sms_config || {};
+                        const isParentDS = isDSInstitution(parentInst);
                         found = {
                             ...parentInst,
                             ...found,
+                            institutionType: isParentDS ? (parentInst.institutionType || 'Driving School') : (found.institutionType || parentInst.institutionType),
+                            category: isParentDS ? (parentInst.category || 'Driving School') : (found.category || parentInst.category),
+                            businessSubType: isParentDS ? (parentInst.businessSubType || 'Driving School') : (found.businessSubType || parentInst.businessSubType),
                             smsBalance: found.smsBalance ?? (found as any).sms_balance ?? parentBal,
                             sms_balance: (found as any).sms_balance ?? found.smsBalance ?? parentBal,
                             smsConfig: found.smsConfig || (found as any).sms_config || parentCfg,
@@ -909,11 +936,14 @@ export const App: React.FC = () => {
                 const parentInst = institutions.find(i => i && (i.id === userBranchMatch.institution_id || (cleanId(userBranchMatch.institution_id) && cleanId(i.id) === cleanId(userBranchMatch.institution_id))));
                 const parentBal = parentInst?.smsBalance ?? (parentInst as any)?.sms_balance ?? 0;
                 const parentCfg = parentInst?.smsConfig || (parentInst as any)?.sms_config || {};
+                const isParentDS = isDSInstitution(parentInst);
                 return mergeModules({
                     ...(parentInst || {}),
-                    id: currentUser.institutionId,
-                    name: userBranchMatch.name ? `${parentInst?.name || 'Group'} (${userBranchMatch.name})` : (parentInst?.name || 'Branch'),
-                    institutionType: parentInst?.institutionType || 'Driving School',
+                    id: validUserInstId,
+                    name: userBranchMatch.name ? `${parentInst?.name || (isParentDS ? 'Driving School' : 'Institution')} (${userBranchMatch.name})` : (parentInst?.name || 'Branch'),
+                    institutionType: isParentDS ? (parentInst?.institutionType || 'Driving School') : (parentInst?.institutionType || 'Education'),
+                    category: isParentDS ? (parentInst?.category || 'Driving School') : parentInst?.category,
+                    businessSubType: isParentDS ? (parentInst?.businessSubType || 'Driving School') : parentInst?.businessSubType,
                     parentInstitutionId: userBranchMatch.institution_id,
                     isBranch: true,
                     branchId: userBranchMatch.id,
@@ -926,18 +956,18 @@ export const App: React.FC = () => {
             }
 
             const initialFound = INITIAL_INSTITUTIONS.find(i => i && (
-                i.id === currentUser.institutionId ||
+                i.id === validUserInstId ||
                 (normUserInstId && cleanId(i.id) === normUserInstId)
             ));
             if (initialFound) return mergeModules(initialFound);
 
             const foundCounty = (counties || []).find(c => c && (
-                c.id === currentUser.institutionId || 
+                c.id === validUserInstId || 
                 c.id === currentUser.countyId ||
-                c.code === currentUser.institutionId ||
+                c.code === validUserInstId || 
                 c.code === currentUser.countyId ||
                 (normUserInstId && cleanId(c.id) === normUserInstId) ||
-                (c.name && currentUser.institutionId && cleanId(c.name) === normUserInstId)
+                (c.name && validUserInstId && cleanId(c.name) === normUserInstId)
             ));
             if (foundCounty) {
                 return mergeModules({
@@ -951,8 +981,8 @@ export const App: React.FC = () => {
             }
 
             const regFound = (schoolRegistry || []).find(s => s && (
-                s.id === currentUser.institutionId ||
-                s.institutionId === currentUser.institutionId ||
+                s.id === validUserInstId ||
+                s.institutionId === validUserInstId ||
                 (normUserInstId && (cleanId(s.id) === normUserInstId || cleanId(s.institutionId) === normUserInstId))
             ));
             if (regFound) {
@@ -965,22 +995,22 @@ export const App: React.FC = () => {
             }
 
             // Fallback synthesis for authenticated user with an institutionId to prevent loading lock
-            if (currentUser.institutionId) {
+            if (validUserInstId) {
                 const branchMatch = (branches || []).find((b: any) => 
-                    b && (b.id === currentUser.institutionId || b.linked_institution_id === currentUser.institutionId || cleanId(b.id) === normUserInstId)
+                    b && ((b.id && b.id === validUserInstId) || (b.linked_institution_id && b.linked_institution_id === validUserInstId) || (normUserInstId && cleanId(b.id) === normUserInstId))
                 );
                 const parent = branchMatch ? institutions.find(i => i && (i.id === branchMatch.institution_id || cleanId(i.id) === cleanId(branchMatch.institution_id))) : null;
                 const pBal = parent?.smsBalance ?? (parent as any)?.sms_balance ?? 0;
                 const pCfg = parent?.smsConfig || (parent as any)?.sms_config || {};
 
                 const isDSEntity = currentUser.role === 'driving_instructor' || 
-                                   (currentUser.institutionId || '').startsWith('ds_') || 
-                                   (currentUser.institutionId || '').includes('driving') || 
+                                   validUserInstId.startsWith('ds_') || 
+                                   validUserInstId.includes('driving') || 
                                    ((currentUser as any).institutionName || '').toLowerCase().includes('driving');
 
                 return mergeModules({
                     ...(parent || {}),
-                    id: currentUser.institutionId,
+                    id: validUserInstId,
                     name: (currentUser as any).institutionName || (currentUser as any).schoolName || branchMatch?.name || (currentUser.role === 'reseller' ? 'Reseller Agency' : 'Institutional Workspace'),
                     institutionType: (currentUser.role === 'pharmacist' || currentUser.role === 'pharmacy_admin') ? 'Pharmacy' : 
                                      (currentUser.role?.includes('his') || currentUser.role === 'nurse' || (currentUser as any).role === 'doctor') ? 'HIS' : 
@@ -5015,12 +5045,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     const parentInst = branchRecord ? institutions.find(i => i.id === branchRecord.institution_id || (cleanId(branchRecord.institution_id) && cleanId(i.id) === cleanId(branchRecord.institution_id))) : null;
                     const parentBal = parentInst?.smsBalance ?? (parentInst as any)?.sms_balance ?? 0;
                     const parentCfg = parentInst?.smsConfig || (parentInst as any)?.sms_config || {};
+                    const isParentDS = isDSInstitution(parentInst);
                     
                     targetInst = {
                         ...(parentInst || {}),
                         id: institutionId,
-                        name: regEntry?.name || (branchRecord?.name ? `${parentInst?.name || 'Group'} (${branchRecord.name})` : `Branch ${institutionId.slice(-6)}`),
-                        institutionType: regEntry?.institutionType || parentInst?.institutionType || 'Education',
+                        name: regEntry?.name || (branchRecord?.name ? `${parentInst?.name || (isParentDS ? 'Driving School' : 'Group')} (${branchRecord.name})` : `Branch ${institutionId.slice(-6)}`),
+                        institutionType: regEntry?.institutionType || (isParentDS ? (parentInst?.institutionType || 'Driving School') : (parentInst?.institutionType || 'Education')),
+                        category: isParentDS ? (parentInst?.category || 'Driving School') : parentInst?.category,
+                        businessSubType: isParentDS ? (parentInst?.businessSubType || 'Driving School') : parentInst?.businessSubType,
                         parentInstitutionId: branchRecord?.institution_id || (regEntry as any)?.parentInstitutionId,
                         isBranch: true,
                         branchId: branchRecord?.id || institutionId,
@@ -5033,15 +5066,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                     setInstitutions(prev => [...prev.filter(i => i.id !== institutionId), targetInst!]);
                 }
-            } else if (targetInst && ((targetInst as any).isBranch || (targetInst as any).parentInstitutionId || branchRecord)) {
-                const parentInstId = (targetInst as any).parentInstitutionId || (targetInst as any).parent_institution_id || branchRecord?.institution_id;
+            } else if (targetInst && ((targetInst as any).isBranch || (targetInst as any).parentInstitutionId || (branchRecord && branchRecord.institution_id !== targetInst.id && branchRecord.id === targetInst.id))) {
+                const parentInstId = (targetInst as any).parentInstitutionId || (targetInst as any).parent_institution_id || (branchRecord?.institution_id !== targetInst.id ? branchRecord?.institution_id : undefined);
                 const parentInst = parentInstId ? institutions.find(i => i.id === parentInstId || (cleanId(parentInstId) && cleanId(i.id) === cleanId(parentInstId))) : null;
                 if (parentInst) {
                     const parentBal = parentInst.smsBalance ?? (parentInst as any)?.sms_balance ?? 0;
                     const parentCfg = parentInst.smsConfig || (parentInst as any)?.sms_config || {};
+                    const isParentDS = isDSInstitution(parentInst);
                     targetInst = {
                         ...parentInst,
                         ...targetInst,
+                        institutionType: isParentDS ? (parentInst.institutionType || 'Driving School') : (targetInst.institutionType || parentInst.institutionType),
+                        category: isParentDS ? (parentInst.category || 'Driving School') : (targetInst.category || parentInst.category),
+                        businessSubType: isParentDS ? (parentInst.businessSubType || 'Driving School') : (targetInst.businessSubType || parentInst.businessSubType),
                         smsBalance: targetInst.smsBalance ?? (targetInst as any)?.sms_balance ?? parentBal,
                         sms_balance: (targetInst as any)?.sms_balance ?? targetInst.smsBalance ?? parentBal,
                         smsConfig: targetInst.smsConfig || (targetInst as any)?.sms_config || parentCfg,
@@ -9469,22 +9506,34 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     <CivilWorksDashboard />
                                 ) : (isAdminCatchAll && activeInstitution?.businessSubType?.toLowerCase().includes('industrial logistics')) ? (
                                     <LogisticsDashboard />
-                                ) : (isDSInstitution(activeInstitution) || activeInstitution?.institutionType === 'Driving School' || activeInstitution?.category?.toLowerCase().includes('driving school') || activeInstitution?.businessSubType?.toLowerCase().includes('driving school')) && (activeRole === 'admin' || activeRole === 'director' || activeRole === 'driving_instructor' || isAdminCatchAll) ? (
+                                ) : (
+                                    isDSInstitution(activeInstitution) || 
+                                    Boolean(activeInstitution?.parentInstitutionId && isDSInstitution(institutions.find(i => i && (i.id === activeInstitution.parentInstitutionId || (activeInstitution.parentInstitutionId && i.id.toLowerCase().includes(activeInstitution.parentInstitutionId.toLowerCase())))))) ||
+                                    activeInstitution?.institutionType === 'Driving School' || 
+                                    (activeInstitution?.institutionType || '').toLowerCase().includes('driving') ||
+                                    (activeInstitution?.category || '').toLowerCase().includes('driving') || 
+                                    (activeInstitution?.businessSubType || '').toLowerCase().includes('driving') ||
+                                    (activeInstitution?.name || '').toLowerCase().includes('driving') ||
+                                    (activeInstitution?.name || '').toLowerCase().includes('driver') ||
+                                    (activeInstitution?.id || '').startsWith('ds_') ||
+                                    (activeInstitution?.id || '').includes('driving') ||
+                                    activeRole === 'driving_instructor' ||
+                                    currentUser?.role === 'driving_instructor'
+                                ) && (
+                                    activeRole === 'admin' || 
+                                    activeRole === 'director' || 
+                                    activeRole === 'driving_instructor' || 
+                                    isAdminCatchAll
+                                ) ? (
                                     <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
-                                        <AdminView
-                                             {...superAdminProps as any}
-                                              teacherCheckIns={teacherCheckIns}
-                                             currentUser={currentUser}
-                                             currentInstitution={activeInstitution}
-                                             activeRole={(activeRole as any) || undefined}
-                                             onLogAction={handleLogAction}
-                                             onRefreshData={loadData}
-                                             onSaveTimetableSettings={(c: any) => onUpdateInstitution(activeInstitution!.id, { timetableSettings: c })}
-                                             retailStores={retailStores}
-                                             inventory={retailInventory}
-                                             retailExpenses={retailExpenses}
-                                             studentEnrollments={studentEnrollments}
-                                         />
+                                        <DrivingSchoolManager
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
+                                            onRefreshData={loadData}
+                                            departments={departments || []}
+                                            rooms={rooms || []}
+                                            letterheadConfig={activeInstitution?.letterheadConfig}
+                                        />
                                     </DrivingSchoolProvider>
                                 ) : isAdminCatchAll ? (
                                     <AdminView
