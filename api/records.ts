@@ -7885,6 +7885,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
+    }
 
 
         if (req.method === 'PATCH') {

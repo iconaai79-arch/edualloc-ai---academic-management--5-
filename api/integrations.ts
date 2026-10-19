@@ -1056,6 +1056,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 text?: string;
                 html?: string;
                 attachments?: any[];
+                replyTo?: string;
+                headers?: Record<string, string>;
+                [key: string]: any;
             },
             configOverride?: any,
             targetInstId?: string,
@@ -1868,8 +1871,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 if (!configError && institution) {
-                    instBalance = institution.sms_balance ?? institution.smsBalance ?? 0;
-                    instConfig = institution.sms_config || institution.smsConfig || {};
+                    instBalance = institution.sms_balance ?? (institution as any).smsBalance ?? 0;
+                    instConfig = institution.sms_config || (institution as any).smsConfig || {};
                     systemSmsBal = instConfig.systemSmsBalance || 0;
 
                     // Property bonus units logic (applies exclusively if tenant has systemSmsBalance and is a rent notification)
