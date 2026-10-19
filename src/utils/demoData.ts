@@ -56,8 +56,11 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
     };
 
     // 5. Faculty & Staff
+    const hasExistingAdmin = Boolean(adminId && adminId !== 'admin' && adminId !== `u_admin_${instId}` && !adminId.startsWith('demo_user_'));
     const staff: User[] = [
-        { id: `u_admin_${instId}`, name: 'Institutional Administrator', email: `admin@demo-${instId}.edu`, phoneNumber: '0711000000', role: 'admin', roles: ['admin'], institutionId: instId, password: 'password123' },
+        ...(!hasExistingAdmin ? [
+            { id: `u_admin_${instId}`, name: 'Institutional Administrator', email: `admin@demo-${instId}.edu`, phoneNumber: '0711000000', role: 'admin' as const, roles: ['admin' as const], institutionId: instId, password: 'password123' }
+        ] : []),
         { id: `u_dos_${instId}`, name: 'Dr. Sarah Peterson (DOS)', email: `dos@demo-${instId}.edu`, phoneNumber: '0711000001', role: 'dos', roles: ['dos'], institutionId: instId, departmentId: depts[0].id, expertise: ['Curriculum Strategy'], password: 'password123' },
         { id: `u_tea1_${instId}`, name: 'Mr. James Maxwell', email: `james@demo-${instId}.edu`, phoneNumber: '0711000002', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[0].id, expertise: ['Quantum Physics'], password: 'password123' },
         { id: `u_tea2_${instId}`, name: 'Ms. Ada Lovelace', email: `ada@demo-${instId}.edu`, phoneNumber: '0711000003', role: 'teacher', roles: ['teacher'], institutionId: instId, departmentId: depts[2].id, expertise: ['Computer Science'], password: 'password123' },
@@ -85,8 +88,9 @@ export const generateInstitutionalDemoData = (instId: string, adminId: string) =
     ];
 
     // 7. Allocations & Timetable
+    const allocationsLecturerId = staff.find(s => s.role === 'dos')?.id || staff[0]?.id || `u_dos_${instId}`;
     const allocations: AllocationRequest[] = [
-        { id: `alloc1_${instId}`, lecturerId: staff[1].id, subjectId: subjs[0].id, status: 'approved', priority: 'High', academicYearId: ay.id, semesterId: sem.id, timestamp: todayStr, institutionId: instId, courseLevelIds: [courses[0].levels[0].id] }
+        { id: `alloc1_${instId}`, lecturerId: allocationsLecturerId, subjectId: subjs[0].id, status: 'approved', priority: 'High', academicYearId: ay.id, semesterId: sem.id, timestamp: todayStr, institutionId: instId, courseLevelIds: [courses[0].levels[0].id] }
     ];
 
     // 8. HIS - Health Information System Data

@@ -1977,6 +1977,40 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         }
                     });
                 }
+
+                // Auto-heal mock demo admin sessions for real tenant institutions
+                const isCurrentDemoAdmin = currentUser.name === 'Institutional Administrator' || 
+                                          currentUser.phoneNumber === '0711000000' || 
+                                          (currentUser.email || '').includes('@demo-');
+                const userInstId = currentUser.institutionId || (currentUser as any).institution_id;
+                const instForUser = (insts || []).find((i: any) => i && (i.id === userInstId || (userInstId && cleanId(i.id) === cleanId(userInstId))));
+                const isRealInst = instForUser && !instForUser.id.startsWith('demo_') && !(instForUser.name || '').toLowerCase().includes('simulator');
+
+                if (isCurrentDemoAdmin && isRealInst) {
+                    const realAdmin = finalUsers.find((u: User) => 
+                        u &&
+                        (u.institutionId === instForUser.id || (u as any).institution_id === instForUser.id) &&
+                        u.id !== currentUser.id &&
+                        u.name !== 'Institutional Administrator' &&
+                        u.phoneNumber !== '0711000000' &&
+                        !u.email?.includes('@demo-') &&
+                        ['admin', 'head_teacher', 'principal', 'headmaster', 'managing_director', 'hoi', 'reseller', 'property_admin', 'cooperative_manager'].includes(u.role)
+                    );
+                    const healedUser: User = realAdmin ? {
+                        ...realAdmin,
+                        ...(currentUser.isImpersonated ? { isImpersonated: true } : {})
+                    } : {
+                        ...currentUser,
+                        name: (instForUser as any).adminName || (instForUser as any).admin_name || `${instForUser.name} Admin`,
+                        email: instForUser.email || currentUser.email,
+                        phoneNumber: instForUser.phoneNumber || (instForUser as any).phone_number || currentUser.phoneNumber
+                    };
+                    setCurrentUser(healedUser);
+                    apiService.storeSession(healedUser);
+                    if (!realAdmin) {
+                        apiService.saveUser(healedUser).catch(() => {});
+                    }
+                }
             }
 
             // ── UNLOCK UI: dismiss splash now, core data is ready ─────────────
@@ -5135,20 +5169,57 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 }
             }
 
+            // Helper to identify mock demo admin accounts
+            const isDemoAdminUser = (u: any) => {
+                if (!u) return false;
+                const name = (u.name || '').toLowerCase().trim();
+                const email = (u.email || '').toLowerCase().trim();
+                const phone = (u.phoneNumber || u.phone_number || '').trim();
+                const id = (u.id || '').toLowerCase().trim();
+                return name === 'institutional administrator' || 
+                       phone === '0711000000' || 
+                       email.includes('@demo-') || 
+                       id.startsWith('u_admin_inst_') ||
+                       id.startsWith('u_admin_demo_');
+            };
+
             // Exclude super_admin accounts from being matched as tenant admins
             const matchedAdmins = currentUsers.filter(u => isUserForInst(u) && adminRoles.includes(u.role) && u.role !== 'super_admin');
             let admin = null;
 
             if (initialRole && initialRole !== 'super_admin') {
-                const exactRoleMatch = matchedAdmins.find(u => u.role === initialRole);
-                if (exactRoleMatch) admin = exactRoleMatch;
+                const exactRoleMatches = matchedAdmins.filter(u => u.role === initialRole);
+                if (exactRoleMatches.length > 0) {
+                    exactRoleMatches.sort((a, b) => {
+                        const demoA = isDemoAdminUser(a) ? 1 : 0;
+                        const demoB = isDemoAdminUser(b) ? 1 : 0;
+                        return demoA - demoB;
+                    });
+                    admin = exactRoleMatches[0];
+                }
             }
 
             if (!admin && matchedAdmins.length > 0) {
                 matchedAdmins.sort((a, b) => {
+                    // 1. Prioritize real tenant accounts over mock demo accounts
+                    const demoA = isDemoAdminUser(a) ? 1 : 0;
+                    const demoB = isDemoAdminUser(b) ? 1 : 0;
+                    if (demoA !== demoB) return demoA - demoB;
+
+                    // 2. Prioritize user whose email or phone matches the institution's registry contact info
+                    const instEmail = (targetInst?.email || '').toLowerCase().trim();
+                    const instPhone = (targetInst?.phoneNumber || (targetInst as any)?.phone_number || '').trim();
+                    const matchesInstA = (instEmail && a.email?.toLowerCase().trim() === instEmail) || 
+                                         (instPhone && (a.phoneNumber || (a as any).phone_number)?.trim() === instPhone);
+                    const matchesInstB = (instEmail && b.email?.toLowerCase().trim() === instEmail) || 
+                                         (instPhone && (b.phoneNumber || (b as any).phone_number)?.trim() === instPhone);
+                    if (matchesInstA && !matchesInstB) return -1;
+                    if (!matchesInstA && matchesInstB) return 1;
+
+                    // 3. Administrative role priority
                     const indexA = adminRoles.indexOf(a.role);
                     const indexB = adminRoles.indexOf(b.role);
-                    return indexA - indexB;
+                    return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
                 });
                 admin = matchedAdmins[0];
             }
@@ -5158,8 +5229,29 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 const excludedRoles = ['student', 'parent', 'customer', 'super_admin', 'tenant', 'landlord'];
                 const fallbackUsers = currentUsers.filter(u => isUserForInst(u) && (!excludedRoles.includes(u.role) || (initialRole && initialRole === u.role && initialRole !== 'super_admin')));
                 if (fallbackUsers.length > 0) {
+                    fallbackUsers.sort((a, b) => {
+                        const demoA = isDemoAdminUser(a) ? 1 : 0;
+                        const demoB = isDemoAdminUser(b) ? 1 : 0;
+                        return demoA - demoB;
+                    });
                     admin = fallbackUsers[0];
                 }
+            }
+
+            // If the resolved admin is still a mock demo user but targetInst is a real institution,
+            // upgrade and heal the administrator record to match the real institution's identity
+            if (admin && isDemoAdminUser(admin) && targetInst && !targetInst.id.startsWith('demo_') && !(targetInst.name || '').toLowerCase().includes('simulator')) {
+                const realName = (targetInst as any).adminName || (targetInst as any).admin_name || `${targetInst.name} Admin`;
+                const realEmail = targetInst.email || admin.email;
+                const realPhone = targetInst.phoneNumber || (targetInst as any)?.phone_number || admin.phoneNumber;
+                admin = {
+                    ...admin,
+                    name: realName,
+                    email: realEmail,
+                    phoneNumber: realPhone
+                };
+                apiService.saveUser(admin).catch(() => {});
+                setUsers(prev => prev.map(u => u.id === admin!.id ? admin! : u));
             }
 
             if (!admin) {
@@ -5187,9 +5279,9 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     countyId: targetCounty ? targetCounty.id : undefined,
                     branchId: isActualBranch ? institutionId : undefined,
                     role: fallbackRole as Role,
-                    email: targetCounty?.email || `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'school'}.eduai.io`,
-                    name: targetCounty?.adminName || `${cleanName} Admin`,
-                    phoneNumber: targetCounty?.phoneNumber || '+254700000000',
+                    email: targetCounty?.email || targetInst?.email || registryEntry?.email || `admin@${institutionId.replace('demo_', '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'school'}.eduai.io`,
+                    name: targetCounty?.adminName || (targetInst as any)?.adminName || `${cleanName} Admin`,
+                    phoneNumber: targetCounty?.phoneNumber || targetInst?.phoneNumber || registryEntry?.phoneNumber || '+254700000000',
                     password: 'password123',
                     expertise: targetCounty ? ['County Administration'] : []
                 };
@@ -6014,8 +6106,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             let completed = 0;
             
             for (const key of dataKeys) {
-                const records = demoData[key as keyof typeof demoData];
+                let records = (demoData as any)[key];
                 const tableName = tableMap[key] || key;
+                if (key === 'users' && Array.isArray(records)) {
+                    records = records.filter((u: any) => u.id !== `u_admin_${activeInstitution.id}` && u.name !== 'Institutional Administrator');
+                }
                 
                 if (Array.isArray(records) && records.length > 0) {
                     setDemoDataGenerationMessage(`Populating ${tableName}...`);
@@ -6602,9 +6697,10 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         ...d.buildings.map(x => apiService.saveModuleRecord('buildings', x)),
                     ]);
                     // 2. Save everything else (depends on departments/buildings)
+                    const demoUsersToSave = (d.users || []).filter((u: any) => u.id !== `u_admin_${instId}` && u.name !== 'Institutional Administrator');
                     await Promise.all([
                         ...d.rooms.map(x => apiService.saveModuleRecord('rooms', x)),
-                        ...d.users.map(x => apiService.saveModuleRecord('users', x)),
+                        ...demoUsersToSave.map(x => apiService.saveModuleRecord('users', x)),
                         ...d.subjects.map(x => apiService.saveModuleRecord('subjects', x)),
                         ...d.courses.map(x => apiService.saveModuleRecord('courses', x)),
                     ]);
@@ -10150,7 +10246,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     'mechanic_admin', 'fuel_admin', 'legal_admin', 'church_admin', 'pastor', 'elder', 
                                     'deacon', 'treasurer', 'secretary', 'driving_instructor', 'campaign_admin'
                                 ];
+                                const isDemoAccount = (candidate: any) => {
+                                    if (!candidate) return false;
+                                    const cName = (candidate.name || '').toLowerCase().trim();
+                                    const cPhone = (candidate.phoneNumber || candidate.phone_number || '').trim();
+                                    const cEmail = (candidate.email || '').toLowerCase().trim();
+                                    const cId = (candidate.id || '').toLowerCase().trim();
+                                    return cName === 'institutional administrator' || 
+                                           cPhone === '0711000000' || 
+                                           cEmail.includes('@demo-') || 
+                                           cId.startsWith('u_admin_inst_') ||
+                                           cId.startsWith('u_admin_demo_');
+                                };
                                 matchedUsers.sort((a, b) => {
+                                    const demoA = isDemoAccount(a) ? 1 : 0;
+                                    const demoB = isDemoAccount(b) ? 1 : 0;
+                                    if (demoA !== demoB) return demoA - demoB;
+
                                     const indexA = rolePriority.indexOf(a.role);
                                     const indexB = rolePriority.indexOf(b.role);
                                     const scoreA = indexA === -1 ? 999 : indexA;
