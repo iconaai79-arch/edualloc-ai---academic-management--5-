@@ -1638,7 +1638,7 @@ export const generateDSStudentStatementPDF = async (
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
-    doc.text(`${institution?.address || settings?.address || 'Nairobi, Kenya'} | Tel: ${institution?.phoneNumber || settings?.phone || ''} | Email: ${institution?.email || settings?.email || ''}`, margin, 31);
+    doc.text(`${institution?.address || (settings as any)?.address || 'Nairobi, Kenya'} | Tel: ${institution?.phoneNumber || (settings as any)?.phone || ''} | Email: ${institution?.email || (settings as any)?.email || ''}`, margin, 31);
 
     // Decorative line
     doc.setDrawColor(226, 232, 240);
@@ -1713,7 +1713,7 @@ export const generateDSStudentStatementPDF = async (
     const rows: LedgerRow[] = [];
     (invoices || []).forEach(inv => {
         rows.push({
-            date: inv.invoiceDate || inv.createdAt || '',
+            date: (inv as any).invoiceDate || inv.createdAt || '',
             ref: inv.invoiceNumber || inv.id,
             description: `Tuition Invoice: ${(inv.items || []).map((i: any) => i.name || i.description).join(', ') || 'Driving Course Fee'}`,
             debit: Number(inv.totalAmount) || 0,

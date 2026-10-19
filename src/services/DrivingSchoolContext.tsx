@@ -499,7 +499,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return updated;
             });
 
-            setSettings(prev => prev ? ({ ...prev, branches: [...(prev.branches || []).filter(b => b.id !== newBranch.id), newBranch] }) : prev);
+            setSettings(prev => prev ? ({ ...prev, branches: [...(((prev as any).branches || [])).filter((b: any) => b.id !== newBranch.id), newBranch] } as any) : prev);
 
             success('Branch created successfully');
             return newBranch;
@@ -557,7 +557,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return next;
             });
 
-            setSettings(prev => prev ? ({ ...prev, branches: (prev.branches || []).map(b => b.id === data.id ? { ...b, ...updated } : b) }) : prev);
+            setSettings(prev => prev ? ({ ...prev, branches: (((prev as any).branches || [])).map((b: any) => b.id === data.id ? { ...b, ...updated } : b) } as any) : prev);
 
             success('Branch updated successfully');
         } catch (err) {
@@ -613,7 +613,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
                 return next;
             });
 
-            setSettings(prev => prev ? ({ ...prev, branches: (prev.branches || []).filter(b => b.id !== id) }) : prev);
+            setSettings(prev => prev ? ({ ...prev, branches: (((prev as any).branches || [])).filter((b: any) => b.id !== id) } as any) : prev);
 
             if (activeBranchId === id) {
                 setActiveBranchId('ALL');
@@ -1613,7 +1613,7 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             // 1. Try Supabase RPC first if available for atomic bulk update
             let rpcSuccess = false;
             try {
-                const rpcRes = await apiService.rpc('bulk_assign_ds_students_branch', {
+                const rpcRes = await (apiService as any).rpc?.('bulk_assign_ds_students_branch', {
                     p_student_ids: studentIds,
                     p_target_branch_id: branchId || null,
                     p_institution_id: institutionId

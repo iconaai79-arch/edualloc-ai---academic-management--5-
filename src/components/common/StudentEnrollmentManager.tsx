@@ -74,6 +74,8 @@ const teacherRoles = [
     'deputy',
     'deputy_principal',
     'deputy_head',
+    'deputy_hoi_academics',
+    'cao',
     'academics_officer',
     'class_supervisor',
     'lecturer',
@@ -804,7 +806,7 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         if ((currentUser as any)?.isSuperAdmin || (currentUser as any)?.is_super_admin) return true;
         if ((currentUser as any)?.isImpersonated) return true;
         // Allow school leadership & administrators to login as teacher for testing and marks support
-        if (['admin', 'head_teacher', 'principal', 'director', 'dos', 'deputy', 'managing_director', 'academics_officer'].includes(role)) return true;
+        if (['admin', 'head_teacher', 'principal', 'director', 'dos', 'deputy', 'deputy_hoi_academics', 'cao', 'managing_director', 'hoi', 'academics_officer'].includes(role)) return true;
 
         try {
             const activeSession = apiService.getSession();

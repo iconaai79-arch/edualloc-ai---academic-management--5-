@@ -158,27 +158,51 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
         isSaccoSavings ? 'sacco_savings' : isSACCO ? 'sacco' : isShuttle ? 'shuttle' : 'manifest'
     );
 
-    // Branding State
+    // Branding State with multi-layer persistence (localStorage + currentInstitution props + snake_case fallbacks)
+    const savedTransitBranding = safeGetLocalItem<any>(`eduai_transit_branding_${currentInstitution?.id}`, null);
+
     const [brandingLogo, setBrandingLogo] = useState<string>(
-        currentInstitution?.logoUrl || (currentInstitution as any)?.logo || ''
+        savedTransitBranding?.logoUrl ||
+        currentInstitution?.logoUrl || 
+        (currentInstitution as any)?.logo_url || 
+        (currentInstitution as any)?.logo || ''
     );
     const [brandingLetterhead, setBrandingLetterhead] = useState<string>(
-        currentInstitution?.letterheadConfig?.headerImageUrl || currentInstitution?.letterheadUrl || (currentInstitution as any)?.header_image_url || ''
+        savedTransitBranding?.letterheadUrl ||
+        currentInstitution?.letterheadConfig?.headerImageUrl || 
+        (currentInstitution as any)?.letterhead_config?.headerImageUrl ||
+        currentInstitution?.letterheadUrl || 
+        (currentInstitution as any)?.letterhead_url || 
+        (currentInstitution as any)?.header_image_url || 
+        (currentInstitution as any)?.headerImageUrl || ''
     );
     const [brandingFooter, setBrandingFooter] = useState<string>(
-        currentInstitution?.letterheadConfig?.footerImageUrl || currentInstitution?.footerImageUrl || (currentInstitution as any)?.footer_image_url || ''
+        savedTransitBranding?.footerImageUrl ||
+        currentInstitution?.letterheadConfig?.footerImageUrl || 
+        (currentInstitution as any)?.letterhead_config?.footerImageUrl ||
+        currentInstitution?.footerImageUrl || 
+        (currentInstitution as any)?.footer_image_url || ''
     );
     const [brandingFooterText, setBrandingFooterText] = useState<string>(
+        savedTransitBranding?.footerText ||
         currentInstitution?.letterheadConfig?.footerText || ''
     );
     const [brandingTagline, setBrandingTagline] = useState<string>(
-        (currentInstitution as any)?.tagline || ''
+        savedTransitBranding?.tagline ||
+        (currentInstitution as any)?.tagline || 
+        currentInstitution?.motto || ''
     );
     const [brandingStampMode, setBrandingStampMode] = useState<'system' | 'custom' | 'none'>(
-        currentInstitution?.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'custom' : (currentInstitution?.letterheadConfig?.stampConfig?.mode === 'none' ? 'none' : 'system')
+        savedTransitBranding?.stampMode ||
+        (currentInstitution?.letterheadConfig?.stampConfig?.mode === 'uploaded' ? 'custom' : 
+         currentInstitution?.letterheadConfig?.stampConfig?.mode === 'none' ? 'none' : 'system')
     );
     const [brandingStampUrl, setBrandingStampUrl] = useState<string>(
-        currentInstitution?.letterheadConfig?.stampImageUrl || currentInstitution?.stampUrl || (currentInstitution as any)?.stamp_image_url || ''
+        savedTransitBranding?.stampUrl ||
+        currentInstitution?.letterheadConfig?.stampImageUrl || 
+        currentInstitution?.stampUrl || 
+        (currentInstitution as any)?.stamp_image_url || 
+        (currentInstitution as any)?.stamp_url || ''
     );
     const [isUploadingBranding, setIsUploadingBranding] = useState<'logo' | 'letterhead' | 'footer' | 'stamp' | null>(null);
     const [isSavingBranding, setIsSavingBranding] = useState(false);
@@ -261,12 +285,80 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
 
             const uploadedUrl = await apiService.uploadFile('eduai', path, file);
             if (uploadedUrl) {
+                // Determine new state values
+                const newLogo = type === 'logo' ? uploadedUrl : brandingLogo;
+                const newLetterhead = type === 'letterhead' ? uploadedUrl : brandingLetterhead;
+                const newFooter = type === 'footer' ? uploadedUrl : brandingFooter;
+                const newStamp = type === 'stamp' ? uploadedUrl : brandingStampUrl;
+
+                // 1. Update component React state immediately
                 if (type === 'logo') setBrandingLogo(uploadedUrl);
                 else if (type === 'letterhead') setBrandingLetterhead(uploadedUrl);
                 else if (type === 'footer') setBrandingFooter(uploadedUrl);
                 else if (type === 'stamp') setBrandingStampUrl(uploadedUrl);
 
-                toastSuccess(`${type === 'letterhead' ? 'Letterhead header banner' : type === 'logo' ? 'Corporate logo' : type === 'footer' ? 'Document footer banner' : 'Official stamp'} uploaded successfully.`);
+                // 2. Prepare unified payload
+                const updatedLetterheadConfig = {
+                    ...(currentInstitution.letterheadConfig || {}),
+                    headerImageUrl: newLetterhead || null,
+                    footerImageUrl: newFooter || null,
+                    footerText: brandingFooterText || undefined,
+                    stampImageUrl: newStamp || null,
+                    showStamp: brandingStampMode !== 'none',
+                    stampConfig: {
+                        ...(currentInstitution.letterheadConfig?.stampConfig || {}),
+                        mode: (brandingStampMode === 'custom' ? 'uploaded' : brandingStampMode === 'none' ? 'none' : 'system_generated') as any,
+                        stampImageUrl: newStamp || null
+                    }
+                };
+
+                const payload: any = {
+                    logoUrl: newLogo || null,
+                    logo_url: newLogo || null,
+                    logo: newLogo || null,
+                    letterheadUrl: newLetterhead || null,
+                    letterhead_url: newLetterhead || null,
+                    headerImageUrl: newLetterhead || null,
+                    header_image_url: newLetterhead || null,
+                    footerImageUrl: newFooter || null,
+                    footer_image_url: newFooter || null,
+                    stampUrl: newStamp || null,
+                    stamp_url: newStamp || null,
+                    letterheadConfig: updatedLetterheadConfig,
+                    letterhead_config: updatedLetterheadConfig,
+                    tagline: brandingTagline || undefined
+                };
+
+                // 3. AUTO-SAVE to dedicated local cache (instant persistence across refresh)
+                if (currentInstitution?.id) {
+                    safeSetLocalItem(`eduai_transit_branding_${currentInstitution.id}`, {
+                        logoUrl: newLogo,
+                        letterheadUrl: newLetterhead,
+                        footerImageUrl: newFooter,
+                        stampUrl: newStamp,
+                        stampMode: brandingStampMode,
+                        footerText: brandingFooterText,
+                        tagline: brandingTagline,
+                        letterheadConfig: updatedLetterheadConfig
+                    });
+                    const instCacheKey = `eduai_inst_${currentInstitution.id}`;
+                    safeLocalStorage.setItem(instCacheKey, JSON.stringify({ ...currentInstitution, ...payload }));
+                }
+
+                // 4. Mutate currentInstitution prop object directly
+                Object.assign(currentInstitution, payload);
+
+                // 5. Fire parent callback if provided
+                if (onUpdateInstitution && currentInstitution?.id) {
+                    onUpdateInstitution(currentInstitution.id, payload).catch(() => {});
+                }
+
+                // 6. Persist to backend database via apiService
+                apiService.saveInstitution({ ...currentInstitution, ...payload } as any).catch(err => {
+                    console.warn('[Logistics Branding] Background DB save warning:', err);
+                });
+
+                toastSuccess(`${type === 'letterhead' ? 'Letterhead header banner' : type === 'logo' ? 'Corporate logo' : type === 'footer' ? 'Document footer banner' : 'Official stamp'} uploaded and permanently saved!`);
             } else {
                 toastError(`Failed to upload ${type}. Server returned empty URL.`);
             }
@@ -326,6 +418,16 @@ export const LogisticsManager: React.FC<LogisticsManagerProps> = ({ currentInsti
             // 4. Update in local storage
             const instCacheKey = `eduai_inst_${currentInstitution.id}`;
             safeLocalStorage.setItem(instCacheKey, JSON.stringify(currentInstitution));
+            safeSetLocalItem(`eduai_transit_branding_${currentInstitution.id}`, {
+                logoUrl: brandingLogo,
+                letterheadUrl: brandingLetterhead,
+                footerImageUrl: brandingFooter,
+                stampUrl: brandingStampUrl,
+                stampMode: brandingStampMode,
+                footerText: brandingFooterText,
+                tagline: brandingTagline,
+                letterheadConfig: updatedLetterheadConfig
+            });
 
             toastSuccess('Fleet & Transit branding saved and synced across all documents!');
         } catch (err: any) {

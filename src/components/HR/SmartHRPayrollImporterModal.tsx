@@ -24,6 +24,7 @@ export interface ParsedHREmployeeRow {
     name: string;
     designation: string;
     role: string;
+    pf?: string;
     bankAccount: string;
     basicSalary: number;
     currentSalary?: number;
@@ -101,6 +102,17 @@ export interface SmartHRPayrollImporterModalProps {
 // Map textual designation from sheet to normalized role code
 const mapDesignationToRole = (desig: string): string => {
     const d = (desig || '').toUpperCase().trim();
+    if (d.includes('DEPUTY HOI ACADEMIC') || d.includes('DEPUTY HOI-ACADEMIC')) return 'deputy_hoi_academics';
+    if (d.includes('DEPUTY HOI BOARDING') || d.includes('DEPUTY HOI-BOARDING')) return 'deputy_hoi_boarding';
+    if (d.includes('DEPUTY HOI ADMIN') || d.includes('DEPUTY HOI-ADMIN')) return 'deputy_hoi_administration';
+    if (d.includes('CAO') || d.includes('CHIEF ADMINISTRATIVE OFFICER') || d.includes('CHIEF ACADEMIC OFFICER')) return 'cao';
+    if (d.includes('OPERATIONS MANAGER') || d.includes('OPERATION MANAGER')) return 'operations_manager';
+    if (d.includes('ACCOUNTS CLERK') || d.includes('ACCOUNT CLERK')) return 'accounts_clerk';
+    if (d.includes('HOUSE KEEPING') || d.includes('HOUSEKEEPING')) return 'housekeeping_attendant';
+    if (d.includes('BOARDING MISTRESS')) return 'boarding_mistress';
+    if (d.includes('BOARDING MASTER')) return 'boarding_master';
+    if (d.includes('HEAD COOK')) return 'head_cook';
+    if (d.includes('COOK')) return 'cook';
     if (d.includes('FARM')) return 'support_staff';
     if (d.includes('LAB') || d.includes('TECHNICIAN')) return 'lab_tech';
     if (d.includes('CHAPLAIN')) return 'staff';
@@ -108,7 +120,7 @@ const mapDesignationToRole = (desig: string): string => {
     if (d.includes('TYPIST') || d.includes('SECRETARY') || d.includes('FRONT DESK')) return 'receptionist';
     if (d.includes('ACC') || d.includes('CLERK') || d.includes('ACCOUNTS')) return 'finance_officer';
     if (d.includes('BURSAR') || d.includes('FINANCE')) return 'finance_officer';
-    if (d.includes('COOK') || d.includes('KITCHEN') || d.includes('CHEF')) return 'support_staff';
+    if (d.includes('KITCHEN') || d.includes('CHEF')) return 'support_staff';
     if (d.includes('SECURITY') || d.includes('GUARD') || d.includes('WATCHMAN')) return 'security';
     if (d.includes('CATRESS') || d.includes('CATERING') || d.includes('MESS')) return 'support_staff';
     if (d.includes('TEA') || d.includes('CLEAN') || d.includes('JANITOR') || d.includes('GROUNDS')) return 'support_staff';
@@ -273,6 +285,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                 let idxNo = -1;
                 let idxName = -1;
                 let idxDesig = -1;
+                let idxPf = -1;
                 let idxBank = -1;
                 let idxSalary = -1;
                 let idxHseAll = -1;
@@ -308,6 +321,8 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         idxName = c;
                     } else if ((h === 'DESIG' || h === 'DESIGNATION' || h === 'ROLE' || h === 'JOB TITLE' || h === 'POSITION') && idxDesig === -1) {
                         idxDesig = c;
+                    } else if ((h === 'PF' || h === 'PF NO' || h === 'PF NO.' || h === 'PF NUMBER' || h === 'PERSONAL FILE' || h === 'PERSONAL FILE NO' || h === 'FILE NO') && idxPf === -1) {
+                        idxPf = c;
                     } else if ((h === 'BANK ACC' || h === 'BANK ACCOUNT' || h === 'ACCOUNT NO' || h === 'ACC NO' || h === 'BANK NO' || h.includes('ACC')) && idxBank === -1) {
                         idxBank = c;
                     } else if ((h === 'SALARY' || h === 'BASIC SALARY' || h === 'BASIC' || h === 'BASIC PAY') && idxSalary === -1) {
@@ -364,6 +379,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
 
                     const no = idxNo !== -1 ? row[idxNo] : (r - headerRowIdx);
                     const designation = cleanStr(idxDesig !== -1 ? row[idxDesig] : 'Staff');
+                    const pf = cleanStr(idxPf !== -1 ? row[idxPf] : '');
                     const bankAccount = cleanStr(idxBank !== -1 ? row[idxBank] : '');
                     const basicSalary = parseNumber(idxSalary !== -1 ? row[idxSalary] : 0);
 
@@ -396,14 +412,18 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         netPay = totalGross - totalDeductions;
                     }
 
-                    // Match with existing staff by name or bank account
+                    // Match with existing staff by PF, name, or bank account
                     const nameNorm = name.toLowerCase().replace(/[^a-z0-9]/g, '');
                     const matched = existingStaff.find(s => {
+                        let m = s.metadata || {};
+                        if (typeof m === 'string') { try { m = JSON.parse(m); } catch (e) { m = {}; } }
+
+                        const sPf = String(s.pf || (s as any).pfNumber || (s as any).pfNo || m.pf || m.pfNumber || m.pfNo || '').trim().toUpperCase();
+                        if (pf && sPf && sPf === pf.toUpperCase()) return true;
+
                         const sNameNorm = (s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                         if (sNameNorm === nameNorm) return true;
                         
-                        let m = s.metadata || {};
-                        if (typeof m === 'string') { try { m = JSON.parse(m); } catch (e) { m = {}; } }
                         const sBank = String(m.bankAccountNumber || (s as any).bankAccountNumber || '');
                         if (bankAccount && sBank && sBank === bankAccount) return true;
                         return false;
@@ -421,6 +441,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         name,
                         designation,
                         role: mapDesignationToRole(designation),
+                        pf,
                         bankAccount,
                         basicSalary: basicSalary > 0 ? basicSalary : totalGross,
                         currentSalary,
@@ -468,8 +489,6 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                 'SALARY': 31693,
                 'HSE ALL': 0,
                 'MED': 0,
-                'HL': 0,
-                'NSSF': 0,
                 'TOTAL': 31693,
                 'NSSF': 1080,
                 'SHIF': 872,
@@ -487,8 +506,6 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                 'SALARY': 45000,
                 'HSE ALL': 6000,
                 'MED': 3000,
-                'HL': 0,
-                'NSSF': 0,
                 'TOTAL': 54000,
                 'NSSF': 1080,
                 'SHIF': 1485,
@@ -709,6 +726,8 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         bankBranch: 'Main',
                         designation: row.designation,
                         employmentTerms: 'Permanent & Pensionable',
+                        pf: row.pf || '',
+                        pfNumber: row.pf || '',
                         onboardedVia: 'Excel Payroll Importer',
                         assignedAllowances: [
                             ...(row.houseAllowance > 0 ? [{ name: 'House Allowance', amount: row.houseAllowance, type: 'fixed' }] : []),
@@ -730,6 +749,8 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                             email,
                             phoneNumber: row.bankAccount || '',
                             role: row.role as any,
+                            pf: row.pf || undefined,
+                            pfNumber: row.pf || undefined,
                             institutionId: institution.id,
                             metadata: staffMetadata
                         };
@@ -767,7 +788,11 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                         if (overwriteStrategy !== 'skip_existing') {
                             const updatedMeta = { ...prevMeta, ...staffMetadata };
                             if (onEditUser) {
-                                await onEditUser(staffId, { metadata: updatedMeta, basicSalary: row.basicSalary });
+                                await onEditUser(staffId, { 
+                                    metadata: updatedMeta, 
+                                    basicSalary: row.basicSalary,
+                                    ...(row.pf ? { pf: row.pf, pfNumber: row.pf } : {})
+                                });
                             }
                             importedStaffCount++;
                         }
@@ -1144,6 +1169,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                                                     <tr>
                                                         <th className="py-3 px-3 text-center">#</th>
                                                         <th className="py-3 px-3">Employee Name</th>
+                                                        <th className="py-3 px-3">PF No</th>
                                                         <th className="py-3 px-3">Designation</th>
                                                         <th className="py-3 px-3">Bank Account</th>
                                                         <th className="py-3 px-3 text-right">Basic Salary</th>
@@ -1169,6 +1195,7 @@ export const SmartHRPayrollImporterModal: React.FC<SmartHRPayrollImporterModalPr
                                                             <tr key={idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                                                                 <td className="py-2.5 px-3 text-center font-mono text-[10px] text-slate-400">{r.no || idx + 1}</td>
                                                                 <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white uppercase truncate max-w-[180px]">{r.name}</td>
+                                                                <td className="py-2.5 px-3 font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400">{r.pf || '-'}</td>
                                                                 <td className="py-2.5 px-3 uppercase text-[10px] font-bold text-slate-500">{r.designation}</td>
                                                                 <td className="py-2.5 px-3 font-mono text-[10px] text-slate-600 dark:text-slate-400">{r.bankAccount || '-'}</td>
                                                                 <td className="py-2.5 px-3 text-right font-bold text-slate-800 dark:text-slate-200">

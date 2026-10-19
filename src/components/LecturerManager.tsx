@@ -28,7 +28,7 @@ const parseExpertise = (expertiseString: string): string[] => {
     return expertiseString.split(',').map(item => item.trim()).filter(Boolean);
 };
 
-const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'driver', 'transport_assistant', 'managing_director', 'hoi'];
+const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'operations_manager', 'operation_manager', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'boarding_mistress', 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'accounts_clerk', 'driver', 'transport_assistant', 'managing_director', 'hoi'];
 const ROLES_REQUIRING_DEPARTMENT: Role[] = ['admin', 'deputy', 'hod', 'lecturer', 'tto', 'head_teacher', 'dos', 'teacher'];
 
 const REQUIRED_USER_MAPPING_FIELDS: UserMappingField[] = ['name', 'role'];

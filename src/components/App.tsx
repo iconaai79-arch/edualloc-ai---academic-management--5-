@@ -973,13 +973,22 @@ export const App: React.FC = () => {
                 const pBal = parent?.smsBalance ?? (parent as any)?.sms_balance ?? 0;
                 const pCfg = parent?.smsConfig || (parent as any)?.sms_config || {};
 
+                const isDSEntity = currentUser.role === 'driving_instructor' || 
+                                   (currentUser.institutionId || '').startsWith('ds_') || 
+                                   (currentUser.institutionId || '').includes('driving') || 
+                                   ((currentUser as any).institutionName || '').toLowerCase().includes('driving');
+
                 return mergeModules({
                     ...(parent || {}),
                     id: currentUser.institutionId,
                     name: (currentUser as any).institutionName || (currentUser as any).schoolName || branchMatch?.name || (currentUser.role === 'reseller' ? 'Reseller Agency' : 'Institutional Workspace'),
                     institutionType: (currentUser.role === 'pharmacist' || currentUser.role === 'pharmacy_admin') ? 'Pharmacy' : 
                                      (currentUser.role?.includes('his') || currentUser.role === 'nurse' || (currentUser as any).role === 'doctor') ? 'HIS' : 
-                                     (currentUser.role === 'reseller') ? 'Reseller' : (parent?.institutionType || 'Education'),
+                                     (currentUser.role === 'reseller') ? 'Reseller' : 
+                                     isDSEntity ? 'Driving School' :
+                                     (parent?.institutionType || 'Education'),
+                    category: isDSEntity ? 'Driving School' : (parent?.category || undefined),
+                    businessSubType: isDSEntity ? 'Driving School' : (parent?.businessSubType || undefined),
                     parentInstitutionId: branchMatch?.institution_id || (parent as any)?.id,
                     isBranch: Boolean(branchMatch),
                     smsBalance: pBal,
@@ -999,8 +1008,8 @@ export const App: React.FC = () => {
 
         // STRICT ACCESS ENFORCEMENT:
         // A user whose assigned role is strictly a teacher or HOD (no administrative leadership role)
-        // must strictly access the Teacher Portal only.
-        if (isStrictTeacherUser(currentUser)) {
+        // must strictly access the Teacher Portal only (unless part of a commercial Driving School).
+        if (isStrictTeacherUser(currentUser) && !isDSInstitution(activeInstitution)) {
             const roleCandidate = selectedRole || currentUser.role;
             if (isTeacherRole(roleCandidate)) {
                 return roleCandidate as Role;
@@ -1020,6 +1029,16 @@ export const App: React.FC = () => {
         // Force property_admin for Property Management institutions when entering as general admin/leadership
         if (isPMInstitution(activeInstitution) && (['admin', 'head_teacher', 'headteacher', 'principal', 'managing_director', 'director', 'school_admin'] as string[]).includes(roleToUse as string)) {
             return 'property_admin';
+        }
+
+        // Normalize school leadership / educational roles to admin for Driving School institutions
+        if (isDSInstitution(activeInstitution)) {
+            if (roleToUse === 'driving_instructor' || roleToUse === 'student') {
+                return roleToUse;
+            }
+            if (['head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress', 'deputy', 'deputy_headteacher', 'deputy_principal', 'dos', 'director_of_studies', 'teacher', 'lecturer', 'hod'].includes(roleToUse as string)) {
+                return 'admin';
+            }
         }
 
         return roleToUse;
@@ -1787,18 +1806,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // Sector Detection
             const instTypeLower = instType.toLowerCase();
-            const isAcademic = isSuper || isEduInstitution(activeInst) || isSchoolInstitution(activeInst) || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'].includes(instTypeLower);
+            const isDsInst = isDSInstitution(activeInst) || isDSInstitution(activeInstWithModules) || instTypeLower === 'driving school' || instTypeLower === 'driving_school' || activeInst?.category?.toLowerCase().includes('driving school') || activeInst?.businessSubType?.toLowerCase().includes('driving school');
+            const isDrivingSchool = isSuper || isDsInst || activeInstWithModules?.moduleStates?.some((m: any) => (m.moduleId === 'driving_school' || m.moduleId === 'ds') && (m.status === 'active' || m.status === 'trial'));
+            const isAcademic = !isDsInst && (isSuper || isEduInstitution(activeInst) || isSchoolInstitution(activeInst) || ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'].includes(instTypeLower));
             const isHealth = isSuper || ['his', 'pharmacy'].includes(instTypeLower);
             const isLaw = isSuper || instTypeLower === 'law firm' || (activeInst?.businessSubType || '').toLowerCase().includes('law') || (activeInst?.businessSubType || '').toLowerCase().includes('legal');
             const isCoopRole = currentUser?.role ? ['cooperative_manager', 'coop_admin', 'coop_chairman', 'farmer', 'rider', 'sacco_officer', 'agrovet_admin'].includes(currentUser.role) : false;
             const isCoop = isSuper || isCoopRole || ['cooperative', 'sacco', 'agrovet', 'farming'].includes(instTypeLower);
             const isBusiness = isSuper || ['business', 'business ecosystem', 'retail', 'retail agency', 'agrovet', 'car wash', 'automotive marketplace', 'car showroom', 'hardware', 'pharmacy'].includes(instTypeLower) || instTypeLower.includes('retail') || (activeInst?.businessSubType || '').toLowerCase().includes('retail') || (activeInst?.category || '').toLowerCase().includes('retail');
-            const isHigherEd = ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
+            const isHigherEd = !isDsInst && ['university', 'college', 'tvet', 'polytechnic', 'institute'].includes(instTypeLower);
 
             const isLogistics = isSuper || ['logistics', 'transport'].includes(instTypeLower);
             const hasTransport = isSuper || isLogistics || isAcademic || activeInstWithModules?.moduleStates?.some((m: any) => (m.moduleId === 'transport' || m.moduleId === 'transport_management') && (m.status === 'active' || m.status === 'trial')) || ['education', 'primary', 'secondary', 'college', 'university', 'logistics', 'transport'].includes(instTypeLower);
             const isHospitality = isSuper || instTypeLower === 'hospitality';
-            const isDrivingSchool = isSuper || instTypeLower === 'driving school' || activeInstWithModules?.moduleStates?.some((m: any) => m.moduleId === 'driving_school' && (m.status === 'active' || m.status === 'trial'));
             const isBeautyCollege = isSuper || instTypeLower === 'beauty college' || activeInstWithModules?.moduleStates?.some((m: any) => m.moduleId === 'beauty_college' && (m.status === 'active' || m.status === 'trial'));
             const isPolitical = isSuper || instTypeLower === 'political campaign';
             const isCommunity = isSuper || instTypeLower === 'community';
@@ -1807,7 +1827,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             // ── Module Onboarding: show wizard for edu admins with no active modules ──
             const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'];
             const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!localStorage.getItem('eduai_super_admin_session');
-            const isEduAdmin = (EDU_TYPES.includes(instTypeLower) || isEduInstitution(activeInst) || isSchoolInstitution(activeInst)) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
+            const isEduAdmin = !isDsInst && !isDrivingSchool && (EDU_TYPES.includes(instTypeLower) || isEduInstitution(activeInst) || isSchoolInstitution(activeInst)) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
             if (isEduAdmin && activeInst && activeInst.status !== 'active') {
                 const activeModules = (imsPhase1 || []).filter((m: any) => (m.institutionId === activeInst.id || m.institution_id === activeInst.id) && (m.status === 'active' || m.status === 'trial'));
                 const dismissedKey = `edu_onboarding_dismissed_${activeInst.id}`;
@@ -2050,13 +2070,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // ── Auto-Migration: Seed modules for existing active institutions ──
             if (currentUser && activeInst) {
-                const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
-                if (EDU_TYPES.includes(instType.toLowerCase())) {
-                    const schoolModules = (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id);
-                    const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
-                    if (schoolModules.length === 0 && hasExistingData) {
-                        console.log(`[Auto-Migration] Seeding active modules for existing institution: ${activeInst.name}`);
-                        const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'his'];
+                const isDs = isDSInstitution(activeInst) || instType.toLowerCase() === 'driving school' || instType.toLowerCase() === 'driving_school';
+                if (isDs) {
+                    const dsModules = (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id);
+                    if (dsModules.length === 0 || !dsModules.some((m: any) => m.moduleId === 'driving_school' || m.moduleId === 'ds')) {
+                        console.log(`[Auto-Migration] Seeding active driving_school module for institution: ${activeInst.name}`);
+                        const defaultModules = ['driving_school', 'finance', 'hr_payroll'];
                         const seededStates: InstitutionModuleState[] = [];
                         for (const moduleId of defaultModules) {
                             const newState: InstitutionModuleState = {
@@ -2076,6 +2095,36 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                         if (seededStates.length > 0) {
                             const updatedStates = [...(imsPhase1 || []), ...seededStates];
                             setInstitutionModuleStates(updatedStates);
+                        }
+                    }
+                } else {
+                    const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic'];
+                    if (EDU_TYPES.includes(instType.toLowerCase())) {
+                        const schoolModules = (imsPhase1 || []).filter((m: any) => (m.institutionId || m.institution_id) === activeInst.id);
+                        const hasExistingData = (d && d.length > 0) || (s && s.length > 0) || (c && c.length > 0) || (ay && ay.length > 0) || (sem && sem.length > 0);
+                        if (schoolModules.length === 0 && hasExistingData) {
+                            console.log(`[Auto-Migration] Seeding active modules for existing institution: ${activeInst.name}`);
+                            const defaultModules = ['academics', 'timetable', 'finance', 'library', 'school_store', 'boarding', 'transport', 'hr_payroll', 'his'];
+                            const seededStates: InstitutionModuleState[] = [];
+                            for (const moduleId of defaultModules) {
+                                const newState: InstitutionModuleState = {
+                                    id: `ims_${moduleId}_${activeInst.id}`,
+                                    moduleId,
+                                    institutionId: activeInst.id,
+                                    status: 'active',
+                                    activatedAt: new Date().toISOString(),
+                                };
+                                try {
+                                    await apiService.saveModuleRecord('institution_module_states', newState);
+                                    seededStates.push(newState);
+                                } catch (e) {
+                                    console.error(`[Auto-Migration] Failed to seed ${moduleId}:`, e);
+                                }
+                            }
+                            if (seededStates.length > 0) {
+                                const updatedStates = [...(imsPhase1 || []), ...seededStates];
+                                setInstitutionModuleStates(updatedStates);
+                            }
                         }
                     }
                 }
@@ -4914,17 +4963,19 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 // Primary Tenant/Institution Administrators
                 'admin', 'principal', 'headmaster', 'headmistress', 'head_teacher', 'managing_director', 'hoi',
                 'school_admin', 'group_admin', 'school_group_admin', 'dean', 'director',
+                'cao', 'operations_manager', 'operation_manager',
                 'reseller', 'property_admin', 'cooperative_manager', 'coop_chairman', 'coop_admin',
                 'his_admin', 'pharmacy_admin', 'carwash_admin', 'agrovet_admin', 'church_admin', 'pastor',
                 'mechanic_admin', 'fuel_admin', 'legal_admin', 'restaurant_admin',
                 'constituency_admin', 'county_admin',
                 
                 // School / Institutional Leaders & Secondary Admins
-                'deputy', 'dos', 'hod', 'tto',
+                'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'dos', 'hod', 'tto',
                 
                 // Staff / Officers
-                'finance', 'finance_officer', 'academics_officer', 'hr_officer', 'transport_admin',
-                'boarding_master', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
+                'finance', 'finance_officer', 'accounts_clerk', 'academics_officer', 'hr_officer', 'transport_admin',
+                'boarding_master', 'boarding_mistress', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
+                'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'cateress',
                 
                 // Instructors / Teachers
                 'teacher', 'practice_teacher', 'lecturer', 'driving_instructor',
@@ -6425,20 +6476,25 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 const trialEndStr = new Date(Date.now() + trialPeriodDays * 24 * 60 * 60 * 1000).toISOString();
                 const nowStr = new Date().toISOString();
 
+                const isDSReg = data.institutionType === 'Driving School' || 
+                                data.category === 'Driving School' || 
+                                (data as any).businessSubType === 'Driving School' || 
+                                (data.institutionName || '').toLowerCase().includes('driving');
+
                 const newInstitution: Institution = {
                     id: instId,
                     name: data.institutionName,
                     email: data.institutionEmail,
                     phoneNumber: data.institutionPhone,
-                    institutionType: data.institutionType as any,
-                    businessSubType: (data as any).businessSubType,
+                    institutionType: isDSReg ? 'Driving School' : (data.institutionType as any),
+                    businessSubType: isDSReg ? 'Driving School' : (data as any).businessSubType,
                     status: 'active',
                     trialEndsAt: trialEndStr,
                     subscriptionEndsAt: trialEndStr,
                     institutionCode: generateAlphanumericCode(8),
                     useAllocationRequests: true,
                     resellerId: data.resellerId,
-                    category: data.category,
+                    category: isDSReg ? 'Driving School' : data.category,
                     slug: slugify(data.institutionName)
                 };
                 const adminRole: Role = getAdminRoleForInstitution(newInstitution);
@@ -6477,7 +6533,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     'Fuel Station': ['fuel_station', 'finance', 'hr_payroll']
                 };
 
-                const targetType = data.institutionType || 'Education';
+                const targetType = isDSReg ? 'Driving School' : (data.institutionType || 'Education');
                 const modulesToProvision = defaultModulesByType[targetType] || defaultModulesByType['Education'];
                 for (const modId of modulesToProvision) {
                     try {
@@ -8772,7 +8828,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         onAccessAlumnaPortal={handleAccessAlumnaPortal}
                                     />
                                     </ModuleAccessGuard>
-                                ) : (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || activeRole === 'hod' || isStrictTeacherUser(currentUser)) ? (
+                                ) : (!isDSInstitution(activeInstitution) && (isTeacherRole(activeRole) || activeRole === 'lecturer' || activeRole === 'teacher' || activeRole === 'hod' || isStrictTeacherUser(currentUser))) ? (
                                     <LecturerView {...{
                                         ...lecturerProps,
                                         user: currentUser,
@@ -8838,7 +8894,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         }
                                     } as any}
                                     />
-                                ) : (activeRole === 'student' && isDSStudent) ? (
+                                ) : (activeRole === 'student' && (isDSStudent || isDSInstitution(activeInstitution))) ? (
                                     <DrivingSchoolProvider institutionId={effectiveDSInstitution?.id} currentUser={currentUser}>
                                         <DSStudentPortal
                                             currentUser={currentUser}
@@ -9202,7 +9258,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             } as any}
                                         />
                                     </ModuleAccessGuard>
-                                ) : activeRole === 'boarding_master' ? (
+                                ) : (activeRole === 'boarding_master' || activeRole === 'boarding_mistress') ? (
                                     <ModuleAccessGuard
                                         moduleId="boarding"
                                         moduleName="Boarding Master"
@@ -10034,9 +10090,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                 // Prioritize administrative roles over portal/client roles
                                 const rolePriority = [
                                     'super_admin', 'reseller', 'county_admin', 
-                                    'admin', 'head_teacher', 'deputy', 'dos', 'hod', 'tto',
-                                    'teacher', 'lecturer', 'academics_officer', 'finance', 'finance_officer', 'hr_officer',
-                                    'boarding_master', 'librarian', 'security', 'info_desk', 'store',
+                                    'admin', 'head_teacher', 'managing_director', 'hoi', 'cao', 'operations_manager', 'operation_manager',
+                                    'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'dos', 'hod', 'tto',
+                                    'teacher', 'lecturer', 'academics_officer', 'finance', 'finance_officer', 'accounts_clerk', 'hr_officer',
+                                    'boarding_master', 'boarding_mistress', 'librarian', 'security', 'info_desk', 'store',
+                                    'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'cateress',
                                     'transport_admin', 'transport_assistant', 'event_manager',
                                     'property_admin', 'landlord', 'cooperative_manager', 'coop_admin', 'coop_chairman', 
                                     'sacco_officer', 'agrovet_admin', 'his_admin', 'pharmacy_admin', 'carwash_admin', 

@@ -1942,7 +1942,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     const isTeacherUser = userRole === 'teacher';
     const isBursarUser = Boolean(
         [
-            'finance_officer', 'finance', 'cashier', 'treasurer', 'bursar', 'accountant', 'accounts'
+            'finance_officer', 'finance', 'cashier', 'treasurer', 'bursar', 'accountant', 'accounts', 'accounts_clerk'
         ].includes(userRole) ||
         (currentUser?.department || '').toLowerCase().includes('bursar') ||
         (currentUser?.department || '').toLowerCase().includes('finance') ||

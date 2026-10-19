@@ -154,7 +154,7 @@ const HouseManager: React.FC<HouseManagerProps> = ({
     };
 
     const handleDelete = async (house: BoardingHouse) => {
-        const canDelete = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        const canDelete = ['admin', 'super_admin', 'boarding_master', 'boarding_mistress', 'deputy_hoi_boarding'].includes(currentUser.role || '');
         if (!canDelete) {
             alert('Access Denied: Requisite security clearance for infrastructure decommission not detected.');
             return;

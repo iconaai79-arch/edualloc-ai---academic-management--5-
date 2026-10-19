@@ -34,7 +34,7 @@ import { TAAssignmentsView } from './TAAssignmentsView';
 import { NearbyClassesView } from './NearbyClassesView';
 import type { StudentAttendance } from '../types';
 import { isSchoolInstitution, isDSInstitution } from '../utils/roleUtils';
-const DSStudentPortal = lazy(() => import('./ds/DSStudentPortal').then((m: any) => ({ default: m?.DSStudentPortal || m?.default || m })));
+const DSStudentPortal = lazy<React.FC<any>>(() => import('./ds/DSStudentPortal').then((m: any) => ({ default: m?.DSStudentPortal || m?.default || m })));
 
 // --- Enrollment Request Modal ---
 interface EnrollmentRequestModalProps {

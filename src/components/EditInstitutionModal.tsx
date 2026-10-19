@@ -168,6 +168,21 @@ export const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ inst
         if (type === 'logo') setFormData(prev => ({ ...prev, logoUrl: url }));
         if (type === 'letterhead') setFormData(prev => ({ ...prev, letterheadUrl: url }));
         if (type === 'footer') setFormData(prev => ({ ...prev, footerImageUrl: url }));
+
+        // Instant auto-save to local branding cache to survive immediate browser refresh
+        try {
+          if (institution?.id) {
+            const raw = localStorage.getItem(`eduai_transit_branding_${institution.id}`);
+            const prevBranding = raw ? JSON.parse(raw) : {};
+            const nextBranding = {
+              ...prevBranding,
+              logoUrl: type === 'logo' ? url : (prevBranding.logoUrl || formData.logoUrl),
+              letterheadUrl: type === 'letterhead' ? url : (prevBranding.letterheadUrl || formData.letterheadUrl),
+              footerImageUrl: type === 'footer' ? url : (prevBranding.footerImageUrl || formData.footerImageUrl)
+            };
+            localStorage.setItem(`eduai_transit_branding_${institution.id}`, JSON.stringify(nextBranding));
+          }
+        } catch (_) {}
       } else {
         alert(`Failed to upload ${type}. Empty URL received.`);
       }

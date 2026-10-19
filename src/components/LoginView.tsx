@@ -141,7 +141,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 'edu': { institutionType: 'Education', category: 'Primary', businessSubType: 'Primary' },
                 'campaign': { institutionType: 'Political Campaign', category: 'Political Campaign Management', businessSubType: 'Political Campaign Management' },
                 'legal': { institutionType: 'Law Firm', category: 'Law Firm', businessSubType: 'Law Firm' },
-                'ds': { institutionType: 'Education', category: 'Driving School', businessSubType: 'Driving School' },
+                'ds': { institutionType: 'Driving School', category: 'Driving School', businessSubType: 'Driving School' },
                 'logistics': { institutionType: 'Logistics', category: 'Cargo & Delivery', businessSubType: 'Cargo & Delivery' },
                 'showroom': { institutionType: 'Business', category: 'Automotive Marketplace', businessSubType: 'Automotive Marketplace' },
                 'tourism': { institutionType: 'Hospitality', category: 'Travel Agency', businessSubType: 'Travel Agency' },
@@ -916,7 +916,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                                     <select
                                                         className={inputClasses}
                                                         value={regData.category || 'Primary'}
-                                                        onChange={e => setRegData({ ...regData, category: e.target.value, businessSubType: e.target.value })}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            if (val === 'Driving School') {
+                                                                setRegData({ ...regData, institutionType: 'Driving School', category: val, businessSubType: val });
+                                                            } else {
+                                                                setRegData({ ...regData, category: val, businessSubType: val });
+                                                            }
+                                                        }}
                                                         required
                                                     >
                                                         <option value="Kindergarten">Kindergarten / Playgroup</option>

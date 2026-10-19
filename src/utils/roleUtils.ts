@@ -5,8 +5,11 @@ import { Institution, Role } from '../types';
  */
 export function getAdminRoleForInstitution(institution: Partial<Institution> | null | undefined): Role {
     if (!institution) return 'head_teacher';
-    const type = institution.institutionType;
-    const subType = institution.businessSubType?.toLowerCase() || '';
+    // Driving School — admin role is admin (check before generic Education)
+    if (isDSInstitution(institution)) return 'admin';
+
+    const type = institution.institutionType || (institution as any)?.institution_type;
+    const subType = (institution.businessSubType || (institution as any)?.business_sub_type)?.toLowerCase() || '';
 
     if (type === 'Education') {
         const cat = institution.category;
@@ -32,9 +35,6 @@ export function getAdminRoleForInstitution(institution: Partial<Institution> | n
 
     // Restaurant & Hospitality
     if (isRestaurantInstitution(institution)) return 'restaurant_admin' as any;
-
-    // Driving School — admin role is admin
-    if (isDSInstitution(institution)) return 'admin';
 
     // Corporate Invoicing & Billing Services
     if (type === 'Invoicing' || type === 'Billing Services' || subType.includes('invoicing') || subType.includes('billing') || (institution.category || '').toLowerCase().includes('invoicing')) return 'admin';
@@ -105,14 +105,24 @@ export function getRolesForInstitution(institution: Institution | null | undefin
         return ['property_admin', 'admin', 'managing_director', 'finance', 'finance_officer', 'security', 'reception', 'caretaker', 'driver', 'landlord', 'tenant', 'lead'];
     }
 
+    // Driving School — prioritize before generic educational checks
+    if (isDSInstitution(institution)) {
+        return ['admin', 'director', 'driving_instructor', 'staff', 'student', 'security', 'driver', 'procurement_officer'];
+    }
+
     // Academic / Schools
     if (isSchoolInstitution(institution)) {
-        return ['head_teacher', 'principal', 'deputy', 'dos', 'operation_manager', 'hod', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'procurement_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['head_teacher', 'principal', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'operations_manager', 'operation_manager', 'dos', 'hod', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'accounts_clerk', 'procurement_officer', 'boarding_master', 'boarding_mistress', 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'cateress', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer'];
     }
 
     // Tertiary / Higher Ed
     if (isHigherEdInstitution(institution)) {
-        return ['admin', 'operation_manager', 'hod', 'tto', 'lecturer', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'procurement_officer', 'boarding_master', 'driver', 'transport_assistant', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer', 'cateress'];
+        return ['admin', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'operations_manager', 'operation_manager', 'hod', 'tto', 'lecturer', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'accounts_clerk', 'procurement_officer', 'boarding_master', 'boarding_mistress', 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'cateress', 'driver', 'transport_assistant', 'event_manager', 'carwash_admin', 'mechanic_admin', 'managing_director', 'hoi', 'nurse', 'hr_officer'];
+    }
+
+    // General Educational Institution Fallback
+    if (isEduInstitution(institution)) {
+        return ['head_teacher', 'principal', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'operations_manager', 'operation_manager', 'dos', 'hod', 'teacher', 'class_supervisor', 'academics_officer', 'librarian', 'security', 'info_desk', 'store', 'finance', 'finance_officer', 'accounts_clerk', 'procurement_officer', 'boarding_master', 'boarding_mistress', 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'cateress', 'driver', 'transport_assistant', 'event_manager', 'managing_director', 'hoi', 'nurse', 'hr_officer'];
     }
 
     // HIS / Health Information System
@@ -139,11 +149,6 @@ export function getRolesForInstitution(institution: Institution | null | undefin
         return ['director', 'managing_director', 'finance', 'finance_officer', 'procurement_officer', 'sales', 'reception', 'customer', 'lead'];
     }
 
-    // Driving School
-    if (isDSInstitution(institution)) {
-        return ['admin', 'director', 'driving_instructor', 'staff', 'student', 'security', 'driver', 'procurement_officer'];
-    }
-
     // Grain Milling & Processing
     if (isMillingInstitution(institution)) {
         return ['miller_admin', 'weighbridge_operator', 'miller_technician', 'quality_officer', 'packer', 'feed_operator', 'grain_buyer', 'finance', 'finance_officer', 'store', 'security', 'driver'] as any[];
@@ -162,8 +167,10 @@ export function getRolesForInstitution(institution: Institution | null | undefin
  */
 export function isSchoolInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
+    // Driving schools are independent commercial academies, never K-12 schools
+    if (isDSInstitution(institution)) return false;
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
     const schoolCats = ['primary', 'secondary', 'kindergarten', 'ecd', 'international', 'pre-primary', 'junior secondary'];
     return (type === 'education' && schoolCats.includes(category)) || schoolCats.includes(type);
 }
@@ -173,9 +180,10 @@ export function isSchoolInstitution(institution: Partial<Institution> | null | u
  */
 export function isPrimaryInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
-    const name = (institution.name || '').toLowerCase();
+    if (isDSInstitution(institution)) return false;
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const name = (institution.name || (institution as any)?.name || '').toLowerCase();
     const primaryTerms = ['primary', 'kindergarten', 'ecd', 'pre-primary', 'nursery', 'daycare', 'cbc'];
     return primaryTerms.some(term => type.includes(term) || category.includes(term) || name.includes(term));
 }
@@ -185,9 +193,10 @@ export function isPrimaryInstitution(institution: Partial<Institution> | null | 
  */
 export function isSecondaryInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
-    const name = (institution.name || '').toLowerCase();
+    if (isDSInstitution(institution)) return false;
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const name = (institution.name || (institution as any)?.name || '').toLowerCase();
     const secondaryTerms = ['secondary', 'junior secondary', 'high school', 'senior school', 'k12'];
     return secondaryTerms.some(term => type.includes(term) || category.includes(term) || name.includes(term));
 }
@@ -197,8 +206,9 @@ export function isSecondaryInstitution(institution: Partial<Institution> | null 
  */
 export function isHigherEdInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
+    if (isDSInstitution(institution)) return false;
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
     const higherEdCats = ['university', 'college', 'tvet', 'polytechnic', 'institute'];
     return (type === 'education' && higherEdCats.includes(category)) || higherEdCats.includes(type);
 }
@@ -208,15 +218,17 @@ export function isHigherEdInstitution(institution: Partial<Institution> | null |
  */
 export function isDSInstitution(institution: Partial<Institution> | null | undefined): boolean {
     if (!institution) return false;
-    const type = (institution.institutionType || '').toLowerCase();
-    const category = (institution.category || '').toLowerCase();
-    const subType = (institution.businessSubType || '').toLowerCase();
-    const name = (institution.name || '').toLowerCase();
-    const hasModule = institution.moduleStates?.some(m => (m.moduleId === 'driving_school' || m.moduleId === 'ds') && (m.status === 'active' || m.status === 'trial'));
+    const type = (institution.institutionType || (institution as any)?.institution_type || '').toLowerCase();
+    const category = (institution.category || (institution as any)?.category || '').toLowerCase();
+    const subType = (institution.businessSubType || (institution as any)?.business_sub_type || '').toLowerCase();
+    const name = (institution.name || (institution as any)?.institution_name || (institution as any)?.name || '').toLowerCase();
+    const id = (institution.id || '').toLowerCase();
+    const hasModule = institution.moduleStates?.some(m => ((m as any).moduleId === 'driving_school' || (m as any).module_id === 'driving_school' || (m as any).moduleId === 'ds' || (m as any).module_id === 'ds') && (m.status === 'active' || m.status === 'trial'));
     return type === 'driving school' || type === 'driving_school' || type.includes('driving') ||
            subType.includes('driving school') || subType.includes('driving_school') || subType.includes('driving') ||
            category.includes('driving school') || category.includes('driving_school') || category.includes('driving') ||
-           name.includes('driving school') || name.includes('driving academy') ||
+           name.includes('driving school') || name.includes('driving academy') || name.includes('motoring') || name.includes('drivers academy') ||
+           id.startsWith('ds_') || id.includes('driving') ||
            !!hasModule;
 }
 
@@ -319,6 +331,17 @@ export function isRestaurantInstitution(institution: Partial<Institution> | null
 export function formatRoleDisplayName(role: Role | string, institution?: Institution | null): string {
     if (!role) return 'User';
     const roleStr = String(role);
+    if (roleStr === 'deputy_hoi_academics') return 'Deputy HOI-Academics';
+    if (roleStr === 'deputy_hoi_boarding') return 'Deputy HOI-Boarding';
+    if (roleStr === 'deputy_hoi_administration') return 'Deputy HOI-Administration';
+    if (roleStr === 'cao') return 'CAO';
+    if (roleStr === 'operations_manager' || roleStr === 'operation_manager') return 'Operations Manager';
+    if (roleStr === 'accounts_clerk') return 'Accounts Clerk';
+    if (roleStr === 'housekeeping_attendant' || roleStr === 'house_keeping_attendant') return 'House Keeping Attendant';
+    if (roleStr === 'boarding_master') return 'Boarding Master';
+    if (roleStr === 'boarding_mistress') return 'Boarding Mistress';
+    if (roleStr === 'head_cook') return 'Head Cook';
+    if (roleStr === 'cook') return 'Cook';
     if (roleStr === 'hod') return 'Head of Department (HOD)';
     if (roleStr === 'dos' || roleStr === 'director_of_studies') return 'Director of Studies (DOS)';
     if (roleStr === 'academics_officer') return 'Academics Officer';
@@ -396,14 +419,23 @@ export function formatRoleDisplayName(role: Role | string, institution?: Institu
     if (isSchoolInstitution(institution)) {
         switch (role as string) {
             case 'head_teacher': case 'headteacher': case 'admin': case 'principal': case 'headmaster': case 'headmistress': return 'Head Teacher / Principal';
-            case 'operation_manager': case 'operations_manager': return 'Operation Manager';
+            case 'deputy_hoi_academics': return 'Deputy HOI-Academics';
+            case 'deputy_hoi_boarding': return 'Deputy HOI-Boarding';
+            case 'deputy_hoi_administration': return 'Deputy HOI-Administration';
+            case 'cao': return 'CAO';
+            case 'operation_manager': case 'operations_manager': return 'Operations Manager';
+            case 'accounts_clerk': return 'Accounts Clerk';
+            case 'housekeeping_attendant': case 'house_keeping_attendant': return 'House Keeping Attendant';
+            case 'boarding_master': return 'Boarding Master';
+            case 'boarding_mistress': return 'Boarding Mistress';
+            case 'head_cook': return 'Head Cook';
+            case 'cook': return 'Cook';
             case 'deputy': case 'deputy_headteacher': case 'deputy_principal': case 'deputy_head': return 'Deputy Principal / Head';
             case 'dos': case 'director_of_studies': return 'Director of Studies (DOS)';
             case 'academics_officer': return 'Academics Officer';
             case 'hod': return 'Head of Department (HOD)';
             case 'teacher': case 'lecturer': case 'practice_teacher': return 'Teacher';
             case 'class_supervisor': return 'Class Supervisor';
-            case 'boarding_master': return 'Boarding Manager';
             case 'managing_director': return 'Managing Director';
             case 'hoi': return 'HOI';
             case 'nurse': return 'School Nurse';
@@ -539,6 +571,10 @@ export const SCHOOL_ADMIN_ROLES: (Role | string)[] = [
     'deputy_headteacher',
     'deputy_principal',
     'deputy_head',
+    'deputy_hoi_academics',
+    'deputy_hoi_boarding',
+    'deputy_hoi_administration',
+    'cao',
     'dos',
     'director_of_studies',
     'academics_officer',
@@ -574,6 +610,7 @@ export function isStrictTeacherUser(user: { role?: Role | string | null; roles?:
         const seniorExecutiveRoles = [
             'head_teacher', 'headteacher', 'principal', 'headmaster', 'headmistress',
             'deputy', 'deputy_headteacher', 'deputy_principal', 'deputy_head',
+            'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao',
             'dos', 'director_of_studies', 'super_admin'
         ];
         const hasSeniorExecutive = userRoles.some(r => seniorExecutiveRoles.includes(r));

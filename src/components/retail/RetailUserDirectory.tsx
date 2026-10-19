@@ -770,11 +770,19 @@ export function RetailUserDirectory({
                                                 className="w-full px-4 py-3 bg-slate-105/50 dark:bg-slate-800/50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all cursor-pointer"
                                             >
                                                 <option value="support_staff">General Support Staff</option>
+                                                <option value="deputy_hoi_boarding">Deputy HOI-Boarding</option>
+                                                <option value="deputy_hoi_administration">Deputy HOI-Administration</option>
+                                                <option value="operations_manager">Operations Manager</option>
+                                                <option value="accounts_clerk">Accounts Clerk</option>
+                                                <option value="housekeeping_attendant">House Keeping Attendant</option>
+                                                <option value="boarding_master">Boarding Master</option>
+                                                <option value="boarding_mistress">Boarding Mistress</option>
+                                                <option value="head_cook">Head Cook</option>
+                                                <option value="cook">Cook</option>
                                                 <option value="librarian">Librarian</option>
                                                 <option value="security">Security Officer</option>
                                                 <option value="info_desk">Info Desk / Receptionist</option>
                                                 <option value="store">Storekeeper / Clerk</option>
-                                                <option value="boarding_master">Boarding Master / Matron</option>
                                                 <option value="driver">School Driver</option>
                                                 <option value="transport_assistant">Transport Assistant</option>
                                                 <option value="secretary">Secretary</option>
@@ -792,6 +800,8 @@ export function RetailUserDirectory({
                                                 <option value="hod">Head of Department</option>
                                                 <option value="dos">Director of Studies</option>
                                                 <option value="deputy">Deputy Principal</option>
+                                                <option value="deputy_hoi_academics">Deputy HOI-Academics</option>
+                                                <option value="cao">CAO</option>
                                                 <option value="head_teacher">Head Teacher / Principal</option>
                                             </select>
                                         )}

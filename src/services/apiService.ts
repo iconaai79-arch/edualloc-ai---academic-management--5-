@@ -6153,8 +6153,8 @@ export const apiService = {
             const hoiTargets = users.filter(u => {
                 const r = (u.role || '').toLowerCase();
                 const roles = (u.roles || []).map((x: any) => String(x).toLowerCase());
-                return r === 'head_teacher' || r === 'headteacher' || r === 'hoi' || r === 'principal' || r === 'managing_director' ||
-                       roles.includes('head_teacher') || roles.includes('headteacher') || roles.includes('hoi') || roles.includes('principal') || roles.includes('managing_director');
+                return r === 'head_teacher' || r === 'headteacher' || r === 'hoi' || r === 'principal' || r === 'managing_director' || r === 'deputy_hoi_academics' || r === 'cao' ||
+                       roles.includes('head_teacher') || roles.includes('headteacher') || roles.includes('hoi') || roles.includes('principal') || roles.includes('managing_director') || roles.includes('deputy_hoi_academics') || roles.includes('cao');
             });
 
             // Fallback: If no dedicated HOI/Headteacher found, notify general institutional admins who are not already in DOS
@@ -6317,7 +6317,57 @@ export const apiService = {
             inst.status = (inst.status || 'active').toLowerCase();
             inst.trialEndsAt = inst.trialEndsAt || inst.trial_ends_at;
             inst.subscriptionEndsAt = inst.subscriptionEndsAt || inst.subscription_ends_at;
+            inst.businessSubType = inst.businessSubType || inst.business_sub_type || '';
+            inst.business_sub_type = inst.businessSubType;
+            inst.category = inst.category || inst.institution_category || '';
+
+            // Auto-correct Driving School institutions registered with 'Education'
+            const isDSCandidate = (inst.category || '').toLowerCase().includes('driving school') ||
+                                  (inst.businessSubType || '').toLowerCase().includes('driving school') ||
+                                  (inst.name || '').toLowerCase().includes('driving school') ||
+                                  (inst.name || '').toLowerCase().includes('driving academy') ||
+                                  (inst.id || '').toLowerCase().startsWith('ds_');
+            if (isDSCandidate && (inst.institutionType === 'Education' || inst.institution_type === 'Education')) {
+                inst.institutionType = 'Driving School';
+                inst.institution_type = 'Driving School';
+            }
+
             inst.phoneNumber = inst.phoneNumber || inst.phone_number || inst.phone || '';
+
+            // Robust branding resolution (supports camelCase, snake_case, nested config, and local cache)
+            let cachedBranding: any = null;
+            try {
+                const bRaw = localStorage.getItem(`eduai_transit_branding_${inst.id}`);
+                if (bRaw) cachedBranding = JSON.parse(bRaw);
+            } catch (_) {}
+
+            inst.logoUrl = inst.logoUrl || inst.logo_url || inst.logo || cachedBranding?.logoUrl || '';
+            inst.logo_url = inst.logoUrl;
+            inst.letterheadConfig = inst.letterheadConfig || inst.letterhead_config || cachedBranding?.letterheadConfig || undefined;
+            inst.letterheadUrl = inst.letterheadUrl || 
+                inst.letterhead_url || 
+                inst.header_image_url || 
+                inst.headerImageUrl || 
+                inst.letterheadConfig?.headerImageUrl || 
+                inst.letterhead_config?.headerImageUrl || 
+                cachedBranding?.letterheadUrl || '';
+            inst.header_image_url = inst.letterheadUrl;
+            inst.headerImageUrl = inst.letterheadUrl;
+            inst.letterhead_url = inst.letterheadUrl;
+            inst.footerImageUrl = inst.footerImageUrl || 
+                inst.footer_image_url || 
+                inst.letterheadConfig?.footerImageUrl || 
+                inst.letterhead_config?.footerImageUrl || 
+                cachedBranding?.footerImageUrl || '';
+            inst.footer_image_url = inst.footerImageUrl;
+            inst.stampUrl = inst.stampUrl || 
+                inst.stamp_url || 
+                inst.sealUrl || 
+                inst.seal_url || 
+                inst.letterheadConfig?.stampImageUrl || 
+                cachedBranding?.stampUrl || '';
+            inst.stamp_url = inst.stampUrl;
+            inst.tagline = inst.tagline || (inst as any).motto || cachedBranding?.tagline || '';
             return inst as Institution;
         });
         try {
@@ -6370,8 +6420,9 @@ export const apiService = {
         return insts;
     },
 
-        async updateInstitution(id: string, updates: Partial<Institution>): Promise<void> {
-        let inst = await this.getInstitution(id);
+    async updateInstitution(id: string, updates: Partial<Institution>): Promise<void> {
+        const insts = await this.fetchInstitutions(id);
+        let inst = (insts || []).find((i: any) => i.id === id);
         if (!inst) {
             const list = ls.get('institutions') || [];
             inst = list.find((i: any) => i.id === id) || ({ id, name: '' } as Institution);

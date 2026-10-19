@@ -182,7 +182,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
     };
 
     const handleDeleteRoom = async (room: BoardingRoom) => {
-        const canManage = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        const canManage = ['admin', 'super_admin', 'boarding_master', 'boarding_mistress', 'deputy_hoi_boarding'].includes(currentUser.role || '');
         if (!canManage) {
             alert('Access Denied: Requisite security clearance for unit decommission not detected.');
             return;
@@ -253,7 +253,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
 
     const handleBulkBedSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const canManage = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        const canManage = ['admin', 'super_admin', 'boarding_master', 'boarding_mistress', 'deputy_hoi_boarding'].includes(currentUser.role || '');
         if (!canManage) {
             alert('Access Denied: Bulk provisioning restricted to administrative profiles.');
             return;
@@ -310,7 +310,7 @@ const RoomBedManager: React.FC<RoomBedManagerProps> = ({
     };
 
     const handleDeleteBed = async (bed: BoardingBed) => {
-        const canManage = ['admin', 'super_admin', 'boarding_master'].includes(currentUser.role || '');
+        const canManage = ['admin', 'super_admin', 'boarding_master', 'boarding_mistress', 'deputy_hoi_boarding'].includes(currentUser.role || '');
         if (!canManage) {
             alert('Access Denied: Item decommission restricted.');
             return;

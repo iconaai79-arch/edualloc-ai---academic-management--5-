@@ -137,14 +137,14 @@ export const HRManager: React.FC<HRManagerProps> = ({
     const teachingStaff = useMemo(() => {
         return staff.filter(s => {
             const r = (s.role || '').toLowerCase();
-            return ['teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod', 'head_teacher', 'principal', 'deputy', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'].includes(r);
+            return ['teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod', 'head_teacher', 'principal', 'deputy', 'deputy_hoi_academics', 'cao', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'].includes(r);
         });
     }, [staff]);
 
     const supportStaff = useMemo(() => {
         return staff.filter(s => {
             const r = (s.role || '').toLowerCase();
-            return !['teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod', 'head_teacher', 'principal', 'deputy', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'].includes(r);
+            return !['teacher', 'lecturer', 'instructor', 'tutor', 'trainer', 'hod', 'head_teacher', 'principal', 'deputy', 'deputy_hoi_academics', 'cao', 'dos', 'dean', 'professor', 'academics_officer', 'class_supervisor'].includes(r);
         });
     }, [staff]);
 
@@ -249,19 +249,29 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 { value: 'teacher', label: 'Instructor / Tutor' },
                 { value: 'hod', label: 'Head of Department (HOD)' },
                 { value: 'dean', label: 'Dean of Faculty / School' },
+                { value: 'deputy_hoi_academics', label: 'Deputy HOI-Academics' },
+                { value: 'deputy_hoi_boarding', label: 'Deputy HOI-Boarding' },
+                { value: 'deputy_hoi_administration', label: 'Deputy HOI-Administration' },
+                { value: 'cao', label: 'CAO' },
+                { value: 'operations_manager', label: 'Operations Manager' },
                 { value: 'tto', label: 'Technical Training Officer (TTO)' },
                 { value: 'academics_officer', label: 'Academics Registrar / Officer' },
                 { value: 'class_supervisor', label: 'Class Supervisor / Advisor' },
                 { value: 'finance_officer', label: 'Finance Officer / Bursar' },
                 { value: 'finance', label: 'Finance Manager' },
+                { value: 'accounts_clerk', label: 'Accounts Clerk' },
                 { value: 'hr_officer', label: 'HR Officer' },
                 { value: 'procurement_officer', label: 'Procurement Officer' },
                 { value: 'librarian', label: 'Chief Librarian / Library Staff' },
-                { value: 'operation_manager', label: 'Operations Manager' },
+                { value: 'boarding_master', label: 'Boarding Master' },
+                { value: 'boarding_mistress', label: 'Boarding Mistress' },
+                { value: 'housekeeping_attendant', label: 'House Keeping Attendant' },
+                { value: 'head_cook', label: 'Head Cook' },
+                { value: 'cook', label: 'Cook' },
+                { value: 'cateress', label: 'Cateress / Cafeteria Staff' },
                 { value: 'store', label: 'Storekeeper / Inventory' },
                 { value: 'security', label: 'Security Officer' },
                 { value: 'driver', label: 'Institutional Driver' },
-                { value: 'cateress', label: 'Cateress / Cafeteria Staff' },
                 { value: 'nurse', label: 'Campus Nurse / Health Officer' },
                 { value: 'support_staff', label: 'Support Staff' },
                 { value: 'admin', label: 'Institution Administrator' },
@@ -273,16 +283,26 @@ export const HRManager: React.FC<HRManagerProps> = ({
             { value: 'teacher', label: 'Teacher / Educator' },
             { value: 'head_teacher', label: 'Principal / Head Teacher' },
             { value: 'deputy', label: 'Deputy Principal' },
+            { value: 'deputy_hoi_academics', label: 'Deputy HOI-Academics' },
+            { value: 'deputy_hoi_boarding', label: 'Deputy HOI-Boarding' },
+            { value: 'deputy_hoi_administration', label: 'Deputy HOI-Administration' },
+            { value: 'cao', label: 'CAO' },
+            { value: 'operations_manager', label: 'Operations Manager' },
             { value: 'dos', label: 'Director of Studies (DOS)' },
             { value: 'hod', label: 'Head of Department (HOD)' },
             { value: 'academics_officer', label: 'Academics Officer' },
             { value: 'class_supervisor', label: 'Class Supervisor / Teacher' },
             { value: 'finance_officer', label: 'Finance Officer / Bursar' },
             { value: 'finance', label: 'Finance Manager / Accountant' },
+            { value: 'accounts_clerk', label: 'Accounts Clerk' },
             { value: 'hr_officer', label: 'HR Officer' },
             { value: 'procurement_officer', label: 'Procurement Officer' },
             { value: 'librarian', label: 'Librarian' },
-            { value: 'boarding_master', label: 'Boarding Master / Matron' },
+            { value: 'boarding_master', label: 'Boarding Master' },
+            { value: 'boarding_mistress', label: 'Boarding Mistress' },
+            { value: 'housekeeping_attendant', label: 'House Keeping Attendant' },
+            { value: 'head_cook', label: 'Head Cook' },
+            { value: 'cook', label: 'Cook' },
             { value: 'nurse', label: 'School Nurse' },
             { value: 'cateress', label: 'Cateress / School Chef' },
             { value: 'store', label: 'Storekeeper / Inventory Officer' },
@@ -313,6 +333,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
         password: '',
         employmentDate: '',
         nationalId: '',
+        pf: '',
         employmentTerms: 'Permanent & Pensionable',
         basicSalary: 0,
         kraPin: '',
@@ -423,17 +444,27 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return member.staffId || (member as any).staff_id || m.staffId || m.nationalId || (member as any).nationalId || `STF-${(member.id || '').replace(/^usr_/, '').slice(-4).toUpperCase()}`;
     };
 
+    const getStaffPf = (member: User): string => {
+        let m = member.metadata || {};
+        if (typeof m === 'string') {
+            try { m = JSON.parse(m); } catch (e) { m = {}; }
+        }
+        return member.pf || (member as any).pfNumber || (member as any).pf_no || (member as any).pfNo || m.pf || m.pfNumber || m.pf_no || m.pfNo || '';
+    };
+
     const filteredStaff = useMemo(() => {
         return staff.filter(member => {
             const sQuery = rosterSearch.trim().toLowerCase();
             const staffId = getStaffIdCode(member).toLowerCase();
             const terms = getStaffTerms(member).toLowerCase();
+            const pfVal = getStaffPf(member).toLowerCase();
 
             const matchesSearch = !sQuery ||
                 (member.name && member.name.toLowerCase().includes(sQuery)) ||
                 (member.email && member.email.toLowerCase().includes(sQuery)) ||
                 (member.phoneNumber && member.phoneNumber.includes(sQuery)) ||
                 staffId.includes(sQuery) ||
+                pfVal.includes(sQuery) ||
                 terms.includes(sQuery) ||
                 (member.role && member.role.toLowerCase().includes(sQuery));
 
@@ -481,6 +512,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
             password: '',
             employmentDate: m.employmentDate || (member as any).employmentDate || '',
             nationalId: m.nationalId || (member as any).nationalId || '',
+            pf: getStaffPf(member),
             employmentTerms: m.employmentTerms || (member as any).employmentTerms || 'Permanent & Pensionable',
             basicSalary: salaryVal,
             kraPin: m.kraPin || (member as any).kraPin || '',
@@ -506,6 +538,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
             const hrMetadata = {
                 employmentDate: onboardForm.employmentDate,
                 nationalId: onboardForm.nationalId,
+                pf: onboardForm.pf,
+                pfNumber: onboardForm.pf,
                 employmentTerms: onboardForm.employmentTerms,
                 basicSalary: salary,
                 basic_salary: salary,
@@ -526,6 +560,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
                 }
                 const updatedPayload = {
                     ...onboardForm,
+                    pf: onboardForm.pf,
+                    pfNumber: onboardForm.pf,
                     basicSalary: salary,
                     basic_salary: salary,
                     metadata: {
@@ -542,6 +578,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
                     email: onboardForm.email,
                     phoneNumber: onboardForm.phoneNumber,
                     role: onboardForm.role,
+                    pf: onboardForm.pf,
+                    pfNumber: onboardForm.pf,
                     basicSalary: salary,
                     basic_salary: salary,
                     metadata: {
@@ -553,6 +591,8 @@ export const HRManager: React.FC<HRManagerProps> = ({
             } else if (onAddUser) {
                 await onAddUser({
                     ...onboardForm,
+                    pf: onboardForm.pf,
+                    pfNumber: onboardForm.pf,
                     basicSalary: salary,
                     basic_salary: salary,
                     metadata: hrMetadata
@@ -563,7 +603,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
             setEditingStaff(null);
             setOnboardForm({
                 name: '', email: '', phoneNumber: '', role: defaultInitialRole, password: '',
-                employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
+                employmentDate: '', nationalId: '', pf: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
                 kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: '',
                 assignedAllowances: [],
                 assignedDeductions: []
@@ -1668,7 +1708,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                         setEditingStaff(null);
                                         setOnboardForm({
                                             name: '', email: '', phoneNumber: '', role: defaultInitialRole, password: '',
-                                            employmentDate: '', nationalId: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
+                                            employmentDate: '', nationalId: '', pf: '', employmentTerms: 'Permanent & Pensionable', basicSalary: 0,
                                             kraPin: '', nssfNo: '', shifNumber: '', bankName: 'Equity Bank', bankBranch: '', bankAccountNumber: '',
                                             assignedAllowances: [],
                                             assignedDeductions: []
@@ -1690,6 +1730,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                     <thead>
                                         <tr className="bg-slate-50/90 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-700 text-[10px] font-black uppercase tracking-widest text-slate-400">
                                             <th className="px-6 py-4">Staff Member</th>
+                                            <th className="px-6 py-4">PF No</th>
                                             <th className="px-6 py-4">Role & Designation</th>
                                             <th className="px-6 py-4">Directory Contact</th>
                                             <th className="px-6 py-4">Terms & Status</th>
@@ -1702,6 +1743,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                             const salary = getStaffSalary(member);
                                             const terms = getStaffTerms(member);
                                             const idCode = getStaffIdCode(member);
+                                            const pfCode = getStaffPf(member);
                                             const currency = (institution as any)?.currency || 'KES';
 
                                             return (
@@ -1723,6 +1765,17 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    </td>
+
+                                                    {/* PF No */}
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {pfCode ? (
+                                                            <span className="inline-flex items-center font-mono text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800/80 px-2.5 py-1 rounded-lg tracking-wide shadow-xs">
+                                                                {pfCode}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 italic">Unassigned</span>
+                                                        )}
                                                     </td>
 
                                                     {/* Role */}
@@ -1830,7 +1883,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
                                         {paginatedStaff.length === 0 && (
                                             <tr>
-                                                <td colSpan={6} className="px-6 py-16 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">
+                                                <td colSpan={7} className="px-6 py-16 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">
                                                     No staff personnel found matching the query.
                                                 </td>
                                             </tr>
@@ -1846,6 +1899,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                 {paginatedStaff.map((member, i) => {
                                     const salary = getStaffSalary(member);
                                     const idCode = getStaffIdCode(member);
+                                    const pfCode = getStaffPf(member);
                                     const currency = (institution as any)?.currency || 'KES';
 
                                     return (
@@ -1854,9 +1908,16 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                 <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-indigo-700 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-md">
                                                     {member.name.charAt(0).toUpperCase()}
                                                 </div>
-                                                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">
-                                                    {idCode}
-                                                </span>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400">
+                                                        {idCode}
+                                                    </span>
+                                                    {pfCode && (
+                                                        <span className="text-[9px] font-mono font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                                                            PF: {pfCode}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div>
                                                 <h4 className="text-base font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{member.name}</h4>
@@ -2764,14 +2825,14 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                     </h4>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <div>
                                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Employment Date</label>
                                         <input
                                             type="date"
                                             value={onboardForm.employmentDate}
                                             onChange={e => setOnboardForm(prev => ({ ...prev, employmentDate: e.target.value }))}
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
                                         />
                                     </div>
                                     <div>
@@ -2781,7 +2842,17 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                             value={onboardForm.nationalId}
                                             onChange={e => setOnboardForm(prev => ({ ...prev, nationalId: e.target.value }))}
                                             placeholder="e.g. 34892019"
-                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block mb-1">Personal File No (PF No)</label>
+                                        <input
+                                            type="text"
+                                            value={onboardForm.pf}
+                                            onChange={e => setOnboardForm(prev => ({ ...prev, pf: e.target.value.toUpperCase() }))}
+                                            placeholder="e.g. PF-0428"
+                                            className="w-full bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3 py-2 text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-indigo-500 uppercase text-indigo-700 dark:text-indigo-300"
                                         />
                                     </div>
                                 </div>

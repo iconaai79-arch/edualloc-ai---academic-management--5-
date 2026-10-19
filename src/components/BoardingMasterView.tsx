@@ -92,7 +92,7 @@ const BoardingMasterView: React.FC<BoardingMasterViewProps> = (props) => {
         onAddIncident = async () => {}
     } = props;
 
-    const isAuthorized = ['boarding_master', 'admin', 'super_admin', 'house_master', 'head_teacher', 'boarding_mistress'].includes(currentUser.role || '');
+    const isAuthorized = ['boarding_master', 'admin', 'super_admin', 'house_master', 'head_teacher', 'boarding_mistress', 'deputy_hoi_boarding', 'deputy'].includes(currentUser.role || '');
 
     const [activeTab, setActiveTab] = useState<BoardingTab>('dashboard');
 

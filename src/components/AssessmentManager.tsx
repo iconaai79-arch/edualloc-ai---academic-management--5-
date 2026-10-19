@@ -516,8 +516,8 @@ export const AssessmentManager: React.FC<AssessmentManagerProps> = ({
         const role = (user.role || '').toLowerCase();
         const adminRoles = [
             'admin', 'super_admin', 'head_teacher', 'principal', 
-            'deputy', 'dos', 'director_of_studies', 'academics_officer', 
-            'academic_director'
+            'deputy', 'deputy_hoi_academics', 'cao', 'dos', 'director_of_studies', 'academics_officer', 
+            'academic_director', 'managing_director', 'hoi'
         ];
         if (adminRoles.includes(role)) return true;
         const userRoles = Array.isArray((user as any).roles) 
