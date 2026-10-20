@@ -54,6 +54,15 @@ import type {
 } from '../../types';
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
+import { DSExcelExportModal } from './DSExcelExportModal';
+import { 
+    exportStudentsToExcel, 
+    exportInvoicesToExcel, 
+    exportReceiptsToExcel, 
+    exportCategoriesToExcel, 
+    exportVoteheadsToExcel, 
+    exportSystemUsersToExcel 
+} from './dsExcelExport';
 
 const calculateSmsPages = (msg: string) => {
     if (!msg) return 1;
@@ -5591,6 +5600,7 @@ END $$;
     const [isOpeningBalanceModalOpen, setIsOpeningBalanceModalOpen] = useState(false);
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
+    const [isExportExcelModalOpen, setIsExportExcelModalOpen] = useState(false);
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | 'lead' | null; data?: any; initialData?: any }>({ type: null });
     const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
     const [selectedQRLesson, setSelectedQRLesson] = useState<any | null>(null);
@@ -7116,6 +7126,14 @@ END $$;
                                     Import Opening Balances
                                 </button>
                             )}
+                            <button 
+                                onClick={() => setIsExportExcelModalOpen(true)} 
+                                className="px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2.5"
+                                title="Export Driving School data to Excel"
+                            >
+                                <DownloadIcon className="w-4 h-4" />
+                                Export to Excel
+                            </button>
                         </div>
                     </div>
                 )}
@@ -7399,6 +7417,17 @@ END $$;
                                             className="px-6 py-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center min-w-max"
                                         >
                                             Export NTSA Roster
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                const fname = exportStudentsToExcel(normalizedStudents, invoices, payments, normalizedInstructors, branches, currentInstitution?.name);
+                                                success(`Exported ${normalizedStudents.length} students to ${fname}`);
+                                            }}
+                                            className="px-6 py-4 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2 min-w-max"
+                                            title="Export students roster with fee balance and progress to Excel"
+                                        >
+                                            <DownloadIcon className="w-4 h-4" />
+                                            Export to Excel
                                         </button>
                                         {selectedStudentIds.length > 0 && (
                                             <button 
@@ -9530,7 +9559,26 @@ END $$;
                     )}
 
                     {activeTab === 'instructors' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+                        <div className="space-y-6 animate-fade-in">
+                            <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Trainer Roster & System Staff</h3>
+                                    <p className="text-xs text-slate-400 font-medium mt-1">Certified instructors, performance statistics and institutional user accounts</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        const fname = exportSystemUsersToExcel(users, normalizedInstructors, branches, currentInstitution?.name);
+                                        success(`Exported system users & instructors to ${fname}`);
+                                    }}
+                                    className="flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm shadow-emerald-600/20 self-start sm:self-auto"
+                                    title="Export all system users and instructors to Excel"
+                                >
+                                    <DownloadIcon className="w-4 h-4" />
+                                    Export Users & Staff Excel
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {filteredInstructors.map(instructor => {
                                 const instructorLessons = (lessons || []).filter(l => l.instructorId === instructor.id && l.status === 'Completed');
                                 const totalTaught = instructorLessons.length;
@@ -9579,6 +9627,7 @@ END $$;
                                     </div>
                                 );
                             })}
+                            </div>
                         </div>
                     )}
 
@@ -9671,6 +9720,17 @@ END $$;
                                                 <button onClick={handleSendBulkReminders} disabled={isSendingReminders} className="px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-amber-100 transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800/40 disabled:opacity-50" title={feeReminderType === 'shortfall' ? 'Broadcast SMS to students with milestone pro-rata shortfalls' : 'Broadcast SMS to students with outstanding invoice balances'}>
                                                     <PhoneIcon className="w-3.5 h-3.5" />
                                                     {isSendingReminders ? 'Sending...' : feeReminderType === 'shortfall' ? 'Remind Shortfalls' : 'Remind Balances'}
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        const fname = exportInvoicesToExcel(invoices, normalizedStudents, branches, currentInstitution?.name);
+                                                        success(`Exported ${invoices.length} invoices to ${fname}`);
+                                                    }}
+                                                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+                                                    title="Export all invoices to Excel"
+                                                >
+                                                    <DownloadIcon className="w-3.5 h-3.5" />
+                                                    Export to Excel
                                                 </button>
 
                                                 <button 
@@ -9956,34 +10016,45 @@ END $$;
                                                         </button>
                                                     </div>
                                                 )}
-                                                <button 
-                                                    onClick={() => {
-                                                        const query = paymentSearch.trim().toLowerCase();
-                                                        const matchedStudent = query ? (normalizedStudents || []).find(s => 
-                                                            s.fullName.toLowerCase().includes(query) || 
-                                                            (s.admissionNumber || '').toLowerCase().includes(query)
-                                                        ) : null;
-                                                        let initialData = undefined;
-                                                        if (matchedStudent) {
-                                                            const studentInvoices = (invoices || []).filter(inv => inv.studentId === matchedStudent.id && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled');
-                                                            const firstInvoice = studentInvoices[0];
-                                                            initialData = {
-                                                                studentId: matchedStudent.id,
-                                                                studentName: matchedStudent.fullName,
-                                                                invoiceId: firstInvoice?.id || '',
-                                                                amount: firstInvoice?.balance || 0
-                                                            };
-                                                        }
-                                                        setActionModal({ 
-                                                            type: 'payment', 
-                                                            initialData 
-                                                        });
-                                                    }} 
-                                                    className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5"
-                                                >
-                                                    <PlusIcon className="w-3.5 h-3.5" />
-                                                    Record Payment
-                                                </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const fname = exportReceiptsToExcel(payments, normalizedStudents, invoices, branches, currentInstitution?.name);
+                                                            success(`Exported ${payments.length} receipts to ${fname}`);
+                                                        }}
+                                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[9px] uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+                                                        title="Export all receipts to Excel"
+                                                    >
+                                                        <DownloadIcon className="w-3.5 h-3.5" />
+                                                        Export to Excel
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const query = paymentSearch.trim().toLowerCase();
+                                                            const matchedStudent = query ? (normalizedStudents || []).find(s => 
+                                                                s.fullName.toLowerCase().includes(query) || 
+                                                                (s.admissionNumber || '').toLowerCase().includes(query)
+                                                            ) : null;
+                                                            let initialData = undefined;
+                                                            if (matchedStudent) {
+                                                                const studentInvoices = (invoices || []).filter(inv => inv.studentId === matchedStudent.id && inv.status !== 'Fully Paid' && inv.status !== 'Cancelled');
+                                                                const firstInvoice = studentInvoices[0];
+                                                                initialData = {
+                                                                    studentId: matchedStudent.id,
+                                                                    studentName: matchedStudent.fullName,
+                                                                    invoiceId: firstInvoice?.id || '',
+                                                                    amount: firstInvoice?.balance || 0
+                                                                };
+                                                            }
+                                                            setActionModal({ 
+                                                                type: 'payment', 
+                                                                initialData 
+                                                            });
+                                                        }} 
+                                                        className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-105 transition-all flex items-center gap-1.5"
+                                                    >
+                                                        <PlusIcon className="w-3.5 h-3.5" />
+                                                        Record Payment
+                                                    </button>
                                             </div>
                                         </div>
                                         <div className="overflow-x-auto">
@@ -11529,6 +11600,10 @@ END $$;
                                 invoices={invoices}
                                 payments={payments}
                                 expenditures={expenditures}
+                                categories={settingsDraft?.licenseCategories || settings?.licenseCategories}
+                                votes={settingsDraft?.votes || settings?.votes}
+                                users={users}
+                                branches={branches}
                             />
                         </div>
                     )}
@@ -11590,9 +11665,24 @@ END $$;
                             <div className="bg-white dark:bg-slate-900 p-8 md:p-12 rounded-[3.5rem] border border-slate-100 dark:border-slate-800 shadow-sm min-h-[500px] animate-fade-in overflow-hidden">
                                 {settingsSubTab === 'categories' && (
                                     <div className="space-y-12 animate-fade-in">
-                                        <div>
-                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">License Categories</h4>
-                                            <p className="text-xs font-medium text-slate-400">Configure supported NTSA/Local driving license classifications and their standard base pricing.</p>
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">License Categories</h4>
+                                                <p className="text-xs font-medium text-slate-400">Configure supported NTSA/Local driving license classifications and their standard base pricing.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const cats = settingsDraft?.licenseCategories || settings?.licenseCategories;
+                                                    const fname = exportCategoriesToExcel(cats, currentInstitution?.name);
+                                                    success(`Exported license categories to ${fname}`);
+                                                }}
+                                                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm self-start sm:self-auto"
+                                                title="Export license categories to Excel"
+                                            >
+                                                <DownloadIcon className="w-4 h-4" />
+                                                Export Categories Excel
+                                            </button>
                                         </div>
 
                                         {/* Presets Block */}
@@ -11940,9 +12030,24 @@ END $$;
 
                                 {settingsSubTab === 'votes' && (
                                     <div className="space-y-12 animate-fade-in">
-                                        <div>
-                                            <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Fee Votes / Heads</h4>
-                                            <p className="text-xs font-medium text-slate-400">Manage configurable billing items and mandatory assessment fees added to student fee projections.</p>
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div>
+                                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-2">Fee Votes / Heads</h4>
+                                                <p className="text-xs font-medium text-slate-400">Manage configurable billing items and mandatory assessment fees added to student fee projections.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const votes = settingsDraft?.votes || settings?.votes;
+                                                    const fname = exportVoteheadsToExcel(votes, currentInstitution?.name);
+                                                    success(`Exported fee voteheads to ${fname}`);
+                                                }}
+                                                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm self-start sm:self-auto"
+                                                title="Export fee voteheads to Excel"
+                                            >
+                                                <DownloadIcon className="w-4 h-4" />
+                                                Export Voteheads Excel
+                                            </button>
                                         </div>
 
                                         {/* Presets Block */}
@@ -13719,6 +13824,20 @@ END $$;
                         onImport={importStudentsWithBalances}
                     />
                 )}
+
+                <DSExcelExportModal
+                    isOpen={isExportExcelModalOpen}
+                    onClose={() => setIsExportExcelModalOpen(false)}
+                    students={normalizedStudents}
+                    invoices={invoices}
+                    payments={payments}
+                    categories={settingsDraft?.licenseCategories || settings?.licenseCategories}
+                    votes={settingsDraft?.votes || settings?.votes}
+                    users={users}
+                    instructors={normalizedInstructors}
+                    branches={branches}
+                    institutionName={currentInstitution?.name}
+                />
 
                 {selectedProgramCategory && (
                     <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">

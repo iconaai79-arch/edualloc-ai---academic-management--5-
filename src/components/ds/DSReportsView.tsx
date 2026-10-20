@@ -26,7 +26,16 @@ import {
 
 import { generateDSStudentLogbookPDF, generateDSPDF } from '../../utils/dsPdfGenerator';
 import { generateStudentStatement } from '../../utils/dsReportGenerator';
-import { CurrencyIcon } from '../icons';
+import { 
+    exportStudentsToExcel, 
+    exportInvoicesToExcel, 
+    exportReceiptsToExcel, 
+    exportCategoriesToExcel, 
+    exportVoteheadsToExcel, 
+    exportSystemUsersToExcel,
+    exportAllDSToExcel 
+} from './dsExcelExport';
+import { CurrencyIcon, DocumentTextIcon, CreditCardIcon } from '../icons';
 
 import { useToast } from '../../services/ToastContext';
 import { PdfViewer } from '../PdfViewer';
@@ -44,6 +53,10 @@ interface DSReportsViewProps {
     invoices?: any[];
     payments?: any[];
     expenditures?: any[];
+    categories?: any[];
+    votes?: any[];
+    users?: any[];
+    branches?: any[];
 }
 
 
@@ -58,7 +71,11 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
     currentInstitution,
     invoices = [],
     payments = [],
-    expenditures = []
+    expenditures = [],
+    categories = [],
+    votes = [],
+    users = [],
+    branches = []
 }) => {
 
     const { success, error: toastError } = useToast();
@@ -67,7 +84,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
 
     // Top-level report mode: 'timetables' | 'logbooks'
 
-    const [reportMode, setReportMode] = useState<'timetables' | 'logbooks' | 'statements' | 'expenditure_summary'>('timetables');
+    const [reportMode, setReportMode] = useState<'timetables' | 'logbooks' | 'statements' | 'expenditure_summary' | 'excel_exports'>('timetables');
     const [expRepDateFrom, setExpRepDateFrom] = useState('');
     const [expRepDateTo, setExpRepDateTo] = useState('');
     const [expRepCategory, setExpRepCategory] = useState('all');
@@ -403,6 +420,19 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                     }`}
                 >
                     Expenditure Reports
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setReportMode('excel_exports');
+                        setGeneratedReport(null);
+                        setLogbookPreviewUrl(null);
+                        setStatementPreviewUrl(null);
+                    }}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${reportMode === 'excel_exports' ? 'bg-emerald-600 text-white shadow-sm scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                >
+                    <DownloadIcon className="w-3.5 h-3.5" />
+                    Excel Data Exports
                 </button>
             </div>
 
@@ -1274,6 +1304,153 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                 );
             })()}
 
+            {/* Mode 5: Excel Data Exports */}
+            {reportMode === 'excel_exports' && (
+                <div className="space-y-8 animate-fade-in">
+                    {/* Master All-in-One Workbook Card */}
+                    <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 rounded-[2.5rem] p-8 sm:p-10 border border-indigo-500/30 text-white shadow-xl shadow-indigo-950/40">
+                        <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+                        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                            <div className="space-y-3 max-w-xl">
+                                <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/30 border border-indigo-400/30 rounded-full text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                                    <SparklesIcon className="w-3.5 h-3.5 text-indigo-300" />
+                                    Complete Institutional Backup
+                                </span>
+                                <h3 className="text-2xl font-black tracking-tight uppercase text-white">
+                                    Master All-in-One Excel Workbook
+                                </h3>
+                                <p className="text-xs text-indigo-200/80 leading-relaxed">
+                                    Download all 6 driving school operational records (Students, Invoices, Receipts, Categories, Fee Voteheads, and System Users) bundled in a single multi-sheet workbook (.xlsx).
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        const fname = exportAllDSToExcel({
+                                            students,
+                                            invoices,
+                                            payments,
+                                            categories,
+                                            votes,
+                                            users,
+                                            instructors,
+                                            branches,
+                                            institutionName: currentInstitution?.name
+                                        });
+                                        success(`Master workbook downloaded: ${fname}`);
+                                    } catch (err: any) {
+                                        toastError(err?.message || "Failed to export master workbook");
+                                    }
+                                }}
+                                className="px-8 py-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 whitespace-nowrap self-stretch md:self-auto justify-center"
+                            >
+                                <DownloadIcon className="w-5 h-5" />
+                                Export Master Workbook (.xlsx)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Section Header */}
+                    <div className="flex items-center justify-between pt-2">
+                        <div>
+                            <h4 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-white">
+                                Individual Module Spreadsheets
+                            </h4>
+                            <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                Formatted Microsoft Excel spreadsheets with auto-fitted column widths and typed numerical summaries.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* 6 Dataset Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {[
+                            {
+                                title: 'Students Roster',
+                                desc: 'Enrolled & graduated students with admission numbers, contacts, license categories, practical progress & fee balances.',
+                                count: `${(students || []).length} Students`,
+                                icon: UsersIcon,
+                                fn: () => exportStudentsToExcel(students, invoices, payments, instructors, branches, currentInstitution?.name)
+                            },
+                            {
+                                title: 'Invoices Ledger',
+                                desc: 'All billing invoices with breakdowns, discounts, sponsorships, paid sums & net outstanding balances.',
+                                count: `${(invoices || []).length} Invoices`,
+                                icon: DocumentTextIcon,
+                                fn: () => exportInvoicesToExcel(invoices, students, branches, currentInstitution?.name)
+                            },
+                            {
+                                title: 'Receipts & Payments',
+                                desc: 'Payment transactions, M-Pesa / Cash / Bank channels, audit stamps, receipts & collecting officers.',
+                                count: `${(payments || []).length} Receipts`,
+                                icon: CreditCardIcon,
+                                fn: () => exportReceiptsToExcel(payments, students, invoices, branches, currentInstitution?.name)
+                            },
+                            {
+                                title: 'License Categories',
+                                desc: 'Supported NTSA driving classifications (A1, B, C1, C, E), base tuition fee pricing & full curriculum lesson outlines.',
+                                count: `${(categories?.length || 5)} Categories`,
+                                icon: AcademicCapIcon,
+                                fn: () => exportCategoriesToExcel(categories, currentInstitution?.name)
+                            },
+                            {
+                                title: 'Fee Voteheads',
+                                desc: 'Configured tuition fee heads, registration fees, NTSA test booking fees, default amounts & mandatory assessment rules.',
+                                count: `${(votes?.length || 6)} Voteheads`,
+                                icon: CurrencyIcon,
+                                fn: () => exportVoteheadsToExcel(votes, currentInstitution?.name)
+                            },
+                            {
+                                title: 'System Users & Staff',
+                                desc: 'Institutional user accounts, administration roles, driving trainers, employee IDs, contacts & campus assignments.',
+                                count: `${(users?.length || 0) + (instructors?.length || 0)} Staff & Trainers`,
+                                icon: UsersIcon,
+                                fn: () => exportSystemUsersToExcel(users, instructors, branches, currentInstitution?.name)
+                            }
+                        ].map((card, idx) => (
+                            <div key={idx} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group hover:border-indigo-400/50 transition-all">
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="w-12 h-12 bg-indigo-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center shadow-xs">
+                                            <card.icon className="w-6 h-6" />
+                                        </div>
+                                        <span className="px-3.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                            {card.count}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                            {card.title}
+                                        </h4>
+                                        <p className="text-xs text-slate-400 font-medium leading-relaxed mt-1">
+                                            {card.desc}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="mt-8 pt-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Excel .xlsx</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            try {
+                                                const fname = card.fn();
+                                                success(`Downloaded: ${fname}`);
+                                            } catch (err: any) {
+                                                toastError(err?.message || "Export failed");
+                                            }
+                                        }}
+                                        className="px-5 py-3 bg-slate-900 hover:bg-emerald-600 dark:bg-slate-800 dark:hover:bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 shadow-sm"
+                                    >
+                                        <DownloadIcon className="w-3.5 h-3.5" />
+                                        Export
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
 
     );
