@@ -56,6 +56,7 @@ import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
 import { DSExcelExportModal } from './DSExcelExportModal';
 import { DSCompleteExcelImportModal } from './DSCompleteExcelImportModal';
+import { DSStaffManager } from './DSStaffManager';
 import { 
     exportStudentsToExcel, 
     exportInvoicesToExcel, 
@@ -4461,7 +4462,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
     const [auditStatusFilter, setAuditStatusFilter] = useState<'all' | 'Completed' | 'Verified' | 'Pending Confirmation' | 'Pending Deletion'>('all');
     const [auditDateFrom, setAuditDateFrom] = useState('');
     const [auditDateTo, setAuditDateTo] = useState('');
-    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk' | 'branches'>('categories');
+    const [settingsSubTab, setSettingsSubTab] = useState<'categories' | 'votes' | 'rules' | 'numbering' | 'fees' | 'slots' | 'groups' | 'kiosk' | 'branches' | 'staff'>('categories');
     const [editingBranch, setEditingBranch] = useState<Partial<Branch> | null>(null);
     const [showBranchModal, setShowBranchModal] = useState(false);
     // Expenditure state
@@ -11633,7 +11634,8 @@ END $$;
                                         { id: 'fees', label: 'Fee Structures', icon: CreditCardIcon },
                                         { id: 'slots', label: 'Lesson Hours', icon: ClockIcon },
                                         { id: 'kiosk', label: 'Kiosk & QR Code', icon: PrinterIcon },
-                                        { id: 'branches', label: 'Branches & Campuses', icon: BuildingOfficeIcon }
+                                        { id: 'branches', label: 'Branches & Campuses', icon: BuildingOfficeIcon },
+                                        { id: 'staff', label: 'Manage Staff', icon: UsersIcon }
                                     ].map(tab => (
                                         <button
                                             key={tab.id}
@@ -13233,6 +13235,19 @@ END $$;
                                             })}
                                         </div>
                                     </div>
+                                )}
+
+                                {settingsSubTab === 'staff' && (
+                                    <DSStaffManager
+                                        institutionId={currentInstitution?.id || ''}
+                                        currentInstitution={currentInstitution}
+                                        currentUser={currentUser}
+                                        branches={branches}
+                                        activeBranchId={activeBranchId}
+                                        instructors={instructors}
+                                        onRefreshInstructors={refreshData}
+                                        settings={settings}
+                                    />
                                 )}
                             </div>
                         </div>
