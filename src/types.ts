@@ -6965,7 +6965,7 @@ export interface RemedialAllocation {
     isDutyLesson?: boolean;
     is_duty_lesson?: boolean;
     priority?: 'High' | 'Medium' | 'Low';
-    status?: 'Confirmed' | 'Substitute Pending' | 'Cancelled' | 'Completed' | 'Escalated to DOS';
+    status?: 'Confirmed' | 'Substitute Pending' | 'Swipe Pending' | 'Cancelled' | 'Completed' | 'Escalated to DOS';
     substituteTeacherId?: string;
     substituteTeacherName?: string;
     originalTeacherId?: string;
@@ -6974,6 +6974,23 @@ export interface RemedialAllocation {
     cancelledAt?: string;
     confirmationDeadline?: string;
     declinedTeacherIds?: string[];
+
+    // Remedial Lesson Swipe / Swap feature fields:
+    swapType?: 'handover' | 'mutual_trade' | 'open_pool';
+    swapStatus?: 'none' | 'pending' | 'accepted' | 'declined' | 'cancelled';
+    targetSwapAllocationId?: string; // If mutual trade, the target allocation ID being exchanged
+    targetSwapSubjectName?: string;
+    targetSwapClassName?: string;
+    targetSwapDayOfWeek?: string;
+    targetSwapStartTime?: string;
+    targetSwapEndTime?: string;
+    swapTargetTeacherId?: string;
+    swapTargetTeacherName?: string;
+    swapInitiatedByTeacherId?: string;
+    swapInitiatedByTeacherName?: string;
+    swapNotes?: string;
+    swapInitiatedAt?: string;
+
     createdAt?: string;
     updatedAt?: string;
     institutionId: string;

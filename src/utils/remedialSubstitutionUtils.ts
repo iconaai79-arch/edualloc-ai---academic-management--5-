@@ -659,3 +659,134 @@ export function isTeacherQualifiedForLesson(params: TeacherQualificationParams):
     };
 }
 
+export interface EligibleSwipeTeacher {
+    teacher: User;
+    isAvailable: boolean;
+    conflictReason?: string;
+    isSubjectMatch: boolean;
+    isGradeMatch: boolean;
+    isPreferredDay?: boolean;
+    matchScore: number;
+    reasons: string[];
+    remedialAllocations: RemedialAllocation[];
+}
+
+/**
+ * Discovers and ranks eligible peer teachers for a remedial lesson swipe / swap request.
+ * Computes availability, timetable conflict status, subject/grade qualifications, and other active remedial allocations.
+ */
+export function getEligibleSwipeTeachers(params: {
+    allocation: RemedialAllocation;
+    currentTeacherId: string;
+    candidates: User[];
+    allAllocations: RemedialAllocation[];
+    rateSetting?: any;
+    classSubjectAllocations?: any;
+}): EligibleSwipeTeacher[] {
+    const {
+        allocation,
+        currentTeacherId,
+        candidates,
+        allAllocations,
+        rateSetting,
+        classSubjectAllocations = {}
+    } = params;
+
+    const results: EligibleSwipeTeacher[] = [];
+    const targetSubject = (allocation.subjectName || allocation.subjectId || '').trim();
+    const targetGrade = extractGradeLevel(allocation.className || allocation.courseId || '');
+
+    for (const teacher of candidates) {
+        if (!teacher || !teacher.id || teacher.id === currentTeacherId || teacher.id === allocation.teacherId) {
+            continue;
+        }
+
+        // Only genuine academic teachers
+        if (!isAcademicTeacher(teacher)) {
+            continue;
+        }
+
+        // Check if teacher is excluded from remedials in metadata
+        const teacherMeta = (teacher as any).metadata || {};
+        if (teacherMeta.remedialEligible === false || teacherMeta.isRemedialEligible === false) {
+            continue;
+        }
+
+        // Check qualification
+        const qual = isTeacherQualifiedForLesson({
+            teacher,
+            targetSubject,
+            targetClassOrGrade: targetGrade,
+            teacherPreferences: rateSetting?.teacherPreferences,
+            classSubjectAllocations,
+            strictSubjectMatchOnly: false,
+            strictGradeMatchOnly: false,
+            allowAdjacentGradeSubstitution: true,
+            targetDayOfWeek: allocation.dayOfWeek
+        });
+
+        // Check collision on this day and time
+        const teacherAllocationsToday = (allAllocations || []).filter(a =>
+            a && a.id !== allocation.id &&
+            a.status !== 'Cancelled' &&
+            (a.teacherId === teacher.id || (a.status === 'Substitute Pending' && a.substituteTeacherId === teacher.id) || (a.status === 'Swipe Pending' && a.swapTargetTeacherId === teacher.id)) &&
+            a.dayOfWeek === allocation.dayOfWeek
+        );
+
+        const overlappingAlloc = teacherAllocationsToday.find(a =>
+            isTimeRangeOverlapping(a.startTime, a.endTime, allocation.startTime, allocation.endTime)
+        );
+
+        let isAvailable = true;
+        let conflictReason: string | undefined = undefined;
+
+        if (overlappingAlloc) {
+            isAvailable = false;
+            conflictReason = `Clashes with ${overlappingAlloc.subjectName || 'Lesson'} (${overlappingAlloc.startTime} - ${overlappingAlloc.endTime})`;
+        } else {
+            // Check daily quota limit
+            const isWeekend = allocation.dayOfWeek === 'Saturday' || allocation.dayOfWeek === 'Sunday';
+            const maxAllowed = isWeekend
+                ? (rateSetting?.maxWeekendLessonsPerTeacherPerDay ?? rateSetting?.maxWeekendLessonsPerDay ?? 2)
+                : (rateSetting?.maxLessonsPerTeacherPerDay ?? rateSetting?.maxLessonsPerDay ?? 1);
+
+            const activeLessonsCount = teacherAllocationsToday.length;
+            if (activeLessonsCount >= maxAllowed) {
+                isAvailable = false;
+                conflictReason = `Reached daily remedial limit (${activeLessonsCount}/${maxAllowed} lessons)`;
+            }
+        }
+
+        // Find this teacher's other remedial allocations (eligible for mutual slot exchange)
+        const otherAllocations = (allAllocations || []).filter(a =>
+            a && a.id !== allocation.id &&
+            a.teacherId === teacher.id &&
+            (a.status === 'Confirmed' || !a.status)
+        );
+
+        let matchScore = 0;
+        if (qual.isSubjectMatch) matchScore += 50;
+        if (qual.isGradeMatch) matchScore += 30;
+        if (qual.isPreferredDay) matchScore += 20;
+        if (isAvailable) matchScore += 100;
+
+        results.push({
+            teacher,
+            isAvailable,
+            conflictReason,
+            isSubjectMatch: qual.isSubjectMatch,
+            isGradeMatch: qual.isGradeMatch,
+            isPreferredDay: qual.isPreferredDay,
+            matchScore,
+            reasons: qual.reasons,
+            remedialAllocations: otherAllocations
+        });
+    }
+
+    // Sort available first, then highest match score, then alphabetical
+    return results.sort((a, b) => {
+        if (a.isAvailable !== b.isAvailable) return a.isAvailable ? -1 : 1;
+        if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+        return (a.teacher.name || '').localeCompare(b.teacher.name || '');
+    });
+}

@@ -13,7 +13,7 @@ import {
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
     Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
     SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle,
-    ChevronLeft, ChevronRight, Search, Filter, Trash2, Copy, Layers
+    ChevronLeft, ChevronRight, Search, Filter, Trash2, Copy, Layers, ArrowLeftRight
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
@@ -21,6 +21,7 @@ import {
 } from '../utils/remedialSubstitutionUtils';
 import { detectDuplicateRemedialSessions } from '../utils/remedialDuplicateUtils';
 import { DuplicateRemedialSessionsModal } from './DuplicateRemedialSessionsModal';
+import { SwipeLessonModal } from './SwipeLessonModal';
 import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
 import { calculateRemedialSessionDuration, timeToMinutes, isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
 
@@ -232,6 +233,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [remedialAllocations, setRemedialAllocations] = useState<RemedialAllocation[]>([]);
     const [rateSetting, setRateSetting] = useState<RemedialRateSetting | null>(null);
     const [cancellingAllocation, setCancellingAllocation] = useState<RemedialAllocation | null>(null);
+    const [swipingAllocation, setSwipingAllocation] = useState<RemedialAllocation | null>(null);
     const [cancellationReason, setCancellationReason] = useState<string>('Medical Emergency');
     const [cancellationNotes, setCancellationNotes] = useState<string>('');
     const [isCancelling, setIsCancelling] = useState(false);
@@ -1285,7 +1287,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     // Teacher's own remedial allocations
     const myRemedialAllocations = useMemo(() => {
         return (remedialAllocations || []).filter(a =>
-            a.teacherId === user?.id || (a.status === 'Substitute Pending' && a.originalTeacherId === user?.id)
+            a.teacherId === user?.id || 
+            ((a.status === 'Substitute Pending' || a.status === 'Swipe Pending') && a.originalTeacherId === user?.id)
         ).sort((a, b) => {
             const dateA = getNextOccurrenceDate(a.dayOfWeek, a.startTime);
             const dateB = getNextOccurrenceDate(b.dayOfWeek, b.startTime);
@@ -1293,10 +1296,11 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
         });
     }, [remedialAllocations, user?.id]);
 
-    // Incoming substitute requests targeted at this teacher
+    // Incoming substitute & swipe requests targeted at this teacher
     const pendingSubstituteRequests = useMemo(() => {
         return (remedialAllocations || []).filter(a =>
-            a.status === 'Substitute Pending' && a.substituteTeacherId === user?.id
+            (a.status === 'Substitute Pending' || a.status === 'Swipe Pending') &&
+            (a.substituteTeacherId === user?.id || a.swapTargetTeacherId === user?.id || (a.swapType === 'open_pool' && a.teacherId !== user?.id && a.originalTeacherId !== user?.id))
         );
     }, [remedialAllocations, user?.id]);
 
@@ -2371,6 +2375,140 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                             }
                         };
 
+                        const handleStartSwipe = (alloc: RemedialAllocation) => {
+                            const cutoff = checkCancellationCutoff(
+                                alloc.dayOfWeek,
+                                alloc.startTime,
+                                rateSetting?.cancellationCutoffHours ?? 3
+                            );
+                            if (!cutoff.canCancel) {
+                                alert(cutoff.message || 'Swipe request is locked as the lesson start time is within the restricted cutoff window.');
+                                return;
+                            }
+                            setSwipingAllocation(alloc);
+                        };
+
+                        const handleSubmitSwipe = async (params: {
+                            allocation: RemedialAllocation;
+                            swapType: 'handover' | 'mutual_trade' | 'open_pool';
+                            targetTeacher: User | null;
+                            targetAllocation?: RemedialAllocation | null;
+                            notes: string;
+                        }) => {
+                            const { allocation, swapType, targetTeacher, targetAllocation, notes } = params;
+                            const timeoutMins = rateSetting?.confirmationTimeoutMinutes ?? 45;
+                            const deadlineIso = new Date(Date.now() + timeoutMins * 60000).toISOString();
+
+                            if (swapType === 'mutual_trade') {
+                                if (!targetTeacher || !targetAllocation) {
+                                    throw new Error('Target colleague and remedial lesson must be selected for a mutual trade.');
+                                }
+
+                                const updatedSource: RemedialAllocation = {
+                                    ...allocation,
+                                    status: 'Swipe Pending',
+                                    swapType: 'mutual_trade',
+                                    swapStatus: 'pending',
+                                    targetSwapAllocationId: targetAllocation.id,
+                                    targetSwapSubjectName: targetAllocation.subjectName,
+                                    targetSwapClassName: targetAllocation.className,
+                                    targetSwapDayOfWeek: targetAllocation.dayOfWeek,
+                                    targetSwapStartTime: targetAllocation.startTime,
+                                    targetSwapEndTime: targetAllocation.endTime,
+                                    swapTargetTeacherId: targetTeacher.id,
+                                    swapTargetTeacherName: targetTeacher.name,
+                                    swapInitiatedByTeacherId: user?.id,
+                                    swapInitiatedByTeacherName: user?.name,
+                                    swapNotes: notes,
+                                    swapInitiatedAt: new Date().toISOString(),
+                                    originalTeacherId: user?.id,
+                                    originalTeacherName: user?.name,
+                                    substituteTeacherId: targetTeacher.id,
+                                    substituteTeacherName: targetTeacher.name,
+                                    confirmationDeadline: deadlineIso
+                                };
+
+                                const updatedTarget: RemedialAllocation = {
+                                    ...targetAllocation,
+                                    status: 'Swipe Pending',
+                                    swapType: 'mutual_trade',
+                                    swapStatus: 'pending',
+                                    targetSwapAllocationId: allocation.id,
+                                    targetSwapSubjectName: allocation.subjectName,
+                                    targetSwapClassName: allocation.className,
+                                    targetSwapDayOfWeek: allocation.dayOfWeek,
+                                    targetSwapStartTime: allocation.startTime,
+                                    targetSwapEndTime: allocation.endTime,
+                                    swapTargetTeacherId: user?.id,
+                                    swapTargetTeacherName: user?.name,
+                                    swapInitiatedByTeacherId: user?.id,
+                                    swapInitiatedByTeacherName: user?.name,
+                                    swapNotes: notes,
+                                    swapInitiatedAt: new Date().toISOString(),
+                                    confirmationDeadline: deadlineIso
+                                };
+
+                                await Promise.all([
+                                    apiService.saveRemedialAllocation(updatedSource),
+                                    apiService.saveRemedialAllocation(updatedTarget)
+                                ]);
+
+                                props.onLogAction?.(`Teacher ${user?.name} submitted mutual remedial swipe request with ${targetTeacher.name} (${allocation.subjectName} ⇄ ${targetAllocation.subjectName})`);
+                                alert(`Mutual swipe request sent to ${targetTeacher.name}!\n\nThey have ${timeoutMins} minutes to confirm the trade. Both schedules will update immediately once accepted.`);
+                            } else if (swapType === 'handover') {
+                                if (!targetTeacher) {
+                                    throw new Error('Target colleague must be selected for handover.');
+                                }
+
+                                const updatedAlloc: RemedialAllocation = {
+                                    ...allocation,
+                                    status: 'Swipe Pending',
+                                    swapType: 'handover',
+                                    swapStatus: 'pending',
+                                    swapTargetTeacherId: targetTeacher.id,
+                                    swapTargetTeacherName: targetTeacher.name,
+                                    swapInitiatedByTeacherId: user?.id,
+                                    swapInitiatedByTeacherName: user?.name,
+                                    swapNotes: notes,
+                                    swapInitiatedAt: new Date().toISOString(),
+                                    originalTeacherId: user?.id,
+                                    originalTeacherName: user?.name,
+                                    substituteTeacherId: targetTeacher.id,
+                                    substituteTeacherName: targetTeacher.name,
+                                    cancellationReason: notes,
+                                    confirmationDeadline: deadlineIso
+                                };
+
+                                await apiService.saveRemedialAllocation(updatedAlloc);
+                                props.onLogAction?.(`Teacher ${user?.name} submitted remedial swipe handover request to ${targetTeacher.name} for ${allocation.subjectName}`);
+                                alert(`Swipe handover request sent to ${targetTeacher.name}!\n\nConfirmation Deadline: ${timeoutMins} minutes. If accepted, the lesson and attendance logs will credit directly to them.`);
+                            } else {
+                                const updatedAlloc: RemedialAllocation = {
+                                    ...allocation,
+                                    status: 'Swipe Pending',
+                                    swapType: 'open_pool',
+                                    swapStatus: 'pending',
+                                    swapInitiatedByTeacherId: user?.id,
+                                    swapInitiatedByTeacherName: user?.name,
+                                    swapNotes: notes,
+                                    swapInitiatedAt: new Date().toISOString(),
+                                    originalTeacherId: user?.id,
+                                    originalTeacherName: user?.name,
+                                    substituteTeacherId: undefined,
+                                    substituteTeacherName: 'Open Pool',
+                                    cancellationReason: notes,
+                                    confirmationDeadline: deadlineIso
+                                };
+
+                                await apiService.saveRemedialAllocation(updatedAlloc);
+                                props.onLogAction?.(`Teacher ${user?.name} posted remedial lesson ${allocation.subjectName} to open pool (Notes: ${notes})`);
+                                alert(`Lesson broadcasted to Open Pool! Any certified subject teacher can now claim and teach this session.`);
+                            }
+
+                            setSwipingAllocation(null);
+                            loadRemedialData();
+                        };
+
                         const handleStartCancellation = (alloc: RemedialAllocation) => {
                             const cutoff = checkCancellationCutoff(
                                 alloc.dayOfWeek,
@@ -2455,91 +2593,186 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         };
 
                         const handleAcceptSubstituteRequest = async (alloc: RemedialAllocation) => {
-                            if (!window.confirm(`Confirm accepting substitute lesson for ${alloc.subjectName} (${alloc.className || ''} ${alloc.stream || ''}) on ${alloc.dayOfWeek} at ${alloc.startTime}?`)) return;
+                            const isMutual = alloc.swapType === 'mutual_trade';
+                            const promptMsg = isMutual 
+                                ? `Accept mutual remedial swipe with ${alloc.swapInitiatedByTeacherName || 'colleague'}?\n\nYou will teach: ${alloc.subjectName} (${alloc.className || ''}) on ${alloc.dayOfWeek} at ${alloc.startTime}.\nThey will teach: ${alloc.targetSwapSubjectName || 'your lesson'} on ${alloc.targetSwapDayOfWeek || ''} at ${alloc.targetSwapStartTime || ''}.`
+                                : `Confirm accepting remedial lesson swipe for ${alloc.subjectName} (${alloc.className || ''} ${alloc.stream || ''}) on ${alloc.dayOfWeek} at ${alloc.startTime}?`;
+
+                            if (!window.confirm(promptMsg)) return;
 
                             try {
-                                const updated: RemedialAllocation = {
-                                    ...alloc,
-                                    status: 'Confirmed',
-                                    teacherId: user?.id || '',
-                                    teacherName: user?.name || 'Teacher',
-                                    substituteTeacherId: undefined,
-                                    substituteTeacherName: undefined,
-                                    confirmationDeadline: undefined
-                                };
+                                if (isMutual && alloc.targetSwapAllocationId) {
+                                    const partnerAlloc = (remedialAllocations || []).find(a => a.id === alloc.targetSwapAllocationId);
+                                    
+                                    const updatedThis: RemedialAllocation = {
+                                        ...alloc,
+                                        status: 'Confirmed',
+                                        swapStatus: 'accepted',
+                                        teacherId: user?.id || '',
+                                        teacherName: user?.name || 'Teacher',
+                                        substituteTeacherId: undefined,
+                                        substituteTeacherName: undefined,
+                                        confirmationDeadline: undefined,
+                                        swapTargetTeacherId: undefined,
+                                        swapTargetTeacherName: undefined
+                                    };
 
-                                await apiService.saveRemedialAllocation(updated);
-                                props.onLogAction?.(`Teacher ${user?.name} accepted substitute lesson for ${alloc.subjectName} on ${alloc.dayOfWeek}`);
-                                alert(`Great! You have accepted the lesson. It is now officially registered on your remedial schedule.`);
+                                    if (partnerAlloc) {
+                                        const updatedPartner: RemedialAllocation = {
+                                            ...partnerAlloc,
+                                            status: 'Confirmed',
+                                            swapStatus: 'accepted',
+                                            teacherId: alloc.swapInitiatedByTeacherId || partnerAlloc.teacherId,
+                                            teacherName: alloc.swapInitiatedByTeacherName || partnerAlloc.teacherName,
+                                            substituteTeacherId: undefined,
+                                            substituteTeacherName: undefined,
+                                            confirmationDeadline: undefined,
+                                            swapTargetTeacherId: undefined,
+                                            swapTargetTeacherName: undefined
+                                        };
+                                        await apiService.saveRemedialAllocation(updatedPartner);
+                                    }
+
+                                    await apiService.saveRemedialAllocation(updatedThis);
+                                    props.onLogAction?.(`Teacher ${user?.name} accepted mutual remedial swipe with ${alloc.swapInitiatedByTeacherName}`);
+                                    alert(`Mutual swipe accepted! Both remedial timetables and attendance codes have been updated.`);
+                                } else {
+                                    const updated: RemedialAllocation = {
+                                        ...alloc,
+                                        status: 'Confirmed',
+                                        swapStatus: 'accepted',
+                                        teacherId: user?.id || '',
+                                        teacherName: user?.name || 'Teacher',
+                                        substituteTeacherId: undefined,
+                                        substituteTeacherName: undefined,
+                                        confirmationDeadline: undefined,
+                                        swapTargetTeacherId: undefined,
+                                        swapTargetTeacherName: undefined
+                                    };
+
+                                    await apiService.saveRemedialAllocation(updated);
+                                    props.onLogAction?.(`Teacher ${user?.name} accepted remedial lesson swipe for ${alloc.subjectName} on ${alloc.dayOfWeek}`);
+                                    alert(`Lesson accepted! It is now officially registered on your remedial schedule and linked to your attendance QR codes.`);
+                                }
+
                                 loadRemedialData();
                             } catch (err: any) {
-                                alert(err.message || 'Failed to accept substitute request');
+                                alert(err.message || 'Failed to accept swipe request');
                             }
                         };
 
                         const handleDeclineSubstituteRequest = async (alloc: RemedialAllocation) => {
-                            if (!window.confirm(`Decline substitute request for ${alloc.subjectName} on ${alloc.dayOfWeek}? The system will immediately cascade this request to the next available teacher.`)) return;
+                            if (!window.confirm(`Decline swipe request for ${alloc.subjectName} on ${alloc.dayOfWeek}?`)) return;
 
                             try {
-                                const updatedDeclined = [...(alloc.declinedTeacherIds || []), user?.id || ''].filter(Boolean);
-                                const timeoutMins = rateSetting?.confirmationTimeoutMinutes ?? 45;
+                                if (alloc.swapType === 'mutual_trade' && alloc.targetSwapAllocationId) {
+                                    const partnerAlloc = (remedialAllocations || []).find(a => a.id === alloc.targetSwapAllocationId);
+                                    const updatedThis: RemedialAllocation = {
+                                        ...alloc,
+                                        status: 'Confirmed',
+                                        swapStatus: 'declined',
+                                        substituteTeacherId: undefined,
+                                        substituteTeacherName: undefined,
+                                        swapTargetTeacherId: undefined,
+                                        swapTargetTeacherName: undefined,
+                                        confirmationDeadline: undefined
+                                    };
+                                    if (partnerAlloc) {
+                                        const updatedPartner: RemedialAllocation = {
+                                            ...partnerAlloc,
+                                            status: 'Confirmed',
+                                            swapStatus: 'declined',
+                                            substituteTeacherId: undefined,
+                                            substituteTeacherName: undefined,
+                                            swapTargetTeacherId: undefined,
+                                            swapTargetTeacherName: undefined,
+                                            confirmationDeadline: undefined
+                                        };
+                                        await apiService.saveRemedialAllocation(updatedPartner);
+                                    }
+                                    await apiService.saveRemedialAllocation(updatedThis);
+                                } else {
+                                    const updatedDeclined = [...(alloc.declinedTeacherIds || []), user?.id || ''].filter(Boolean);
+                                    const timeoutMins = rateSetting?.confirmationTimeoutMinutes ?? 45;
 
-                                const { bestCandidate: nextCandidate } = rankSubstituteCandidates({
-                                    allocation: alloc,
-                                    candidates: (props.users || []) as User[],
-                                    allAllocations: remedialAllocations,
-                                    declinedTeacherIds: updatedDeclined,
-                                    teacherPreferences: rateSetting?.teacherPreferences,
-                                    classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
-                                    maxLessonsPerDay: rateSetting?.maxLessonsPerDay ?? 1,
-                                    maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2,
-                                    strictSubjectMatch: rateSetting?.strictSubjectMatchOnly ?? true,
-                                    strictGradeMatch: rateSetting?.strictGradeMatchOnly ?? true,
-                                    allowAdjacentGrade: rateSetting?.allowAdjacentGradeSubstitution ?? false
-                                });
+                                    const { bestCandidate: nextCandidate } = rankSubstituteCandidates({
+                                        allocation: alloc,
+                                        candidates: (props.users || []) as User[],
+                                        allAllocations: remedialAllocations,
+                                        declinedTeacherIds: updatedDeclined,
+                                        teacherPreferences: rateSetting?.teacherPreferences,
+                                        classSubjectAllocations: (currentInstitution as any)?.classSubjectAllocations || {},
+                                        maxLessonsPerDay: rateSetting?.maxLessonsPerDay ?? 1,
+                                        maxWeekendLessonsPerDay: rateSetting?.maxWeekendLessonsPerDay ?? 2,
+                                        strictSubjectMatch: rateSetting?.strictSubjectMatchOnly ?? true,
+                                        strictGradeMatch: rateSetting?.strictGradeMatchOnly ?? true,
+                                        allowAdjacentGrade: rateSetting?.allowAdjacentGradeSubstitution ?? false
+                                    });
 
-                                const updated: RemedialAllocation = {
-                                    ...alloc,
-                                    declinedTeacherIds: updatedDeclined,
-                                    status: nextCandidate ? 'Substitute Pending' : 'Escalated to DOS',
-                                    substituteTeacherId: nextCandidate ? nextCandidate.id : undefined,
-                                    substituteTeacherName: nextCandidate ? nextCandidate.name : undefined,
-                                    confirmationDeadline: nextCandidate 
-                                        ? new Date(Date.now() + timeoutMins * 60000).toISOString() 
-                                        : undefined
-                                };
+                                    const updated: RemedialAllocation = {
+                                        ...alloc,
+                                        declinedTeacherIds: updatedDeclined,
+                                        status: nextCandidate ? 'Swipe Pending' : 'Escalated to DOS',
+                                        swapStatus: nextCandidate ? 'pending' : 'declined',
+                                        substituteTeacherId: nextCandidate ? nextCandidate.id : undefined,
+                                        substituteTeacherName: nextCandidate ? nextCandidate.name : undefined,
+                                        swapTargetTeacherId: nextCandidate ? nextCandidate.id : undefined,
+                                        swapTargetTeacherName: nextCandidate ? nextCandidate.name : undefined,
+                                        confirmationDeadline: nextCandidate 
+                                            ? new Date(Date.now() + timeoutMins * 60000).toISOString() 
+                                            : undefined
+                                    };
 
-                                await apiService.saveRemedialAllocation(updated);
-                                props.onLogAction?.(`Teacher ${user?.name} declined substitute lesson for ${alloc.subjectName}. Cascaded to: ${nextCandidate ? nextCandidate.name : 'Escalated to DOS'}`);
-                                alert(`You have declined this substitution. The system has automatically forwarded the request to ${nextCandidate ? nextCandidate.name : 'the Director of Studies (DOS)'}.`);
+                                    await apiService.saveRemedialAllocation(updated);
+                                }
+
+                                props.onLogAction?.(`Teacher ${user?.name} declined swipe request for ${alloc.subjectName}`);
+                                alert(`You have declined this swipe request.`);
                                 loadRemedialData();
                             } catch (err: any) {
-                                alert(err.message || 'Failed to decline substitute request');
+                                alert(err.message || 'Failed to decline swipe request');
                             }
                         };
 
                         const handleRecallSubstituteRequest = async (alloc: RemedialAllocation) => {
-                            if (!window.confirm(`Recall your cancellation request for ${alloc.subjectName} on ${alloc.dayOfWeek}? The lesson will be restored directly to your active schedule.`)) return;
+                            if (!window.confirm(`Recall your swipe request for ${alloc.subjectName} on ${alloc.dayOfWeek}? The lesson will be restored directly to your active schedule.`)) return;
 
                             try {
+                                if (alloc.swapType === 'mutual_trade' && alloc.targetSwapAllocationId) {
+                                    const partnerAlloc = (remedialAllocations || []).find(a => a.id === alloc.targetSwapAllocationId);
+                                    if (partnerAlloc) {
+                                        await apiService.saveRemedialAllocation({
+                                            ...partnerAlloc,
+                                            status: 'Confirmed',
+                                            swapStatus: 'cancelled',
+                                            targetSwapAllocationId: undefined,
+                                            swapTargetTeacherId: undefined,
+                                            confirmationDeadline: undefined
+                                        });
+                                    }
+                                }
+
                                 const updated: RemedialAllocation = {
                                     ...alloc,
                                     status: 'Confirmed',
-                                    teacherId: user?.id || '',
-                                    teacherName: user?.name || 'Teacher',
+                                    swapStatus: 'cancelled',
                                     substituteTeacherId: undefined,
                                     substituteTeacherName: undefined,
                                     confirmationDeadline: undefined,
                                     cancellationReason: undefined,
+                                    swapTargetTeacherId: undefined,
+                                    swapTargetTeacherName: undefined,
+                                    targetSwapAllocationId: undefined,
+                                    swapNotes: undefined,
                                     cancelledAt: undefined
                                 };
 
                                 await apiService.saveRemedialAllocation(updated);
-                                props.onLogAction?.(`Teacher ${user?.name} recalled cancellation for remedial ${alloc.subjectName} on ${alloc.dayOfWeek}`);
-                                alert(`Cancellation recalled! The lesson is restored to your active timetable.`);
+                                props.onLogAction?.(`Teacher ${user?.name} recalled swipe request for remedial ${alloc.subjectName} on ${alloc.dayOfWeek}`);
+                                alert(`Swipe request recalled! The lesson is restored to your active timetable.`);
                                 loadRemedialData();
                             } catch (err: any) {
-                                alert(err.message || 'Failed to recall cancellation');
+                                alert(err.message || 'Failed to recall swipe request');
                             }
                         };
 
@@ -2653,7 +2886,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                             {myRemedialAllocations.map(alloc => {
                                                 const nextDate = getNextOccurrenceDate(alloc.dayOfWeek, alloc.startTime);
                                                 const cutoff = checkCancellationCutoff(alloc.dayOfWeek, alloc.startTime, rateSetting?.cancellationCutoffHours ?? 3);
-                                                const isSubPending = alloc.status === 'Substitute Pending';
+                                                const isSwipePending = alloc.status === 'Swipe Pending';
+                                                const isSubPending = alloc.status === 'Substitute Pending' || isSwipePending;
                                                 const isEscalated = alloc.status === 'Escalated to DOS';
 
                                                 return (
@@ -2724,27 +2958,27 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                             {isSubPending ? (
                                                                 <button
                                                                     onClick={() => handleRecallSubstituteRequest(alloc)}
-                                                                    className="w-full py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
+                                                                    className="w-full py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-200 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                                                 >
-                                                                    <RotateCcw className="w-3 h-3" /> Recall Cancellation
+                                                                    <RotateCcw className="w-3 h-3" /> Recall Swipe Request
                                                                 </button>
                                                             ) : (
                                                                 <button
-                                                                    onClick={() => handleStartCancellation(alloc)}
-                                                                    className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                                                                    onClick={() => handleStartSwipe(alloc)}
+                                                                    className={`w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                                                                         cutoff.canCancel
-                                                                            ? 'bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white dark:bg-rose-950/40 dark:text-rose-300'
+                                                                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md active:scale-95'
                                                                             : 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 cursor-not-allowed'
                                                                     }`}
-                                                                    title={cutoff.canCancel ? 'Cancel and auto-assign next qualified substitute' : cutoff.message}
+                                                                    title={cutoff.canCancel ? 'Swipe or exchange this lesson with a colleague' : cutoff.message}
                                                                 >
                                                                     {cutoff.canCancel ? (
                                                                         <>
-                                                                            <UserX className="w-3 h-3" /> Cancel / Request Sub
+                                                                            <ArrowLeftRight className="w-3.5 h-3.5" /> Swipe / Swap Lesson
                                                                         </>
                                                                     ) : (
                                                                         <>
-                                                                            <Lock className="w-3 h-3" /> Cutoff Passed (Locked)
+                                                                            <Lock className="w-3.5 h-3.5" /> Cutoff Passed (Locked)
                                                                         </>
                                                                     )}
                                                                 </button>
@@ -3587,6 +3821,18 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                 )}
 
                                 {/* ===== CANCELLATION & AUTO-SUBSTITUTION MODAL ===== */}
+                                <SwipeLessonModal
+                                    isOpen={!!swipingAllocation}
+                                    onClose={() => setSwipingAllocation(null)}
+                                    allocation={swipingAllocation}
+                                    currentUser={user}
+                                    allTeachers={props.users || []}
+                                    allAllocations={remedialAllocations}
+                                    rateSetting={rateSetting}
+                                    classSubjectAllocations={(currentInstitution as any)?.classSubjectAllocations}
+                                    onSubmitSwipe={handleSubmitSwipe}
+                                />
+
                                 {cancellingAllocation && (
                                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
                                         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">

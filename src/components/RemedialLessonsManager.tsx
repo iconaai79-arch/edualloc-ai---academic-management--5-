@@ -13,7 +13,7 @@ import { BuySMSModal } from './BuySMSModal';
 import { 
     Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     AlertCircle, Trash2, Shield, Eye, EyeOff, Award, BookOpen, Layers, UserCheck,
-    Globe, Copy, ExternalLink, Sparkles, Calendar, RefreshCw, X, Download,
+    Globe, Copy, ExternalLink, Sparkles, Calendar, ArrowLeftRight, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
     FileText, BarChart3, Filter, Pencil, Users, LayoutGrid, ShieldCheck, GraduationCap,
     Send, Megaphone, Share2, CheckSquare, Banknote, PenTool, Receipt, Archive, Inbox,
@@ -15256,6 +15256,49 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <div className="flex justify-between py-1 border-b border-slate-200/60 dark:border-slate-800 text-amber-600 dark:text-amber-400">
                                                 <span className="font-medium">Active Substitute:</span>
                                                 <span className="font-bold">↳ {selectedCellAlloc.substituteTeacherName}</span>
+                                            </div>
+                                        )}
+                                        {selectedCellAlloc.status === 'Swipe Pending' && (
+                                            <div className="p-3 bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-1 my-2">
+                                                <div className="flex items-center gap-1.5 text-xs font-black uppercase text-indigo-700 dark:text-indigo-300">
+                                                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                                                    <span>Active Lesson Swipe Request</span>
+                                                </div>
+                                                <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                                                    Method: <strong>{selectedCellAlloc.swapType === 'mutual_trade' ? 'Mutual Slot Trade' : selectedCellAlloc.swapType === 'open_pool' ? 'Open Pool' : 'Direct Handover'}</strong>
+                                                </p>
+                                                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                                                    Target Colleague: <strong>{selectedCellAlloc.swapTargetTeacherName || selectedCellAlloc.substituteTeacherName || 'Open Pool'}</strong>
+                                                </p>
+                                                {selectedCellAlloc.swapNotes && (
+                                                    <p className="text-[10px] italic text-slate-500">"{selectedCellAlloc.swapNotes}"</p>
+                                                )}
+                                                {selectedCellAlloc.swapTargetTeacherId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            if (!window.confirm(`Force-approve swipe of ${selectedCellAlloc.subjectName} to ${selectedCellAlloc.swapTargetTeacherName}?`)) return;
+                                                            const updated = {
+                                                                ...selectedCellAlloc,
+                                                                status: 'Confirmed' as const,
+                                                                swapStatus: 'accepted' as const,
+                                                                teacherId: selectedCellAlloc.swapTargetTeacherId,
+                                                                teacherName: selectedCellAlloc.swapTargetTeacherName,
+                                                                substituteTeacherId: undefined,
+                                                                substituteTeacherName: undefined,
+                                                                confirmationDeadline: undefined,
+                                                                swapTargetTeacherId: undefined,
+                                                                swapTargetTeacherName: undefined
+                                                            };
+                                                            await (apiService as any).saveRemedialAllocation(updated);
+                                                            setSelectedCellAlloc(null);
+                                                            loadRemedialData();
+                                                        }}
+                                                        className="w-full mt-2 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                                                    >
+                                                        Force-Approve Swipe as DOS
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                         {(selectedCellAlloc.isJoint || selectedCellAlloc.is_joint || (selectedCellAlloc.jointStreams && selectedCellAlloc.jointStreams.length > 0)) && (
