@@ -472,7 +472,13 @@ const MODULE_ALIASES: Record<string, string> = {
   'milling_weighbridge_tickets': 'weighbridge_intake_tickets',
   'milling_grain_suppliers': 'grain_suppliers',
   'milling_sale_orders': 'grain_sale_orders',
-  'teacher_checkins': 'teacher_check_ins'
+  'teacher_checkins': 'teacher_check_ins',
+  'remedial_sessions': 'school_remedial_sessions',
+  'remedial_allocations': 'school_remedial_allocations',
+  'remedial_payouts': 'school_remedial_payouts',
+  'remedial_rate_settings': 'school_remedial_rate_settings',
+  'remedial_subjects': 'school_remedial_subjects',
+  'remedial_duty_roster': 'school_remedial_duty_roster'
 };
 
 const isTableWithoutInstitutionId = (module: string) => {
@@ -1303,6 +1309,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('requested_at', { ascending: false }).order('id', { ascending: false });
                 } else if (moduleName === 'app_notifications') {
                     q = q.order('timestamp', { ascending: false }).order('id', { ascending: false });
+                } else if (['school_remedial_sessions', 'remedial_sessions'].includes(moduleName)) {
+                    q = q.order('date', { ascending: false }).order('id', { ascending: false });
+                } else if (['school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_rate_settings', 'school_remedial_duty_roster', 'school_remedial_subjects', 'remedial_allocations', 'remedial_payouts', 'remedial_rate_settings', 'remedial_duty_roster', 'remedial_subjects'].includes(moduleName)) {
+                    q = q.order('id', { ascending: false });
                 } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
@@ -1428,7 +1438,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             const isUnscopedMultiTenantQuery = shouldSkipTenancy && !effectiveTenantInstId;
             let finalLimit = limit ? parseInt(getStrParam(limit)) : (
-                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory'].includes(moduleName)
+                ['receipts', 'invoices', 'users', 'students', 'student_enrollments', 'expenses', 'school_registry', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_skill_mastery', 'mpesa_transactions', 'bank_transactions', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'broadcaster_messages', 'marketing_prospects', 'campaign_leads', 'pm_invoices', 'pm_payments', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts', 'inventory', 'retail_inventory', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_rate_settings', 'school_remedial_subjects', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_rate_settings', 'remedial_subjects'].includes(moduleName)
                     ? (isUnscopedMultiTenantQuery ? 5000 : 100000)
                     : (['visitors', 'security_alerts', 'audit_issues', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'building_visitor_logs', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests'].includes(moduleName) 
                         ? 2000 
@@ -1440,7 +1450,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     ? 5000 
                                     : (moduleName === 'institutions' 
                                         ? (targetInstParam || getStrParam(id) ? 1 : 10000) 
-                                        : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
+                                        : (['timetable_entries', 'exam_timetable_entries', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts'].includes(moduleName)
                                             ? 3000
                                             : (['institution_module_states', 'retail_inventory_items'].includes(moduleName)
                                                 ? 1000
@@ -1477,7 +1487,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins'].includes(moduleName) ? 8000 : 5000);
+                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const elapsed = Date.now() - requestStartTime;
@@ -1674,6 +1684,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'requested_at.desc';
             } else if (moduleName === 'app_notifications') {
                 defaultOrderBy = 'timestamp.desc';
+            } else if (['school_remedial_sessions', 'remedial_sessions'].includes(moduleName)) {
+                defaultOrderBy = 'date.desc';
+            } else if (['school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_subjects', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_subjects'].includes(moduleName)) {
+                defaultOrderBy = 'id.desc';
             } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'timetable_entries', 'exam_timetable_entries',
@@ -1703,6 +1717,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'academic_years', 'semesters', 'allocation_requests',
                     // Nationwide school registry & directory
                     'school_registry',
+                    // School remedial tables — fast direct PostgreSQL retrieval
+                    'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_rate_settings', 'school_remedial_duty_roster', 'school_remedial_subjects',
+                    'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_rate_settings', 'remedial_duty_roster', 'remedial_subjects',
                     // Staff attendance & teacher check-ins
                     'teacher_check_ins', 'teacher_checkins',
                     // Finance reference tables — small but queried on every finance page load
