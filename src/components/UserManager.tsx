@@ -953,7 +953,21 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
         return false;
     }, [currentUser]);
 
-    const handleLoginAsTeacher = (teacher: User) => {
+    const isActualSuperAdmin = useMemo(() => {
+        if (!currentUser) return false;
+        if (isSuperAdminUser(currentUser)) return true;
+        const role = String(currentUser?.role || '').toLowerCase().trim();
+        if (role === 'super_admin' || role === 'superadmin' || role === 'superadministrator' || role === 'super_administrator') return true;
+        if ((currentUser as any)?.isSuperAdmin || (currentUser as any)?.is_super_admin) return true;
+        try {
+            const activeSession = apiService.getSession();
+            if (activeSession && (isSuperAdminUser(activeSession) || activeSession.role === 'super_admin')) return true;
+            if (localStorage.getItem('eduai_super_admin_session')) return true;
+        } catch (_) {}
+        return false;
+    }, [currentUser]);
+
+    const handleLoginAsUser = (targetUser: User) => {
         try {
             const saStored = localStorage.getItem('eduai_super_admin_session');
             if (!saStored) {
@@ -967,27 +981,40 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
             console.warn('[UserManager] Failed to cache super admin session:', e);
         }
 
-        const impersonatedTeacher: User = {
-            ...teacher,
-            institutionId: teacher.institutionId || currentInstitution?.id || '',
-            role: (teacher.role && teacher.role !== 'super_admin') ? teacher.role : 'teacher',
+        const effectiveInstitutionId = targetUser.institutionId || (institutions || []).find(i => i.id === targetUser.institutionId)?.id || currentInstitution?.id || '';
+        const targetRole = (targetUser.role && String(targetUser.role).toLowerCase().trim() !== 'super_admin')
+            ? targetUser.role
+            : (Array.isArray(targetUser.roles) && targetUser.roles.find(r => r !== 'super_admin')) || 'director';
+
+        const impersonatedUser: User = {
+            ...targetUser,
+            institutionId: effectiveInstitutionId,
+            role: targetRole,
             isImpersonated: true,
-            // Skip forced credential/profile update when Super Admin logs in as teacher
-            passwordLastUpdated: teacher.passwordLastUpdated || new Date().toISOString()
+            // Skip forced credential/profile update when Super Admin logs in as user
+            passwordLastUpdated: targetUser.passwordLastUpdated || new Date().toISOString()
         };
 
         try {
             sessionStorage.setItem('eduai_impersonated_by_admin', 'true');
         } catch (_) {}
-        apiService.storeSession(impersonatedTeacher);
+        apiService.storeSession(impersonatedUser);
         try {
-            localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedTeacher));
-            localStorage.setItem('eduai_user_session', JSON.stringify(impersonatedTeacher));
-            localStorage.setItem('user', JSON.stringify(impersonatedTeacher));
+            localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedUser));
+            localStorage.setItem('eduai_user_session', JSON.stringify(impersonatedUser));
+            localStorage.setItem('user', JSON.stringify(impersonatedUser));
+            if (effectiveInstitutionId) {
+                localStorage.setItem('eduai_active_institution_id', effectiveInstitutionId);
+                localStorage.setItem('activeInstitutionId', effectiveInstitutionId);
+            }
+            if (targetRole) {
+                localStorage.setItem('eduai_active_role', targetRole);
+            }
         } catch (_) {}
 
         window.location.href = window.location.origin + window.location.pathname;
     };
+    const handleLoginAsTeacher = handleLoginAsUser;
 
     useEffect(() => {
         if (isSuperAdmin) {
@@ -1948,16 +1975,35 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         <PencilIcon className="w-3.5 h-3.5" />
                                                         Edit
                                                     </button>
-                                                    {isSuperAdmin && u.id !== currentUser?.id && (u.role === 'teacher' || u.role === 'lecturer' || u.role === 'driving_instructor' || u.role === 'staff' || u.role === 'hod' || u.role === 'dos') && (
-                                                        <button
-                                                            onClick={() => handleLoginAsTeacher(u)}
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-600 rounded-md text-xs font-bold transition-all cursor-pointer"
-                                                            title={`Login as ${u.name} (Teacher Portal)`}
-                                                        >
-                                                            <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" />
-                                                            Login As
-                                                        </button>
-                                                    )}
+                                                    {(() => {
+                                                        if (u.id === currentUser?.id) return null;
+                                                        const targetRoleLower = String(u.role || '').toLowerCase().trim();
+                                                        if (targetRoleLower === 'super_admin' || targetRoleLower === 'superadmin') return null;
+
+                                                        // Super Admin can login as any institutional user (director, admin, instructor, teacher, etc.)
+                                                        // School leadership (isSuperAdmin) can login as teachers, instructors, staff, hods, dos, or leadership
+                                                        const canLoginAs = isActualSuperAdmin || (
+                                                            isSuperAdmin && [
+                                                                'teacher', 'lecturer', 'driving_instructor', 'staff', 'hod', 'dos',
+                                                                'director', 'admin', 'managing_director', 'principal', 'head_teacher', 'headmaster', 'deputy'
+                                                            ].includes(targetRoleLower)
+                                                        );
+
+                                                        if (!canLoginAs) return null;
+
+                                                        const displayRole = formatRoleDisplayName(u.role, currentInstitution);
+
+                                                        return (
+                                                            <button
+                                                                onClick={() => handleLoginAsUser(u)}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white dark:bg-indigo-900/30 dark:text-indigo-300 dark:hover:bg-indigo-600 rounded-md text-xs font-bold transition-all cursor-pointer"
+                                                                title={`Login as ${u.name} (${displayRole})`}
+                                                            >
+                                                                <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" />
+                                                                Login As
+                                                            </button>
+                                                        );
+                                                    })()}
                                                     {u.role !== 'student' && u.role !== 'member' && u.role !== 'church_member' && onAddTimeOffRequest && !isCommunity && !isChurch && (
                                                         <button
                                                             onClick={() => setRequestingTimeOffFor(u)}

@@ -10154,6 +10154,9 @@ export const apiService = {
                         });
                         if (res.ok) {
                             await localDb.delete('sync_queue', item.id);
+                        } else if (res.status === 405) {
+                            console.warn(`[apiService] Server returned 405 Method Not Allowed for module sync [${item.module}]. Pausing offline queue sync.`);
+                            break;
                         }
                     }
                 } catch (_) {
