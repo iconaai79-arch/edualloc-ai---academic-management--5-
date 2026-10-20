@@ -5408,6 +5408,8 @@ export interface DSSettings {
     receiptPrefix?: string;
     studentIdPrefix?: string;
     lessonSlots?: DSLessonSlot[];
+    rolePermissions?: Record<string, string[]>;
+    userPermissions?: Record<string, string[]>;
     updatedAt: string;
 }
 

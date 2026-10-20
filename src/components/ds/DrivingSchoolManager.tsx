@@ -57,6 +57,7 @@ import { DSFinanceFeeds } from './DSFinanceFeeds';
 import { DSExcelExportModal } from './DSExcelExportModal';
 import { DSCompleteExcelImportModal } from './DSCompleteExcelImportModal';
 import { DSStaffManager } from './DSStaffManager';
+import { getUserAllowedDSTabs, isUserDirector, DEFAULT_DS_ROLE_PERMISSIONS } from './dsPermissions';
 import { 
     exportStudentsToExcel, 
     exportInvoicesToExcel, 
@@ -4312,6 +4313,11 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         role.includes('super-admin') || 
         role.includes('reseller')
     ), [rolesList]);
+
+    // Director-Governed Module Visibility & Access Controls
+    const allowedTabs = useMemo(() => {
+        return getUserAllowedDSTabs(currentUser, settings);
+    }, [currentUser, settings]);
     const isSuperAdmin = useMemo(() => {
         const hasSaRole = rolesList.some(role =>
             ['super_admin', 'superadmin', 'super admin', 'super-admin', 'system_admin', 'system admin', 'system-admin'].some(r => role === r) ||
@@ -6894,7 +6900,7 @@ END $$;
                                 </h4>
                             )}
                             <div className="space-y-1">
-                                {sec.items.map(tab => {
+                                {sec.items.filter(tab => allowedTabs.includes(tab.id)).map(tab => {
                                     const isActive = activeTab === tab.id;
                                     const Icon = tab.icon;
                                     return (
@@ -6968,7 +6974,39 @@ END $$;
         </aside>
     );
 
-    const renderMainBodyContent = () => (
+    const renderMainBodyContent = () => {
+        // Enforce Director-governed module access
+        if (!allowedTabs.includes(activeTab)) {
+            return (
+                <div className="bg-white dark:bg-slate-900 p-12 md:p-16 rounded-[3rem] border border-rose-100 dark:border-rose-950/40 shadow-xl text-center space-y-6 max-w-xl mx-auto my-12 animate-fade-in">
+                    <div className="w-20 h-20 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+                        <ShieldCheckIcon className="w-10 h-10" />
+                    </div>
+                    <div className="space-y-2">
+                        <span className="px-3 py-1 bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            Director Governance Control
+                        </span>
+                        <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                            Access Restricted
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-md mx-auto">
+                            In this Driving School, only the <strong>School Director</strong> can specify what other users can view or access. Your account or role has not been granted access to this module.
+                        </p>
+                    </div>
+                    <div className="pt-2">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab(allowedTabs[0] || 'dashboard')}
+                            className="px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95"
+                        >
+                            Return to {allowedTabs[0] ? allowedTabs[0].toUpperCase() : 'OVERVIEW'}
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
         <>
             {/* Header Section */}
             {activeTab !== 'portal' && (
@@ -7282,7 +7320,7 @@ END $$;
                             { id: 'broadcaster', label: 'Broadcaster', icon: SparklesIcon },
                             { id: 'reports', label: 'Reports', icon: ClipboardListIcon },
                             { id: 'settings', label: 'Config', icon: SettingsIcon }
-                        ].map(tab => (
+                        ].filter(tab => allowedTabs.includes(tab.id)).map(tab => (
                             <button
                                 key={tab.id}
                                 type="button"
@@ -13247,6 +13285,7 @@ END $$;
                                         instructors={instructors}
                                         onRefreshInstructors={refreshData}
                                         settings={settings}
+                                        onUpdateSettings={onUpdateSettings}
                                     />
                                 )}
                             </div>
@@ -14245,7 +14284,8 @@ END $$;
                     </div>
                 )}
         </>
-    );
+        );
+    };
 
     return (
         <AppErrorBoundary>
