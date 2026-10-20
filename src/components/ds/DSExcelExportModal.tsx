@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
     XIcon, 
     DownloadIcon, 
@@ -18,7 +18,8 @@ import {
     exportCategoriesToExcel, 
     exportVoteheadsToExcel, 
     exportSystemUsersToExcel, 
-    exportAllDSToExcel 
+    exportAllDSToExcel,
+    formatSystemUserRows
 } from './dsExcelExport';
 import type { 
     DSStudent, 
@@ -43,6 +44,7 @@ interface DSExcelExportModalProps {
     instructors?: DSInstructor[];
     branches?: Branch[];
     institutionName?: string;
+    institutionId?: string;
 }
 
 export const DSExcelExportModal: React.FC<DSExcelExportModalProps> = ({
@@ -56,10 +58,18 @@ export const DSExcelExportModal: React.FC<DSExcelExportModalProps> = ({
     users = [],
     instructors = [],
     branches = [],
-    institutionName
+    institutionName,
+    institutionId
 }) => {
     const { success, error: toastError } = useToast();
     const [downloadingTarget, setDownloadingTarget] = useState<string | null>(null);
+
+    const categoriesCount = (categories && categories.length > 0) ? categories.length : 5;
+    const votesCount = (votes && votes.length > 0) ? votes.length : 6;
+    const systemUsersRows = useMemo(() => {
+        return formatSystemUserRows(users, instructors, branches, institutionId);
+    }, [users, instructors, branches, institutionId]);
+    const systemUsersCount = systemUsersRows.length;
 
     if (!isOpen) return null;
 
@@ -75,10 +85,6 @@ export const DSExcelExportModal: React.FC<DSExcelExportModalProps> = ({
             setDownloadingTarget(null);
         }
     };
-
-    const categoriesCount = (categories && categories.length > 0) ? categories.length : 5;
-    const votesCount = (votes && votes.length > 0) ? votes.length : 6;
-    const systemUsersCount = (users?.length || 0) + (instructors?.length || 0);
 
     const exportOptions = [
         {
@@ -133,7 +139,7 @@ export const DSExcelExportModal: React.FC<DSExcelExportModalProps> = ({
             count: `${systemUsersCount} Staff & Instructors`,
             icon: ShieldCheckIcon,
             color: 'cyan',
-            onExport: () => exportSystemUsersToExcel(users, instructors, branches, institutionName)
+            onExport: () => exportSystemUsersToExcel(users, instructors, branches, institutionName, institutionId)
         }
     ];
 
@@ -194,7 +200,8 @@ export const DSExcelExportModal: React.FC<DSExcelExportModalProps> = ({
                                     users,
                                     instructors,
                                     branches,
-                                    institutionName
+                                    institutionName,
+                                    institutionId
                                 }))}
                                 disabled={downloadingTarget !== null}
                                 className="px-6 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 whitespace-nowrap disabled:opacity-50 self-stretch md:self-auto justify-center"

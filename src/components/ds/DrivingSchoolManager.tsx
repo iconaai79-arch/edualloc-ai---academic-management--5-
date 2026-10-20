@@ -55,6 +55,7 @@ import type {
 import { DSBroadcasterView } from './DSBroadcasterView';
 import { DSFinanceFeeds } from './DSFinanceFeeds';
 import { DSExcelExportModal } from './DSExcelExportModal';
+import { DSCompleteExcelImportModal } from './DSCompleteExcelImportModal';
 import { 
     exportStudentsToExcel, 
     exportInvoicesToExcel, 
@@ -5601,6 +5602,7 @@ END $$;
     const [isBulkUpdateModalOpen, setIsBulkUpdateModalOpen] = useState(false);
     const [isBuySMSModalOpen, setIsBuySMSModalOpen] = useState(false);
     const [isExportExcelModalOpen, setIsExportExcelModalOpen] = useState(false);
+    const [isCompleteImportModalOpen, setIsCompleteImportModalOpen] = useState(false);
     const [actionModal, setActionModal] = useState<{ type: 'student' | 'instructor' | 'vehicle' | 'vehicle_unavailability' | 'lesson' | 'invoice' | 'payment' | 'fee_structure' | 'broadcast' | 'lead' | null; data?: any; initialData?: any }>({ type: null });
     const [unassignedDueToVehicles, setUnassignedDueToVehicles] = useState<Array<{ name: string; slot: string }>>([]);
     const [selectedQRLesson, setSelectedQRLesson] = useState<any | null>(null);
@@ -7126,6 +7128,14 @@ END $$;
                                     Import Opening Balances
                                 </button>
                             )}
+                            <button 
+                                onClick={() => setIsCompleteImportModalOpen(true)} 
+                                className="px-6 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2.5"
+                                title="Import complete Driving School data from Excel workbook"
+                            >
+                                <ArrowUpTrayIcon className="w-4 h-4" />
+                                Import Complete Excel
+                            </button>
                             <button 
                                 onClick={() => setIsExportExcelModalOpen(true)} 
                                 className="px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2.5"
@@ -9567,7 +9577,7 @@ END $$;
                                 </div>
                                 <button
                                     onClick={() => {
-                                        const fname = exportSystemUsersToExcel(users, normalizedInstructors, branches, currentInstitution?.name);
+                                        const fname = exportSystemUsersToExcel(users, normalizedInstructors, branches, currentInstitution?.name, currentInstitution?.id);
                                         success(`Exported system users & instructors to ${fname}`);
                                     }}
                                     className="flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-sm shadow-emerald-600/20 self-start sm:self-auto"
@@ -11604,6 +11614,7 @@ END $$;
                                 votes={settingsDraft?.votes || settings?.votes}
                                 users={users}
                                 branches={branches}
+                                onOpenCompleteImport={() => setIsCompleteImportModalOpen(true)}
                             />
                         </div>
                     )}
@@ -13837,6 +13848,26 @@ END $$;
                     instructors={normalizedInstructors}
                     branches={branches}
                     institutionName={currentInstitution?.name}
+                    institutionId={currentInstitution?.id}
+                />
+
+                <DSCompleteExcelImportModal
+                    isOpen={isCompleteImportModalOpen}
+                    onClose={() => setIsCompleteImportModalOpen(false)}
+                    currentInstitution={currentInstitution}
+                    settings={settingsDraft || settings}
+                    students={rawStudents && rawStudents.length > 0 ? rawStudents : students}
+                    invoices={rawInvoices && rawInvoices.length > 0 ? rawInvoices : invoices}
+                    payments={rawPayments && rawPayments.length > 0 ? rawPayments : payments}
+                    instructors={normalizedInstructors}
+                    branches={branches}
+                    onAddStudent={onAddStudent}
+                    onUpdateStudent={onUpdateStudent}
+                    onAddInvoice={onAddInvoice}
+                    onAddPayment={onAddPayment}
+                    onAddInstructor={onAddInstructor}
+                    onUpdateSettings={onUpdateSettings}
+                    refreshData={onRefreshData}
                 />
 
                 {selectedProgramCategory && (

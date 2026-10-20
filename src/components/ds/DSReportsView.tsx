@@ -19,7 +19,7 @@ import {
     XIcon, 
 
     DownloadIcon,
-
+    ArrowUpTrayIcon,
     EyeIcon
 
 } from '../icons';
@@ -33,7 +33,8 @@ import {
     exportCategoriesToExcel, 
     exportVoteheadsToExcel, 
     exportSystemUsersToExcel,
-    exportAllDSToExcel 
+    exportAllDSToExcel,
+    formatSystemUserRows
 } from './dsExcelExport';
 import { CurrencyIcon, DocumentTextIcon, CreditCardIcon } from '../icons';
 
@@ -57,6 +58,7 @@ interface DSReportsViewProps {
     votes?: any[];
     users?: any[];
     branches?: any[];
+    onOpenCompleteImport?: () => void;
 }
 
 
@@ -75,7 +77,8 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
     categories = [],
     votes = [],
     users = [],
-    branches = []
+    branches = [],
+    onOpenCompleteImport
 }) => {
 
     const { success, error: toastError } = useToast();
@@ -1323,31 +1326,45 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                                     Download all 6 driving school operational records (Students, Invoices, Receipts, Categories, Fee Voteheads, and System Users) bundled in a single multi-sheet workbook (.xlsx).
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    try {
-                                        const fname = exportAllDSToExcel({
-                                            students,
-                                            invoices,
-                                            payments,
-                                            categories,
-                                            votes,
-                                            users,
-                                            instructors,
-                                            branches,
-                                            institutionName: currentInstitution?.name
-                                        });
-                                        success(`Master workbook downloaded: ${fname}`);
-                                    } catch (err: any) {
-                                        toastError(err?.message || "Failed to export master workbook");
-                                    }
-                                }}
-                                className="px-8 py-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 whitespace-nowrap self-stretch md:self-auto justify-center"
-                            >
-                                <DownloadIcon className="w-5 h-5" />
-                                Export Master Workbook (.xlsx)
-                            </button>
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                {onOpenCompleteImport && (
+                                    <button
+                                        type="button"
+                                        onClick={onOpenCompleteImport}
+                                        className="px-6 py-5 bg-white/10 hover:bg-white/20 text-white font-black text-xs uppercase tracking-widest rounded-2xl border border-white/20 backdrop-blur-sm hover:scale-105 active:scale-95 transition-all flex items-center gap-2.5 whitespace-nowrap justify-center shadow-lg"
+                                        title="Import complete Driving School data from Excel workbook"
+                                    >
+                                        <ArrowUpTrayIcon className="w-5 h-5 text-indigo-300" />
+                                        Import Complete Excel
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        try {
+                                            const fname = exportAllDSToExcel({
+                                                students,
+                                                invoices,
+                                                payments,
+                                                categories,
+                                                votes,
+                                                users,
+                                                instructors,
+                                                branches,
+                                                institutionName: currentInstitution?.name,
+                                                institutionId: currentInstitution?.id
+                                            });
+                                            success(`Master workbook downloaded: ${fname}`);
+                                        } catch (err: any) {
+                                            toastError(err?.message || "Failed to export master workbook");
+                                        }
+                                    }}
+                                    className="px-8 py-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl shadow-xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 whitespace-nowrap self-stretch md:self-auto justify-center"
+                                >
+                                    <DownloadIcon className="w-5 h-5" />
+                                    Export Master Workbook (.xlsx)
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -1404,9 +1421,9 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                             {
                                 title: 'System Users & Staff',
                                 desc: 'Institutional user accounts, administration roles, driving trainers, employee IDs, contacts & campus assignments.',
-                                count: `${(users?.length || 0) + (instructors?.length || 0)} Staff & Trainers`,
+                                count: `${formatSystemUserRows(users, instructors, branches, currentInstitution?.id).length} Staff & Trainers`,
                                 icon: UsersIcon,
-                                fn: () => exportSystemUsersToExcel(users, instructors, branches, currentInstitution?.name)
+                                fn: () => exportSystemUsersToExcel(users, instructors, branches, currentInstitution?.name, currentInstitution?.id)
                             }
                         ].map((card, idx) => (
                             <div key={idx} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group hover:border-indigo-400/50 transition-all">

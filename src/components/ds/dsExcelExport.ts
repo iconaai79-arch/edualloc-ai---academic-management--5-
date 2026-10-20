@@ -20,6 +20,7 @@ export interface DSExportContext {
     instructors?: DSInstructor[];
     branches?: Branch[];
     institutionName?: string;
+    institutionId?: string;
 }
 
 const cleanSlug = (str?: string) => (str || 'School').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -352,10 +353,44 @@ export const exportVoteheadsToExcel = (
 export const formatSystemUserRows = (
     users: User[] = [],
     instructors: DSInstructor[] = [],
-    branches: Branch[] = []
+    branches: Branch[] = [],
+    institutionId?: string
 ): Record<string, any>[] => {
-    // Map existing users
-    const userRows = (users || []).map(u => {
+    const rawInst = institutionId ? institutionId.replace(/^inst_/, '') : '';
+    const prefixedInst = institutionId ? (institutionId.startsWith('inst_') ? institutionId : `inst_${institutionId}`) : '';
+
+    // Filter users strictly for this institution account and exclude student/learner/parent/customer accounts
+    const staffUsers = (users || []).filter(u => {
+        if (!u) return false;
+        const role = String(u.role || '').toLowerCase().trim();
+        const rolesArr = (Array.isArray(u.roles) ? u.roles : []).map(r => String(r).toLowerCase().trim());
+
+        // Strictly exclude learners, students, parents, customers, visitors, leads
+        if (
+            ['student', 'learner', 'candidate', 'parent', 'guardian', 'customer', 'lead', 'visitor'].includes(role) ||
+            rolesArr.some(r => ['student', 'learner', 'candidate', 'parent', 'customer'].includes(r))
+        ) {
+            return false;
+        }
+
+        // Verify account affiliation
+        if (institutionId) {
+            const uInst = u.institutionId || (u as any).institution_id;
+            const isMatch = uInst === institutionId || uInst === rawInst || uInst === prefixedInst;
+            // Also accept if user is matched with a driving instructor record in this institution
+            const isLinked = (instructors || []).some(i => 
+                i.id === u.id || 
+                (i.email && i.email.toLowerCase() === (u.email || '').toLowerCase()) ||
+                (i.phone && i.phone === u.phoneNumber)
+            );
+            if (!isMatch && !isLinked) return false;
+        }
+
+        return true;
+    });
+
+    // Map existing filtered staff users
+    const userRows = staffUsers.map(u => {
         const branchName = branches.find(b => b.id === (u as any).branchId || b.id === (u as any).branch_id)?.name || 'All Campuses';
         const role = u.role || 'Staff';
         const additionalRoles = Array.isArray(u.roles) ? u.roles.join(', ') : '';
@@ -419,9 +454,10 @@ export const exportSystemUsersToExcel = (
     users: User[] = [],
     instructors: DSInstructor[] = [],
     branches: Branch[] = [],
-    institutionName?: string
+    institutionName?: string,
+    institutionId?: string
 ) => {
-    const rows = formatSystemUserRows(users, instructors, branches);
+    const rows = formatSystemUserRows(users, instructors, branches, institutionId);
     const wb = XLSX.utils.book_new();
     const ws = createSheetFromRows(rows);
     XLSX.utils.book_append_sheet(wb, ws, 'System Users');
@@ -475,7 +511,8 @@ export const exportAllDSToExcel = (ctx: DSExportContext) => {
     const userRows = formatSystemUserRows(
         ctx.users || [],
         ctx.instructors || [],
-        ctx.branches || []
+        ctx.branches || [],
+        ctx.institutionId
     );
     XLSX.utils.book_append_sheet(wb, createSheetFromRows(userRows), 'System Users');
 
