@@ -118,6 +118,7 @@ const StoreView = safeLazy(() => import('./SupportStaffViews').then((m: any) => 
 const InfoDeskView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.InfoDeskView || m?.default })));
 const SupplierView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.SupplierView || m?.default })));
 const TransportAssistantView = safeLazy(() => import('./SupportStaffViews').then((m: any) => ({ default: m?.TransportAssistantView || m?.default })));
+const SupportStaffMobileApp = safeLazy(() => import('./staff/SupportStaffMobileApp').then((m: any) => ({ default: m?.SupportStaffMobileApp || m?.default })));
 const RetailCustomerPortal = safeLazy(() => import('./retail/RetailCustomerPortal').then((m: any) => ({ default: m?.RetailCustomerPortal || m?.default || m })));
 const RetailManager = safeLazy(() => import('./retail/RetailManager').then((m: any) => ({ default: m?.RetailManager || m?.default || m })));
 const BookDemoModal = safeLazy(() => import('./public/BookDemoModal').then((m: any) => ({ default: m?.BookDemoModal || m?.default || m })));
@@ -9633,6 +9634,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             letterheadConfig={activeInstitution?.letterheadConfig}
                                         />
                                     </DrivingSchoolProvider>
+                                ) : (
+                                    ['support_staff', 'cleaner', 'cook', 'driver', 'groundsman', 'maintenance', 'messenger', 'attendant', 'subordinate'].includes(activeRole as string) ||
+                                    (activeRole === 'staff' && !isAdminCatchAll)
+                                ) ? (
+                                    <SupportStaffMobileApp
+                                        currentUser={currentUser}
+                                        currentInstitution={activeInstitution!}
+                                        onRefreshData={loadData}
+                                        onSwitchPerspective={(role: any) => { setImpersonatedRole(role); setSelectedRole(role); }}
+                                        onLogout={handleLogout}
+                                    />
                                 ) : isAdminCatchAll ? (
                                     <AdminView
                                          {...superAdminProps as any}
