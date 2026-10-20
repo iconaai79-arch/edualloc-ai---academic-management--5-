@@ -50,16 +50,41 @@ export class WalletService {
                     return mapped;
                 }
 
-                // If not found, try to auto-provision an initial wallet record
+                // Try safe atomic RPC auto-provisioner first (bypasses RLS)
+                try {
+                    const { data: rpcWallet, error: rpcErr } = await supabase.rpc('get_or_create_institution_wallet', {
+                        p_institution_id: institutionId
+                    });
+                    if (!rpcErr && rpcWallet) {
+                        const w = typeof rpcWallet === 'string' ? JSON.parse(rpcWallet) : rpcWallet;
+                        const mapped: InstitutionWallet = {
+                            id: w.id,
+                            institutionId: w.institution_id,
+                            currency: w.currency || 'KES',
+                            currentBalance: Number(w.current_balance || 0),
+                            reservedBalance: Number(w.reserved_balance || 0),
+                            lowFloatThreshold: Number(w.low_float_threshold || 10000),
+                            autoTopupEnabled: !!w.auto_topup_enabled,
+                            isLocked: !!w.is_locked,
+                            lockReason: w.lock_reason,
+                            createdAt: w.created_at,
+                            updatedAt: w.updated_at
+                        };
+                        safeLocalStorage.setItem(`inst_wallet_${institutionId}`, JSON.stringify(mapped));
+                        return mapped;
+                    }
+                } catch (_) {}
+
+                // If RPC not available, try to auto-provision via upsert
                 const { data: newWallet, error: createErr } = await supabase
                     .from('institution_wallets')
-                    .insert({
+                    .upsert({
                         institution_id: institutionId,
                         currency: 'KES',
                         current_balance: 0.00,
                         reserved_balance: 0.00,
                         low_float_threshold: 10000.00
-                    })
+                    }, { onConflict: 'institution_id' })
                     .select()
                     .maybeSingle();
 
@@ -265,10 +290,38 @@ export class WalletService {
                     return mapped;
                 }
 
-                // If not exists, auto-provision
+                // Try safe atomic RPC auto-provisioner first (bypasses RLS)
+                try {
+                    const { data: rpcWallet, error: rpcErr } = await supabase.rpc('get_or_create_teacher_wallet', {
+                        p_teacher_id: teacherId,
+                        p_institution_id: institutionId
+                    });
+                    if (!rpcErr && rpcWallet) {
+                        const w = typeof rpcWallet === 'string' ? JSON.parse(rpcWallet) : rpcWallet;
+                        const mapped: TeacherWallet = {
+                            id: w.id,
+                            teacherId: w.teacher_id,
+                            institutionId: w.institution_id,
+                            currency: w.currency || 'KES',
+                            availableBalance: Number(w.available_balance || 0),
+                            pendingBalance: Number(w.pending_balance || 0),
+                            totalWithdrawn: Number(w.total_withdrawn || 0),
+                            totalEarned: Number(w.total_earned || 0),
+                            mpesaPhoneNumber: w.mpesa_phone_number,
+                            isLocked: !!w.is_locked,
+                            lockReason: w.lock_reason,
+                            createdAt: w.created_at,
+                            updatedAt: w.updated_at
+                        };
+                        safeLocalStorage.setItem(`teacher_wallet_${institutionId}_${teacherId}`, JSON.stringify(mapped));
+                        return mapped;
+                    }
+                } catch (_) {}
+
+                // If RPC not available, try to auto-provision via upsert
                 const { data: newWallet, error: createErr } = await supabase
                     .from('teacher_wallets')
-                    .insert({
+                    .upsert({
                         teacher_id: teacherId,
                         institution_id: institutionId,
                         currency: 'KES',
@@ -276,7 +329,7 @@ export class WalletService {
                         pending_balance: 0.00,
                         total_withdrawn: 0.00,
                         total_earned: 0.00
-                    })
+                    }, { onConflict: 'teacher_id,institution_id' })
                     .select()
                     .maybeSingle();
 
