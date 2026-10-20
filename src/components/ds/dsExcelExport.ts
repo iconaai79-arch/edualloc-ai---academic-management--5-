@@ -466,6 +466,150 @@ export const exportSystemUsersToExcel = (
     return filename;
 };
 
+
+// ----------------------------------------------------
+// 7. DEBT BALANCES & FEE ARREARS EXCEL EXPORT
+// ----------------------------------------------------
+export const formatDebtBalanceRows = (
+    students: DSStudent[] = [],
+    invoices: DSInvoice[] = [],
+    payments: DSPayment[] = [],
+    branches: Branch[] = []
+): Record<string, any>[] => {
+    const rows: Record<string, any>[] = [];
+
+    (students || []).forEach(s => {
+        const studentId = s.id;
+        const adm = s.admissionNumber || (s as any).admission_number || '';
+        const name = (s.fullName || (s as any).full_name || '').trim().toLowerCase();
+
+        const studentInvoices = invoices.filter(inv => 
+            inv.studentId === studentId || 
+            (adm && ((inv as any).admissionNumber || '').trim().toLowerCase() === adm.toLowerCase()) ||
+            (name && (inv.studentName || '').trim().toLowerCase() === name)
+        );
+
+        const totalInvoiced = studentInvoices.reduce((acc, inv) => acc + Number(inv.totalAmount || 0), 0);
+        const totalDiscount = studentInvoices.reduce((acc, inv) => acc + Number(inv.discountAmount || (inv as any).discount_amount || 0), 0);
+        const totalSponsor = studentInvoices.reduce((acc, inv) => acc + Number(inv.sponsorAmount || (inv as any).sponsor_amount || 0), 0);
+        const netInvoiced = Math.max(0, totalInvoiced - totalDiscount - totalSponsor);
+
+        const studentPayments = payments.filter(p => 
+            p.studentId === studentId ||
+            (adm && ((p as any).admissionNumber || '').trim().toLowerCase() === adm.toLowerCase()) ||
+            (name && (p.studentName || '').trim().toLowerCase() === name) ||
+            studentInvoices.some(inv => inv.id === p.invoiceId)
+        );
+
+        const validPayments = studentPayments.filter(p => p.status !== 'Pending Deletion' && p.status !== 'Cancelled' && p.status !== 'Rejected');
+        const totalPaid = validPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+        const balance = Math.max(0, netInvoiced - totalPaid);
+
+        // Calculate days since last payment or enrollment
+        const sortedPayments = [...validPayments].sort((a, b) => {
+            const da = new Date(a.paymentDate || a.createdAt || 0).getTime();
+            const db = new Date(b.paymentDate || b.createdAt || 0).getTime();
+            return db - da;
+        });
+        const lastPaymentDate = sortedPayments[0]?.paymentDate || sortedPayments[0]?.createdAt?.split('T')[0] || 'Never Paid';
+
+        let debtSeverity = 'Cleared';
+        if (balance > 15000) debtSeverity = 'Severe Debt (> 15,000)';
+        else if (balance >= 5000) debtSeverity = 'Moderate Debt (5,000 - 15,000)';
+        else if (balance > 0) debtSeverity = 'Minor Balance (< 5,000)';
+
+        const branchName = branches.find(b => b.id === (s.branchId || (s as any).branch_id))?.name || 'Main Campus';
+        const completionPercent = netInvoiced > 0 ? Math.min(100, Math.round((totalPaid / netInvoiced) * 100)) : (totalPaid > 0 ? 100 : 0);
+
+        rows.push({
+            'Admission Number': s.admissionNumber || (s as any).admission_number || '',
+            'Student Name': s.fullName || (s as any).full_name || '',
+            'Phone Number': s.phone || (s as any).phoneNumber || (s as any).phone_number || '',
+            'National ID / Passport': s.idNumber || s.passportNumber || '',
+            'Course / License Category': s.licenseTypeInterested || s.licenseCategory || '',
+            'Branch / Campus': branchName,
+            'Enrollment Date': s.enrollmentDate ? s.enrollmentDate.split('T')[0] : '',
+            'Total Invoiced (KES)': netInvoiced,
+            'Total Paid (KES)': totalPaid,
+            'Outstanding Debt Balance (KES)': balance,
+            'Payment Completion (%)': `${completionPercent}%`,
+            'Last Payment Date': lastPaymentDate,
+            'Debt Severity': debtSeverity,
+            'Student Status': s.status || 'Enrolled'
+        });
+    });
+
+    return rows.sort((a, b) => Number(b['Outstanding Debt Balance (KES)'] || 0) - Number(a['Outstanding Debt Balance (KES)'] || 0));
+};
+
+export const exportDebtBalancesToExcel = (
+    students: DSStudent[] = [],
+    invoices: DSInvoice[] = [],
+    payments: DSPayment[] = [],
+    branches: Branch[] = [],
+    institutionName?: string
+) => {
+    const rows = formatDebtBalanceRows(students, invoices, payments, branches);
+    const wb = XLSX.utils.book_new();
+    const ws = createSheetFromRows(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Debt Balances');
+    const filename = `DS_Debt_Balances_${cleanSlug(institutionName)}_${getTodayStr()}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    return filename;
+};
+
+// ----------------------------------------------------
+// 8. INCOME & COLLECTIONS EXCEL EXPORT
+// ----------------------------------------------------
+export const formatIncomeRows = (
+    payments: DSPayment[] = [],
+    students: DSStudent[] = [],
+    invoices: DSInvoice[] = [],
+    branches: Branch[] = []
+): Record<string, any>[] => {
+    const validPayments = (payments || []).filter(p => p.status !== 'Pending Deletion' && p.status !== 'Cancelled' && p.status !== 'Rejected');
+
+    return validPayments.map(p => {
+        const student = students.find(s => 
+            s.id === p.studentId || 
+            (s.admissionNumber && s.admissionNumber.toLowerCase() === ((p as any).admissionNumber || '').toLowerCase())
+        );
+        const invoice = invoices.find(inv => inv.id === p.invoiceId || inv.invoiceNumber === p.invoiceId);
+        const branchName = branches.find(b => b.id === (p.branchId || (p as any).branch_id))?.name || 'Main Campus';
+
+        return {
+            'Receipt Number': p.receiptNumber || '',
+            'Payment Date': p.paymentDate || (p.createdAt ? p.createdAt.split('T')[0] : ''),
+            'Admission Number': student?.admissionNumber || (p as any).admissionNumber || '',
+            'Student Full Name': student?.fullName || p.studentName || invoice?.studentName || '',
+            'Course / Category': student?.licenseTypeInterested || student?.licenseCategory || '',
+            'Payment Method': p.paymentMethod || 'M-Pesa',
+            'Transaction Reference / Code': p.transactionReference || 'N/A',
+            'Linked Invoice Number': invoice?.invoiceNumber || p.invoiceId || '',
+            'Gross Amount Collected (KES)': Number(p.amount || 0),
+            'Branch / Campus': branchName,
+            'Recorded By / Cashier': p.receivedBy || 'Accounts',
+            'Status': p.status || 'Completed'
+        };
+    }).sort((a, b) => new Date(b['Payment Date'] || 0).getTime() - new Date(a['Payment Date'] || 0).getTime());
+};
+
+export const exportIncomeToExcel = (
+    payments: DSPayment[] = [],
+    students: DSStudent[] = [],
+    invoices: DSInvoice[] = [],
+    branches: Branch[] = [],
+    institutionName?: string
+) => {
+    const rows = formatIncomeRows(payments, students, invoices, branches);
+    const wb = XLSX.utils.book_new();
+    const ws = createSheetFromRows(rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Income Collections');
+    const filename = `DS_Income_Collections_${cleanSlug(institutionName)}_${getTodayStr()}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    return filename;
+};
+
 // ----------------------------------------------------
 // 7. ALL-IN-ONE MULTI-SHEET WORKBOOK EXPORT
 // ----------------------------------------------------

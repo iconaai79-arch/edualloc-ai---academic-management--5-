@@ -1,29 +1,29 @@
 import React, { useState, useEffect, useMemo } from 'react';
-
 import { 
-
     UsersIcon, 
-
     TruckIcon, 
-
     CalendarDaysIcon, 
-
     AcademicCapIcon, 
-
     PrinterIcon, 
-
     SparklesIcon, 
-
     SearchIcon, 
-
     XIcon, 
-
     DownloadIcon,
     ArrowUpTrayIcon,
-    EyeIcon
-
+    EyeIcon,
+    BanknotesIcon,
+    ChartBarIcon,
+    ChartPieIcon,
+    ExclamationTriangleIcon,
+    TrendingUpIcon,
+    PhoneIcon,
+    CheckCircleIcon,
+    FilterIcon,
+    ClockIcon,
+    CurrencyIcon, 
+    DocumentTextIcon, 
+    CreditCardIcon
 } from '../icons';
-
 import { generateDSStudentLogbookPDF, generateDSPDF } from '../../utils/dsPdfGenerator';
 import { generateStudentStatement } from '../../utils/dsReportGenerator';
 import { 
@@ -34,14 +34,15 @@ import {
     exportVoteheadsToExcel, 
     exportSystemUsersToExcel,
     exportAllDSToExcel,
-    formatSystemUserRows
+    formatSystemUserRows,
+    exportDebtBalancesToExcel,
+    exportIncomeToExcel,
+    formatDebtBalanceRows,
+    formatIncomeRows
 } from './dsExcelExport';
-import { CurrencyIcon, DocumentTextIcon, CreditCardIcon } from '../icons';
-
+import { apiService } from '../../services/apiService';
 import { useToast } from '../../services/ToastContext';
 import { PdfViewer } from '../PdfViewer';
-
-
 
 interface DSReportsViewProps {
     lessons: any[];
@@ -87,7 +88,291 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
 
     // Top-level report mode: 'timetables' | 'logbooks'
 
-    const [reportMode, setReportMode] = useState<'timetables' | 'logbooks' | 'statements' | 'expenditure_summary' | 'excel_exports'>('timetables');
+    // Top-level report mode: 'income' | 'debt_balances' | 'statements' | 'expenditure_summary' | 'timetables' | 'logbooks' | 'excel_exports'
+    const [reportMode, setReportMode] = useState<'income' | 'debt_balances' | 'timetables' | 'logbooks' | 'statements' | 'expenditure_summary' | 'excel_exports'>('income');
+
+    // --- INCOME & COLLECTIONS STATE ---
+    const [incomeDateFrom, setIncomeDateFrom] = useState('');
+    const [incomeDateTo, setIncomeDateTo] = useState('');
+    const [incomeBranch, setIncomeBranch] = useState('all');
+    const [incomeMethod, setIncomeMethod] = useState('all');
+    const [incomeSearch, setIncomeSearch] = useState('');
+    const [incomePage, setIncomePage] = useState(1);
+    const INCOME_PAGE_SIZE = 15;
+
+    // --- DEBT BALANCES & ARREARS STATE ---
+    const [debtSearch, setDebtSearch] = useState('');
+    const [debtBranch, setDebtBranch] = useState('all');
+    const [debtCategory, setDebtCategory] = useState('all');
+    const [debtSeverityFilter, setDebtSeverityFilter] = useState<'with_debt' | 'severe' | 'moderate' | 'minor' | 'cleared' | 'all'>('with_debt');
+    const [debtSortBy, setDebtSortBy] = useState<'balance_desc' | 'balance_asc' | 'name' | 'adm'>('balance_desc');
+    const [debtPage, setDebtPage] = useState(1);
+    const DEBT_PAGE_SIZE = 15;
+
+    // --- FINANCIAL METRICS COMPUTATION ---
+    const validPayments = useMemo(() => {
+        return (payments || []).filter(p => 
+            p.status !== 'Pending Deletion' && 
+            p.status !== 'Cancelled' && 
+            p.status !== 'Rejected'
+        );
+    }, [payments]);
+
+    const filteredIncomePayments = useMemo(() => {
+        return validPayments.filter(p => {
+            const pDate = p.paymentDate || (p.createdAt ? p.createdAt.split('T')[0] : '');
+            if (incomeDateFrom && pDate && pDate < incomeDateFrom) return false;
+            if (incomeDateTo && pDate && pDate > incomeDateTo) return false;
+
+            if (incomeBranch !== 'all' && (p.branchId || p.branch_id) !== incomeBranch) return false;
+
+            if (incomeMethod !== 'all') {
+                const meth = (p.paymentMethod || '').toLowerCase();
+                if (incomeMethod === 'm-pesa' && !meth.includes('pesa')) return false;
+                if (incomeMethod === 'cash' && !meth.includes('cash')) return false;
+                if (incomeMethod === 'bank' && !meth.includes('bank') && !meth.includes('transfer')) return false;
+                if (incomeMethod === 'cheque' && !meth.includes('cheque')) return false;
+            }
+
+            if (incomeSearch) {
+                const q = incomeSearch.toLowerCase();
+                const student = (students || []).find(s => s.id === p.studentId);
+                const matchesSearch = 
+                    (p.receiptNumber || '').toLowerCase().includes(q) ||
+                    (p.studentName || student?.fullName || '').toLowerCase().includes(q) ||
+                    (student?.admissionNumber || p.admissionNumber || '').toLowerCase().includes(q) ||
+                    (p.transactionReference || '').toLowerCase().includes(q);
+                if (!matchesSearch) return false;
+            }
+
+            return true;
+        }).sort((a, b) => {
+            const da = new Date(a.paymentDate || a.createdAt || 0).getTime();
+            const db = new Date(b.paymentDate || b.createdAt || 0).getTime();
+            return db - da;
+        });
+    }, [validPayments, incomeDateFrom, incomeDateTo, incomeBranch, incomeMethod, incomeSearch, students]);
+
+    const incomeMetrics = useMemo(() => {
+        const totalCollected = filteredIncomePayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+
+        const matchingInvoices = (invoices || []).filter(inv => {
+            const iDate = inv.invoiceDate || (inv.createdAt ? inv.createdAt.split('T')[0] : '');
+            if (incomeDateFrom && iDate && iDate < incomeDateFrom) return false;
+            if (incomeDateTo && iDate && iDate > incomeDateTo) return false;
+            if (incomeBranch !== 'all' && (inv.branchId || inv.branch_id) !== incomeBranch) return false;
+            return true;
+        });
+
+        const totalInvoiced = matchingInvoices.reduce((acc, inv) => {
+            const net = Number(inv.totalAmount || 0) - Number(inv.discountAmount || inv.discount_amount || 0) - Number(inv.sponsorAmount || inv.sponsor_amount || 0);
+            return acc + Math.max(0, net);
+        }, 0);
+
+        const matchingExpenses = (expenditures || []).filter(e => {
+            const eDate = e.expenseDate || (e.createdAt ? e.createdAt.split('T')[0] : '');
+            if (incomeDateFrom && eDate && eDate < incomeDateFrom) return false;
+            if (incomeDateTo && eDate && eDate > incomeDateTo) return false;
+            if (incomeBranch !== 'all' && (e.branchId || e.branch_id) !== incomeBranch) return false;
+            return true;
+        });
+        const totalExpenditure = matchingExpenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);
+
+        const netOperatingIncome = totalCollected - totalExpenditure;
+        const collectionRate = totalInvoiced > 0 ? Math.min(100, Math.round((totalCollected / totalInvoiced) * 100)) : 100;
+
+        const methodCounts: Record<string, { count: number; amount: number }> = {
+            'M-Pesa': { count: 0, amount: 0 },
+            'Cash': { count: 0, amount: 0 },
+            'Bank': { count: 0, amount: 0 },
+            'Other': { count: 0, amount: 0 }
+        };
+        filteredIncomePayments.forEach(p => {
+            const m = (p.paymentMethod || '').toLowerCase();
+            const amt = Number(p.amount || 0);
+            if (m.includes('pesa')) {
+                methodCounts['M-Pesa'].count++;
+                methodCounts['M-Pesa'].amount += amt;
+            } else if (m.includes('cash')) {
+                methodCounts['Cash'].count++;
+                methodCounts['Cash'].amount += amt;
+            } else if (m.includes('bank') || m.includes('transfer') || m.includes('cheque')) {
+                methodCounts['Bank'].count++;
+                methodCounts['Bank'].amount += amt;
+            } else {
+                methodCounts['Other'].count++;
+                methodCounts['Other'].amount += amt;
+            }
+        });
+
+        return {
+            totalCollected,
+            totalInvoiced,
+            totalExpenditure,
+            netOperatingIncome,
+            collectionRate,
+            transactionCount: filteredIncomePayments.length,
+            methodCounts
+        };
+    }, [filteredIncomePayments, invoices, expenditures, incomeDateFrom, incomeDateTo, incomeBranch]);
+
+    // --- DEBT / ARREARS COMPUTATION ---
+    const studentDebtList = useMemo(() => {
+        return (students || []).map(s => {
+            const studentId = s.id;
+            const adm = s.admissionNumber || s.admission_number || '';
+            const name = (s.fullName || s.full_name || '').trim().toLowerCase();
+
+            const studentInvoices = (invoices || []).filter(inv => 
+                inv.studentId === studentId || 
+                (adm && (inv.admissionNumber || '').trim().toLowerCase() === adm.toLowerCase()) ||
+                (name && (inv.studentName || '').trim().toLowerCase() === name)
+            );
+
+            const totalInvoiced = studentInvoices.reduce((acc, inv) => acc + Number(inv.totalAmount || 0), 0);
+            const totalDiscount = studentInvoices.reduce((acc, inv) => acc + Number(inv.discountAmount || inv.discount_amount || 0), 0);
+            const totalSponsor = studentInvoices.reduce((acc, inv) => acc + Number(inv.sponsorAmount || inv.sponsor_amount || 0), 0);
+            const netInvoiced = Math.max(0, totalInvoiced - totalDiscount - totalSponsor);
+
+            const studentPayments = (payments || []).filter(p => 
+                (p.studentId === studentId ||
+                (adm && (p.admissionNumber || '').trim().toLowerCase() === adm.toLowerCase()) ||
+                (name && (p.studentName || '').trim().toLowerCase() === name) ||
+                studentInvoices.some(inv => inv.id === p.invoiceId)) &&
+                p.status !== 'Pending Deletion' && p.status !== 'Cancelled' && p.status !== 'Rejected'
+            );
+
+            const totalPaid = studentPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0);
+            const balance = Math.max(0, netInvoiced - totalPaid);
+
+            const sortedPayments = [...studentPayments].sort((a, b) => {
+                const da = new Date(a.paymentDate || a.createdAt || 0).getTime();
+                const db = new Date(b.paymentDate || b.createdAt || 0).getTime();
+                return db - da;
+            });
+            const lastPaymentDate = sortedPayments[0]?.paymentDate || sortedPayments[0]?.createdAt?.split('T')[0] || null;
+
+            let severity: 'severe' | 'moderate' | 'minor' | 'cleared' = 'cleared';
+            if (balance > 15000) severity = 'severe';
+            else if (balance >= 5000) severity = 'moderate';
+            else if (balance > 0) severity = 'minor';
+
+            const branch = (branches || []).find(b => b.id === (s.branchId || s.branch_id));
+            const completionRate = netInvoiced > 0 ? Math.min(100, Math.round((totalPaid / netInvoiced) * 100)) : (totalPaid > 0 ? 100 : 0);
+
+            return {
+                student: s,
+                id: s.id,
+                fullName: s.fullName || s.full_name || 'Unnamed Student',
+                admissionNumber: s.admissionNumber || s.admission_number || '',
+                phone: s.phone || s.phoneNumber || s.phone_number || '',
+                category: s.licenseTypeInterested || s.licenseCategory || 'Standard',
+                branchName: branch?.name || 'Main Campus',
+                branchId: s.branchId || s.branch_id,
+                netInvoiced,
+                totalPaid,
+                balance,
+                completionRate,
+                lastPaymentDate,
+                severity,
+                status: s.status || 'Enrolled',
+                enrollmentDate: s.enrollmentDate ? s.enrollmentDate.split('T')[0] : ''
+            };
+        });
+    }, [students, invoices, payments, branches]);
+
+    const filteredDebtList = useMemo(() => {
+        return studentDebtList.filter(item => {
+            if (debtSearch) {
+                const q = debtSearch.toLowerCase();
+                const matches = 
+                    item.fullName.toLowerCase().includes(q) ||
+                    item.admissionNumber.toLowerCase().includes(q) ||
+                    item.phone.toLowerCase().includes(q);
+                if (!matches) return false;
+            }
+
+            if (debtBranch !== 'all' && item.branchId !== debtBranch) return false;
+            if (debtCategory !== 'all' && item.category !== debtCategory) return false;
+
+            if (debtSeverityFilter === 'with_debt' && item.balance <= 0) return false;
+            if (debtSeverityFilter === 'severe' && item.severity !== 'severe') return false;
+            if (debtSeverityFilter === 'moderate' && item.severity !== 'moderate') return false;
+            if (debtSeverityFilter === 'minor' && item.severity !== 'minor') return false;
+            if (debtSeverityFilter === 'cleared' && item.balance > 0) return false;
+
+            return true;
+        }).sort((a, b) => {
+            if (debtSortBy === 'balance_desc') return b.balance - a.balance;
+            if (debtSortBy === 'balance_asc') return a.balance - b.balance;
+            if (debtSortBy === 'name') return a.fullName.localeCompare(b.fullName);
+            if (debtSortBy === 'adm') return a.admissionNumber.localeCompare(b.admissionNumber);
+            return 0;
+        });
+    }, [studentDebtList, debtSearch, debtBranch, debtCategory, debtSeverityFilter, debtSortBy]);
+
+    const debtMetrics = useMemo(() => {
+        const totalDebt = studentDebtList.reduce((acc, it) => acc + it.balance, 0);
+        const debtorsCount = studentDebtList.filter(it => it.balance > 0).length;
+        const clearedCount = studentDebtList.filter(it => it.netInvoiced > 0 && it.balance <= 0).length;
+        const severeCount = studentDebtList.filter(it => it.severity === 'severe').length;
+        const severeDebtTotal = studentDebtList.filter(it => it.severity === 'severe').reduce((acc, it) => acc + it.balance, 0);
+        const totalInvoicedAll = studentDebtList.reduce((acc, it) => acc + it.netInvoiced, 0);
+        const totalPaidAll = studentDebtList.reduce((acc, it) => acc + it.totalPaid, 0);
+
+        return {
+            totalDebt,
+            debtorsCount,
+            clearedCount,
+            severeCount,
+            severeDebtTotal,
+            totalInvoicedAll,
+            totalPaidAll,
+            avgDebtPerDebtor: debtorsCount > 0 ? Math.round(totalDebt / debtorsCount) : 0,
+            debtPercentOfInvoiced: totalInvoicedAll > 0 ? Math.round((totalDebt / totalInvoicedAll) * 100) : 0
+        };
+    }, [studentDebtList]);
+
+    const generateStatementForStudent = async (studentId: string) => {
+        setSelectedStatementStudentId(studentId);
+        setReportMode('statements');
+        const student = (students || []).find((s: any) => s.id === studentId);
+        if (!student) return;
+        setIsGeneratingStatement(true);
+        try {
+            const sInvoices = (invoices || []).filter((i: any) => i.studentId === studentId);
+            const sPayments = (payments || []).filter((p: any) => p.studentId === studentId);
+            const doc = await generateStudentStatement(student, sInvoices, sPayments, currentInstitution);
+            const dataUrl = doc.output('datauristring');
+            setStatementPreviewUrl(dataUrl);
+            success(`Loaded financial statement for ${student.fullName}`);
+        } catch (err) {
+            console.error(err);
+            toastError("Failed to generate statement preview");
+        } finally {
+            setIsGeneratingStatement(false);
+        }
+    };
+
+    const handleSendBalanceReminderSms = async (item: typeof studentDebtList[0]) => {
+        if (!item.phone) {
+            toastError("Student has no contact phone number on record.");
+            return;
+        }
+        const instName = currentInstitution?.name || 'Driving School';
+        const msg = `Dear ${item.fullName}, reminder from ${instName}: you have an outstanding fee balance of KES ${item.balance.toLocaleString()}. Kindly clear to keep your driving lessons on schedule. Thank you.`;
+        if (!window.confirm(`Send Fee Reminder SMS to ${item.fullName} (${item.phone})?\n\n"${msg}"`)) {
+            return;
+        }
+        try {
+            await apiService.sendSms(item.phone, msg, undefined, 1, currentInstitution?.id);
+            success(`Fee balance reminder SMS sent to ${item.fullName}!`);
+        } catch (err: any) {
+            console.error("SMS send error:", err);
+            window.open(`sms:${item.phone}?body=${encodeURIComponent(msg)}`);
+            success(`Opened device SMS for ${item.fullName}`);
+        }
+    };
     const [expRepDateFrom, setExpRepDateFrom] = useState('');
     const [expRepDateTo, setExpRepDateTo] = useState('');
     const [expRepCategory, setExpRepCategory] = useState('all');
@@ -362,36 +647,38 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
         <div className="space-y-8 animate-fade-in print:space-y-0">
 
             {/* Top-Level Mode Selector Tabs */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl max-w-full overflow-x-auto scrollbar-hide w-fit print:hidden">
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl max-w-full overflow-x-auto scrollbar-hide w-fit print:hidden gap-1">
                 <button
                     type="button"
                     onClick={() => {
-                        setReportMode('timetables');
+                        setReportMode('income');
                         setLogbookPreviewUrl(null);
                         setStatementPreviewUrl(null);
                     }}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        reportMode === 'timetables' 
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' 
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        reportMode === 'income' 
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 scale-105' 
                             : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
-                    Instructor Timetables
+                    <BanknotesIcon className="w-3.5 h-3.5" />
+                    Income & Collections
                 </button>
                 <button
                     type="button"
                     onClick={() => {
-                        setReportMode('logbooks');
-                        setGeneratedReport(null);
+                        setReportMode('debt_balances');
+                        setLogbookPreviewUrl(null);
                         setStatementPreviewUrl(null);
                     }}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        reportMode === 'logbooks' 
-                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' 
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        reportMode === 'debt_balances' 
+                            ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20 scale-105' 
                             : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
-                    Student NTSA Logbooks
+                    <CreditCardIcon className="w-3.5 h-3.5" />
+                    Debt Balances & Arrears
                 </button>
                 <button
                     type="button"
@@ -400,12 +687,13 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                         setGeneratedReport(null);
                         setLogbookPreviewUrl(null);
                     }}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
                         reportMode === 'statements' 
                             ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' 
                             : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
+                    <DocumentTextIcon className="w-3.5 h-3.5" />
                     Financial Statements
                 </button>
                 <button
@@ -416,13 +704,46 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                         setLogbookPreviewUrl(null);
                         setStatementPreviewUrl(null);
                     }}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
                         reportMode === 'expenditure_summary' 
-                            ? 'bg-white dark:bg-slate-700 text-rose-600 shadow-sm scale-105' 
+                            ? 'bg-white dark:bg-slate-700 text-amber-600 shadow-sm scale-105' 
                             : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
+                    <CurrencyIcon className="w-3.5 h-3.5" />
                     Expenditure Reports
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setReportMode('timetables');
+                        setLogbookPreviewUrl(null);
+                        setStatementPreviewUrl(null);
+                    }}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        reportMode === 'timetables' 
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' 
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                >
+                    <CalendarDaysIcon className="w-3.5 h-3.5" />
+                    Instructor Timetables
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        setReportMode('logbooks');
+                        setGeneratedReport(null);
+                        setStatementPreviewUrl(null);
+                    }}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                        reportMode === 'logbooks' 
+                            ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm scale-105' 
+                            : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                >
+                    <AcademicCapIcon className="w-3.5 h-3.5" />
+                    Student NTSA Logbooks
                 </button>
                 <button
                     type="button"
@@ -432,7 +753,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                         setLogbookPreviewUrl(null);
                         setStatementPreviewUrl(null);
                     }}
-                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${reportMode === 'excel_exports' ? 'bg-emerald-600 text-white shadow-sm scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
+                    className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${reportMode === 'excel_exports' ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm scale-105' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                 >
                     <DownloadIcon className="w-3.5 h-3.5" />
                     Excel Data Exports
@@ -441,7 +762,770 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
 
 
 
-            {/* Mode 1: Instructor Timetables */}
+            
+            {/* Mode 0A: Income & Collections Report */}
+            {reportMode === 'income' && (
+                <div className="space-y-8 animate-fade-in">
+                    {/* Header & Quick Action Buttons */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-full text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                                    Financial Audit & Revenue
+                                </span>
+                                <span className="text-xs text-slate-400 font-bold">
+                                    {incomeMetrics.transactionCount} Collections Logged
+                                </span>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                Income & Collections Report
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Comprehensive ledger of tuition fees received, payment gateway channels, cashier receipts, and operational surplus.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        const fname = exportIncomeToExcel(filteredIncomePayments, students, invoices, branches, currentInstitution?.name);
+                                        success(`Downloaded: ${fname}`);
+                                    } catch (err: any) {
+                                        toastError(err?.message || "Failed to export income spreadsheet");
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all"
+                            >
+                                <DownloadIcon className="w-4 h-4" />
+                                Export Income Excel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => window.print()}
+                                className="flex items-center gap-2 px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                <PrinterIcon className="w-4 h-4" />
+                                Print Ledger
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Filter Ribbon */}
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Period Presets:</span>
+                                {[
+                                    { label: 'All Time', from: '', to: '' },
+                                    { label: 'Today', from: new Date().toISOString().split('T')[0], to: new Date().toISOString().split('T')[0] },
+                                    { 
+                                        label: 'This Month', 
+                                        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+                                        to: new Date().toISOString().split('T')[0]
+                                    },
+                                    { 
+                                        label: 'This Year', 
+                                        from: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
+                                        to: new Date().toISOString().split('T')[0]
+                                    }
+                                ].map(p => {
+                                    const isActive = incomeDateFrom === p.from && incomeDateTo === p.to;
+                                    return (
+                                        <button
+                                            key={p.label}
+                                            type="button"
+                                            onClick={() => {
+                                                setIncomeDateFrom(p.from);
+                                                setIncomeDateTo(p.to);
+                                                setIncomePage(1);
+                                            }}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                                                isActive 
+                                                    ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-sm' 
+                                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                            }`}
+                                        >
+                                            {p.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {(incomeDateFrom || incomeDateTo || incomeBranch !== 'all' || incomeMethod !== 'all' || incomeSearch) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIncomeDateFrom('');
+                                        setIncomeDateTo('');
+                                        setIncomeBranch('all');
+                                        setIncomeMethod('all');
+                                        setIncomeSearch('');
+                                        setIncomePage(1);
+                                    }}
+                                    className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest hover:underline flex items-center gap-1"
+                                >
+                                    <XIcon className="w-3.5 h-3.5" />
+                                    Reset All Filters
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Date From</label>
+                                <input
+                                    type="date"
+                                    value={incomeDateFrom}
+                                    onChange={e => { setIncomeDateFrom(e.target.value); setIncomePage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Date To</label>
+                                <input
+                                    type="date"
+                                    value={incomeDateTo}
+                                    onChange={e => { setIncomeDateTo(e.target.value); setIncomePage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Method</label>
+                                <select
+                                    value={incomeMethod}
+                                    onChange={e => { setIncomeMethod(e.target.value); setIncomePage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                >
+                                    <option value="all">All Payment Methods</option>
+                                    <option value="m-pesa">M-Pesa Mobile Money</option>
+                                    <option value="cash">Cash Handover</option>
+                                    <option value="bank">Bank Wire / Deposit</option>
+                                    <option value="cheque">Bank Cheque</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Branch / Campus</label>
+                                <select
+                                    value={incomeBranch}
+                                    onChange={e => { setIncomeBranch(e.target.value); setIncomePage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                >
+                                    <option value="all">All Branches & Campuses</option>
+                                    {(branches || []).map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="relative pt-2">
+                            <SearchIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 mt-1" />
+                            <input
+                                type="text"
+                                value={incomeSearch}
+                                onChange={e => { setIncomeSearch(e.target.value); setIncomePage(1); }}
+                                placeholder="Search receipt #, student name, admission number, transaction reference code..."
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Executive Income Metric Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gross Income Collected</span>
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                    <BanknotesIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                KES {incomeMetrics.totalCollected.toLocaleString()}
+                            </div>
+                            <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                                <CheckCircleIcon className="w-3.5 h-3.5" />
+                                {incomeMetrics.transactionCount} transactions posted
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Invoiced (Period)</span>
+                                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                    <DocumentTextIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                KES {incomeMetrics.totalInvoiced.toLocaleString()}
+                            </div>
+                            <div className="mt-2 space-y-1">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
+                                    <span>Collection Rate</span>
+                                    <span className="text-indigo-600 dark:text-indigo-400">{incomeMetrics.collectionRate}%</span>
+                                </div>
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                    <div className="bg-indigo-600 h-full rounded-full transition-all" style={{ width: `${Math.min(100, incomeMetrics.collectionRate)}%` }} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-rose-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Operating Expenses</span>
+                                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                                    <CurrencyIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                KES {incomeMetrics.totalExpenditure.toLocaleString()}
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-400 mt-1">
+                                Fuel, maintenance, rent & operations
+                            </p>
+                        </div>
+
+                        <div className={`p-6 rounded-[2.5rem] border shadow-sm relative overflow-hidden group ${
+                            incomeMetrics.netOperatingIncome >= 0 
+                                ? 'bg-gradient-to-br from-emerald-500 to-teal-700 text-white border-emerald-400/30' 
+                                : 'bg-gradient-to-br from-rose-600 to-red-800 text-white border-rose-400/30'
+                        }`}>
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-white/80">Net Operating Surplus</span>
+                                <div className="w-8 h-8 rounded-xl bg-white/20 text-white flex items-center justify-center">
+                                    <TrendingUpIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black tracking-tight">
+                                KES {incomeMetrics.netOperatingIncome.toLocaleString()}
+                            </div>
+                            <p className="text-[11px] font-bold text-white/90 mt-1">
+                                {incomeMetrics.netOperatingIncome >= 0 ? 'Operating Profit Surplus' : 'Operating Deficit'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Payment Channel Breakdown */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { name: 'M-Pesa Mobile', key: 'M-Pesa', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30' },
+                            { name: 'Cash Handover', key: 'Cash', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30' },
+                            { name: 'Bank Transfer', key: 'Bank', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30' },
+                            { name: 'Cheque / Other', key: 'Other', color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-950/30' }
+                        ].map(ch => {
+                            const data = incomeMetrics.methodCounts[ch.key] || { count: 0, amount: 0 };
+                            const pct = incomeMetrics.totalCollected > 0 ? Math.round((data.amount / incomeMetrics.totalCollected) * 100) : 0;
+                            return (
+                                <div key={ch.key} className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{ch.name}</span>
+                                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${ch.bg} ${ch.color}`}>{pct}%</span>
+                                    </div>
+                                    <div className="text-lg font-black text-slate-900 dark:text-white">
+                                        KES {data.amount.toLocaleString()}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 font-bold">{data.count} receipts</p>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Income Ledger Table */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Receipts & Payment Ledger</h4>
+                                <p className="text-[11px] text-slate-400 font-medium">Showing {filteredIncomePayments.length} transactions based on selected criteria</p>
+                            </div>
+                            <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                                Subtotal: KES {filteredIncomePayments.reduce((acc, p) => acc + Number(p.amount || 0), 0).toLocaleString()}
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                        <th className="py-4 px-6">Receipt #</th>
+                                        <th className="py-4 px-6">Date</th>
+                                        <th className="py-4 px-6">Student / Admission</th>
+                                        <th className="py-4 px-6">Method</th>
+                                        <th className="py-4 px-6">Reference Code</th>
+                                        <th className="py-4 px-6">Campus</th>
+                                        <th className="py-4 px-6">Received By</th>
+                                        <th className="py-4 px-6 text-right">Amount (KES)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-medium">
+                                    {filteredIncomePayments.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-12 text-center text-slate-400">
+                                                No income transactions match the current filter criteria.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredIncomePayments
+                                            .slice((incomePage - 1) * INCOME_PAGE_SIZE, incomePage * INCOME_PAGE_SIZE)
+                                            .map((p, idx) => {
+                                                const student = (students || []).find(s => s.id === p.studentId);
+                                                const branch = (branches || []).find(b => b.id === (p.branchId || p.branch_id));
+                                                const meth = (p.paymentMethod || 'M-Pesa').toLowerCase();
+                                                
+                                                let badgeStyle = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+                                                if (meth.includes('pesa')) badgeStyle = 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800';
+                                                else if (meth.includes('cash')) badgeStyle = 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800';
+                                                else if (meth.includes('bank')) badgeStyle = 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-800';
+
+                                                return (
+                                                    <tr key={p.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="py-4 px-6 font-mono font-bold text-slate-900 dark:text-white">
+                                                            {p.receiptNumber || 'REC-N/A'}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                                            {p.paymentDate || (p.createdAt ? p.createdAt.split('T')[0] : '')}
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            <div className="font-bold text-slate-900 dark:text-white">
+                                                                {p.studentName || student?.fullName || 'Anonymous / Walk-in'}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400 font-mono">
+                                                                {student?.admissionNumber || p.admissionNumber || 'ADM-N/A'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            <span className={`inline-block px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${badgeStyle}`}>
+                                                                {p.paymentMethod || 'M-Pesa'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-4 px-6 font-mono text-slate-600 dark:text-slate-400 text-[11px]">
+                                                            {p.transactionReference || p.reference || 'N/A'}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-500 dark:text-slate-400 text-[11px]">
+                                                            {branch?.name || 'Main Campus'}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-slate-500 dark:text-slate-400 text-[11px]">
+                                                            {p.receivedBy || 'Accounts Officer'}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right font-black text-slate-900 dark:text-white text-sm">
+                                                            KES {Number(p.amount || 0).toLocaleString()}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {filteredIncomePayments.length > INCOME_PAGE_SIZE && (
+                            <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-500">
+                                <span>
+                                    Page {incomePage} of {Math.ceil(filteredIncomePayments.length / INCOME_PAGE_SIZE)}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={incomePage <= 1}
+                                        onClick={() => setIncomePage(prev => Math.max(1, prev - 1))}
+                                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 disabled:opacity-40"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={incomePage * INCOME_PAGE_SIZE >= filteredIncomePayments.length}
+                                        onClick={() => setIncomePage(prev => prev + 1)}
+                                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 disabled:opacity-40"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Mode 0B: Debt Balances & Fee Arrears Report */}
+            {reportMode === 'debt_balances' && (
+                <div className="space-y-8 animate-fade-in">
+                    {/* Header & Quick Action Buttons */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                                <span className="px-3 py-1 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-full text-[10px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-400">
+                                    Fee Recovery & Arrears
+                                </span>
+                                <span className="text-xs text-slate-400 font-bold">
+                                    {debtMetrics.debtorsCount} Students with Balances
+                                </span>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                Student Debt Balances & Fee Arrears
+                            </h3>
+                            <p className="text-xs text-slate-400 font-medium">
+                                Monitor uncollected course fees, student aging balances, collection progress, and generate official statements.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    try {
+                                        const fname = exportDebtBalancesToExcel(
+                                            filteredDebtList.map(d => d.student), 
+                                            invoices, 
+                                            payments, 
+                                            branches, 
+                                            currentInstitution?.name
+                                        );
+                                        success(`Downloaded: ${fname}`);
+                                    } catch (err: any) {
+                                        toastError(err?.message || "Failed to export debt balances spreadsheet");
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all"
+                            >
+                                <DownloadIcon className="w-4 h-4" />
+                                Export Debtors Excel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => window.print()}
+                                className="flex items-center gap-2 px-5 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all"
+                            >
+                                <PrinterIcon className="w-4 h-4" />
+                                Print Collection Sheet
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Executive Debt Metric Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-rose-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Outstanding Debt</span>
+                                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                                    <CreditCardIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
+                                KES {debtMetrics.totalDebt.toLocaleString()}
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-400 mt-1">
+                                {debtMetrics.debtPercentOfInvoiced}% of total invoiced revenue
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-amber-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Students In Debt</span>
+                                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                    <UsersIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {debtMetrics.debtorsCount} Students
+                            </div>
+                            <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mt-1">
+                                Avg. KES {debtMetrics.avgDebtPerDebtor.toLocaleString()} per debtor
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fully Cleared Students</span>
+                                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {debtMetrics.clearedCount} Students
+                            </div>
+                            <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                                Zero balance / Course paid in full
+                            </p>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 -mr-6 -mt-6 w-24 h-24 bg-red-600/10 rounded-full blur-xl group-hover:scale-125 transition-transform" />
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Severe Arrears (&gt; 15k)</span>
+                                <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center">
+                                    <ExclamationTriangleIcon className="w-4 h-4" />
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-red-600 dark:text-red-400 tracking-tight">
+                                KES {debtMetrics.severeDebtTotal.toLocaleString()}
+                            </div>
+                            <p className="text-[11px] font-bold text-red-600 dark:text-red-400 mt-1">
+                                High risk across {debtMetrics.severeCount} learners
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Filter Ribbon */}
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Debt Severity</label>
+                                <select
+                                    value={debtSeverityFilter}
+                                    onChange={e => { setDebtSeverityFilter(e.target.value as any); setDebtPage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                >
+                                    <option value="with_debt">All with Balances (Debt &gt; 0)</option>
+                                    <option value="severe">Severe Debt (&gt; KES 15,000)</option>
+                                    <option value="moderate">Moderate Debt (KES 5k - 15k)</option>
+                                    <option value="minor">Minor Balance (&lt; KES 5,000)</option>
+                                    <option value="cleared">Fully Cleared (Zero Balance)</option>
+                                    <option value="all">All Students (Regardless of Balance)</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Branch / Campus</label>
+                                <select
+                                    value={debtBranch}
+                                    onChange={e => { setDebtBranch(e.target.value); setDebtPage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                >
+                                    <option value="all">All Campuses</option>
+                                    {(branches || []).map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">License Category</label>
+                                <select
+                                    value={debtCategory}
+                                    onChange={e => { setDebtCategory(e.target.value); setDebtPage(1); }}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                >
+                                    <option value="all">All License Categories</option>
+                                    {(categories || []).map((cat: any) => (
+                                        <option key={cat.code || cat.name} value={cat.code || cat.name}>
+                                            {cat.name} ({cat.code || 'DL'})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Sort Ordering</label>
+                                <select
+                                    value={debtSortBy}
+                                    onChange={e => setDebtSortBy(e.target.value as any)}
+                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white"
+                                >
+                                    <option value="balance_desc">Highest Balance First</option>
+                                    <option value="balance_asc">Lowest Balance First</option>
+                                    <option value="name">Student Name (A-Z)</option>
+                                    <option value="adm">Admission Number</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="relative pt-2">
+                            <SearchIcon className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2 mt-1" />
+                            <input
+                                type="text"
+                                value={debtSearch}
+                                onChange={e => { setDebtSearch(e.target.value); setDebtPage(1); }}
+                                placeholder="Search by student full name, admission number, or phone number..."
+                                className="w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-rose-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Debt Balances Ledger Table */}
+                    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Student Debtors & Fee Aging</h4>
+                                <p className="text-[11px] text-slate-400 font-medium">Showing {filteredDebtList.length} students matching criteria</p>
+                            </div>
+                            <span className="text-xs font-black text-rose-600 dark:text-rose-400">
+                                Total Debt: KES {filteredDebtList.reduce((acc, it) => acc + it.balance, 0).toLocaleString()}
+                            </span>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                        <th className="py-4 px-6">Student</th>
+                                        <th className="py-4 px-6">Contact</th>
+                                        <th className="py-4 px-6">Course & Campus</th>
+                                        <th className="py-4 px-6 text-right">Course Fee</th>
+                                        <th className="py-4 px-6 text-right">Total Paid</th>
+                                        <th className="py-4 px-6 text-right">Debt Balance</th>
+                                        <th className="py-4 px-6">Progress</th>
+                                        <th className="py-4 px-6 text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-medium">
+                                    {filteredDebtList.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={8} className="py-12 text-center text-slate-400">
+                                                No students found matching current debt filter criteria.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredDebtList
+                                            .slice((debtPage - 1) * DEBT_PAGE_SIZE, debtPage * DEBT_PAGE_SIZE)
+                                            .map((item, idx) => {
+                                                const initials = (item.fullName || 'ST')
+                                                    .split(' ')
+                                                    .map((n: string) => n[0])
+                                                    .slice(0, 2)
+                                                    .join('')
+                                                    .toUpperCase();
+
+                                                let sevBadge = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+                                                if (item.severity === 'severe') sevBadge = 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800';
+                                                else if (item.severity === 'moderate') sevBadge = 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800';
+                                                else if (item.severity === 'minor') sevBadge = 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
+                                                else if (item.severity === 'cleared') sevBadge = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800';
+
+                                                return (
+                                                    <tr key={item.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="py-4 px-6">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 font-black text-[11px] text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                                                                    {initials}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-bold text-slate-900 dark:text-white">
+                                                                        {item.fullName}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-slate-400 font-mono">
+                                                                        {item.admissionNumber || 'ADM-N/A'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            {item.phone ? (
+                                                                <a 
+                                                                    href={`tel:${item.phone}`}
+                                                                    className="text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-mono text-[11px] flex items-center gap-1"
+                                                                >
+                                                                    <PhoneIcon className="w-3 h-3 text-slate-400" />
+                                                                    {item.phone}
+                                                                </a>
+                                                            ) : (
+                                                                <span className="text-slate-400 italic text-[11px]">No contact</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-4 px-6">
+                                                            <div className="font-bold text-slate-800 dark:text-slate-200 text-[11px]">
+                                                                {item.category}
+                                                            </div>
+                                                            <div className="text-[10px] text-slate-400">
+                                                                {item.branchName}
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right font-medium text-slate-700 dark:text-slate-300 text-xs">
+                                                            KES {item.netInvoiced.toLocaleString()}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right font-medium text-emerald-600 dark:text-emerald-400 text-xs">
+                                                            KES {item.totalPaid.toLocaleString()}
+                                                        </td>
+                                                        <td className="py-4 px-6 text-right">
+                                                            <span className={`inline-block px-3 py-1 rounded-xl font-black text-xs ${
+                                                                item.balance > 0 
+                                                                    ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-200 dark:border-rose-900' 
+                                                                    : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
+                                                            }`}>
+                                                                KES {item.balance.toLocaleString()}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-4 px-6 min-w-[120px]">
+                                                            <div className="space-y-1">
+                                                                <div className="flex items-center justify-between text-[10px] font-bold">
+                                                                    <span className="text-slate-400">{item.completionRate}%</span>
+                                                                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${sevBadge}`}>
+                                                                        {item.severity}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full rounded-full transition-all ${item.completionRate >= 100 ? 'bg-emerald-500' : item.completionRate >= 50 ? 'bg-indigo-500' : 'bg-rose-500'}`} 
+                                                                        style={{ width: `${item.completionRate}%` }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 px-6 text-center">
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => generateStatementForStudent(item.id)}
+                                                                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-xl font-black text-[10px] uppercase tracking-wider transition-all"
+                                                                    title="Generate and preview student statement"
+                                                                >
+                                                                    Statement
+                                                                </button>
+                                                                {item.balance > 0 && item.phone && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSendBalanceReminderSms(item)}
+                                                                        className="p-1.5 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 rounded-xl transition-all"
+                                                                        title="Send SMS balance reminder"
+                                                                    >
+                                                                        <PhoneIcon className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {filteredDebtList.length > DEBT_PAGE_SIZE && (
+                            <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-500">
+                                <span>
+                                    Page {debtPage} of {Math.ceil(filteredDebtList.length / DEBT_PAGE_SIZE)}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={debtPage <= 1}
+                                        onClick={() => setDebtPage(prev => Math.max(1, prev - 1))}
+                                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 disabled:opacity-40"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={debtPage * DEBT_PAGE_SIZE >= filteredDebtList.length}
+                                        onClick={() => setDebtPage(prev => prev + 1)}
+                                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 disabled:opacity-40"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+{/* Mode 1: Instructor Timetables */}
 
             {reportMode === 'timetables' && (
 
@@ -1424,6 +2508,20 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
                                 count: `${formatSystemUserRows(users, instructors, branches, currentInstitution?.id).length} Staff & Trainers`,
                                 icon: UsersIcon,
                                 fn: () => exportSystemUsersToExcel(users, instructors, branches, currentInstitution?.name, currentInstitution?.id)
+                            },
+                            {
+                                title: 'Income & Collections',
+                                desc: 'Payment receipts, M-Pesa codes, bank transfers, cash collections, collector staff & revenue breakdown.',
+                                count: `${(payments || []).length} Payments`,
+                                icon: BanknotesIcon,
+                                fn: () => exportIncomeToExcel(payments, students, invoices, branches, currentInstitution?.name)
+                            },
+                            {
+                                title: 'Debt Balances & Arrears',
+                                desc: 'Students with outstanding balances, overdue fee aging, contacts, total course cost, amount paid & net debt.',
+                                count: `${formatDebtBalanceRows(students, invoices, payments, branches).filter((r: any) => Number(r['Outstanding Debt Balance (KES)'] || 0) > 0).length} Debtors`,
+                                icon: CreditCardIcon,
+                                fn: () => exportDebtBalancesToExcel(students, invoices, payments, branches, currentInstitution?.name)
                             }
                         ].map((card, idx) => (
                             <div key={idx} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between group hover:border-indigo-400/50 transition-all">
