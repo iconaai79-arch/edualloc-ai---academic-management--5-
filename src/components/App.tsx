@@ -5044,6 +5044,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 'finance', 'finance_officer', 'accounts_clerk', 'academics_officer', 'hr_officer', 'transport_admin',
                 'boarding_master', 'boarding_mistress', 'librarian', 'store', 'event_manager', 'security', 'info_desk',
                 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'cateress',
+                                    'support_staff', 'cleaner', 'groundsman', 'maintenance', 'messenger', 'attendant', 'subordinate',
                 
                 // Instructors / Teachers
                 'teacher', 'practice_teacher', 'lecturer', 'driving_instructor',
@@ -10117,6 +10118,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     cleanInput.includes('superadmin') ||
                                     cleanInput.includes('super_admin')
                                 );
+                                const isSupportStaffAlias = (
+                                    cleanInput === 'support' ||
+                                    cleanInput === 'support_staff' ||
+                                    cleanInput === 'staff' ||
+                                    cleanInput === 'staff@app.com' ||
+                                    cleanInput === 'support@app.com' ||
+                                    cleanInput === 'u_support_staff_demo'
+                                );
                                 let discovered: any[] = [];
                                 let matchedUsers: any[] = [];
 
@@ -10153,7 +10162,15 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                                              (Array.isArray(candidate.roles) && candidate.roles.includes('super_admin'));
                                     const superRoleMatch = isSuperAdminAlias && candidateIsSuper;
 
-                                    if (!emailMatch && !phoneMatch && !idMatch && !superRoleMatch) return false;
+                                    const candidateIsSupportStaff = candidate.role === 'support_staff' ||
+                                                                   ['cleaner', 'cook', 'driver', 'groundsman', 'maintenance', 'messenger', 'attendant', 'subordinate'].includes(candidate.role) ||
+                                                                   (candidate.role === 'staff' && !candidate.isAdmin) ||
+                                                                   candidate.id === 'u_support_staff_demo' ||
+                                                                   candidate.email === 'staff@app.com' ||
+                                                                   (Array.isArray(candidate.roles) && candidate.roles.some((r: any) => ['support_staff', 'cleaner', 'cook', 'driver', 'groundsman', 'maintenance', 'messenger', 'attendant', 'subordinate'].includes(r)));
+                                    const supportStaffRoleMatch = isSupportStaffAlias && candidateIsSupportStaff;
+
+                                    if (!emailMatch && !phoneMatch && !idMatch && !superRoleMatch && !supportStaffRoleMatch) return false;
 
                                     // Password verification:
                                     // Matches candidate password, or default 'password123' if candidate has no password,
@@ -10166,6 +10183,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             p === 'admin123' || 
                                             p === 'super123' || 
                                             p === 'admin' ||
+                                            candidate.password === p
+                                        )) ||
+                                        ((candidateIsSupportStaff || isSupportStaffAlias) && (
+                                            p === 'password123' || 
+                                            p === 'staff123' || 
+                                            p === 'staff' ||
                                             candidate.password === p
                                         ));
 

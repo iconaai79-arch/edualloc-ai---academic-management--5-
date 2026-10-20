@@ -5981,6 +5981,52 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
         }, 300);
     };
 
+    // Handle Login as Support Staff (Super Admin / Admin Impersonation)
+    const handleLoginAsStaff = (staff: User) => {
+        if (!isSuperAdmin) return;
+
+        try {
+            // 1. Preserve original super admin session if not already stored
+            const saStored = localStorage.getItem('eduai_super_admin_session');
+            if (!saStored) {
+                const active = currentUser?.role === 'super_admin' ? currentUser : apiService.getSession();
+                const superAdminUser = (active && (active.role === 'super_admin' || isSuperAdminUser(active))) ? active : currentUser;
+                if (superAdminUser) {
+                    localStorage.setItem('eduai_super_admin_session', JSON.stringify(superAdminUser));
+                }
+            }
+        } catch (e) {
+            console.warn('[StudentEnrollmentManager] Failed to cache super admin session:', e);
+        }
+
+        // 2. Prepare the impersonated staff payload
+        const impersonatedStaff: User = {
+            ...staff,
+            institutionId: staff.institutionId || currentInstitution?.id || '',
+            role: (staff.role && staff.role !== 'super_admin') ? staff.role : 'support_staff',
+            isImpersonated: true,
+            passwordLastUpdated: staff.passwordLastUpdated || new Date().toISOString()
+        };
+
+        // 3. Store the new session into active localStorage & sessionStorage keys
+        try {
+            sessionStorage.setItem('eduai_impersonated_by_admin', 'true');
+        } catch (_) {}
+        apiService.storeSession(impersonatedStaff);
+        try {
+            localStorage.setItem('eduai_impersonated_user', JSON.stringify(impersonatedStaff));
+            localStorage.setItem('eduai_user_session', JSON.stringify(impersonatedStaff));
+            localStorage.setItem('user', JSON.stringify(impersonatedStaff));
+        } catch (_) {}
+
+        setStatusMsg({ type: 'success', message: `Logging in as ${staff.name} (Support Staff)...` });
+
+        // 4. Force reload into Support Staff Mobile App Portal
+        setTimeout(() => {
+            window.location.href = window.location.origin + window.location.pathname;
+        }, 300);
+    };
+
     // Available Cohorts / Grade Levels — Only load registered grades
     const cohortsList = useMemo(() => {
         if (context === 'driving_school') {
@@ -7643,6 +7689,16 @@ export const StudentEnrollmentManager: React.FC<StudentEnrollmentManagerProps> =
 
                                         {/* Actions */}
                                         <div className="shrink-0 flex items-center gap-1">
+                                            {isSuperAdmin && (
+                                                <button
+                                                    onClick={() => handleLoginAsStaff(staff)}
+                                                    className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 group/loginbtn cursor-pointer"
+                                                    title={`Login as ${staff.name} (Support Staff Portal)`}
+                                                >
+                                                    <LogIn className="w-3.5 h-3.5 group-hover/loginbtn:translate-x-0.5 transition-transform" />
+                                                    <span className="text-[10px] font-black uppercase tracking-wider">Login as Staff</span>
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => {
                                                     setRoleModalUser(staff);

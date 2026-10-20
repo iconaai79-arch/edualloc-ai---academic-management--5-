@@ -344,12 +344,24 @@ export const INITIAL_USERS: User[] = [
         institutionId: 'Kigumo',
         expertise: ['NG-CDF Management'],
         password: 'password123'
+    },
+    {
+        id: 'u_support_staff_demo',
+        name: 'John Kamau (Support Staff)',
+        email: 'staff@app.com',
+        phoneNumber: '0711111115',
+        role: 'support_staff',
+        roles: ['support_staff'],
+        institutionId: INST_DEMO,
+        departmentId: 'dept_maintenance',
+        expertise: ['Maintenance & Facilities', 'Security', 'Logistics'],
+        password: 'password123'
     }
 ];
 
 export const RETAIL_SUBTYPES = ['Hardware', 'General', 'Retail', 'Retail Shop', 'Retail Agency', 'Boutique', 'Salon', 'Barber Shop', 'Electronics', 'Supermarket', 'Wholesale', 'General Retail', 'Restaurant', 'Cafe', 'Eatery', 'Fuel Station'];
 
-export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'boarding_mistress', 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'accounts_clerk', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant', 'finance', 'finance_officer', 'procurement_officer', 'event_manager', 'managing_director', 'hoi', 'hr_officer', 'operation_manager', 'operations_manager', 'restaurant_admin', 'chef', 'waiter', 'cashier'];
+export const VALID_STAFF_ROLES: Role[] = ['admin', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'hod', 'tto', 'lecturer', 'practice_teacher', 'academics_officer', 'head_teacher', 'dos', 'teacher', 'support_staff', 'cleaner', 'groundsman', 'maintenance', 'messenger', 'subordinate', 'librarian', 'security', 'info_desk', 'store', 'boarding_master', 'boarding_mistress', 'housekeeping_attendant', 'house_keeping_attendant', 'head_cook', 'cook', 'accounts_clerk', 'driver', 'transport_assistant', 'reseller', 'retail_agent', 'field_agent', 'customer', 'lead', 'pastor', 'deacon', 'elder', 'treasurer', 'secretary', 'worker', 'church_admin', 'fuel_admin', 'attendant', 'finance', 'finance_officer', 'procurement_officer', 'event_manager', 'managing_director', 'hoi', 'hr_officer', 'operation_manager', 'operations_manager', 'restaurant_admin', 'chef', 'waiter', 'cashier'];
  
 export const MODULES = [
   {

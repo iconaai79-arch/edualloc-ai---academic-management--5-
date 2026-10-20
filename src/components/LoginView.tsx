@@ -16,6 +16,7 @@ import { PaperAirplaneIcon } from './icons/PaperAirplaneIcon';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { ShieldExclamationIcon } from './icons/ShieldExclamationIcon';
 import { ShoppingCartIcon } from './icons/ShoppingCartIcon';
+import { UserGroupIcon } from './icons/UserGroupIcon';
 
 interface LoginViewProps {
     onLogin: (email: string, password: string) => Promise<'success' | 'expired' | 'failed' | 'suspended' | 'otp_required'>;
@@ -229,6 +230,36 @@ export const LoginView: React.FC<LoginViewProps> = ({
             const result = await onLogin(cleanIdentifier, password);
             if (result === 'failed') {
                 setError('Invalid email or password.');
+            } else if (result === 'suspended') {
+                setError('This institution account is suspended. Redirecting to billing...');
+            } else if (result === 'expired') {
+                setError('Your session or access has expired.');
+            } else if (result === 'otp_required') {
+                setView('otp');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Login system encountered an error.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleSupportStaffLogin = async () => {
+        setError('');
+        setIsSubmitting(true);
+        try {
+            const supportUser = (users || []).find(u => 
+                u.role === 'support_staff' ||
+                ['cleaner', 'cook', 'driver', 'groundsman', 'maintenance', 'messenger', 'attendant', 'subordinate'].includes(u.role as string) ||
+                u.email === 'staff@app.com' ||
+                u.phoneNumber === '0711111115'
+            );
+            const loginEmail = supportUser?.email || supportUser?.phoneNumber || 'staff@app.com';
+            const loginPass = supportUser?.password || 'password123';
+
+            const result = await onLogin(loginEmail, loginPass);
+            if (result === 'failed') {
+                setError('Invalid support staff account credentials.');
             } else if (result === 'suspended') {
                 setError('This institution account is suspended. Redirecting to billing...');
             } else if (result === 'expired') {
@@ -544,6 +575,26 @@ export const LoginView: React.FC<LoginViewProps> = ({
                                         disabled={isSubmitting}
                                     >
                                         {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
+                                    </button>
+
+                                    <div className="relative my-3 flex items-center justify-center">
+                                        <div className="absolute inset-0 flex items-center">
+                                            <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
+                                        </div>
+                                        <span className="relative bg-white dark:bg-slate-800 px-3 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                                            Or Quick Access
+                                        </span>
+                                    </div>
+
+                                    <button 
+                                        type="button"
+                                        onClick={handleSupportStaffLogin}
+                                        disabled={isSubmitting}
+                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-2xl transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 group border border-emerald-500/30 cursor-pointer"
+                                    >
+                                        <UserGroupIcon className="w-5 h-5 text-emerald-100 group-hover:scale-110 transition-transform shrink-0" />
+                                        <span>Login as Support Staff</span>
+                                        <span className="text-[10px] bg-emerald-800/60 text-emerald-100 px-2 py-0.5 rounded-full font-bold ml-1 uppercase tracking-tight">Mobile Portal</span>
                                     </button>
                                 </form>
                             )}

@@ -1985,7 +1985,8 @@ export const UserManager: React.FC<UserManagerProps> = (props) => {
                                                         const canLoginAs = isActualSuperAdmin || (
                                                             isSuperAdmin && [
                                                                 'teacher', 'lecturer', 'driving_instructor', 'staff', 'hod', 'dos',
-                                                                'director', 'admin', 'managing_director', 'principal', 'head_teacher', 'headmaster', 'deputy'
+                                                                'director', 'admin', 'managing_director', 'principal', 'head_teacher', 'headmaster', 'deputy',
+                                                                'support_staff', 'cleaner', 'cook', 'driver', 'groundsman', 'maintenance', 'messenger', 'attendant', 'subordinate'
                                                             ].includes(targetRoleLower)
                                                         );
 
