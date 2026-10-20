@@ -1450,7 +1450,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     ? 5000 
                                     : (moduleName === 'institutions' 
                                         ? (targetInstParam || getStrParam(id) ? 1 : 10000) 
-                                        : (['timetable_entries', 'exam_timetable_entries', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts'].includes(moduleName)
+                                        : (['timetable_entries', 'exam_timetable_entries', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'visitors', 'building_visitor_logs', 'security_alerts'].includes(moduleName)
                                             ? 3000
                                             : (['institution_module_states', 'retail_inventory_items'].includes(moduleName)
                                                 ? 1000
@@ -1476,11 +1476,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     ? 500
                     : (['student_enrollments', 'inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
-                        : (['visitors', 'building_visitor_logs'].includes(moduleName)
-                            ? 100
-                            : (['security_alerts', 'activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'branches'].includes(moduleName)
-                                ? 250
-                                : (moduleName === 'institutions' ? 500 : 1000)))));
+                        : (['activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'branches'].includes(moduleName)
+                            ? 250
+                            : (moduleName === 'institutions' ? 500 : 1000))));
             let data: any[] = [];
             let error: any = null;
 
