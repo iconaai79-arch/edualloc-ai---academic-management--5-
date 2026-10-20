@@ -239,7 +239,7 @@ const SIMULATOR_NAMES: Record<string, string> = {
     'private-security': 'Sentinel Private Security'
 };
 
-
+export const cleanId = (id?: string): string => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
 
 export const App: React.FC = () => {
     const { success, error: toastError, info, warning } = useToast();
@@ -763,8 +763,6 @@ export const App: React.FC = () => {
                 moduleStates: states
             };
         };
-
-        const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
 
         // Support showroom/school context via URL param or subdomain (even if not logged in)
         const targetId = activeStoreTenantId || (currentUser && currentUser.role !== 'super_admin' ? currentUser.institutionId : null);
@@ -5053,7 +5051,6 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 'transport_assistant', 'driver'
             ];
 
-            const cleanId = (id?: string) => id ? String(id).replace(/^(br_inst_br_|br_inst_|br_|inst_br_|inst_)/gi, '').toLowerCase() : '';
             const normTargetId = cleanId(institutionId);
 
             const branchRecord = (branches || []).find((b: any) => {
