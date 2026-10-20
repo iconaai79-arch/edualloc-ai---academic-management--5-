@@ -4968,7 +4968,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
 
     const onDeleteInstitution = async (id: string) => {
-        await apiService.deleteModuleRecord('institutions', id);
+        try {
+            await apiService.purgeTenant(id);
+        } catch (e) {
+            console.warn('[onDeleteInstitution] Purge error:', e);
+            await apiService.deleteModuleRecord('institutions', id);
+        }
         loadData();
     };
 

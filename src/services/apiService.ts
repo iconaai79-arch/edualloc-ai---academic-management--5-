@@ -4896,6 +4896,51 @@ export const apiService = {
             console.warn(`[deleteModuleRecord] Proxy delete completed for ${module}`);
         }
     },
+
+    async purgeTenant(institutionId: string): Promise<void> {
+        if (!institutionId) return;
+
+        const affectedModules = [
+            'institutions', 'branches', 'branch_integration_configs',
+            'institution_module_states', 'users', 'departments', 'courses',
+            'subjects', 'rooms', 'buildings', 'academic_years', 'semesters',
+            'academic_levels', 'allocation_requests', 'timetable_entries',
+            'inventory', 'visitors', 'security_alerts',
+            'ds_students', 'ds_instructors', 'ds_vehicles', 'ds_lessons', 'ds_payments', 'ds_tests',
+            'his_patients', 'his_staff', 'his_wards', 'his_beds', 'his_appointments',
+            'property_management_properties', 'property_management_units', 'property_management_leases'
+        ];
+        affectedModules.forEach(m => invalidateModuleCache(m));
+
+        try {
+            const insts = ls.get('institutions');
+            if (Array.isArray(insts)) {
+                ls.set('institutions', insts.filter((i: any) => i && i.id !== institutionId));
+            }
+            const branches = ls.get('branches');
+            if (Array.isArray(branches)) {
+                ls.set('branches', branches.filter((b: any) => b && b.institution_id !== institutionId && b.institutionId !== institutionId));
+            }
+            const users = ls.get('users');
+            if (Array.isArray(users)) {
+                ls.set('users', users.filter((u: any) => u && u.institutionId !== institutionId && (u as any).institution_id !== institutionId));
+            }
+        } catch (_) {}
+
+        try {
+            const activeId = localStorage.getItem('eduai_active_institution_id');
+            if (activeId === institutionId) {
+                localStorage.removeItem('eduai_active_institution_id');
+            }
+            const currentInst = ls.get('current_institution');
+            if (currentInst && (currentInst.id === institutionId || currentInst._id === institutionId)) {
+                ls.set('current_institution', null);
+            }
+        } catch (_) {}
+
+        await apiService.deleteModuleRecord('institutions', institutionId);
+    },
+
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
         invalidateModuleCache(module);
         if (module === 'invoices' && data && (data as any).studentId && ((data as any).status === 'pending' || !(data as any).status)) {

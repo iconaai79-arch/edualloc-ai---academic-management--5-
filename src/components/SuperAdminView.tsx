@@ -92,6 +92,8 @@ import { PalmTreeIcon as Palmtree } from './icons/PalmTreeIcon';
 import { ZapIcon } from './icons/ZapIcon';
 import { CommunicationsManager } from './CommunicationsManager';
 import { EditInstitutionModal } from './EditInstitutionModal';
+import { DeleteTenantModal } from './superadmin/DeleteTenantModal';
+import { TrashIcon } from './icons/TrashIcon';
 import { StampCustomizerModal } from './common/StampCustomizerModal';
 import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 import { apiService } from '../services/apiService';
@@ -657,6 +659,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [institutionSearchQuery, setInstitutionSearchQuery] = useState('');
     const [institutionTimeFilter, setInstitutionTimeFilter] = useState<'all' | '7d' | '30d' | '90d' | 'active' | 'suspended'>('all');
     const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
+    const [deletingTenant, setDeletingTenant] = useState<Institution | null>(null);
     const [assigningResellerFor, setAssigningResellerFor] = useState<Institution | null>(null);
     const [selectedResellerId, setSelectedResellerId] = useState<string>('');
     const [migrationSubTab, setMigrationSubTab] = useState<'full' | 'semester'>('full');
@@ -3231,6 +3234,14 @@ Please change it after login.`;
 
                                                                 {inst.status === 'suspended' ? 'Resume' : 'Suspend'}
                                                             </button>
+                                                            <button
+                                                                onClick={() => setDeletingTenant(inst)}
+                                                                className="flex items-center gap-1 text-rose-600 hover:text-rose-900 font-black text-[10px] uppercase tracking-tighter bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                                                title="Delete Tenant & Download SQL Backup"
+                                                            >
+                                                                <TrashIcon className="w-3 h-3" />
+                                                                Delete
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -3247,6 +3258,10 @@ Please change it after login.`;
                                 users={users}
                                 onRefreshData={onRefreshData}
                                 onLoginAsAdmin={onLoginAsAdmin}
+                                onDeleteInstitution={(instId) => {
+                                    const inst = institutions.find(i => i.id === instId);
+                                    if (inst) setDeletingTenant(inst);
+                                }}
                             />
                         )}
 
@@ -7187,6 +7202,27 @@ Please change it after login.`;
                     counties={counties}
                     onRefreshData={onRefreshData}
                     resellers={institutions.filter(i => i.institutionType === 'Reseller')}
+                />
+            )}
+
+            {deletingTenant && (
+                <DeleteTenantModal
+                    isOpen={Boolean(deletingTenant)}
+                    institution={deletingTenant}
+                    users={users}
+                    branches={[]}
+                    onClose={() => setDeletingTenant(null)}
+                    onConfirmDelete={async (instId) => {
+                        if (props.onDeleteInstitution) {
+                            await props.onDeleteInstitution(instId);
+                        } else {
+                            await apiService.purgeTenant(instId);
+                        }
+                        if (onRefreshData) {
+                            await onRefreshData();
+                        }
+                        setDeletingTenant(null);
+                    }}
                 />
             )}
 

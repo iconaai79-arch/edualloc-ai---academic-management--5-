@@ -171,6 +171,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ success: false, error: 'No ids provided. Send { ids: [...] } in body.' });
     }
 
+    if (moduleName === 'institutions') {
+      try {
+        const pool = await getPgPool();
+        const relatedTables = [
+          'branches', 'branch_integration_configs', 'institution_module_states',
+          'departments', 'courses', 'subjects', 'rooms', 'buildings',
+          'academic_years', 'semesters', 'academic_levels', 'allocation_requests',
+          'timetable_entries', 'exam_timetable_entries', 'student_enrollments',
+          'assessments', 'assessment_marks', 'fee_structures', 'invoices', 'receipts',
+          'mpesa_transactions', 'vote_heads', 'inventory', 'visitors', 'security_alerts',
+          'ds_students', 'ds_instructors', 'ds_vehicles', 'ds_lessons', 'ds_payments',
+          'ds_tests', 'ds_leads', 'ds_invoices', 'ds_expenditures', 'ds_settings', 'ds_skill_masteries',
+          'his_patients', 'his_staff', 'his_wards', 'his_beds', 'his_appointments',
+          'property_management_properties', 'property_management_units', 'property_management_leases',
+          'car_sales_listings', 'car_sales_leads', 'car_sales_agreements',
+          'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory', 'coop_agrovet_sales',
+          'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts',
+          'retail_stores', 'retail_inventory_items', 'retail_suppliers', 'retail_expenses',
+          'transport_vehicles', 'transport_onboardings', 'transport_vehicle_logs',
+          'law_clients', 'law_matters', 'law_documents', 'law_time_entries', 'law_invoices', 'law_trust_transactions',
+          'users'
+        ];
+
+        if (pool) {
+          for (const tbl of relatedTables) {
+            try {
+              await pool.query(`DELETE FROM public."${tbl}" WHERE institution_id = ANY($1) OR "institutionId" = ANY($1)`, [idsArray]);
+            } catch (_) {
+              // Ignore if column or table does not exist
+            }
+          }
+        }
+
+        for (const tbl of ['branches', 'institution_module_states', 'users']) {
+          try {
+            await supabase.from(tbl).delete().in('institution_id', idsArray);
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.error('[/api/delete] Error in cascade deletion for institutions:', err);
+      }
+    }
+
     if (moduleName === 'users') {
       try {
         if (idsArray.length === 1) {

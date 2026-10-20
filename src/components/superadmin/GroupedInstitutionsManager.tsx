@@ -34,13 +34,15 @@ interface GroupedInstitutionsManagerProps {
     users: User[];
     onRefreshData?: () => Promise<void>;
     onLoginAsAdmin?: (institutionId: string, initialRole?: any) => void;
+    onDeleteInstitution?: (institutionId: string) => void;
 }
 
 export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProps> = ({
     institutions = [],
     users = [],
     onRefreshData,
-    onLoginAsAdmin
+    onLoginAsAdmin,
+    onDeleteInstitution
 }) => {
     const { success, error: toastError, info } = useToast();
 
@@ -566,6 +568,17 @@ export const GroupedInstitutionsManager: React.FC<GroupedInstitutionsManagerProp
                                             <UserCheck className="w-3.5 h-3.5" />
                                             Assign Group Admin
                                         </button>
+
+                                        {onDeleteInstitution && (
+                                            <button
+                                                onClick={() => onDeleteInstitution(inst.id)}
+                                                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                                                title="Delete Tenant and Download SQL Backup"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Delete Tenant
+                                            </button>
+                                        )}
 
                                         <div className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                                             {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
