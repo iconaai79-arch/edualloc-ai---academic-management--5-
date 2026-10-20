@@ -6927,9 +6927,37 @@ export interface RemedialSession {
     teacherSignatureDataUrl?: string; // base64 PNG drawn on canvas
     paymentMethod?: 'Cash via DOS' | 'Bank Transfer' | 'M-Pesa';
 
+    // Stage 1: Classroom Geofence Audit Fields
+    verifiedLatitude?: number;
+    verifiedLongitude?: number;
+    distanceFromClassroomMeters?: number;
+    geofenceAccuracyMeters?: number;
+    geofenceStatus?: 'within_bounds' | 'out_of_bounds' | 'override_granted' | 'no_geofence_configured';
+    geofenceOverrideReason?: string;
+    geofenceOverriddenBy?: string;
+    geofenceTargetLatitude?: number;
+    geofenceTargetLongitude?: number;
+    geofenceAllowedRadiusMeters?: number;
+    geofenceClassroomName?: string;
+
     createdAt: string;
     institutionId: string;
     payoutId?: string;
+    notes?: string;
+}
+
+export interface ClassGeofence {
+    id: string;
+    institutionId?: string;
+    courseId: string;
+    className: string;
+    stream?: string;
+    latitude: number;
+    longitude: number;
+    radiusMeters: number;
+    locationName?: string; // e.g. "Block B - Room 104"
+    updatedBy?: string;
+    updatedAt?: string;
     notes?: string;
 }
 

@@ -11,7 +11,7 @@ import { apiService, safeLocalStorage, invalidateModuleCache } from '../services
 import { SubscriptionExpiryBanner } from './common/SubscriptionExpiryBanner';
 import { BuySMSModal } from './BuySMSModal';
 import { 
-    Clock, Plus, Check, CheckCircle2, CreditCard, Printer, QrCode, Search, 
+    Clock, Plus, Check, MapPin, CheckCircle2, CreditCard, Printer, QrCode, Search, 
     AlertCircle, Trash2, Shield, Eye, EyeOff, Award, BookOpen, Layers, UserCheck,
     Globe, Copy, ExternalLink, Sparkles, Calendar, ArrowLeftRight, RefreshCw, X, Download,
     Flame, Zap, Sliders, Coffee, UserX, ArrowRight, RotateCcw, AlertTriangle, Lock, UserPlus,
@@ -25,6 +25,8 @@ import { rankSubstituteCandidates, getRemainingMinutes, isConfirmationExpired, i
 import { isGradeMatching } from './Academics/LessonsAllocationManager';
 import { isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
 import { PdfPreviewModal } from './PdfPreviewModal';
+import { ClassGeofenceManager } from './ClassGeofenceManager';
+import { loadClassGeofences } from '../utils/geofenceUtils';
 import {
     generateTeacherPayoutLedgerPdf,
     generatePrefectAuditReportPdf,
@@ -141,7 +143,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
     }, [tenantSubjects, fetchedSchoolSubjects, targetInstitutionId]);
     const [enrollments, setEnrollments] = useState<StudentEnrollment[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'teachers' | 'duty' | 'prefects' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'communication' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+    const [activeTab, setActiveTab] = useState<'teachers' | 'duty' | 'prefects' | 'geofences' | 'sessions' | 'allocations' | 'subjects' | 'payouts' | 'billing' | 'communication' | 'rates' | 'portal_hub' | 'reports'>('teachers');
+
+    // Classroom Geofence State
+    const [classGeofencesList, setClassGeofencesList] = useState(() => loadClassGeofences(targetInstitutionId));
+    useEffect(() => {
+        setClassGeofencesList(loadClassGeofences(targetInstitutionId));
+    }, [targetInstitutionId]);
 
     // Tab: Remedials Communication Hub States
     const [commAudience, setCommAudience] = useState<'teachers' | 'duty' | 'prefects' | 'parents' | 'custom'>('teachers');
@@ -8948,7 +8956,9 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 qrToken: s.qrToken || (s.courseId ? `prefect_remedial_token_class_${s.courseId}` : ''),
                 hours: s.hours || 1,
                 status: s.status || 'Pending',
-                verifiedAt: s.verifiedAt
+                verifiedAt: s.verifiedAt,
+                distanceFromClassroomMeters: s.distanceFromClassroomMeters,
+                geofenceStatus: s.geofenceStatus
             };
         });
     }, [sessions, reportStartDate, reportEndDate, reportTeacherFilter, reportClassFilter, reportStatusFilter, combinedCourses]);
@@ -10968,6 +10978,33 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                     {prefectsList.length}
                                 </span>
                             )}
+                        </button>
+
+                        {/* CLASSROOM GEOFENCES TAB (GPS Boundaries) */}
+                        <button 
+                            onClick={() => setActiveTab('geofences')}
+                            className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 text-left font-black text-xs uppercase tracking-wider group relative overflow-hidden cursor-pointer ${
+                                activeTab === 'geofences' 
+                                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25' 
+                                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                                <div className={`p-2.5 rounded-xl transition-colors ${
+                                    activeTab === 'geofences' ? 'bg-white/20 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform'
+                                }`}>
+                                    <MapPin className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <span>Class Geofences</span>
+                                    <p className={`text-[9px] font-bold lowercase tracking-normal mt-0.5 ${activeTab === 'geofences' ? 'text-emerald-100' : 'text-slate-400'}`}>GPS & room boundaries</p>
+                                </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                                activeTab === 'geofences' ? 'bg-white text-emerald-700' : 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                            }`}>
+                                {classGeofencesList.length} GPS
+                            </span>
                         </button>
 
                         <button 
@@ -13231,6 +13268,17 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                     </div>
                 </div>,
                 document.body
+            )}
+
+            {/* TAB: CLASSROOM GEOFENCES & GPS CALIBRATION */}
+            {activeTab === 'geofences' && (
+                <ClassGeofenceManager
+                    institution={currentInstitution || (institution as any)}
+                    courses={courses}
+                    currentUser={currentUser}
+                    onLogAction={onLogAction}
+                    onGeofencesUpdated={(updated) => setClassGeofencesList(updated)}
+                />
             )}
 
             {/* TAB: REMEDIAL SUBJECTS */}
@@ -20173,6 +20221,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                             <th className="py-3 px-4">Teacher</th>
                                             <th className="py-3 px-4">Prefect Signer</th>
                                             <th className="py-3 px-4 text-center">Duration</th>
+                                            <th className="py-3 px-4 text-center">Geofence GPS</th>
                                             <th className="py-3 px-4 text-center">Verification Status</th>
                                         </tr>
                                     </thead>
@@ -20202,6 +20251,22 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                                                     </td>
                                                     <td className="py-3.5 px-4 text-center font-mono font-bold text-indigo-600 dark:text-indigo-400">
                                                         {s.hours}h
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-center">
+                                                        {(s as any).distanceFromClassroomMeters !== undefined ? (
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
+                                                                (s as any).geofenceStatus === 'within_bounds' 
+                                                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                                    : (s as any).geofenceStatus === 'override_granted'
+                                                                    ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                                                                    : 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                                            }`}>
+                                                                <MapPin className="w-2.5 h-2.5" />
+                                                                <span>{(s as any).distanceFromClassroomMeters}m</span>
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[10px] text-slate-400 italic">Unconfigured</span>
+                                                        )}
                                                     </td>
                                                     <td className="py-3.5 px-4 text-center">
                                                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${

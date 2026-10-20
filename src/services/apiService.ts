@@ -8756,7 +8756,17 @@ export const apiService = {
             autoConcludedAt: payload.autoConcludedAt || payload.auto_concluded_at,
             auto_concluded_at: payload.auto_concluded_at || payload.autoConcludedAt,
             autoConcludedReason: payload.autoConcludedReason || payload.auto_concluded_reason,
-            auto_concluded_reason: payload.auto_concluded_reason || payload.autoConcludedReason
+            auto_concluded_reason: payload.auto_concluded_reason || payload.autoConcludedReason,
+            // Classroom Geofence Audit
+            verifiedLatitude: payload.verifiedLatitude,
+            verifiedLongitude: payload.verifiedLongitude,
+            distanceFromClassroomMeters: payload.distanceFromClassroomMeters,
+            geofenceAccuracyMeters: payload.geofenceAccuracyMeters,
+            geofenceStatus: payload.geofenceStatus,
+            geofenceAllowedRadiusMeters: payload.geofenceAllowedRadiusMeters,
+            geofenceClassroomName: payload.geofenceClassroomName,
+            geofenceOverrideReason: payload.geofenceOverrideReason,
+            geofenceOverriddenBy: payload.geofenceOverriddenBy
         };
 
         const existingMeta = typeof payload.metadata === 'object' && payload.metadata !== null ? payload.metadata : {};
@@ -8801,6 +8811,17 @@ export const apiService = {
         delete payload.auto_concluded_at;
         delete payload.autoConcludedReason;
         delete payload.auto_concluded_reason;
+        delete payload.verifiedLatitude;
+        delete payload.verifiedLongitude;
+        delete payload.distanceFromClassroomMeters;
+        delete payload.geofenceAccuracyMeters;
+        delete payload.geofenceStatus;
+        delete payload.geofenceAllowedRadiusMeters;
+        delete payload.geofenceClassroomName;
+        delete payload.geofenceOverrideReason;
+        delete payload.geofenceOverriddenBy;
+        delete payload.geofenceTargetLatitude;
+        delete payload.geofenceTargetLongitude;
 
         // Immediately update localStorage remedial_sessions so all open tabs and components see it
         const targetInst = payload.institutionId || payload.institution_id;

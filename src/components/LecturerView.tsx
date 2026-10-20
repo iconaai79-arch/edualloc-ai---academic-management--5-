@@ -13,7 +13,7 @@ import {
     Calendar, AlertTriangle, UserX, UserCheck, ArrowRight, RotateCcw, XCircle, 
     Hourglass, Lock, HelpCircle, Check, X, Shield, Flame, Camera, Zap, 
     SlidersHorizontal, ChevronDown, ChevronUp, Scan, SwitchCamera, RefreshCw, AlertCircle,
-    ChevronLeft, ChevronRight, Search, Filter, Trash2, Copy, Layers, ArrowLeftRight
+    ChevronLeft, ChevronRight, Search, Filter, Trash2, Copy, Layers, ArrowLeftRight, MapPin
 } from 'lucide-react';
 import { 
     checkCancellationCutoff, rankSubstituteCandidates, getRemainingMinutes, 
@@ -24,6 +24,12 @@ import { DuplicateRemedialSessionsModal } from './DuplicateRemedialSessionsModal
 import { SwipeLessonModal } from './SwipeLessonModal';
 import { resolveRealStudentClass, naturalClassSort } from '../utils/academicUtils';
 import { calculateRemedialSessionDuration, timeToMinutes, isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
+import { 
+    loadClassGeofences, 
+    findMatchingGeofence, 
+    getCurrentDeviceLocation, 
+    verifyLocationAgainstGeofence 
+} from '../utils/geofenceUtils';
 
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
@@ -264,6 +270,89 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
     const [scannedVerifiedPrefect, setScannedVerifiedPrefect] = useState<any | null>(null);
     const [qrValidationError, setQrValidationError] = useState<string | null>(null);
     const [isProcessingSession, setIsProcessingSession] = useState<boolean>(false);
+    const [geofenceStatusNotice, setGeofenceStatusNotice] = useState<{
+        status: 'checking' | 'verified' | 'violation' | 'unconfigured' | null;
+        message: string;
+        distanceMeters?: number;
+        allowedRadius?: number;
+    }>({ status: null, message: '' });
+
+    // Classroom Geofence Spatial Verification Helper
+    const verifyClassroomLocation = async (courseId?: string, courseName?: string, stream?: string) => {
+        const instId = currentInstitution?.id || (user as any)?.institutionId;
+        const allGeofences = loadClassGeofences(instId);
+        const geofence = findMatchingGeofence(allGeofences, courseId, courseName, stream);
+
+        if (!geofence || !geofence.latitude || !geofence.longitude) {
+            return {
+                allowed: true,
+                audit: {
+                    geofenceStatus: 'no_geofence_configured' as const
+                }
+            };
+        }
+
+        setGeofenceStatusNotice({
+            status: 'checking',
+            message: `Verifying classroom GPS coordinates for ${geofence.locationName || courseName}...`
+        });
+
+        try {
+            const coords = await getCurrentDeviceLocation({ enableHighAccuracy: true, timeout: 8000 });
+            const check = verifyLocationAgainstGeofence(coords.latitude, coords.longitude, coords.accuracy, geofence);
+            if (check.withinBounds) {
+                setGeofenceStatusNotice({
+                    status: 'verified',
+                    message: `📍 Classroom Location Verified: ${check.distanceMeters}m from ${geofence.locationName || courseName} (Within ${geofence.radiusMeters}m limit)`,
+                    distanceMeters: check.distanceMeters,
+                    allowedRadius: geofence.radiusMeters
+                });
+                return {
+                    allowed: true,
+                    message: check.message,
+                    audit: {
+                        verifiedLatitude: coords.latitude,
+                        verifiedLongitude: coords.longitude,
+                        distanceFromClassroomMeters: check.distanceMeters,
+                        geofenceAccuracyMeters: check.accuracyMeters,
+                        geofenceStatus: 'within_bounds' as const,
+                        geofenceAllowedRadiusMeters: geofence.radiusMeters,
+                        geofenceClassroomName: geofence.locationName || courseName
+                    }
+                };
+            } else {
+                setGeofenceStatusNotice({
+                    status: 'violation',
+                    message: `🚫 Out of Classroom Boundary: You are ${check.distanceMeters}m away from ${geofence.locationName || courseName} (Permitted radius: ${geofence.radiusMeters}m).`,
+                    distanceMeters: check.distanceMeters,
+                    allowedRadius: geofence.radiusMeters
+                });
+                return {
+                    allowed: false,
+                    message: `🚫 Out of Classroom Boundary: You are ${check.distanceMeters}m away from ${geofence.locationName || courseName} (Permitted limit: ${geofence.radiusMeters}m). Lessons must be conducted inside the classroom.`,
+                    audit: {
+                        verifiedLatitude: coords.latitude,
+                        verifiedLongitude: coords.longitude,
+                        distanceFromClassroomMeters: check.distanceMeters,
+                        geofenceAccuracyMeters: check.accuracyMeters,
+                        geofenceStatus: 'out_of_bounds' as const,
+                        geofenceAllowedRadiusMeters: geofence.radiusMeters,
+                        geofenceClassroomName: geofence.locationName || courseName
+                    }
+                };
+            }
+        } catch (err: any) {
+            const errText = `GPS Verification Required: ${err?.message || 'Please enable device location permissions to verify classroom presence.'}`;
+            setGeofenceStatusNotice({
+                status: 'violation',
+                message: errText
+            });
+            return {
+                allowed: false,
+                message: errText
+            };
+        }
+    };
     const scannerVideoRef = useRef<HTMLVideoElement | null>(null);
     const cameraStreamRef = useRef<MediaStream | null>(null);
     const scannerContextRef = useRef<{
@@ -565,20 +654,30 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                         clearInterval(scanInterval);
                         scanInterval = null;
                     }
-                    setScannedBadgeSuccess(true);
-                    setScannedVerifiedPrefect(matchedPrefect);
-                    setQrValidationError(null);
-                    setIsProcessingSession(true);
-                    setScannerManualToken(detectedRaw);
 
-                    // Auto-start after brief verification confirmation display
-                    setTimeout(() => {
-                        ctx.onStart({
-                            courseId: ctx.courseId,
-                            subjectId: ctx.subjectId,
-                            prefectId: matchedPrefect.id
-                        });
-                    }, 800);
+                    // Enforce Classroom Geofence verification
+                    verifyClassroomLocation(ctx.courseId, ctx.courseName, ctx.stream).then(geoRes => {
+                        if (geoRes.allowed) {
+                            setScannedBadgeSuccess(true);
+                            setScannedVerifiedPrefect(matchedPrefect);
+                            setQrValidationError(null);
+                            setIsProcessingSession(true);
+                            setScannerManualToken(detectedRaw);
+
+                            setTimeout(() => {
+                                ctx.onStart({
+                                    courseId: ctx.courseId,
+                                    subjectId: ctx.subjectId,
+                                    prefectId: matchedPrefect.id,
+                                    geofenceAudit: geoRes.audit
+                                });
+                            }, 800);
+                        } else {
+                            setIsProcessingSession(false);
+                            setQrValidationError(geoRes.message);
+                            alert(geoRes.message);
+                        }
+                    });
                 } else {
                     setQrValidationError(errorMsg);
                     setTimeout(() => {
@@ -2181,7 +2280,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
 
                         const effectivePrefectId = selectedPrefectId || primaryPrefect?.id || '';
 
-                        const handleStartRemedial = async (override?: { courseId?: string; subjectId?: string; prefectId?: string; stream?: string }) => {
+                        const handleStartRemedial = async (override?: { courseId?: string; subjectId?: string; prefectId?: string; stream?: string; geofenceAudit?: any }) => {
                             if (isStartingRemedialRef.current) return;
                             isStartingRemedialRef.current = true;
                             setIsProcessingSession(true);
@@ -2301,6 +2400,14 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                     scheduledEndTime: schedEnd,
                                     scheduledDurationMinutes: schedDurationMins,
                                     allocationId: matchedAlloc?.id,
+                                    // Classroom Geofence Audit
+                                    verifiedLatitude: override?.geofenceAudit?.verifiedLatitude,
+                                    verifiedLongitude: override?.geofenceAudit?.verifiedLongitude,
+                                    distanceFromClassroomMeters: override?.geofenceAudit?.distanceFromClassroomMeters,
+                                    geofenceAccuracyMeters: override?.geofenceAudit?.geofenceAccuracyMeters,
+                                    geofenceStatus: override?.geofenceAudit?.geofenceStatus || 'no_geofence_configured',
+                                    geofenceAllowedRadiusMeters: override?.geofenceAudit?.geofenceAllowedRadiusMeters,
+                                    geofenceClassroomName: override?.geofenceAudit?.geofenceClassroomName,
                                     status: 'In Progress',
                                     createdAt: new Date().toISOString(),
                                     institutionId: currentInstitution?.id || user?.institutionId || ''
@@ -3333,6 +3440,22 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                     </div>
                                                 </div>
 
+                                                {/* Classroom Geofence Real-Time Feedback */}
+                                                {geofenceStatusNotice.status && (
+                                                    <div className={`p-3.5 rounded-2xl text-xs font-bold flex items-center gap-2.5 transition-all animate-fade-in ${
+                                                        geofenceStatusNotice.status === 'checking'
+                                                            ? 'bg-amber-950/70 text-amber-300 border border-amber-500/30'
+                                                            : geofenceStatusNotice.status === 'verified'
+                                                            ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-500/30'
+                                                            : 'bg-rose-950/70 text-rose-300 border border-rose-500/30'
+                                                    }`}>
+                                                        {geofenceStatusNotice.status === 'checking' && <RefreshCw className="w-4 h-4 animate-spin text-amber-400 shrink-0" />}
+                                                        {geofenceStatusNotice.status === 'verified' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+                                                        {geofenceStatusNotice.status === 'violation' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                                                        <span className="flex-1 leading-relaxed">{geofenceStatusNotice.message}</span>
+                                                    </div>
+                                                )}
+
                                                 {/* Trigger Buttons */}
                                                 <div className="space-y-3">
                                                     {scannedVerifiedPrefect ? (
@@ -3424,14 +3547,24 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                                                         return;
                                                                     }
 
-                                                                    setScannedBadgeSuccess(true);
-                                                                    setScannedVerifiedPrefect(matched);
-                                                                    setQrValidationError(null);
-                                                                    setIsProcessingSession(true);
-                                                                    ctx.onStart({
-                                                                        courseId: ctx.courseId,
-                                                                        subjectId: ctx.subjectId,
-                                                                        prefectId: matched.id
+                                                                    // Enforce Classroom Geofence on manual submission
+                                                                    verifyClassroomLocation(ctx.courseId, ctx.courseName, ctx.stream).then(geoRes => {
+                                                                        if (geoRes.allowed) {
+                                                                            setScannedBadgeSuccess(true);
+                                                                            setScannedVerifiedPrefect(matched);
+                                                                            setQrValidationError(null);
+                                                                            setIsProcessingSession(true);
+                                                                            ctx.onStart({
+                                                                                courseId: ctx.courseId,
+                                                                                subjectId: ctx.subjectId,
+                                                                                prefectId: matched.id,
+                                                                                geofenceAudit: geoRes.audit
+                                                                            });
+                                                                        } else {
+                                                                            setIsProcessingSession(false);
+                                                                            setQrValidationError(geoRes.message);
+                                                                            alert(geoRes.message);
+                                                                        }
                                                                     });
                                                                 }}
                                                                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors"
