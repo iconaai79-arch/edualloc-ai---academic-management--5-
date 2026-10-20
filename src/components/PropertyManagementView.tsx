@@ -56,6 +56,8 @@ import { sendEmailNotification, getInstitutionEmailConfig } from '../services/em
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { CommunicationsManager } from './CommunicationsManager';
 import PMConfigManager from './PMConfigManager';
+import { PMLogsReportsView } from './PMLogsReportsView';
+import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { UserManager } from './UserManager';
 import * as XLSX from 'xlsx';
 
@@ -489,7 +491,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
     const institutionId = currentInstitution?.id;
     const [activeTab, setActiveTab] = useState<'dashboard' | 'properties' | 'landlords' | 'tenants' | 'payouts' | 'expenses' | 'reports' | 'listings' | 'comms' | 'inquiries' | 'staff' | 'config'>('dashboard');
     const [propertyActiveSubTab, setPropertyActiveSubTab] = useState<'properties' | 'units' | 'landlords' | 'tenants' | 'leases' | 'payments' | 'maintenance' | 'invoices' | 'notices' | 'utilities' | 'broadcasts'>('properties');
-    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears' | 'inspections' | 'refunds' | 'itax'>('analytics');
+    const [reportsSubTab, setReportsSubTab] = useState<'analytics' | 'statements' | 'commission' | 'arrears' | 'inspections' | 'refunds' | 'itax' | 'logs'>('analytics');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
         try {
             return localStorage.getItem('eduai_pm_sidebar_collapsed') === 'true';
@@ -7557,6 +7559,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         { id: 'inspections', label: 'Move-out Inspections', icon: ListIcon },
                         { id: 'refunds', label: 'Deposit Refunds', icon: BanknotesIcon },
                         { id: 'itax', label: 'KRA iTax Reports', icon: Cog8ToothIcon },
+                        { id: 'logs', label: 'Logs & Audit Reports', icon: ClipboardListIcon },
                     ].map(sub => (
                         <button
                             key={sub.id}
@@ -7985,6 +7988,27 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
             {reportsSubTab === 'inspections' && <InspectionsManager />}
             {reportsSubTab === 'refunds' && <DepositRefundsManager />}
             {reportsSubTab === 'itax' && <KRAiTaxReportsPanel />}
+            {reportsSubTab === 'logs' && (
+                <PMLogsReportsView
+                    institutionId={institutionId}
+                    currentInstitution={currentInstitution}
+                    properties={properties}
+                    units={units}
+                    tenants={tenants}
+                    landlords={landlords}
+                    leases={leases}
+                    payments={payments}
+                    invoices={invoices}
+                    notices={notices}
+                    utilityReadings={utilityReadings}
+                    inspections={inspections}
+                    depositRefunds={depositRefunds}
+                    disbursements={disbursements}
+                    expenses={expenses}
+                    tickets={tickets}
+                    users={users}
+                />
+            )}
 
             {reportsSubTab === 'commission' && (() => {
                 // Apply date range filter
@@ -8564,6 +8588,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                 group: 'Governance & Analytics',
                 items: [
                     { id: 'reports', label: 'Financial Analytics', shortLabel: 'Reports', icon: ChartPieIcon, tab: 'reports', subTab: 'analytics' },
+                    { id: 'pmlogs', label: 'Audit & Logs Reports', shortLabel: 'Logs Reports', icon: ClipboardListIcon, tab: 'reports', subTab: 'logs' },
                     { id: 'staff', label: 'Staff Members', shortLabel: 'Staff', icon: UserGroupIcon, tab: 'staff' },
                     { id: 'config', label: 'PM Settings & Rates', shortLabel: 'Settings', icon: SettingsIcon, tab: 'config' },
                 ]
