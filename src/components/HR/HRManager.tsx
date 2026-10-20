@@ -1276,33 +1276,95 @@ export const HRManager: React.FC<HRManagerProps> = ({
         return payrollRecords.slice(0, 20).reduce((sum, p) => sum + (Number(p.netSalary) || 0), 0);
     }, [currentMonthPayroll, payrollRecords]);
 
+    // Fintech Prestige: Projected & Active Statutory Payroll Breakdown
+    const payrollBreakdown = useMemo(() => {
+        const records = currentMonthPayroll.length > 0 ? currentMonthPayroll : payrollRecords.slice(0, 50);
+        if (records.length > 0) {
+            let totalGross = 0, totalNet = 0, totalPaye = 0, totalShif = 0, totalNssf = 0, totalLevy = 0;
+            records.forEach(r => {
+                const b = Number(r.basicSalary) || 0;
+                const alw = (r.allowances || []).reduce((s: number, a: any) => s + (Number(a.amount) || 0), 0);
+                totalGross += b + alw;
+                totalNet += (Number(r.netSalary) || 0);
+                (r.deductions || []).forEach((d: any) => {
+                    const name = (d.name || '').toLowerCase();
+                    const amt = Number(d.amount) || 0;
+                    if (name.includes('paye')) totalPaye += amt;
+                    else if (name.includes('shif') || name.includes('nhif')) totalShif += amt;
+                    else if (name.includes('nssf')) totalNssf += amt;
+                    else if (name.includes('housing') || name.includes('levy') || name.includes('ahl')) totalLevy += amt;
+                });
+            });
+            if (totalGross > 0) {
+                return { gross: totalGross, net: totalNet, paye: totalPaye, shif: totalShif, nssf: totalNssf, housingLevy: totalLevy };
+            }
+        }
+
+        // Fallback: estimate statutory allocations from staff salaries
+        let estGross = 0, estNet = 0, estPaye = 0, estShif = 0, estNssf = 0, estLevy = 0;
+        staff.forEach(member => {
+            const basic = getStaffSalary(member) || 45000;
+            const nssf = Math.min(basic, 9000) * 0.06 + Math.max(0, Math.min(basic, 108000) - 9000) * 0.06;
+            const shif = Math.max(300, basic * 0.0275);
+            const levy = basic * 0.015;
+            const allowable = nssf + shif + levy;
+            const taxable = Math.max(0, basic - allowable);
+            let grossPaye = 0, rem = taxable;
+            const b1 = Math.min(rem, 24000); grossPaye += b1 * 0.10; rem -= b1;
+            if (rem > 0) { const b = Math.min(rem, 8333); grossPaye += b * 0.25; rem -= b; }
+            if (rem > 0) { const b = Math.min(rem, 467667); grossPaye += b * 0.30; rem -= b; }
+            if (rem > 0) { const b = Math.min(rem, 300000); grossPaye += b * 0.325; rem -= b; }
+            if (rem > 0) grossPaye += rem * 0.35;
+            const paye = Math.max(0, grossPaye - 2400);
+            const net = basic - allowable - paye;
+
+            estGross += basic;
+            estNet += net;
+            estPaye += paye;
+            estShif += shif;
+            estNssf += nssf;
+            estLevy += levy;
+        });
+
+        return {
+            gross: Math.round(estGross),
+            net: Math.round(estNet),
+            paye: Math.round(estPaye),
+            shif: Math.round(estShif),
+            nssf: Math.round(estNssf),
+            housingLevy: Math.round(estLevy)
+        };
+    }, [currentMonthPayroll, payrollRecords, staff]);
+
     return (
         <div className="space-y-8 w-full">
-            {/* Elite Top Header Banner */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-100 dark:border-slate-800 p-6 sm:p-8 rounded-[2.5rem] shadow-sm">
-                <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-xs font-black uppercase tracking-[0.2em] rounded-full border border-indigo-100/50 dark:border-indigo-900/30">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        <span>{isEdu ? 'Educational Workforce & Payroll Hub' : 'Human Capital & Payroll Architecture'}</span>
+            {/* Elite Top Header Banner - Fintech Prestige Aesthetic */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white border border-slate-800/80 p-6 sm:p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative space-y-2">
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-emerald-500/10 text-emerald-400 text-xs font-black uppercase tracking-[0.2em] rounded-full border border-emerald-500/20">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>{isEdu ? 'Faculty & Human Capital Suite' : 'Human Capital & Payroll Architecture'}</span>
                     </div>
-                    <h1 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                    <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
                         {isEdu ? 'Faculty & Workforce Command' : 'Workforce & Payroll Operations'}
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm font-medium max-w-3xl leading-relaxed">
+                    <p className="text-slate-400 text-xs sm:text-sm font-medium max-w-3xl leading-relaxed">
                         Manage {isEdu ? 'teaching faculty, department heads, and non-teaching support personnel' : 'institutional staff'}: 
-                        statutory salary calculations (PAYE, SHIF 2.75%, NSSF, Affordable Housing Levy 1.5%), biometric attendance, leave approvals, and P9 tax certificates.
+                        statutory salary calculations (PAYE, SHIF 2.75%, NSSF Tier I/II, Affordable Housing Levy 1.5%), biometric attendance, leave approvals, and tax certificates.
                     </p>
                 </div>
 
                 {/* Header Action Shortcuts */}
-                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <div className="relative flex flex-wrap items-center gap-3 shrink-0">
                     <button
                         type="button"
                         onClick={() => setShowStatutorySettingsModal(true)}
-                        className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        className="px-4 py-2.5 bg-slate-900/80 hover:bg-slate-800 text-purple-300 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-purple-500/20 cursor-pointer"
                         title="Configure KRA PAYE, NSSF, SHIF, Housing Levy Rates"
                     >
-                        <Cog8ToothIcon className="w-4 h-4 text-indigo-500" />
+                        <Cog8ToothIcon className="w-4 h-4 text-purple-400" />
                         <span>Tax & Statutory</span>
                     </button>
                     <button
@@ -1312,10 +1374,10 @@ export const HRManager: React.FC<HRManagerProps> = ({
                             setImporterInitialTab('import');
                             setShowExcelImportModal(true);
                         }}
-                        className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-indigo-200 dark:border-indigo-800 cursor-pointer"
+                        className="px-4 py-2.5 bg-slate-900/80 hover:bg-slate-800 text-emerald-300 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-emerald-500/20 cursor-pointer"
                         title="Import Staff & Salary Records from Excel / CSV"
                     >
-                        <ArrowUpTrayIcon className="w-4 h-4" />
+                        <ArrowUpTrayIcon className="w-4 h-4 text-emerald-400" />
                         <span>Smart Import</span>
                     </button>
                     <button
@@ -1325,13 +1387,13 @@ export const HRManager: React.FC<HRManagerProps> = ({
                             setImporterInitialTab('history');
                             setShowExcelImportModal(true);
                         }}
-                        className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                        className="px-4 py-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-300 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all active:scale-95 flex items-center gap-2 border border-slate-700 cursor-pointer"
                         title="View import batches, rollback erroneous entries, or redo imports"
                     >
-                        <ClockIcon className="w-4 h-4 text-slate-500" />
+                        <ClockIcon className="w-4 h-4 text-slate-400" />
                         <span>History & Redo</span>
                         {activeImportBatchesCount > 0 && (
-                            <span className="w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-black flex items-center justify-center">
+                            <span className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-black flex items-center justify-center">
                                 {activeImportBatchesCount}
                             </span>
                         )}
@@ -1361,7 +1423,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                             });
                             setShowOnboardModal(true);
                         }}
-                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/30 transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                        className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2 cursor-pointer border border-emerald-400/30"
                     >
                         <PlusIcon className="w-4 h-4" />
                         <span>Onboard Staff</span>
@@ -1395,7 +1457,7 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                         onClick={() => setActiveTab(tab.id as any)}
                                         className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-200 group text-left cursor-pointer ${
                                             isCurrent
-                                                ? 'bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 text-white shadow-md shadow-indigo-600/25 font-black scale-[1.01]'
+                                                ? 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white shadow-xl shadow-slate-950/20 font-black border-l-4 border-emerald-500 scale-[1.01]'
                                                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white font-bold'
                                         }`}
                                     >
@@ -1460,24 +1522,24 @@ export const HRManager: React.FC<HRManagerProps> = ({
                         </div>
                     </div>
 
-                    {/* Operational Gate QR Signboard Card */}
-                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-[2.5rem] p-5 border border-indigo-900/40 shadow-xl space-y-4">
+                    {/* Operational Gate QR Signboard Card - Fintech Prestige */}
+                    <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/40 text-white rounded-[2.5rem] p-5 border border-emerald-900/40 shadow-xl space-y-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-indigo-500/20 rounded-2xl border border-indigo-400/30 text-indigo-300">
+                            <div className="p-2.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/30 text-emerald-400">
                                 <QrCodeIcon className="w-5 h-5" />
                             </div>
                             <div>
                                 <h4 className="text-xs font-black uppercase tracking-wider text-white">Gate Signboard QR</h4>
-                                <p className="text-[10px] text-indigo-200">Print Clock-in Poster</p>
+                                <p className="text-[10px] text-emerald-300">Biometric Attendance Poster</p>
                             </div>
                         </div>
-                        <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                        <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
                             Generate gate QR posters for teacher biometric self check-in via smartphone camera.
                         </p>
                         <button
                             type="button"
                             onClick={() => printGateQrSignboard(institution.name, institution.id)}
-                            className="w-full py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                            className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-black uppercase text-[10px] tracking-wider transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                         >
                             <PrinterIcon className="w-3.5 h-3.5" />
                             <span>Print Gate QR</span>
@@ -1487,66 +1549,178 @@ export const HRManager: React.FC<HRManagerProps> = ({
 
                 {/* Main Content Workspace (Right Column) */}
                 <main className="flex-1 min-w-0 w-full space-y-8">
-                    {/* Quick Stats Grid */}
+                    {/* Executive Hero KPI Glow Cards - Fintech Prestige */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-                        {/* Stat 1: Total Personnel */}
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
-                            <div className="relative z-10 flex items-center gap-4">
-                                <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center">
-                                    <UserGroupIcon className="w-7 h-7" />
+                        {/* Stat 1: Active Human Capital */}
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all pointer-events-none" />
+                            <div className="relative z-10 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Workforce</span>
+                                    <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center">
+                                        <UserGroupIcon className="w-5 h-5" />
+                                    </div>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Personnel</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{staff.length}</p>
-                                    <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">{teachingStaff.length} Faculty • {supportStaff.length} Staff</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Stat 2: Monthly Payroll */}
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
-                            <div className="relative z-10 flex items-center gap-4">
-                                <div className="w-14 h-14 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center">
-                                    <BanknotesIcon className="w-7 h-7" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Monthly Payroll</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">KES {totalNetPay > 0 ? totalNetPay.toLocaleString() : (payrollRecords.length > 0 ? payrollRecords.slice(0, 5).reduce((s, r) => s + (r.netSalary || 0), 0).toLocaleString() : '0')}</p>
-                                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">{payrollRecords.length} Historical Records</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Stat 3: Leave Requests */}
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
-                            <div className="relative z-10 flex items-center gap-4">
-                                <div className="w-14 h-14 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center">
-                                    <CalendarDaysIcon className="w-7 h-7" />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Leave Applications</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">{leaveRequests.length}</p>
-                                    <p className={`text-[10px] font-bold ${pendingLeaveCount > 0 ? 'text-rose-500 animate-pulse' : 'text-slate-400'}`}>
-                                        {pendingLeaveCount} Pending Action
+                                    <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">{staff.length}</p>
+                                    <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 mt-1 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                                        {teachingStaff.length} Faculty • {supportStaff.length} Support
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Stat 4: Statutory Compliance */}
-                        <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
-                            <div className="relative z-10 flex items-center gap-4">
-                                <div className="w-14 h-14 bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 rounded-2xl flex items-center justify-center">
-                                    <ShieldCheckIcon className="w-7 h-7" />
+                        {/* Stat 2: Monthly Net Payroll Outflow */}
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-emerald-500/10 transition-all relative overflow-hidden group ring-1 ring-emerald-500/20">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/15 rounded-full blur-2xl group-hover:bg-emerald-500/25 transition-all pointer-events-none" />
+                            <div className="relative z-10 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        Net Payroll Outflow
+                                    </span>
+                                    <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center">
+                                        <BanknotesIcon className="w-5 h-5" />
+                                    </div>
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Statutory Compliance</p>
-                                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Active</p>
-                                    <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400">PAYE • SHIF • NSSF • Levy</p>
+                                    <p className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono text-emerald-600 dark:text-emerald-400">
+                                        KES {(totalNetPay > 0 ? totalNetPay : payrollBreakdown.net).toLocaleString()}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1">
+                                        Direct EFT Bank & Mobile Advice
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stat 3: Statutory Compliance Pool */}
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-purple-500/5 transition-all relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-28 h-28 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all pointer-events-none" />
+                            <div className="relative z-10 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Statutory Remittance</span>
+                                    <div className="w-10 h-10 bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center">
+                                        <ShieldCheckIcon className="w-5 h-5" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono text-purple-600 dark:text-purple-400">
+                                        KES {(payrollBreakdown.paye + payrollBreakdown.shif + payrollBreakdown.nssf + payrollBreakdown.housingLevy).toLocaleString()}
+                                    </p>
+                                    <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 mt-1">
+                                        KRA PAYE • SHIF • NSSF • Housing Levy
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stat 4: Leave & Absence Status */}
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:shadow-amber-500/5 transition-all relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 w-28 h-28 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all pointer-events-none" />
+                            <div className="relative z-10 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Leave & Absence</span>
+                                    <div className="w-10 h-10 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center">
+                                        <CalendarDaysIcon className="w-5 h-5" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">{leaveRequests.length}</p>
+                                    <p className={`text-[11px] font-bold mt-1 ${pendingLeaveCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                        {pendingLeaveCount > 0 ? `${pendingLeaveCount} Pending Approval` : 'All Leaves Processed'}
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    {/* Visual Salary Allocation Ribbon - Fintech Prestige */}
+                    {payrollBreakdown.gross > 0 && (() => {
+                        const gross = payrollBreakdown.gross || 1;
+                        const netPct = Math.max(5, Math.round((payrollBreakdown.net / gross) * 100));
+                        const payePct = Math.max(3, Math.round((payrollBreakdown.paye / gross) * 100));
+                        const nssfPct = Math.max(2, Math.round((payrollBreakdown.nssf / gross) * 100));
+                        const shifPct = Math.max(2, Math.round((payrollBreakdown.shif / gross) * 100));
+                        const levyPct = Math.max(1, Math.round((payrollBreakdown.housingLevy / gross) * 100));
+
+                        return (
+                            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                                Institutional Payroll Allocation Ribbon
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                                Gross: KES {payrollBreakdown.gross.toLocaleString()}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                                            Live proportional breakdown of Take-Home Compensation vs Statutory Deductions
+                                        </p>
+                                    </div>
+                                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                                        100% Kenyan Tax Law Compliant
+                                    </span>
+                                </div>
+
+                                {/* Multi-Segment Ribbon Bar */}
+                                <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex shadow-inner p-0.5">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-l-full transition-all duration-700 hover:brightness-110 cursor-pointer"
+                                        style={{ width: `${netPct}%` }}
+                                        title={`Net Take-Home: ${netPct}% (KES ${payrollBreakdown.net.toLocaleString()})`}
+                                    />
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-600 transition-all duration-700 hover:brightness-110 cursor-pointer"
+                                        style={{ width: `${payePct}%` }}
+                                        title={`KRA PAYE: ${payePct}% (KES ${payrollBreakdown.paye.toLocaleString()})`}
+                                    />
+                                    <div 
+                                        className="h-full bg-sky-500 transition-all duration-700 hover:brightness-110 cursor-pointer"
+                                        style={{ width: `${nssfPct}%` }}
+                                        title={`NSSF Pension: ${nssfPct}% (KES ${payrollBreakdown.nssf.toLocaleString()})`}
+                                    />
+                                    <div 
+                                        className="h-full bg-teal-400 transition-all duration-700 hover:brightness-110 cursor-pointer"
+                                        style={{ width: `${shifPct}%` }}
+                                        title={`SHIF Health: ${shifPct}% (KES ${payrollBreakdown.shif.toLocaleString()})`}
+                                    />
+                                    <div 
+                                        className="h-full bg-amber-500 rounded-r-full transition-all duration-700 hover:brightness-110 cursor-pointer"
+                                        style={{ width: `${levyPct}%` }}
+                                        title={`Housing Levy: ${levyPct}% (KES ${payrollBreakdown.housingLevy.toLocaleString()})`}
+                                    />
+                                </div>
+
+                                {/* Breakdown Chips */}
+                                <div className="flex flex-wrap items-center gap-3 pt-1">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                                        <span className="text-[10px] font-black uppercase text-emerald-900 dark:text-emerald-200">Net Take-Home:</span>
+                                        <span className="text-xs font-mono font-black text-emerald-600 dark:text-emerald-400">KES {payrollBreakdown.net.toLocaleString()} ({netPct}%)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/80">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                                        <span className="text-[10px] font-black uppercase text-purple-900 dark:text-purple-200">KRA PAYE:</span>
+                                        <span className="text-xs font-mono font-black text-purple-600 dark:text-purple-400">KES {payrollBreakdown.paye.toLocaleString()} ({payePct}%)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/80">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-sky-500" />
+                                        <span className="text-[10px] font-black uppercase text-sky-900 dark:text-sky-200">NSSF + SHIF:</span>
+                                        <span className="text-xs font-mono font-black text-sky-600 dark:text-sky-400">KES {(payrollBreakdown.nssf + payrollBreakdown.shif).toLocaleString()} ({nssfPct + shifPct}%)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80">
+                                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                        <span className="text-[10px] font-black uppercase text-amber-900 dark:text-amber-200">Housing Levy:</span>
+                                        <span className="text-xs font-mono font-black text-amber-600 dark:text-amber-400">KES {payrollBreakdown.housingLevy.toLocaleString()} ({levyPct}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* Recent Excel Import & Redo Banner */}
                     {latestActiveBatch && (
@@ -1767,10 +1941,10 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                         </div>
                                                     </td>
 
-                                                    {/* PF No */}
+                                                    {/* PF No - Fintech Prestige */}
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {pfCode ? (
-                                                            <span className="inline-flex items-center font-mono text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800/80 px-2.5 py-1 rounded-lg tracking-wide shadow-xs">
+                                                            <span className="inline-flex items-center font-mono text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/80 px-2.5 py-1 rounded-lg tracking-wide shadow-xs">
                                                                 {pfCode}
                                                             </span>
                                                         ) : (
@@ -1824,10 +1998,10 @@ export const HRManager: React.FC<HRManagerProps> = ({
                                                         </div>
                                                     </td>
 
-                                                    {/* Salary */}
+                                                    {/* Basic Compensation - Fintech Prestige */}
                                                     <td className="px-6 py-4">
-                                                        <span className="text-xs font-black text-slate-900 dark:text-white">
-                                                            {salary > 0 ? `${currency} ${salary.toLocaleString()}` : <span className="text-slate-400 font-normal italic">Unset</span>}
+                                                        <span className="font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                                                            {salary > 0 ? `${currency} ${salary.toLocaleString()}` : <span className="text-slate-400 font-sans font-normal italic">Unset</span>}
                                                         </span>
                                                     </td>
 

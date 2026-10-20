@@ -737,25 +737,29 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
-            {/* Main Header Card */}
-            <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-32 -mt-32 opacity-40 blur-3xl" />
+            {/* Main Header Card - Fintech Prestige Aesthetic */}
+            <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-8 sm:p-10 rounded-[3rem] border border-slate-800 shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
                 <div className="relative space-y-4">
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Kenyan Payroll Engine</h2>
-                        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest flex items-center gap-1.5 mt-1">
-                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            Statutory Tax Compliant (NSSF/SHIF/Housing Levy/PAYE)
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full text-[10px] font-black uppercase tracking-widest mb-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Statutory Tax Compliant (NSSF • SHIF • Housing Levy • PAYE)
+                        </div>
+                        <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight">Kenyan Payroll Engine</h2>
+                        <p className="text-slate-400 font-medium text-xs sm:text-sm mt-1">
+                            Disbursement calculation engine with progressive KRA tax bands and direct electronic payment advice.
                         </p>
                     </div>
                     <div className="flex gap-4">
-                        <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
+                        <div className="bg-white/5 px-6 py-3 rounded-2xl border border-white/10">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Staff</p>
-                            <p className="text-lg font-black text-slate-900">{staff.length}</p>
+                            <p className="text-lg font-mono font-black text-white">{staff.length}</p>
                         </div>
-                        <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Est. Payout</p>
-                            <p className="text-lg font-black text-indigo-600">KES {Math.round(stats.totalPayout)?.toLocaleString()}</p>
+                        <div className="bg-white/5 px-6 py-3 rounded-2xl border border-emerald-500/30">
+                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Est. Net Outflow</p>
+                            <p className="text-lg font-mono font-black text-emerald-400">KES {Math.round(stats.totalPayout)?.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -807,29 +811,29 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                         <button
                             onClick={handleRunPayroll}
                             disabled={isProcessing || staff.length === 0}
-                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
+                            className="flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:from-emerald-500 hover:to-teal-500 shadow-xl shadow-emerald-500/25 transition-all active:scale-95 disabled:opacity-50 border border-emerald-400/30 cursor-pointer"
                         >
-                            <CalculatorIcon className="w-4 h-4" />
+                            <CalculatorIcon className="w-4 h-4 text-white" />
                             <span>Run Payroll</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Biometric Toggle */}
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-8 rounded-[2.5rem] text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-white/5 shadow-md">
+            {/* Biometric Toggle - Fintech Prestige */}
+            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950/30 p-8 rounded-[2.5rem] text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-emerald-500/20 shadow-xl">
                 <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-indigo-400 border border-white/10">
+                    <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/30">
                         <FingerPrintIcon className="w-6 h-6 animate-pulse" />
                     </div>
                     <div>
-                        <h4 className="text-sm font-black uppercase tracking-wider">Biometric Attendance Payroll Link</h4>
-                        <p className="text-xs text-indigo-200 mt-1 max-w-lg">Pro-rate basic salaries automatically by linking biometric check-ins. Unpaid absences trigger statutory tax base adjustments.</p>
+                        <h4 className="text-sm font-black uppercase tracking-wider text-white">Biometric Attendance Payroll Link</h4>
+                        <p className="text-xs text-slate-300 mt-1 max-w-lg">Pro-rate basic salaries automatically by linking biometric check-ins. Unpaid absences trigger statutory tax base adjustments.</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${useBiometric ? 'text-indigo-400' : 'text-slate-400'}`}>{useBiometric ? 'Active' : 'Disabled'}</span>
-                    <button onClick={() => setUseBiometric(!useBiometric)} className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${useBiometric ? 'bg-indigo-600 border-indigo-500' : 'bg-slate-800 border-slate-700'}`}>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${useBiometric ? 'text-emerald-400' : 'text-slate-400'}`}>{useBiometric ? 'Active & Synced' : 'Disabled'}</span>
+                    <button onClick={() => setUseBiometric(!useBiometric)} className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${useBiometric ? 'bg-emerald-500 border-emerald-400' : 'bg-slate-800 border-slate-700'}`}>
                         <div className={`w-6 h-6 rounded-full bg-white absolute top-0.5 shadow transition-all duration-300 ${useBiometric ? 'right-0.5' : 'left-0.5'}`} />
                     </button>
                 </div>
@@ -893,10 +897,10 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                                                         </div>
                                                     </td>
                                                 )}
-                                                <td className="px-4 py-4 text-right font-bold text-slate-600 text-sm">
+                                                <td className="px-4 py-4 text-right font-mono font-bold text-slate-700 dark:text-slate-300 text-sm">
                                                     {calc.basicSalary > 0 ? Math.round(calc.payroll.grossSalary).toLocaleString() : '—'}
                                                 </td>
-                                                <td className="px-4 py-4 text-right font-black text-slate-900 text-sm">
+                                                <td className="px-4 py-4 text-right font-mono font-black text-emerald-600 dark:text-emerald-400 text-sm tracking-tight">
                                                     {record ? Math.round(record.netSalary || 0).toLocaleString() : calc.basicSalary > 0 ? Math.round(calc.payroll?.netSalary || 0).toLocaleString() : '—'}
                                                 </td>
                                                 <td className="px-3 py-4 text-center">
@@ -978,17 +982,22 @@ export const PayrollEngine: React.FC<PayrollEngineProps> = ({
                     </div>
                 </div>
 
-                {/* Right Analytics Sidebar */}
+                {/* Right Analytics Sidebar - Fintech Prestige */}
                 <div className="space-y-8 lg:sticky lg:top-4">
-                    <div className="bg-slate-900 p-8 rounded-[3rem] text-white space-y-6 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500 rounded-full opacity-10 blur-2xl" />
-                        <h3 className="text-xl font-black tracking-tight">Statutory Breakdown</h3>
+                    <div className="bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 p-8 rounded-[3rem] text-white space-y-6 relative overflow-hidden border border-slate-800 shadow-2xl">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-black tracking-tight">Statutory Breakdown</h3>
+                            <span className="text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                Compliance Pool
+                            </span>
+                        </div>
                         <div className="space-y-5">
                             {[
-                                { label: 'PAYE (Tax)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.netPaye, 0), color: 'bg-indigo-500' },
-                                { label: 'SHIF (Health)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.shif, 0), color: 'bg-emerald-500' },
-                                { label: 'NSSF (Pension)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.nssf, 0), color: 'bg-amber-500' },
-                                { label: 'Housing Levy (AHL)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.housingLevy, 0), color: 'bg-rose-500' }
+                                { label: 'PAYE (KRA Tax)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.netPaye, 0), color: 'bg-purple-500' },
+                                { label: 'SHIF (Health Fund 2.75%)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.shif, 0), color: 'bg-teal-400' },
+                                { label: 'NSSF (Pension Tier I+II)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.nssf, 0), color: 'bg-sky-400' },
+                                { label: 'Housing Levy (AHL 1.5%)', amount: activeStaffCalculations.reduce((sum, c) => sum + c.payroll.housingLevy, 0), color: 'bg-amber-400' }
                             ].map((d, i) => {
                                 const pct = Math.round((d.amount / (stats.totalDeductions || 1)) * 100) || 0;
                                 return (
