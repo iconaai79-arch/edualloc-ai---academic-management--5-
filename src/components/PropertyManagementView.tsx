@@ -6261,7 +6261,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex items-center justify-between">
                         <div>
                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Outflow (Approved/Paid)</p>
-                            <h4 className="text-2xl font-black text-slate-950 dark:text-white italic mt-1">KES {totalExpensesVal.toLocaleString()}</h4>
+                            <h4 className="text-2xl font-black text-slate-950 dark:text-white italic mt-1">KES {Number(totalExpensesVal || 0).toLocaleString()}</h4>
                             <p className="text-[9px] text-slate-400 font-bold mt-1 uppercase">{approvedAndPaid.length} Vouchers</p>
                         </div>
                         <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 flex items-center justify-center border border-emerald-100/50 dark:border-emerald-950/30">
@@ -7437,7 +7437,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="p-6 bg-slate-50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-750 rounded-3xl">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Gross Residential Rents</p>
-                                <p className="text-xl font-black italic text-slate-900 dark:text-white">KES {mriReportData.reduce((sum, item) => sum + item.grossRent, 0).toLocaleString()}</p>
+                                <p className="text-xl font-black italic text-slate-900 dark:text-white">KES {mriReportData.reduce((sum, item) => sum + (Number(item.grossRent) || 0), 0).toLocaleString()}</p>
                             </div>
                             <div className="p-6 bg-amber-50/50 dark:bg-amber-950/10 border border-amber-100/50 dark:border-amber-900/30 rounded-3xl">
                                 <p className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1">MRI Tax Rate</p>
@@ -7445,7 +7445,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                             </div>
                             <div className="p-6 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-3xl">
                                 <p className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest mb-1">Net MRI Tax Payable</p>
-                                <p className="text-xl font-black italic text-emerald-600 dark:text-emerald-400">KES {mriReportData.reduce((sum, item) => sum + item.mriTax, 0).toLocaleString()}</p>
+                                <p className="text-xl font-black italic text-emerald-600 dark:text-emerald-400">KES {mriReportData.reduce((sum, item) => sum + (Number(item.mriTax) || 0), 0).toLocaleString()}</p>
                             </div>
                         </div>
 
@@ -7465,8 +7465,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         <tr key={item.landlordId} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="p-5 text-xs font-black text-slate-900 dark:text-white uppercase italic">{item.landlordName}</td>
                                             <td className="p-5 text-xs font-mono font-bold text-slate-600 dark:text-slate-300">{item.landlordPin}</td>
-                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white text-right">KES {item.grossRent.toLocaleString()}</td>
-                                            <td className="p-5 text-xs font-black text-emerald-600 dark:text-emerald-400 text-right">KES {item.mriTax.toLocaleString()}</td>
+                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white text-right">KES {Number(item.grossRent || 0).toLocaleString()}</td>
+                                            <td className="p-5 text-xs font-black text-emerald-600 dark:text-emerald-400 text-right">KES {Number(item.mriTax || 0).toLocaleString()}</td>
                                             <td className="p-5 text-[10px] font-bold text-slate-500 text-center uppercase">{monthsList[selectedMonth - 1].slice(0, 3)} {selectedYear}</td>
                                         </tr>
                                     ))}
@@ -7484,11 +7484,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="p-6 bg-slate-50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-750 rounded-3xl">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Expected Rent WHT (10%)</p>
-                                <p className="text-xl font-black italic text-slate-900 dark:text-white">KES {whtReportData.reduce((sum, item) => sum + item.expectedWht, 0).toLocaleString()}</p>
+                                <p className="text-xl font-black italic text-slate-900 dark:text-white">KES {whtReportData.reduce((sum, item) => sum + (Number(item.expectedWht) || 0), 0).toLocaleString()}</p>
                             </div>
                             <div className="p-6 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-3xl">
                                 <p className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest mb-1">Approved WHT Offsets</p>
-                                <p className="text-xl font-black italic text-emerald-600 dark:text-emerald-400">KES {whtReportData.reduce((sum, item) => sum + item.actualWht, 0).toLocaleString()}</p>
+                                <p className="text-xl font-black italic text-emerald-600 dark:text-emerald-400">KES {whtReportData.reduce((sum, item) => sum + (Number(item.actualWht) || 0), 0).toLocaleString()}</p>
                             </div>
                             <div className="p-6 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 rounded-3xl">
                                 <p className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1">Pending Certificates</p>
@@ -7517,8 +7517,8 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                             <td className="p-5 text-xs font-black text-slate-900 dark:text-white uppercase italic">{item.tenantName}</td>
                                             <td className="p-5 text-xs font-mono font-bold text-slate-600 dark:text-slate-350">{item.tenantPin}</td>
                                             <td className="p-5 text-xs font-bold text-slate-500 font-mono">{item.invoiceNumber}</td>
-                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white text-right">KES {item.invoiceAmount.toLocaleString()}</td>
-                                            <td className="p-5 text-xs font-black text-amber-600 dark:text-amber-400 text-right">KES {item.expectedWht.toLocaleString()}</td>
+                                            <td className="p-5 text-xs font-black text-slate-900 dark:text-white text-right">KES {Number(item.invoiceAmount || 0).toLocaleString()}</td>
+                                            <td className="p-5 text-xs font-black text-amber-600 dark:text-amber-400 text-right">KES {Number(item.expectedWht || 0).toLocaleString()}</td>
                                             <td className="p-5 text-center">
                                                 <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${
                                                     item.status === 'approved' ? 'bg-emerald-100 text-emerald-600' :
@@ -7836,9 +7836,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                         </div>
                                                     </td>
                                                     <td className="p-5 text-center text-xs font-bold text-slate-600 dark:text-slate-300">{d.unitsCount}</td>
-                                                    <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {d.totalInvoiced.toLocaleString()}</td>
-                                                    <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {d.totalCollected.toLocaleString()}</td>
-                                                    <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {d.arrears.toLocaleString()}</td>
+                                                    <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {Number(d.totalInvoiced || 0).toLocaleString()}</td>
+                                                    <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {Number(d.totalCollected || 0).toLocaleString()}</td>
+                                                    <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {Number(d.arrears || 0).toLocaleString()}</td>
                                                     <td className="p-5 w-48">
                                                         <div className="flex items-center gap-3">
                                                             <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
@@ -7912,15 +7912,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                                                     </div>
                                                                                     <div className="flex justify-between text-[10px]">
                                                                                         <span className="font-bold text-slate-400 uppercase">Invoiced:</span>
-                                                                                        <span className="font-black text-slate-800 dark:text-slate-200">KES {invSum.toLocaleString()}</span>
+                                                                                        <span className="font-black text-slate-800 dark:text-slate-200">KES {Number(invSum || 0).toLocaleString()}</span>
                                                                                     </div>
                                                                                     <div className="flex justify-between text-[10px]">
                                                                                         <span className="font-bold text-slate-400 uppercase">Collected:</span>
-                                                                                        <span className="font-black text-emerald-600">KES {paySum.toLocaleString()}</span>
+                                                                                        <span className="font-black text-emerald-600">KES {Number(paySum || 0).toLocaleString()}</span>
                                                                                     </div>
                                                                                     <div className="flex justify-between text-[10px]">
                                                                                         <span className="font-bold text-slate-400 uppercase">Balance:</span>
-                                                                                        <span className="font-black text-rose-500">KES {unitArrears.toLocaleString()}</span>
+                                                                                        <span className="font-black text-rose-500">KES {Number(unitArrears || 0).toLocaleString()}</span>
                                                                                     </div>
                                                                                 </div>
                                                                                 {invSum > 0 && (
@@ -8096,17 +8096,17 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-xl">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Total Rent Collected</p>
-                                <p className="text-3xl font-black text-slate-900 dark:text-white italic">KES {totalGross.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-slate-900 dark:text-white italic">KES {Number(totalGross || 0).toLocaleString()}</p>
                                 <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{commissionRows.length} propert{commissionRows.length === 1 ? 'y' : 'ies'}</p>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-purple-100 dark:border-purple-900/30 shadow-xl">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-3">Total Commission Earned</p>
-                                <p className="text-3xl font-black text-purple-600 italic">KES {totalComm.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-purple-600 italic">KES {Number(totalComm || 0).toLocaleString()}</p>
                                 <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{totalGross > 0 ? ((totalComm / totalGross) * 100).toFixed(1) : 0}% of collections</p>
                             </div>
                             <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/30 shadow-xl">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-3">Total Net to Landlords</p>
-                                <p className="text-3xl font-black text-emerald-600 italic">KES {totalNet.toLocaleString()}</p>
+                                <p className="text-3xl font-black text-emerald-600 italic">KES {Number(totalNet || 0).toLocaleString()}</p>
                                 <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">After management fees & expenses</p>
                             </div>
                         </div>
@@ -8140,10 +8140,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 <td className="p-5">
                                                     <span className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 text-[9px] font-black px-2.5 py-1 rounded-full">{prop.commissionRate || 0}%</span>
                                                 </td>
-                                                <td className="p-5 text-right text-sm font-black text-slate-900 dark:text-white">KES {gross.toLocaleString()}</td>
-                                                <td className="p-5 text-right text-sm font-black text-purple-600">KES {commission.toLocaleString()}</td>
-                                                <td className="p-5 text-right text-sm font-black text-rose-500">KES {totalPropExpenses.toLocaleString()}</td>
-                                                <td className="p-5 text-right text-sm font-black text-emerald-600">KES {net.toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-slate-900 dark:text-white">KES {Number(gross || 0).toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-purple-600">KES {Number(commission || 0).toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-rose-500">KES {Number(totalPropExpenses || 0).toLocaleString()}</td>
+                                                <td className="p-5 text-right text-sm font-black text-emerald-600">KES {Number(net || 0).toLocaleString()}</td>
                                             </tr>
                                         ))}
                                         {commissionRows.length === 0 && (
@@ -8152,10 +8152,10 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                         {commissionRows.length > 0 && (
                                             <tr className="bg-slate-50 dark:bg-slate-900/50 border-t-2 border-slate-200 dark:border-slate-600">
                                                 <td colSpan={3} className="p-5 text-[10px] font-black uppercase tracking-widest text-slate-500">Totals</td>
-                                                <td className="p-5 text-right font-black text-slate-900 dark:text-white">KES {totalGross.toLocaleString()}</td>
-                                                <td className="p-5 text-right font-black text-purple-600">KES {totalComm.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-slate-900 dark:text-white">KES {Number(totalGross || 0).toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-purple-600">KES {Number(totalComm || 0).toLocaleString()}</td>
                                                 <td className="p-5 text-right font-black text-rose-500">KES {totalExpensesVal.toLocaleString()}</td>
-                                                <td className="p-5 text-right font-black text-emerald-600">KES {totalNet.toLocaleString()}</td>
+                                                <td className="p-5 text-right font-black text-emerald-600">KES {Number(totalNet || 0).toLocaleString()}</td>
                                             </tr>
                                         )}
                                     </tbody>
@@ -8209,9 +8209,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     <td className="p-4">
                                                         <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 text-[9px] font-black px-2 py-0.5 rounded-full uppercase">{p.paymentMethod || '—'}</span>
                                                     </td>
-                                                    <td className="p-4 text-right text-xs font-black text-slate-900 dark:text-white">{p.amount.toLocaleString()}</td>
-                                                    <td className="p-4 text-right text-xs font-black text-purple-600">{(p.commissionAmount || 0).toLocaleString()}</td>
-                                                    <td className="p-4 text-right text-xs font-black text-emerald-600">{(p.amount - (p.commissionAmount || 0)).toLocaleString()}</td>
+                                                    <td className="p-4 text-right text-xs font-black text-slate-900 dark:text-white">{Number(p.amount || 0).toLocaleString()}</td>
+                                                    <td className="p-4 text-right text-xs font-black text-purple-600">{Number(p.commissionAmount || 0).toLocaleString()}</td>
+                                                    <td className="p-4 text-right text-xs font-black text-emerald-600">{Number((p.amount || 0) - (p.commissionAmount || 0)).toLocaleString()}</td>
                                                 </tr>
                                             ));
                                         })()}
@@ -8311,7 +8311,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                     }
                                                 })()}
                                             </td>
-                                            <td className="p-5 text-right font-black text-slate-900 dark:text-white text-xs">KES {insp.estimatedRepairCost.toLocaleString()}</td>
+                                            <td className="p-5 text-right font-black text-slate-900 dark:text-white text-xs">KES {Number(insp.estimatedRepairCost || 0).toLocaleString()}</td>
                                             <td className="p-5">
                                                 <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${
                                                     insp.status === 'Completed' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-900/30' : 'bg-amber-50 dark:bg-amber-950/20 text-amber-600 border-amber-100'
@@ -8459,9 +8459,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                 <div className="font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || '—'}</div>
                                                 <div className="text-[9px] text-slate-400 uppercase font-black">Unit {unit?.unitNumber || '—'}</div>
                                             </td>
-                                            <td className="p-5 text-right font-black text-slate-600 dark:text-slate-400 text-xs">KES {ref.originalDeposit.toLocaleString()}</td>
-                                            <td className="p-5 text-right font-black text-rose-500 text-xs">- KES {deductions.toLocaleString()}</td>
-                                            <td className="p-5 text-right font-black text-emerald-600 text-xs">KES {ref.refundAmount.toLocaleString()}</td>
+                                            <td className="p-5 text-right font-black text-slate-600 dark:text-slate-400 text-xs">KES {Number(ref.originalDeposit || 0).toLocaleString()}</td>
+                                            <td className="p-5 text-right font-black text-rose-500 text-xs">- KES {Number(deductions || 0).toLocaleString()}</td>
+                                            <td className="p-5 text-right font-black text-emerald-600 text-xs">KES {Number(ref.refundAmount || 0).toLocaleString()}</td>
                                             <td className="p-5">
                                                 <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase border ${
                                                     ref.status === 'Paid' ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 border-emerald-100 dark:border-emerald-950/30' :
@@ -9729,9 +9729,9 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                                 </div>
                                                             </td>
                                                             <td className="p-5 text-center text-xs font-bold text-slate-600 dark:text-slate-300">{d.unitsCount}</td>
-                                                            <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {d.totalInvoiced.toLocaleString()}</td>
-                                                            <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {d.totalCollected.toLocaleString()}</td>
-                                                            <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {d.arrears.toLocaleString()}</td>
+                                                            <td className="p-5 text-right text-xs font-black text-slate-900 dark:text-white italic">KES {Number(d.totalInvoiced || 0).toLocaleString()}</td>
+                                                            <td className="p-5 text-right text-xs font-black text-emerald-600 italic">KES {Number(d.totalCollected || 0).toLocaleString()}</td>
+                                                            <td className="p-5 text-right text-xs font-black text-rose-500 italic">KES {Number(d.arrears || 0).toLocaleString()}</td>
                                                             <td className="p-5 w-48">
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden shadow-inner">
@@ -9805,15 +9805,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                                                                             </div>
                                                                                             <div className="flex justify-between text-[10px]">
                                                                                                 <span className="font-bold text-slate-400 uppercase">Invoiced:</span>
-                                                                                                <span className="font-black text-slate-800 dark:text-slate-200">KES {invSum.toLocaleString()}</span>
+                                                                                                <span className="font-black text-slate-800 dark:text-slate-200">KES {Number(invSum || 0).toLocaleString()}</span>
                                                                                             </div>
                                                                                             <div className="flex justify-between text-[10px]">
                                                                                                 <span className="font-bold text-slate-400 uppercase">Collected:</span>
-                                                                                                <span className="font-black text-emerald-600">KES {paySum.toLocaleString()}</span>
+                                                                                                <span className="font-black text-emerald-600">KES {Number(paySum || 0).toLocaleString()}</span>
                                                                                             </div>
                                                                                             <div className="flex justify-between text-[10px]">
                                                                                                 <span className="font-bold text-slate-400 uppercase">Balance:</span>
-                                                                                                <span className="font-black text-rose-500">KES {unitArrears.toLocaleString()}</span>
+                                                                                                <span className="font-black text-rose-500">KES {Number(unitArrears || 0).toLocaleString()}</span>
                                                                                             </div>
                                                                                         </div>
                                                                                         {invSum > 0 && (
@@ -10120,11 +10120,11 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                 </div>
                                 <div className="mt-2">
                                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Invoice Amount</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white italic mt-0.5">KES {inv.amount.toLocaleString()}</p>
+                                    <p className="text-sm font-black text-slate-900 dark:text-white italic mt-0.5">KES {Number((inv as any).amount || (inv as any).totalAmount || 0).toLocaleString()}</p>
                                 </div>
                                 <div className="mt-2">
                                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Withholding Tax (10%)</p>
-                                    <p className="text-sm font-black text-amber-600 dark:text-amber-400 italic mt-0.5">KES {inv.withholdingTaxAmount?.toLocaleString() || Math.round(inv.amount * 0.1).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-amber-600 dark:text-amber-400 italic mt-0.5">KES {Number(inv.withholdingTaxAmount ?? Math.round(Number((inv as any)?.amount || (inv as any)?.totalAmount || 0) * 0.1)).toLocaleString()}</p>
                                 </div>
                             </div>
 
@@ -11438,7 +11438,7 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                     ? invoices.filter(inv => inv.leaseId === selectedLeaseForRefund.id && (inv.status === 'Sent' || inv.status === 'Overdue')).reduce((sum, inv) => sum + inv.amount, 0)
                     : 0;
                 const damageCost = selectedLeaseForRefund
-                    ? inspections.filter(insp => insp.leaseId === selectedLeaseForRefund.id).reduce((sum, insp) => sum + insp.estimatedRepairCost, 0)
+                    ? inspections.filter(insp => insp.leaseId === selectedLeaseForRefund.id).reduce((sum, insp) => sum + (Number(insp.estimatedRepairCost) || 0), 0)
                     : 0;
 
                 let extraDeposits = { electricityDeposit: 0, waterDeposit: 0, aobDeposit: 0, comments: '' };
@@ -12548,7 +12548,7 @@ const ArrearsManager: React.FC<{
         });
     }, [arrearsList, arrSearch, arrProperty, arrLandlord, arrMin, arrMax]);
 
-    const totalFilteredArrears = filteredArrears.reduce((sum, item) => sum + item.periodArrears, 0);
+    const totalFilteredArrears = filteredArrears.reduce((sum, item) => sum + (Number(item.periodArrears) || 0), 0);
 
     const totalPages = Math.ceil(filteredArrears.length / itemsPerPage);
     const paginatedArrears = useMemo(() => {
@@ -12560,7 +12560,7 @@ const ArrearsManager: React.FC<{
         if (!item.tenant?.phoneNumber) return alert("Tenant has no phone number registered.");
         setSendingReminder(item.lease.id);
         try {
-            const msg = `Dear ${item.tenant.name}, this is a friendly reminder that you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance as soon as possible.`;
+            const msg = `Dear ${item.tenant.name}, this is a friendly reminder that you have outstanding rent arrears of KES ${Number(item.periodArrears || 0).toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance as soon as possible.`;
             await apiService.sendSms(item.tenant.phoneNumber, msg, currentInstitution.smsConfig, 1, institutionId);
             alert("Payment reminder sent successfully via SMS.");
         } catch (err) {
@@ -12584,7 +12584,7 @@ const ArrearsManager: React.FC<{
     };
 
     const getSmsMessage = (item: typeof filteredArrears[0]) => {
-        const base = `Dear ${item.tenant!.name}, you have outstanding rent arrears of KES ${item.periodArrears.toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance.`;
+        const base = `Dear ${item.tenant!.name}, you have outstanding rent arrears of KES ${Number(item.periodArrears || 0).toLocaleString()} for Unit ${item.unit?.unitNumber}. Please clear this balance.`;
         const paymentInfo = includePaymentMethod ? getLandlordPaymentInfo(item) : '';
         const messageParts = [base];
         if (paymentInfo) {
@@ -12866,7 +12866,7 @@ const ArrearsManager: React.FC<{
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex justify-between items-center">
                     <div>
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Outstanding Arrears</p>
-                        <p className="text-2xl font-black text-rose-600 italic">KES {totalFilteredArrears.toLocaleString()}</p>
+                        <p className="text-2xl font-black text-rose-600 italic">KES {Number(totalFilteredArrears || 0).toLocaleString()}</p>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-lg flex justify-between items-center">
@@ -12935,11 +12935,11 @@ const ArrearsManager: React.FC<{
                                             <div className="text-xs font-bold text-slate-700 dark:text-slate-300">{item.property?.name}</div>
                                             <div className="text-[9px] text-slate-400 font-bold uppercase">Landlord: {item.landlord?.name || 'N/A'}</div>
                                         </td>
-                                        <td className="p-5 text-xs font-bold text-slate-800 dark:text-white">KES {item.lease.rentAmount.toLocaleString()}</td>
-                                        <td className="p-5 text-xs font-bold text-emerald-600">KES {item.paidRent.toLocaleString()}</td>
+                                        <td className="p-5 text-xs font-bold text-slate-800 dark:text-white">KES {Number(item?.lease?.rentAmount || 0).toLocaleString()}</td>
+                                        <td className="p-5 text-xs font-bold text-emerald-600">KES {Number(item?.paidRent || 0).toLocaleString()}</td>
                                         <td className="p-5">
                                             <span className={`text-sm font-black italic ${item.periodArrears > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                                                KES {item.periodArrears.toLocaleString()}
+                                                KES {Number(item?.periodArrears || 0).toLocaleString()}
                                             </span>
                                         </td>
                                          <td className="p-5 text-right flex justify-end gap-2">
@@ -13510,7 +13510,7 @@ const RenewLeaseModal: React.FC<RenewLeaseModalProps> = ({ show, onClose, lease,
     const unit = units.find(u => u.id === lease.unitId);
     const property = unit ? properties.find(p => p.id === unit.propertyId) : null;
 
-    const currentRent = lease.rentAmount || 0;
+    const currentRent = lease?.rentAmount || 0;
     const [escalationPercentage, setEscalationPercentage] = useState('10');
     const [newRent, setNewRent] = useState((currentRent * 1.1).toFixed(2));
     const [endDate, setEndDate] = useState(() => {
@@ -13590,7 +13590,7 @@ const RenewLeaseModal: React.FC<RenewLeaseModalProps> = ({ show, onClose, lease,
                             <div className="space-y-2">
                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Current Monthly Rent</label>
                                 <div className="w-full bg-slate-100 dark:bg-slate-900 border-2 border-transparent rounded-2xl p-4 font-black text-slate-500 text-sm">
-                                    KES {currentRent.toLocaleString()}
+                                    KES {Number(currentRent || 0).toLocaleString()}
                                 </div>
                             </div>
                             <div className="space-y-2">

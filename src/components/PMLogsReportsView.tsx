@@ -85,6 +85,23 @@ interface PMLogsReportsViewProps {
 }
 
 const PAGE_SIZE = 25;
+export const safeFormatNumber = (val: any): string => {
+    if (val === undefined || val === null || val === '') return '0';
+    const num = Number(val);
+    if (isNaN(num)) return '0';
+    return num.toLocaleString();
+};
+
+export const safeFormatDate = (val: any): string => {
+    if (!val) return 'Recent';
+    try {
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? String(val) : d.toLocaleString();
+    } catch {
+        return String(val);
+    }
+};
+
 
 export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
     institutionId,
@@ -169,7 +186,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 unitId: unit?.id,
                 targetName: tenant?.name || 'Tenant',
                 targetRole: 'Tenant',
-                details: `KES ${(p.amount || 0).toLocaleString()} via ${p.paymentMethod || 'M-Pesa'}${p.referenceNumber ? ` • Ref: ${p.referenceNumber}` : ''}${p.receiptNumber ? ` • Receipt #${p.receiptNumber}` : ''}`,
+                details: `KES ${safeFormatNumber(p?.amount)} via ${p.paymentMethod || 'M-Pesa'}${p.referenceNumber ? ` • Ref: ${p.referenceNumber}` : ''}${p.receiptNumber ? ` • Receipt #${p.receiptNumber}` : ''}`,
                 amount: p.amount,
                 referenceCode: p.referenceNumber || p.receiptNumber,
                 performerName: 'Finance Desk',
@@ -197,7 +214,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 unitId: unit?.id,
                 targetName: tenant?.name || 'Tenant',
                 targetRole: 'Tenant',
-                details: `Billed KES ${(inv.totalAmount || 0).toLocaleString()} • Balance: KES ${(inv.balance !== undefined ? inv.balance : inv.totalAmount).toLocaleString()} • Due: ${inv.dueDate || 'Immediate'}`,
+                details: `Billed KES ${safeFormatNumber(inv?.totalAmount ?? (inv as any)?.amount)} • Balance: KES ${safeFormatNumber(inv?.balance !== undefined ? inv.balance : (inv?.totalAmount ?? (inv as any)?.amount))} • Due: ${inv.dueDate || 'Immediate'}`,
                 amount: inv.totalAmount,
                 referenceCode: inv.invoiceNumber,
                 performerName: 'Billing Engine',
@@ -221,7 +238,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 propertyId: prop?.id,
                 targetName: landlord?.name || 'Property Owner',
                 targetRole: 'Landlord',
-                details: `Net Disbursed: KES ${(d.netPayout || 0).toLocaleString()} (Gross: KES ${(d.grossCollected || 0).toLocaleString()} less commission KES ${(d.commissionAmount || 0).toLocaleString()})${d.referenceNumber ? ` • Ref: ${d.referenceNumber}` : ''}`,
+                details: `Net Disbursed: KES ${safeFormatNumber(d?.netPayout ?? (d as any)?.amount)} (Gross: KES ${safeFormatNumber(d?.grossCollected)} less commission KES ${safeFormatNumber(d?.commissionAmount)})${d.referenceNumber ? ` • Ref: ${d.referenceNumber}` : ''}`,
                 amount: d.netPayout,
                 referenceCode: d.referenceNumber,
                 performerName: 'Disbursement Officer',
@@ -243,7 +260,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 propertyId: prop?.id,
                 targetName: ex.payee || 'Vendor',
                 targetRole: 'Payee',
-                details: `Voucher #${ex.voucherNumber || ex.id.substring(0, 6)}: KES ${(ex.amount || 0).toLocaleString()} for "${ex.description || 'Property Expense'}" • Payee: ${ex.payee || 'Vendor'}`,
+                details: `Voucher #${ex?.voucherNumber || ex?.id?.substring(0, 6) || "VOUCH"}: KES ${safeFormatNumber(ex?.amount)} for "${ex.description || 'Property Expense'}" • Payee: ${ex.payee || 'Vendor'}`,
                 amount: ex.amount,
                 referenceCode: ex.voucherNumber,
                 performerName: ex.approvedBy || 'Property Manager',
@@ -267,7 +284,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 propertyId: prop?.id,
                 unitNumber: unit?.unitNumber,
                 unitId: unit?.id,
-                details: `Meter: ${u.previousReading ?? 0} → ${u.currentReading ?? 0} (${u.consumption ?? 0} units @ KES ${u.rate ?? 0}/unit) = KES ${(u.totalAmount || 0).toLocaleString()}`,
+                details: `Meter: ${u?.previousReading ?? 0} → ${u?.currentReading ?? 0} (${u?.consumption ?? 0} units @ KES ${u?.rate ?? 0}/unit) = KES ${safeFormatNumber(u?.totalAmount)}`,
                 amount: u.totalAmount,
                 referenceCode: u.id.substring(0, 8),
                 performerName: 'Meter Reader',
@@ -322,7 +339,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 unitId: unit?.id,
                 targetName: tenant?.name || 'Tenant',
                 targetRole: 'Tenant',
-                details: `Rating: ${insp.conditionRating || 'Good'} • Est. Repairs: KES ${(insp.estimatedRepairCost || 0).toLocaleString()} • Notes: ${insp.notes || 'No remarks'}`,
+                details: `Rating: ${insp.conditionRating || 'Good'} • Est. Repairs: KES ${safeFormatNumber(insp?.estimatedRepairCost)} • Notes: ${insp.notes || 'No remarks'}`,
                 amount: insp.estimatedRepairCost,
                 referenceCode: insp.id.substring(0, 8),
                 performerName: 'Field Inspector',
@@ -350,7 +367,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 unitId: unit?.id,
                 targetName: tenant?.name || 'Tenant',
                 targetRole: 'Tenant',
-                details: `Deposit KES ${(ref.originalDeposit || 0).toLocaleString()} less deductions KES ${(ref.deductions || 0).toLocaleString()} → Net Refund: KES ${(ref.refundAmount || 0).toLocaleString()}`,
+                details: `Deposit KES ${safeFormatNumber(ref?.originalDeposit)} less deductions KES ${safeFormatNumber(ref?.deductions)} → Net Refund: KES ${safeFormatNumber(ref?.refundAmount)}`,
                 amount: ref.refundAmount,
                 referenceCode: ref.reference,
                 performerName: 'Estate Administrator',
@@ -374,7 +391,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                 propertyId: prop?.id,
                 unitNumber: unit?.unitNumber,
                 unitId: unit?.id,
-                details: `Priority: ${tk.priority || 'Medium'} • Status: ${tk.status || 'Open'}${tk.assignedTo ? ` • Tech: ${tk.assignedTo}` : ''}${tk.cost ? ` • Cost: KES ${tk.cost.toLocaleString()}` : ''}`,
+                details: `Priority: ${tk.priority || 'Medium'} • Status: ${tk.status || 'Open'}${tk.assignedTo ? ` • Tech: ${tk.assignedTo}` : ''}${tk?.cost !== undefined && tk?.cost !== null ? ` • Cost: KES ${safeFormatNumber(tk.cost)}` : ''}`,
                 amount: tk.cost,
                 referenceCode: tk.id.substring(0, 8),
                 performerName: tk.assignedTo || 'Facility Team',
@@ -547,7 +564,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
     const handleExportExcel = () => {
         try {
             const rows = filteredLogs.map(l => ({
-                'Date & Time': new Date(l.timestamp).toLocaleString(),
+                'Date & Time': safeFormatDate(l.timestamp),
                 'Log Category': l.category,
                 'Action / Event': l.action,
                 'Property Asset': l.propertyName || 'N/A',
@@ -597,7 +614,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             filteredLogs.forEach(l => {
                 const row = [
-                    `"${new Date(l.timestamp).toLocaleString()}"`,
+                    `"${safeFormatDate(l.timestamp)}"`,
                     `"${l.category}"`,
                     `"${(l.action || '').replace(/"/g, '""')}"`,
                     `"${(l.propertyName || '').replace(/"/g, '""')}"`,
@@ -709,7 +726,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Filtered Logs</span>
                         <h4 className="text-3xl font-black text-slate-900 dark:text-white mt-1 italic tracking-tight">
-                            {metrics.total.toLocaleString()}
+                            {safeFormatNumber(metrics.total)}
                         </h4>
                         <p className="text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide mt-1">
                             {categoryCounts.all} Cumulative Entries
@@ -724,7 +741,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Financial Log Volume</span>
                         <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 italic tracking-tight">
-                            KES {metrics.financialVolume.toLocaleString()}
+                            KES {safeFormatNumber(metrics.financialVolume)}
                         </h4>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-1">
                             {metrics.financialCount} Collections & Payouts
@@ -739,7 +756,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Utility Meter Readings</span>
                         <h4 className="text-3xl font-black text-cyan-600 dark:text-cyan-400 mt-1 italic tracking-tight">
-                            {metrics.utilityCount.toLocaleString()}
+                            {safeFormatNumber(metrics.utilityCount)}
                         </h4>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-1">
                             Water, Electricity & Gas
@@ -754,7 +771,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notices & SMS Dispatches</span>
                         <h4 className="text-3xl font-black text-amber-600 dark:text-amber-400 mt-1 italic tracking-tight">
-                            {(metrics.noticeCount + metrics.smsCount).toLocaleString()}
+                            {safeFormatNumber(metrics.noticeCount + metrics.smsCount)}
                         </h4>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-1">
                             {metrics.noticeCount} Letters • {metrics.smsCount} SMS Alerts
@@ -1032,7 +1049,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                                                 </div>
                                                 {log.amount !== undefined && log.amount > 0 && (
                                                     <div className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 mt-1">
-                                                        KES {log.amount.toLocaleString()}
+                                                        KES {safeFormatNumber(log.amount)}
                                                     </div>
                                                 )}
                                             </td>
@@ -1139,7 +1156,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Timestamp</span>
                                     <span className="font-bold text-slate-900 dark:text-white">
-                                        {new Date(selectedLogForModal.timestamp).toLocaleString()}
+                                        {safeFormatDate(selectedLogForModal.timestamp)}
                                     </span>
                                 </div>
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -1163,7 +1180,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Financial Value</span>
                                     <span className="font-bold text-slate-900 dark:text-white">
-                                        {selectedLogForModal.amount ? `KES ${selectedLogForModal.amount.toLocaleString()}` : 'None'}
+                                        {selectedLogForModal.amount !== undefined && selectedLogForModal.amount !== null ? `KES ${safeFormatNumber(selectedLogForModal.amount)}` : 'None'}
                                     </span>
                                 </div>
                                 <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
