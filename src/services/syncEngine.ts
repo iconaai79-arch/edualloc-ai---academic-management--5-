@@ -185,12 +185,12 @@ class SyncEngine {
                 bookStockReceipts,
                 studentEnrollments,
             ] = await Promise.all([
-                apiService.fetchModuleRecords('books', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('library_transactions', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('library_fines', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('books', tenantId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords('library_transactions', tenantId, undefined, { limit: 5000 }).catch(() => []),
+                apiService.fetchModuleRecords('library_fines', tenantId, undefined, { limit: 2000 }).catch(() => []),
                 apiService.fetchModuleRecords('library_settings', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('book_reservations', tenantId).catch(() => []),
-                apiService.fetchModuleRecords('book_stock_receipts', tenantId).catch(() => []),
+                apiService.fetchModuleRecords('book_reservations', tenantId, undefined, { limit: 2000 }).catch(() => []),
+                apiService.fetchModuleRecords('book_stock_receipts', tenantId, undefined, { limit: 2000 }).catch(() => []),
                 apiService.fetchModuleRecords('student_enrollments', tenantId).catch(() => []),
             ]);
 

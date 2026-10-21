@@ -1313,7 +1313,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('date', { ascending: false }).order('id', { ascending: false });
                 } else if (['school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_rate_settings', 'school_remedial_duty_roster', 'school_remedial_subjects', 'remedial_allocations', 'remedial_payouts', 'remedial_rate_settings', 'remedial_duty_roster', 'remedial_subjects'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
+                } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
                 } else if (['timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
                     q = q.order('id', { ascending: true });
@@ -1474,7 +1474,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ? 1000 
                 : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
                     ? 500
-                    : (['student_enrollments', 'inventory', 'retail_inventory', 'retail_inventory_items', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
+                    : (['student_enrollments', 'inventory', 'retail_inventory', 'retail_inventory_items', 'books', 'book_stock_receipts', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
                         : (['activity_log', 'integration_logs', 'teacher_check_ins', 'teacher_checkins', 'watchlist_records', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'branches'].includes(moduleName)
                             ? 250
@@ -1485,7 +1485,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['activity_log', 'activity_logs', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster'].includes(moduleName) ? 8000 : 5000);
+                : (['activity_log', 'activity_logs', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'books', 'library_transactions'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const elapsed = Date.now() - requestStartTime;
@@ -1686,7 +1686,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'date.desc';
             } else if (['school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'school_remedial_subjects', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'remedial_subjects'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
-            } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)) {
+            } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
@@ -1799,20 +1799,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             
                             // If chunk timed out, attempt recovery without expensive sorting or with smaller batch window
                             if (res?.error && (res.error.message?.toLowerCase().includes('timeout') || res.error.message?.toLowerCase().includes('gateway') || res.error.code === '57014')) {
-                                if (Date.now() - requestStartTime > 9000) {
-                                    console.warn(`[API GET] Approaching safe limit, skipping retries for '${moduleName}'.`);
+                                if (Date.now() - requestStartTime > 9000 && data.length > 0) {
+                                    console.warn(`[API GET] Approaching safe limit, skipping retries for '${moduleName}' (${data.length} records retained).`);
                                     break;
                                 }
                                 console.warn(`[API GET] Chunk timeout on '${moduleName}' at offset ${currentOffset}, retrying fast query...`);
                                 const fastBatch = Math.max(100, Math.floor(batchSize / 2));
                                 effectiveBatchSize = fastBatch;
-                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), currentOffset, currentOffset + fastBatch - 1), 3000)
+                                const retryTimeoutMs = Math.max(1000, Math.min(3000, 11500 - (Date.now() - requestStartTime)));
+                                res = await executeWithTimeout(applyRange(buildFastBaseQuery(true), currentOffset, currentOffset + fastBatch - 1), retryTimeoutMs)
                                     .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
 
                                 // If half-batch still timed out at offset 0, try a lightweight single-batch limit query
-                                if (res?.error && currentOffset === 0 && Date.now() - requestStartTime < 9000) {
+                                if (res?.error && currentOffset === 0 && Date.now() - requestStartTime < 11000) {
                                     console.warn(`[API GET] Retrying '${moduleName}' with single unpaginated limit query...`);
-                                    res = await executeWithTimeout(buildFastBaseQuery(true).limit(Math.min(finalLimit, 500)), 3000)
+                                    const singleLimit = Math.min(finalLimit, 250);
+                                    const emergencyTimeoutMs = Math.max(1000, Math.min(3000, 12000 - (Date.now() - requestStartTime)));
+                                    res = await executeWithTimeout(buildFastBaseQuery(true).limit(singleLimit), emergencyTimeoutMs)
                                         .catch((err: any) => ({ data: null, error: { message: err?.message || 'statement timeout', code: '57014' } }));
                                 }
                             }
