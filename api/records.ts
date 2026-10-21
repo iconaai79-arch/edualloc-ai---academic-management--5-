@@ -3943,20 +3943,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const copy = { ...c };
                     // Normalize institution_id from camelCase alias
                     if (!copy.institution_id && copy.institutionId) copy.institution_id = copy.institutionId;
-                    // Normalize name from any alias
-                    if (!copy.name && (copy.companyName || copy.company_name || copy.courierName || copy.courier_name || copy.fullName || copy.full_name)) {
-                        copy.name = copy.companyName || copy.company_name || copy.courierName || copy.courier_name || copy.fullName || copy.full_name;
+                    // Sync name aliases ONLY when a name is supplied — partial updates
+                    // (e.g. status approve/reject) must not overwrite the stored name.
+                    const resolvedName = copy.name || copy.companyName || copy.company_name || copy.courierName || copy.courier_name || copy.fullName || copy.full_name;
+                    if (resolvedName) {
+                        copy.name = resolvedName;
+                        copy.company_name = resolvedName;
+                        copy.courier_name = resolvedName;
+                        copy['companyName'] = resolvedName;
+                        copy['courierName'] = resolvedName;
+                        copy['fullName'] = resolvedName;
+                        // Default status only for full (create) payloads
+                        if (!copy.status) copy.status = 'Active';
                     }
-                    // Sync name aliases
-                    const resolvedName = copy.name || copy.companyName || copy.company_name || copy.courierName || copy.courier_name || 'Courier Partner';
-                    copy.name = resolvedName;
-                    copy.company_name = resolvedName;
-                    copy.courier_name = resolvedName;
-                    copy['companyName'] = resolvedName;
-                    copy['courierName'] = resolvedName;
-                    copy['fullName'] = resolvedName;
-                    // Always have a valid status
-                    if (!copy.status) copy.status = 'Active';
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanCourier) : cleanCourier(currentPayload);
@@ -3971,21 +3970,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!copy.courier_id && copy['courierId']) copy.courier_id = copy['courierId'];
                     // Normalize estimated_days from camelCase alias
                     if (copy.estimated_days === undefined && copy['estimatedDays'] !== undefined) {
-                        copy.estimated_days = Number(copy['estimatedDays']) || 1;
+                        copy.estimated_days = copy['estimatedDays'];
                     }
-                    // Ensure numeric fields
-                    copy.rate = Number(copy.rate ?? 0);
-                    copy.estimated_days = Number(copy.estimated_days ?? 1);
+                    // Coerce numeric fields ONLY when present — partial updates
+                    // (e.g. courier reassignment) must not reset rate/days.
+                    if (copy.rate !== undefined && copy.rate !== null) copy.rate = Number(copy.rate) || 0;
+                    if (copy.estimated_days !== undefined && copy.estimated_days !== null) {
+                        copy.estimated_days = Number(copy.estimated_days) || 1;
+                        copy['estimatedDays'] = copy.estimated_days;
+                    }
                     // Sync courier name aliases
                     if (copy.courier_name || copy['courierName']) {
                         const cName = copy.courier_name || copy['courierName'];
                         copy.courier_name = cName;
                         copy['courierName'] = cName;
                     }
-                    // Ensure destination is present
-                    if (!copy.destination) copy.destination = 'General';
-                    // Always have a valid status
-                    if (!copy.status) copy.status = 'Active';
+                    // Only replace an explicitly blank destination; leave absent keys untouched
+                    if ('destination' in copy && !String(copy.destination || '').trim()) copy.destination = 'General';
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRate) : cleanRate(currentPayload);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
-import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as MapPin, CurrencyIcon as Currency, UserIcon as UserCircle, EnvelopeIcon as Envelope, PhoneIcon as Phone, CheckCircleIcon as CheckCircle, XCircleIcon as XCircle } from '../icons';
+import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as MapPin, CurrencyIcon as Currency, UserIcon as UserCircle, EnvelopeIcon as Envelope, PhoneIcon as Phone, CheckCircleIcon as CheckCircle, XCircleIcon as XCircle, PencilIcon as Pencil } from '../icons';
 
 interface Courier {
     id: string;
@@ -43,6 +43,34 @@ export function RetailLogisticsManager({ institutionId }: Props) {
 
     const [newCourier, setNewCourier] = useState<Partial<Courier>>({ status: 'Active' });
     const [newRate, setNewRate] = useState<Partial<DeliveryRate>>({ status: 'Active', estimated_days: 1 });
+    const [editingRateId, setEditingRateId] = useState<string | null>(null);
+    const [savingRate, setSavingRate] = useState(false);
+
+    const closeRateModal = () => {
+        setShowAddRate(false);
+        setEditingRateId(null);
+        setNewRate({ status: 'Active', estimated_days: 1 });
+    };
+
+    const openAddRate = () => {
+        setEditingRateId(null);
+        setNewRate({ status: 'Active', estimated_days: 1 });
+        setShowAddRate(true);
+    };
+
+    const openEditRate = (r: DeliveryRate, resolvedCourierId: string) => {
+        setEditingRateId(r.id);
+        setNewRate({
+            ...r,
+            courier_id: resolvedCourierId,
+            courierId: resolvedCourierId,
+            destination: r.destination || '',
+            rate: Number(r.rate ?? 0),
+            estimated_days: Number(r.estimated_days ?? r.estimatedDays ?? 1),
+            status: r.status || 'Active'
+        });
+        setShowAddRate(true);
+    };
 
     useEffect(() => {
         fetchData();
@@ -126,8 +154,18 @@ export function RetailLogisticsManager({ institutionId }: Props) {
         try {
             const selectedCourier = couriers.find(c => c.id === newCourierId);
             const courierName = getCourierDisplayName(selectedCourier);
+            const existing = rates.find(r => r.id === rateId);
             await apiService.saveModuleRecord('retail_delivery_rates', {
                 id: rateId,
+                institution_id: institutionId,
+                institutionId,
+                ...(existing ? {
+                    destination: existing.destination,
+                    rate: Number(existing.rate ?? 0),
+                    estimated_days: Number(existing.estimated_days ?? existing.estimatedDays ?? 1),
+                    estimatedDays: Number(existing.estimated_days ?? existing.estimatedDays ?? 1),
+                    status: existing.status || 'Active'
+                } : {}),
                 courier_id: newCourierId,
                 courierId: newCourierId,
                 courier_name: courierName,
@@ -165,9 +203,14 @@ export function RetailLogisticsManager({ institutionId }: Props) {
         }
     };
 
-    const handleAddRate = async () => {
+    const handleSaveRate = async () => {
         const courierId = newRate.courier_id || (newRate as any).courierId;
-        if (!courierId || !newRate.destination) return;
+        if (!courierId || !(newRate.destination || '').trim()) {
+            alert('Please select a courier partner and enter a destination.');
+            return;
+        }
+        if (savingRate) return;
+        setSavingRate(true);
         try {
             const selectedCourier = couriers.find(c => c.id === courierId);
             const courierName = getCourierDisplayName(selectedCourier);
@@ -175,7 +218,7 @@ export function RetailLogisticsManager({ institutionId }: Props) {
             const rateFee = Number(newRate.rate || 0);
 
             await apiService.saveModuleRecord('retail_delivery_rates', {
-                id: crypto.randomUUID(),
+                id: editingRateId || crypto.randomUUID(),
                 institution_id: institutionId,
                 institutionId,
                 courier_id: courierId,
@@ -186,13 +229,15 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                 rate: rateFee,
                 estimated_days: estDays,
                 estimatedDays: estDays,
-                status: 'Active'
+                status: newRate.status || 'Active'
             });
-            setShowAddRate(false);
-            setNewRate({ status: 'Active', estimated_days: 1 });
+            closeRateModal();
             fetchData();
         } catch (error) {
             console.error('Save failed:', error);
+            alert('Failed to save delivery rate. Please try again.');
+        } finally {
+            setSavingRate(false);
         }
     };
 
@@ -352,7 +397,7 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                     Delivery Rate Matrix
                                 </h3>
                                 <button
-                                    onClick={() => setShowAddRate(true)}
+                                    onClick={openAddRate}
                                     className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all"
                                 >
                                     <Plus className="w-5 h-5" />
@@ -406,8 +451,16 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                                     <td className="py-4 px-2 text-[10px] font-bold text-slate-400">
                                                         {estDays} Work days
                                                     </td>
-                                                    <td className="py-4 px-2 text-right">
-                                                        <button onClick={() => handleDelete('retail_delivery_rates', r.id)} className="p-2 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 rounded-lg">
+                                                    <td className="py-4 px-2 text-right whitespace-nowrap">
+                                                        <button
+                                                            onClick={() => openEditRate(r, assignedCourierId)}
+                                                            className="p-2 text-indigo-500 opacity-60 group-hover:opacity-100 transition-all hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg"
+                                                            title="Edit rate"
+                                                            aria-label={`Edit rate for ${r.destination}`}
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                        <button onClick={() => handleDelete('retail_delivery_rates', r.id)} title="Delete rate" className="p-2 text-rose-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-50 rounded-lg">
                                                             <Trash className="w-4 h-4" />
                                                         </button>
                                                     </td>
@@ -506,11 +559,11 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in">
                     <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl p-8 border border-white/20 dark:border-slate-800 transition-all overflow-hidden relative">
                         <div className="absolute top-0 right-0 p-8">
-                            <button onClick={() => setShowAddRate(false)} className="text-slate-400 hover:text-rose-500 transition-colors">
+                            <button onClick={closeRateModal} className="text-slate-400 hover:text-rose-500 transition-colors">
                                 <Plus className="w-6 h-6 rotate-45" />
                             </button>
                         </div>
-                        <h3 className="text-xl font-black mb-6 italic tracking-tight">Add Delivery Fee</h3>
+                        <h3 className="text-xl font-black mb-6 italic tracking-tight">{editingRateId ? 'Edit Delivery Fee' : 'Add Delivery Fee'}</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-widest mb-1 block italic opacity-60">Courier Partner</label>
@@ -542,8 +595,9 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                     <label className="text-[10px] font-black uppercase tracking-widest mb-1 block italic opacity-60">Fee (KES)</label>
                                     <input
                                         type="number"
-                                        value={newRate.rate || ''}
-                                        onChange={e => setNewRate({ ...newRate, rate: parseFloat(e.target.value) })}
+                                        min={0}
+                                        value={newRate.rate ?? ''}
+                                        onChange={e => setNewRate({ ...newRate, rate: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
                                         className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 ring-indigo-500 transition-all font-bold"
                                         placeholder="0.00"
                                     />
@@ -552,6 +606,7 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                     <label className="text-[10px] font-black uppercase tracking-widest mb-1 block italic opacity-60">Days</label>
                                     <input
                                         type="number"
+                                        min={1}
                                         value={newRate.estimated_days || ''}
                                         onChange={e => setNewRate({ ...newRate, estimated_days: parseInt(e.target.value) })}
                                         className="w-full px-5 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border-none focus:ring-2 ring-indigo-500 transition-all font-bold"
@@ -560,10 +615,11 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                                 </div>
                             </div>
                             <button
-                                onClick={handleAddRate}
-                                className="w-full py-4 mt-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-indigo-500/30 active:scale-95 transition-all"
+                                onClick={handleSaveRate}
+                                disabled={savingRate}
+                                className="w-full py-4 mt-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-indigo-500/30 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-wait"
                             >
-                                Publish Rate to Marketplace
+                                {savingRate ? 'Saving...' : editingRateId ? 'Update Rate' : 'Publish Rate to Marketplace'}
                             </button>
                         </div>
                     </div>
