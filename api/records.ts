@@ -1923,12 +1923,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         return res.status(200).json([]);
                     }
                 }
-                const isUuidMismatch = error.code === '22P02' || 
-                                       error.code === '42883' ||
-                                       error.message?.includes('invalid input syntax for type uuid') ||
-                                       error.message?.includes('operator does not exist');
-                if (isUuidMismatch) {
-                    console.warn(`[API GET] UUID/Operator type mismatch for '${moduleName}' (${error.message || error.code}). Attempting direct PostgreSQL fallback with text cast...`);
+
+                if (error) {
+                    const isUuidMismatch = error?.code === '22P02' || 
+                                           error?.code === '42883' ||
+                                           error?.message?.includes('invalid input syntax for type uuid') ||
+                                           error?.message?.includes('operator does not exist');
+                    if (isUuidMismatch) {
+                        console.warn(`[API GET] UUID/Operator type mismatch for '${moduleName}' (${error?.message || error?.code}). Attempting direct PostgreSQL fallback with text cast...`);
+                        try {
+                            const directData = await fetchViaDirectPg(
+                                targetDbTable,
+                                sqlConditions,
+                                defaultOrderBy,
+                                finalLimit,
+                                offset
+                            );
+                            if (directData !== null) {
+                                console.info(`[API GET Direct SQL Fallback on UUID Mismatch] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
+                                return res.status(200).json(directData);
+                            }
+                        } catch (pgEx: any) {
+                            console.warn(`[API GET Direct SQL Fallback on UUID Mismatch Exception] for '${moduleName}':`, pgEx?.message || pgEx);
+                        }
+                        if (moduleName === 'institutions') {
+                            const fallbackCache = _serverModuleMemoryCache.get('institutions');
+                            if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
+                                console.warn('[API GET] Recovered institutions from memory cache on UUID/Operator mismatch');
+                                return res.status(200).json(fallbackCache.data);
+                            }
+                        }
+                        console.warn(`[API GET] Direct PostgreSQL fallback unavailable for '${moduleName}' UUID mismatch, returning empty list fallback.`);
+                        return res.status(200).json([]);
+                    }
+                }
+
+                if (error) {
+                    // ── Direct PostgreSQL Fallback ──
+                    console.warn(`[API GET] PostgREST query failed or timed out for '${moduleName}' (${error?.message || error?.code}). Executing direct PostgreSQL fallback...`);
                     try {
                         const directData = await fetchViaDirectPg(
                             targetDbTable,
@@ -1938,40 +1970,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             offset
                         );
                         if (directData !== null) {
-                            console.info(`[API GET Direct SQL Fallback on UUID Mismatch] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
-                            return res.status(200).json(directData);
+                            console.info(`[API GET Direct SQL Fallback] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
+                            data = directData;
+                            error = null; // Cleared!
                         }
                     } catch (pgEx: any) {
-                        console.warn(`[API GET Direct SQL Fallback on UUID Mismatch Exception] for '${moduleName}':`, pgEx?.message || pgEx);
+                        console.warn(`[API GET Direct SQL Fallback Exception] for '${moduleName}':`, pgEx?.message || pgEx);
                     }
-                    if (moduleName === 'institutions') {
-                        const fallbackCache = _serverModuleMemoryCache.get('institutions');
-                        if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
-                            console.warn('[API GET] Recovered institutions from memory cache on UUID/Operator mismatch');
-                            return res.status(200).json(fallbackCache.data);
-                        }
-                    }
-                    console.warn(`[API GET] Direct PostgreSQL fallback unavailable for '${moduleName}' UUID mismatch, returning empty list fallback.`);
-                    return res.status(200).json([]);
-                }
-
-                // ── Direct PostgreSQL Fallback ──
-                console.warn(`[API GET] PostgREST query failed or timed out for '${moduleName}' (${error.message || error.code}). Executing direct PostgreSQL fallback...`);
-                try {
-                    const directData = await fetchViaDirectPg(
-                        targetDbTable,
-                        sqlConditions,
-                        defaultOrderBy,
-                        finalLimit,
-                        offset
-                    );
-                    if (directData !== null) {
-                        console.info(`[API GET Direct SQL Fallback] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
-                        data = directData;
-                        error = null; // Cleared!
-                    }
-                } catch (pgEx: any) {
-                    console.warn(`[API GET Direct SQL Fallback Exception] for '${moduleName}':`, pgEx?.message || pgEx);
                 }
 
                 // If error is still present (both PostgREST and Direct SQL failed):
@@ -1983,7 +1988,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (moduleName === 'institutions') {
                             const fallbackCache = _serverModuleMemoryCache.get('institutions');
                             if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
-                                console.warn('[API GET] Recovered institutions from memory cache on DB error:', error.message || error.code);
+                                console.warn('[API GET] Recovered institutions from memory cache on DB error:', error?.message || error?.code);
                                 return res.status(200).json(fallbackCache.data);
                             }
                             console.warn('[API GET] DB query failed on institutions with no memory cache. Returning empty list fallback to prevent crash.');
@@ -1992,7 +1997,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (moduleName === 'school_registry') {
                             const fallbackCache = _serverModuleMemoryCache.get('school_registry');
                             if (fallbackCache && Array.isArray(fallbackCache.data) && fallbackCache.data.length > 0) {
-                                console.warn('[API GET] Recovered school_registry from memory cache on DB error/timeout:', error.message || error.code);
+                                console.warn('[API GET] Recovered school_registry from memory cache on DB error/timeout:', error?.message || error?.code);
                                 const reqOffset = offset || 0;
                                 return res.status(200).json(fallbackCache.data.slice(reqOffset, reqOffset + finalLimit));
                             }
@@ -2000,16 +2005,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             return res.status(200).json([]);
                         }
                         // Non-critical modules: return empty array fallback on statement timeout to keep UI operational
-                        const isTimeoutError = error.code === '57014' || (error.message && error.message.toLowerCase().includes('timeout'));
+                        const isTimeoutError = error?.code === '57014' || (error?.message && error.message.toLowerCase().includes('timeout'));
                         if (isTimeoutError && (
                             moduleName.startsWith('ds_') || 
-                            ['security_alerts', 'security_logs', 'visitors', 'building_visitor_logs', 'watchlist_records', 'gate_passes', 'student_gate_passes', 'school_registry', 'app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills'].includes(moduleName)
+                            ['security_alerts', 'security_logs', 'visitors', 'building_visitor_logs', 'watchlist_records', 'gate_passes', 'student_gate_passes', 'school_registry', 'app_notifications', 'marketing_prospects', 'campaign_leads', 'bank_transactions', 'bank_feed_transactions', 'financial_goals', 'financial_periods', 'student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests', 'integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'teacher_check_ins', 'teacher_checkins', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'requisitions', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'retail_sales', 'airtel_transactions', 'intasend_transactions', 'ncba_transactions', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures', 'vote_heads', 'fee_structures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)
                         )) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Returning empty array fallback to preserve frontend stability.`);
                             return res.status(200).json([]);
                         }
                         if (['integration_logs', 'sms_gateway_logs', 'sms_logs', 'audit_issues', 'security_alerts', 'security_logs', 'building_visitor_logs', 'watchlist_records'].includes(moduleName)) {
-                            console.warn(`[API GET] Diagnostic/telemetry module '${moduleName}' query failed (${error.message || error.code}). Returning empty list fallback.`);
+                            console.warn(`[API GET] Diagnostic/telemetry module '${moduleName}' query failed (${error?.message || error?.code}). Returning empty list fallback.`);
                             return res.status(200).json([]);
                         }
                         if (isTimeoutError && (moduleName === 'student_enrollments' || isStudentsAlias)) {
@@ -2091,15 +2096,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 error = null;
                             }
                         }
-                        console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
-                        // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
-                        // Returning 503 ensures frontend clients (apiService.ts / localDb) retain their cached records!
-                        return res.status(503).json({
-                            success: false,
-                            error: 'Database connection failed or timed out',
-                            module: moduleName,
-                            details: error.message || String(error)
-                        });
+                        if (error) {
+                            console.error(`[API GET Error - Both PostgREST & Direct SQL failed] ${moduleName}:`, error);
+                            // CRITICAL: NEVER return HTTP 200 with [] on database errors/timeouts!
+                            // Returning 503 ensures frontend clients (apiService.ts / localDb) retain their cached records!
+                            return res.status(503).json({
+                                success: false,
+                                error: 'Database connection failed or timed out',
+                                module: moduleName,
+                                details: error?.message || String(error)
+                            });
+                        }
                     }
                 }
             }
