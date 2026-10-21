@@ -34,6 +34,7 @@ import {
 import { SubjectCard } from './SubjectCard';
 import { RequestModal } from './RequestModal';
 import { TeacherWalletCard } from './TeacherWalletCard';
+import { TeacherHRMobilePortal } from './TeacherHRMobilePortal';
 import { DeallocationModal } from './DeallocationModal';
 import { ChangeRequestModal } from './ChangeRequestModal';
 import { LecturerDashboard } from './LecturerDashboard';
@@ -1697,6 +1698,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                             {tab === 'class_supervisor_students' ? 'Class Students' :
                                              tab === 'class_supervisor_attendance' ? 'Class Attendance' :
                                              tab === 'student_leave_out' ? 'Student Leave Out' :
+                                             tab === 'self_checkin' ? 'HR Services & Check-In' :
                                              tab.replace(/_/g, ' ')}
                                         </span>
                                         {tab === 'my_timetable' && pendingSubstituteRequests.length > 0 && (
@@ -2180,8 +2182,8 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                     )}
 
                     {activeTab === 'self_checkin' && (
-                        <div className="animate-fade-in-up bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-700">
-                            <TeacherCheckInView
+                        <div className="animate-fade-in-up">
+                            <TeacherHRMobilePortal
                                 currentUser={user}
                                 currentInstitution={currentInstitution || ({ id: user?.institutionId || '', name: 'Institution', checkinRadiusEnabled: false } as Institution)}
                                 onLogAction={async (action: string) => {
@@ -2189,6 +2191,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                                         await props.onLogAction(action);
                                     }
                                 }}
+                                allTeachers={props.users || []}
                             />
                         </div>
                     )}
@@ -4079,7 +4082,7 @@ export const LecturerView: React.FC<LecturerViewProps> = (props) => {
                 {[
                     { id: 'dashboard', label: 'Home', icon: <CalendarPlusIcon className="w-5.5 h-5.5" /> },
                     { id: 'my_timetable', label: 'Schedule', icon: <ClockIcon className="w-5.5 h-5.5" /> },
-                    { id: 'self_checkin', label: 'Check-In', icon: <ClockInIcon className="w-5.5 h-5.5" /> },
+                    { id: 'self_checkin', label: 'HR Services', icon: <ClockInIcon className="w-5.5 h-5.5" /> },
                     { id: 'eduflow', label: 'Tasks', icon: <ClipboardListIcon className="w-5.5 h-5.5" /> },
                     { id: 'more', label: 'More', icon: (
                         <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
