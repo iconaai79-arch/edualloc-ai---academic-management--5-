@@ -6596,20 +6596,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (moduleName === 'institutions' || targetDbTable === 'institutions') {
                         try {
                             const pool = await getPgPool();
-                            if (pool && (offendingCol === 'reseller_id' || offendingCol === 'resellerId')) {
+                            const isResellerCol = offendingCol === 'reseller_id' || offendingCol === 'resellerId';
+                            const isBrandingCol = ['header_image_url', 'headerImageUrl', 'letterhead_url', 'letterheadUrl', 'stamp_url', 'stampUrl', 'footer_image_url', 'footerImageUrl', 'logo_url', 'logoUrl'].includes(offendingCol);
+                            if (pool && (isResellerCol || isBrandingCol)) {
                                 await executeWithTimeout(
                                     pool.query(`
                                         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
                                         ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS header_image_url TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "headerImageUrl" TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_url TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "letterheadUrl" TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stamp_url TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "stampUrl" TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS footer_image_url TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "footerImageUrl" TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS logo_url TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;
+                                        ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_config JSONB DEFAULT '{}'::jsonb;
                                         NOTIFY pgrst, 'reload schema';
                                     `),
-                                    2000
+                                    2500
                                 ).catch(() => {});
                             }
                         } catch (_) {}
                         const stripInstCol = (item: any) => {
                             if (!item || typeof item !== 'object') return item;
                             const copy = { ...item };
+                            // Safely preserve branding image URLs in letterhead_config JSONB before stripping column
+                            if (copy.header_image_url || copy.headerImageUrl || copy.letterhead_url || copy.letterheadUrl) {
+                                const hUrl = copy.header_image_url || copy.headerImageUrl || copy.letterhead_url || copy.letterheadUrl;
+                                copy.letterhead_config = {
+                                    ...(typeof copy.letterhead_config === 'object' && copy.letterhead_config ? copy.letterhead_config : {}),
+                                    headerImageUrl: hUrl
+                                };
+                            }
+                            if (copy.footer_image_url || copy.footerImageUrl) {
+                                const fUrl = copy.footer_image_url || copy.footerImageUrl;
+                                copy.letterhead_config = {
+                                    ...(typeof copy.letterhead_config === 'object' && copy.letterhead_config ? copy.letterhead_config : {}),
+                                    footerImageUrl: fUrl
+                                };
+                            }
+                            if (copy.stamp_url || copy.stampUrl) {
+                                const sUrl = copy.stamp_url || copy.stampUrl;
+                                copy.letterhead_config = {
+                                    ...(typeof copy.letterhead_config === 'object' && copy.letterhead_config ? copy.letterhead_config : {}),
+                                    stampImageUrl: sUrl
+                                };
+                            }
+                            if (copy.logo_url || copy.logoUrl) {
+                                const lUrl = copy.logo_url || copy.logoUrl;
+                                copy.letterhead_config = {
+                                    ...(typeof copy.letterhead_config === 'object' && copy.letterhead_config ? copy.letterhead_config : {}),
+                                    logoUrl: lUrl
+                                };
+                            }
                             const camelMap: Record<string, string> = {
                                 isSuspendedForBilling: 'is_suspended_for_billing',
                                 subscriptionEndsAt: 'subscription_ends_at',
@@ -8998,17 +9040,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         if (moduleName === 'institutions' || targetDbTable === 'institutions') {
                             try {
                                 const pool = await getPgPool();
-                                if (pool && (offendingCol === 'reseller_id' || offendingCol === 'resellerId')) {
+                                const isResellerCol = offendingCol === 'reseller_id' || offendingCol === 'resellerId';
+                                const isBrandingCol = ['header_image_url', 'headerImageUrl', 'letterhead_url', 'letterheadUrl', 'stamp_url', 'stampUrl', 'footer_image_url', 'footerImageUrl', 'logo_url', 'logoUrl'].includes(offendingCol);
+                                if (pool && (isResellerCol || isBrandingCol)) {
                                     await executeWithTimeout(
                                         pool.query(`
                                             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS reseller_id TEXT;
                                             ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS header_image_url TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "headerImageUrl" TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_url TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "letterheadUrl" TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stamp_url TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "stampUrl" TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS footer_image_url TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "footerImageUrl" TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS logo_url TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;
+                                            ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS letterhead_config JSONB DEFAULT '{}'::jsonb;
                                             NOTIFY pgrst, 'reload schema';
                                         `),
-                                        2000
+                                        2500
                                     ).catch(() => {});
                                 }
                             } catch (_) {}
+                            // Safely preserve branding image URLs in letterhead_config JSONB before stripping column
+                            if (currentUpdateData.header_image_url || currentUpdateData.headerImageUrl || currentUpdateData.letterhead_url || currentUpdateData.letterheadUrl) {
+                                const hUrl = currentUpdateData.header_image_url || currentUpdateData.headerImageUrl || currentUpdateData.letterhead_url || currentUpdateData.letterheadUrl;
+                                currentUpdateData.letterhead_config = {
+                                    ...(typeof currentUpdateData.letterhead_config === 'object' && currentUpdateData.letterhead_config ? currentUpdateData.letterhead_config : {}),
+                                    headerImageUrl: hUrl
+                                };
+                            }
+                            if (currentUpdateData.footer_image_url || currentUpdateData.footerImageUrl) {
+                                const fUrl = currentUpdateData.footer_image_url || currentUpdateData.footerImageUrl;
+                                currentUpdateData.letterhead_config = {
+                                    ...(typeof currentUpdateData.letterhead_config === 'object' && currentUpdateData.letterhead_config ? currentUpdateData.letterhead_config : {}),
+                                    footerImageUrl: fUrl
+                                };
+                            }
+                            if (currentUpdateData.stamp_url || currentUpdateData.stampUrl) {
+                                const sUrl = currentUpdateData.stamp_url || currentUpdateData.stampUrl;
+                                currentUpdateData.letterhead_config = {
+                                    ...(typeof currentUpdateData.letterhead_config === 'object' && currentUpdateData.letterhead_config ? currentUpdateData.letterhead_config : {}),
+                                    stampImageUrl: sUrl
+                                };
+                            }
+                            if (currentUpdateData.logo_url || currentUpdateData.logoUrl) {
+                                const lUrl = currentUpdateData.logo_url || currentUpdateData.logoUrl;
+                                currentUpdateData.letterhead_config = {
+                                    ...(typeof currentUpdateData.letterhead_config === 'object' && currentUpdateData.letterhead_config ? currentUpdateData.letterhead_config : {}),
+                                    logoUrl: lUrl
+                                };
+                            }
                             const camelMap: Record<string, string> = {
                                 isSuspendedForBilling: 'is_suspended_for_billing',
                                 subscriptionEndsAt: 'subscription_ends_at',
