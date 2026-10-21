@@ -3242,6 +3242,16 @@ CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_academic_year ON fee_structur
 CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_created ON fee_structures (institution_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures (institution_id, vote_head_id);
 
+-- Global Financial Periods RLS & Resilience --
+ALTER TABLE financial_periods ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "financial_periods_all_access" ON financial_periods;
+CREATE POLICY "financial_periods_all_access" ON financial_periods FOR ALL USING (true) WITH CHECK (true);
+CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_id_desc ON financial_periods (institution_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_id_asc ON financial_periods (institution_id, id ASC);
+CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_status ON financial_periods (institution_id, status);
+CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_dates ON financial_periods (institution_id, start_date DESC, end_date DESC);
+CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_name ON financial_periods (institution_id, name);
+
 -- Global Vehicles & Transport RLS & Resilience --
 ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "vehicles_all_access" ON vehicles;
@@ -3872,7 +3882,13 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_asc ON fee_structures(institution_id, id ASC);`,
         `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_academic_year ON fee_structures(institution_id, academic_year_id);`,
         `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_created ON fee_structures(institution_id, created_at DESC);`,
-        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures(institution_id, vote_head_id);`
+        `CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures(institution_id, vote_head_id);`,
+        // Financial Periods
+        `CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_id_desc ON financial_periods(institution_id, id DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_id_asc ON financial_periods(institution_id, id ASC);`,
+        `CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_status ON financial_periods(institution_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_dates ON financial_periods(institution_id, start_date DESC, end_date DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_name ON financial_periods(institution_id, name);`
     ];
 
     indexStatements.forEach(stmt => {
