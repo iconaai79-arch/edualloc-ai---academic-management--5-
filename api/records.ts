@@ -123,8 +123,11 @@ const fetchViaDirectPg = async (
   conditions: DirectSqlCondition[],
   orderBy?: string,
   limit: number = 1000,
-  offset: number = 0
+  offset: number = 0,
+  timeoutMs: number = 5000
 ): Promise<any[] | null> => {
+  const effTimeout = Math.max(1000, Math.min(timeoutMs, 5000));
+  const connTimeout = Math.min(3000, effTimeout);
   if (process.env.DISABLE_DIRECT_PG === 'true' || process.env.DISABLE_DIRECT_PG === '1') {
     return null;
   }
@@ -175,15 +178,18 @@ const fetchViaDirectPg = async (
 
   let client: any;
   try {
+    const connStart = Date.now();
     const connectPromise = pool.connect();
     const timeoutPromise = new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error('Direct PG connection timeout (5000ms limit)')), 5000)
+      setTimeout(() => rej(new Error(`Direct PG connection timeout (${connTimeout}ms limit)`)), connTimeout)
     );
     client = await Promise.race([connectPromise, timeoutPromise]);
 
+    // Query gets whatever is left of the overall budget (min 800ms)
+    const queryBudget = Math.max(800, effTimeout - (Date.now() - connStart));
     const queryPromise = client.query(sql, values);
     const queryTimeoutPromise = new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error('Direct PG query timeout (5000ms limit)')), 5000)
+      setTimeout(() => rej(new Error(`Direct PG query timeout (${queryBudget}ms limit)`)), queryBudget)
     );
     const result = await Promise.race([queryPromise, queryTimeoutPromise]);
     _directPgConsecutiveFailures = 0;
@@ -1315,7 +1321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     q = q.order('id', { ascending: false });
                 } else if (['financial_goals', 'financial_periods', 'time_off_requests', 'student_absence_requests', 'absence_requests', 'leave_requests', 'leave_out_requests', 'enrollment_requests', 'requisitions', 'bulletin_items', 'document_collections', 'tasks', 'appointments', 'lesson_ratings', 'observation_notes', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'ds_instructors', 'ds_vehicles', 'maintenance_requests', 'retail_stores', 'retail_expenses', 'institution_module_states', 'retail_inventory_items', 'retail_inventory', 'branches', 'payroll_runs', 'his_expenditures', 'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'books', 'library_transactions', 'library_fines', 'book_reservations', 'book_stock_receipts'].includes(moduleName)) {
                     q = q.order('id', { ascending: false });
-                } else if (['timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id)) || (['users', 'students', 'student_enrollments'].includes(moduleName) && (offset > 0 || orderParam))) {
+                } else if (['timetable_entries', 'exam_timetable_entries', 'vote_heads', 'fee_structures', 'users', 'students', 'teachers', 'student_enrollments'].includes(moduleName) || (moduleName === 'institutions' && !targetInstParam && !getStrParam(id))) {
                     q = q.order('id', { ascending: true });
                 }
                 return q;
@@ -1469,10 +1475,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let offset = req.query.offset ? parseInt(getStrParam(req.query.offset)) : 0;
             if (isNaN(offset)) offset = 0;
             
-            const CHUNK_SIZE = ['users', 'students', 'receipts', 'invoices',
+            const CHUNK_SIZE = ['receipts', 'invoices',
                 'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels', 'academic_years', 'semesters', 'school_registry'].includes(moduleName) 
                 ? 1000 
-                : (['timetable_entries', 'exam_timetable_entries'].includes(moduleName)
+                : (['timetable_entries', 'exam_timetable_entries', 'users', 'students', 'teachers'].includes(moduleName)
                     ? 500
                     : (['student_enrollments', 'inventory', 'retail_inventory', 'retail_inventory_items', 'books', 'book_stock_receipts', 'library_transactions', 'library_fines', 'book_reservations'].includes(moduleName)
                         ? 250
@@ -1504,7 +1510,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             };
 
             const buildFastBaseQuery = (skipOrdering: boolean = false) => {
-                let q = supabase.from(targetDbTable).select(getStrParam(select) || '*');
+                const defaultUserCols = 'id, name, email, phone_number, role, roles, institution_id, branch_id, status, student_class, stream, admission_number, created_at, updated_at, metadata';
+                const selectCols = getStrParam(select) || ((skipOrdering && targetDbTable === 'users') ? defaultUserCols : '*');
+                let q = supabase.from(targetDbTable).select(selectCols);
                 if (isStudentsAlias) {
                     q = q.eq('role', 'student');
                 } else if (isTeachersAlias) {
@@ -1690,7 +1698,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 defaultOrderBy = 'id.desc';
             } else if (['student_enrollments', 'institutions', 'timetable_entries', 'exam_timetable_entries',
                         'subjects', 'courses', 'departments', 'rooms', 'buildings', 'academic_levels',
-                        'academic_years', 'semesters', 'allocation_requests', 'vote_heads', 'fee_structures'].includes(moduleName) || (['users', 'students'].includes(moduleName) && (offset > 0 || orderParamStr))) {
+                        'academic_years', 'semesters', 'allocation_requests', 'vote_heads', 'fee_structures',
+                        'users', 'students', 'teachers'].includes(moduleName)) {
                 defaultOrderBy = 'id.asc';
             }
 
@@ -1702,6 +1711,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 return query;
             };
 
+            // Tracks whether the direct PG fast-path already ran (and failed) so the
+            // last-resort fallback doesn't burn the remaining budget re-running it.
+            let directPgFastPathAttempted = false;
             try {
                 // ── Direct PostgreSQL Fast-Path for Bulk Requests ──
                 // Executes in a single parameterized query (< 400ms), completely bypassing PostgREST HTTP round-trips and chunking loops.
@@ -1743,13 +1755,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 let directPgSuccess = false;
 
                 if (canUseDirectPg) {
+                    directPgFastPathAttempted = true;
                     try {
+                        // Cap the fast-path so at least ~6s of the 12s budget is always left for PostgREST.
+                        const fastPathBudget = Math.max(1500, Math.min(5000, 6000 - (Date.now() - requestStartTime)));
                         const directData = await fetchViaDirectPg(
                             targetDbTable,
                             sqlConditions,
                             defaultOrderBy,
                             finalLimit,
-                            offset
+                            offset,
+                            fastPathBudget
                         );
                         if (Array.isArray(directData)) {
                             console.info(`[API GET Direct SQL Fast-Path] Retrieved ${directData.length} records for '${moduleName}' directly from PostgreSQL in < 400ms.`);
@@ -1958,7 +1974,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                if (error) {
+                const fallbackBudgetMs = 13500 - (Date.now() - requestStartTime);
+                if (error && directPgFastPathAttempted) {
+                    console.warn(`[API GET] PostgREST failed for '${moduleName}' (${error?.message || error?.code}); direct PG fast-path already attempted — skipping duplicate fallback.`);
+                } else if (error && fallbackBudgetMs < 1500) {
+                    console.warn(`[API GET] PostgREST failed for '${moduleName}' (${error?.message || error?.code}); only ${fallbackBudgetMs}ms left — skipping direct PG fallback.`);
+                } else if (error) {
                     // ── Direct PostgreSQL Fallback ──
                     console.warn(`[API GET] PostgREST query failed or timed out for '${moduleName}' (${error?.message || error?.code}). Executing direct PostgreSQL fallback...`);
                     try {
@@ -1967,7 +1988,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             sqlConditions,
                             defaultOrderBy,
                             finalLimit,
-                            offset
+                            offset,
+                            Math.min(5000, fallbackBudgetMs)
                         );
                         if (directData !== null) {
                             console.info(`[API GET Direct SQL Fallback] Successfully recovered ${directData.length} records for '${moduleName}' directly from PostgreSQL.`);
@@ -2017,10 +2039,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             console.warn(`[API GET] Diagnostic/telemetry module '${moduleName}' query failed (${error?.message || error?.code}). Returning empty list fallback.`);
                             return res.status(200).json([]);
                         }
+                        if (isTimeoutError && (moduleName === 'users' || isStudentsAlias || isTeachersAlias)) {
+                            console.warn(`[API GET] Statement timeout on '${moduleName}'. Attempting fast lightweight projection recovery...`);
+                            try {
+                                let fastUQ = supabase.from('users').select('id, name, email, phone_number, role, roles, institution_id, branch_id, status, student_class, stream, admission_number, created_at, updated_at, metadata');
+                                if (isStudentsAlias) fastUQ = fastUQ.eq('role', 'student');
+                                else if (isTeachersAlias) fastUQ = fastUQ.eq('role', 'teacher');
+                                if (effectiveTenantInstId) {
+                                    const rawId = effectiveTenantInstId.replace(/^inst_/, '');
+                                    const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
+                                    const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                                    if (instVariants.length === 1) {
+                                        fastUQ = fastUQ.eq('institution_id', instVariants[0]);
+                                    } else {
+                                        fastUQ = fastUQ.in('institution_id', instVariants);
+                                    }
+                                }
+                                const fastRes: any = await executeWithTimeout(fastUQ.order('id', { ascending: true }).limit(Math.min(finalLimit, 500)), 3000).catch(() => null);
+                                if (fastRes && !fastRes.error && Array.isArray(fastRes.data) && fastRes.data.length > 0) {
+                                    console.info(`[API GET Recovery] Successfully recovered ${fastRes.data.length} users with lightweight projection.`);
+                                    return res.status(200).json(fastRes.data);
+                                }
+                            } catch (_) {}
+                            console.warn(`[API GET] Users recovery completed with empty list fallback to preserve frontend stability.`);
+                            return res.status(200).json([]);
+                        }
                         if (isTimeoutError && (moduleName === 'student_enrollments' || isStudentsAlias)) {
                             console.warn(`[API GET] Statement timeout on '${moduleName}'. Attempting instant recovery by synthesizing enrollments from users table...`);
                             try {
-                                let uQ = supabase.from('users').select('*').eq('role', 'student');
+                                let uQ = supabase.from('users').select('id, name, admission_number, student_class, class_level, stream, course_id, course_level_id, class_id, gender, metadata, created_at, institution_id').eq('role', 'student');
                                 if (effectiveTenantInstId) {
                                     const rawId = effectiveTenantInstId.replace(/^inst_/, '');
                                     const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
