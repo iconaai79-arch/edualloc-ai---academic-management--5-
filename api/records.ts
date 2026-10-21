@@ -1485,7 +1485,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
             const queryTimeout = moduleName === 'institutions' 
                 ? 3500 
-                : (['ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster'].includes(moduleName) ? 8000 : 5000);
+                : (['activity_log', 'activity_logs', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const elapsed = Date.now() - requestStartTime;
@@ -1727,6 +1727,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     // Absence & request modules
                     'student_absence_requests', 'absence_requests', 'time_off_requests', 'commission_withdrawal_requests',
                     // Logging, visitor & security modules
+                    'activity_log', 'activity_logs',
                     'integration_logs', 'sms_gateway_logs', 'sms_logs',
                     'visitors', 'building_visitor_logs', 'security_alerts',
                     'app_notifications',
