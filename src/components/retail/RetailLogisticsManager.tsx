@@ -145,13 +145,17 @@ export function RetailLogisticsManager({ institutionId }: Props) {
         try {
             const id = crypto.randomUUID();
             await apiService.saveModuleRecord('retail_couriers', {
-                ...newCourier,
-                name: courierName,
-                companyName: courierName,
-                company_name: courierName,
-                status: 'Active',
+                id,
+                institution_id: institutionId,
                 institutionId,
-                id
+                name: courierName,
+                company_name: courierName,
+                courier_name: courierName,
+                companyName: courierName,
+                courierName: courierName,
+                phone: newCourier.phone || '',
+                email: newCourier.email || '',
+                status: 'Active'
             });
             setShowAddCourier(false);
             setNewCourier({ status: 'Active' });
@@ -171,16 +175,18 @@ export function RetailLogisticsManager({ institutionId }: Props) {
             const rateFee = Number(newRate.rate || 0);
 
             await apiService.saveModuleRecord('retail_delivery_rates', {
-                ...newRate,
+                id: crypto.randomUUID(),
+                institution_id: institutionId,
+                institutionId,
                 courier_id: courierId,
                 courierId: courierId,
                 courier_name: courierName,
                 courierName: courierName,
+                destination: (newRate.destination || '').trim(),
                 rate: rateFee,
                 estimated_days: estDays,
                 estimatedDays: estDays,
-                institutionId,
-                id: crypto.randomUUID()
+                status: 'Active'
             });
             setShowAddRate(false);
             setNewRate({ status: 'Active', estimated_days: 1 });

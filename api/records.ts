@@ -443,6 +443,8 @@ const TABLES_WITH_METADATA = new Set([
   'student_enrollments',
   'ds_students',
   'retail_sales',
+  'retail_couriers',
+  'retail_delivery_rates',
   'visitors',
   'his_patients',
   'app_notifications',
@@ -1093,7 +1095,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
-          'payroll_records', 'payroll_runs', 'his_expenditures'
+          'payroll_records', 'payroll_runs', 'his_expenditures',
+          'retail_couriers', 'retail_delivery_rates', 'retail_marketplace_orders'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1103,14 +1106,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
-          'payroll_records', 'payroll_runs', 'his_expenditures'
+          'payroll_records', 'payroll_runs', 'his_expenditures',
+          'retail_couriers', 'retail_delivery_rates', 'retail_marketplace_orders'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'
+          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures',
+          'retail_couriers', 'retail_delivery_rates', 'retail_marketplace_orders'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -3931,6 +3936,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return copy;
                 };
                 currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanFeedback) : cleanFeedback(currentPayload);
+            }
+            if (moduleName === 'retail_couriers') {
+                const cleanCourier = (c: any) => {
+                    if (!c || typeof c !== 'object') return c;
+                    const copy = { ...c };
+                    // Normalize institution_id from camelCase alias
+                    if (!copy.institution_id && copy.institutionId) copy.institution_id = copy.institutionId;
+                    // Normalize name from any alias
+                    if (!copy.name && (copy.companyName || copy.company_name || copy.courierName || copy.courier_name || copy.fullName || copy.full_name)) {
+                        copy.name = copy.companyName || copy.company_name || copy.courierName || copy.courier_name || copy.fullName || copy.full_name;
+                    }
+                    // Sync name aliases
+                    const resolvedName = copy.name || copy.companyName || copy.company_name || copy.courierName || copy.courier_name || 'Courier Partner';
+                    copy.name = resolvedName;
+                    copy.company_name = resolvedName;
+                    copy.courier_name = resolvedName;
+                    copy['companyName'] = resolvedName;
+                    copy['courierName'] = resolvedName;
+                    copy['fullName'] = resolvedName;
+                    // Always have a valid status
+                    if (!copy.status) copy.status = 'Active';
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanCourier) : cleanCourier(currentPayload);
+            }
+            if (moduleName === 'retail_delivery_rates') {
+                const cleanRate = (r: any) => {
+                    if (!r || typeof r !== 'object') return r;
+                    const copy = { ...r };
+                    // Normalize institution_id from camelCase alias
+                    if (!copy.institution_id && copy.institutionId) copy.institution_id = copy.institutionId;
+                    // Normalize courier_id from camelCase alias
+                    if (!copy.courier_id && copy['courierId']) copy.courier_id = copy['courierId'];
+                    // Normalize estimated_days from camelCase alias
+                    if (copy.estimated_days === undefined && copy['estimatedDays'] !== undefined) {
+                        copy.estimated_days = Number(copy['estimatedDays']) || 1;
+                    }
+                    // Ensure numeric fields
+                    copy.rate = Number(copy.rate ?? 0);
+                    copy.estimated_days = Number(copy.estimated_days ?? 1);
+                    // Sync courier name aliases
+                    if (copy.courier_name || copy['courierName']) {
+                        const cName = copy.courier_name || copy['courierName'];
+                        copy.courier_name = cName;
+                        copy['courierName'] = cName;
+                    }
+                    // Ensure destination is present
+                    if (!copy.destination) copy.destination = 'General';
+                    // Always have a valid status
+                    if (!copy.status) copy.status = 'Active';
+                    return copy;
+                };
+                currentPayload = Array.isArray(currentPayload) ? currentPayload.map(cleanRate) : cleanRate(currentPayload);
             }
             if (moduleName === 'institutions') {
                 const cleanInstitution = (inst: any) => {

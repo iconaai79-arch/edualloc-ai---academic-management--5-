@@ -113,7 +113,9 @@ const STATIC_CONFIG_MODULES = new Set([
     'branches',
     'counties',
     'constituencies',
-    'institution_module_states'
+    'institution_module_states',
+    'retail_couriers',
+    'retail_delivery_rates',
 ]);
 
 export const invalidateModuleCache = (module?: string) => {
