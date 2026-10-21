@@ -8273,7 +8273,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             return 0;
         }
 
-        // Bug fix: use explicit fallback chain; don't inflate 0-hour sessions to 1
+        // Explicit fallback chain: ensure session hours are never clamped to 0
         const rawHours = (typeof s.hours === 'number' && !isNaN(s.hours))
             ? s.hours
             : (typeof s.durationHours === 'number' && !isNaN(s.durationHours))
@@ -8281,8 +8281,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 : (typeof s.duration_hours === 'number' && !isNaN(s.duration_hours))
                     ? s.duration_hours
                     : 1;
-        const sHours = Math.max(0, Number(rawHours) || 0);
-        // Bug fix: add parentheses to fix operator precedence — previously parsed as s.date || (s.startTime ? ...)
+        const sHours = Math.max(0.1, Number(rawHours) || (s.scheduledDurationMinutes ? s.scheduledDurationMinutes / 60 : 1));
         const sDate = (s.date || s.startTime) ? new Date(s.date || s.startTime) : null;
         const dayIdx = sDate && !isNaN(sDate.getTime()) ? sDate.getDay() : -1;
         const isSaturday = dayIdx === 6 || s.dayOfWeek === 'Saturday';
@@ -8296,11 +8295,8 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const dayName = s.dayOfWeek || (dayIdx >= 0 ? dayNames[dayIdx] : '');
 
-        // Check if teacher has a duty record for this session
+        // Check if session is a duty session
         const isDuty = Boolean(s.isDutyLesson || s.is_duty_lesson);
-        // Bug fix: match Saturday/Sunday duty records precisely by dayIdx, not by isWeekend
-        // Previously, a Sunday-only duty record could match a Saturday session (and vice versa)
-        // because both share isWeekend=true
         const dutyRecord = weekendDutyRoster.find(d =>
             d.teacherId === s.teacherId && (
                 (d.dutyType === 'weekday' && (d.weekdayDay === dayName || d.weekdayDay?.toLowerCase() === dayName?.toLowerCase())) ||
@@ -8309,19 +8305,24 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
             )
         );
 
-        if (isDuty || dutyRecord) {
+        // ONLY apply duty pay rate if this session is explicitly a duty session (isDuty)
+        // This prevents teachers who teach regular weekend classes from having their lesson pay hijacked by a 0-rate duty roster record
+        if (isDuty) {
             const recRate = dutyRecord?.dutyPayRate ?? dutyRecord?.duty_pay_rate;
             const recType = dutyRecord?.dutyPayType || dutyRecord?.duty_pay_type;
-            if (recRate !== undefined && recRate !== null && !isNaN(Number(recRate))) {
-                const numericRecRate = Number(recRate) || 0;
+            const numRecRate = (recRate !== undefined && recRate !== null && !isNaN(Number(recRate))) ? Number(recRate) : 0;
+            if (numRecRate > 0) {
                 return (recType === 'flat' || dutyRecord?.dutyType === 'weekday')
-                    ? numericRecRate
-                    : Number((sHours * numericRecRate).toFixed(2));
+                    ? numRecRate
+                    : Number((sHours * numRecRate).toFixed(2));
             }
-            if (dutyRecord?.dutyType === 'weekday' || (!isWeekend && isDuty)) {
+            if (dutyRecord?.dutyType === 'weekday' || !isWeekend) {
                 // Weekday TOD default flat rate per teacher per day (e.g. 200)
                 return Number(weekdayDutyFlatRate || 200) || 200;
             }
+            // Weekend TOD default: use institution weekend hourly rate or 1500
+            const weekendFallbackRate = Number(weekendHourlyRate || 1500) || 1500;
+            return Number((sHours * weekendFallbackRate).toFixed(2));
         }
 
         const teacherObj = tenantUsers.find(u => u.id === s.teacherId) || teachersList.find(u => u.id === s.teacherId);
@@ -8837,7 +8838,13 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 dayIdx === 6
             );
 
-            const sessionAmount = isRejectedSession(s) ? 0 : (Number(computeSessionPayout(s)) || 0);
+            let sessionAmount = isRejectedSession(s) ? 0 : (Number(computeSessionPayout(s)) || 0);
+            if (!isRejectedSession(s) && sessionAmount <= 0 && hrs > 0) {
+                const fallbackRate = isWeekend
+                    ? (teacherMap[tId]?.weekendRate || Number(weekendHourlyRate || 1500) || 1500)
+                    : (teacherMap[tId]?.hourlyRate || Number(weekdayHourlyRate || hourlyRate || 1000) || 1000);
+                sessionAmount = Number((hrs * fallbackRate).toFixed(2));
+            }
 
             if (isWeekend) {
                 teacherMap[tId].weekendHours = Number((teacherMap[tId].weekendHours + hrs).toFixed(2));
@@ -8913,7 +8920,7 @@ export const RemedialLessonsManager: React.FC<RemedialLessonsManagerProps> = ({
                 finalStatus = 'Paid';
             } else if (data.paidAmount > 0 && data.pendingAmount > 0) {
                 finalStatus = 'Partially Paid';
-            } else if (data.sessionCount > 0 && data.earnedAmount > 0 && data.pendingAmount === data.earnedAmount) {
+            } else if (data.sessionCount > 0 && (data.pendingAmount > 0 || data.earnedAmount > 0)) {
                 const allApproved = teacherSessions.length > 0 && teacherSessions.every(s =>
                     s.status === 'Approved' ||
                     s.status === 'Pending Operations Payout' ||
