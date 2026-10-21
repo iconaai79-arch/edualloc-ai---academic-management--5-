@@ -1099,6 +1099,19 @@ export const App: React.FC = () => {
         ].includes(activeRole || '');
     }, [currentUser, activeRole]);
 
+    // True when the active workspace (or its parent, for branches) is a Driving School.
+    // DS staff roles must always land in DrivingSchoolManager, never the generic school portals.
+    const isDSWorkspace = useMemo(() => {
+        if (!activeInstitution) return false;
+        if (isDSInstitution(activeInstitution)) return true;
+        const parentId = activeInstitution.parentInstitutionId;
+        if (parentId && Array.isArray(institutions)) {
+            const parent = institutions.find(i => i && i.id === parentId);
+            if (parent && isDSInstitution(parent)) return true;
+        }
+        return false;
+    }, [activeInstitution, institutions]);
+
     const isDSStudent = useMemo(() => {
         if (activeRole !== 'student') return false;
 
@@ -9038,6 +9051,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             currentInstitution={effectiveDSInstitution}
                                             onLogout={handleLogout}
                                             onExitPerspective={originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined)}
+                                        />
+                                    </DrivingSchoolProvider>
+                                ) : (isDSWorkspace && activeRole !== 'student' && activeRole !== 'parent' && activeRole !== 'super_admin') ? (
+                                    <DrivingSchoolProvider institutionId={activeInstitution?.id} currentUser={currentUser}>
+                                        <DrivingSchoolManager
+                                            currentUser={currentUser}
+                                            currentInstitution={activeInstitution!}
+                                            onRefreshData={loadData}
+                                            departments={departments || []}
+                                            rooms={rooms || []}
+                                            letterheadConfig={activeInstitution?.letterheadConfig}
                                         />
                                     </DrivingSchoolProvider>
                                 ) : activeRole === 'student' ? (

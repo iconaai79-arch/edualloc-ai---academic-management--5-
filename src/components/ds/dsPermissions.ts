@@ -29,6 +29,8 @@ export const DEFAULT_DS_ROLE_PERMISSIONS: Record<string, string[]> = {
     admin: ['dashboard', 'students', 'leads', 'lessons', 'dispatch', 'fleet', 'instructors', 'finance', 'broadcaster', 'reports', 'portal'],
     driving_instructor: ['dashboard', 'lessons', 'students', 'portal'],
     finance: ['dashboard', 'finance', 'students', 'reports'],
+    finance_officer: ['dashboard', 'finance', 'students', 'reports'],
+    accounts_clerk: ['dashboard', 'finance', 'students', 'reports'],
     staff: ['dashboard', 'students', 'leads', 'lessons', 'portal'],
     driver: ['dashboard', 'fleet', 'dispatch'],
     security: ['dashboard', 'portal', 'dispatch'],
