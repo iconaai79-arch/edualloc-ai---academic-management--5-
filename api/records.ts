@@ -1078,7 +1078,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'users', 'institutions', 'counties', 'demo_requests', 'pm_inquiries', 'retail_wishlist', 'app_notifications', 
           'voter_outreach', 'alumnae_members', 'invoices', 'receipts', 'event_participants', 'event_pledges', 
           'ds_students', 'ds_lessons', 'event_pins', 'ds_leads', 'biometric_devices', 'biometric_enrollments', 
-          'staff_attendance_daily', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 
+          'staff_attendance_daily', 'staff_attendance_logs', 'heritage_members', 'heritage_stories', 'heritage_gallery', 'heritage_announcements', 
           'school_remedial_subjects', 'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts', 
           'school_remedial_allocations', 'school_remedial_duty_roster', 'feedback_submissions', 'guest_feedback', 'guest_feedbacks',
           'invoice_clients', 'company_invoice_settings',
@@ -1096,7 +1096,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
           'payroll_records', 'payroll_runs', 'his_expenditures',
-          'retail_couriers', 'retail_delivery_rates', 'retail_marketplace_orders'
+          'retail_marketplace_orders'
         ].includes(moduleName) || ['feedback_submissions', 'guest_feedback', 'guest_feedbacks'].includes(rawModuleName));
         const isPublicPatch = req.method === 'PATCH' && ([
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
@@ -1106,16 +1106,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
-          'payroll_records', 'payroll_runs', 'his_expenditures',
-          'retail_couriers', 'retail_delivery_rates', 'retail_marketplace_orders'
+          'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName) || ['suppliers', 'security_alerts', 'visitors'].includes(rawModuleName));
         const isPublicDelete = req.method === 'DELETE' && ([
           'vehicles', 'transport_onboarding', 'vehicle_logs',
           'invoice_clients', 'company_invoice_settings',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
-          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures',
-          'retail_couriers', 'retail_delivery_rates', 'retail_marketplace_orders'
+          'pm_utility_readings', 'branches', 'payroll_records', 'payroll_runs', 'his_expenditures'
         ].includes(moduleName));
         const isSocialInteraction = (req.method === 'POST' || req.method === 'PATCH') && (['alumni_posts', 'alumni_comments', 'alumni_messages'].includes(moduleName)) && user?.role === 'alumna';
         
@@ -3748,9 +3746,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (idsArray.length === 1) q = q.eq('id', idsArray[0]);
                 else q = q.in('id', idsArray);
 
-                // Security: restrict to own institution unless super_admin or public module
-                if (user?.role !== 'super_admin' && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
-                    q = q.eq('institution_id', user?.institutionId);
+                // Security: restrict to own institution unless super_admin or table without institution_id
+                if (!isSuperAdminRole(user?.role) && !isTableWithoutInstitutionId(moduleName)) {
+                    if (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') {
+                        q = q.eq('institution_id', user.institutionId);
+                    } else if (!isSuperAdminRole(user?.role)) {
+                        return res.status(401).json({ success: false, error: 'Unauthorized: Institutional identity required for bulk deletion.' });
+                    }
                 }
 
                 const { error: delErr } = await q;
@@ -9107,17 +9109,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     else q = q.in('id', idsArray);
 
                     // Security check
-                    if (!isSuperAdminRole(user?.role) && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
+                    if (!isSuperAdminRole(user?.role) && !isTableWithoutInstitutionId(moduleName)) {
                         const instCol = (moduleName === 'institutions' ? 'id' : 'institution_id');
                         const instId = user?.institutionId;
                         
-                        if (instId) {
+                        if (instId && instId !== 'ALL' && instId !== 'SYSTEM') {
                             console.log(`[API PATCH DEBUG] Applying tenancy check: ${instCol} = ${instId}`);
                             q = q.eq(instCol, instId);
                         } else {
-                            console.warn(`[API PATCH DEBUG] Authorization warning: User has no institutionId. Skipping tenancy filter.`);
+                            console.warn(`[API PATCH DEBUG] Authorization warning: User has no valid institutionId.`);
                             if (!isSuperAdminRole(user?.role)) {
-                                 return res.status(401).json({ success: false, error: 'Unauthorized: Academic institution identity required.' });
+                                 return res.status(401).json({ success: false, error: 'Unauthorized: Institutional identity required.' });
                             }
                         }
                     }
@@ -9639,8 +9641,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             else q = q.in('id', idsArray);
 
             // Security: Only allow deleting records within own institution
-            if (!isSuperAdminRole(user?.role) && !PUBLIC_MODULES.includes(moduleName) && !isTableWithoutInstitutionId(moduleName)) {
-                q = q.eq('institution_id', user?.institutionId);
+            if (!isSuperAdminRole(user?.role) && !isTableWithoutInstitutionId(moduleName)) {
+                if (user?.institutionId && user.institutionId !== 'ALL' && user.institutionId !== 'SYSTEM') {
+                    q = q.eq('institution_id', user.institutionId);
+                } else if (!isSuperAdminRole(user?.role)) {
+                    return res.status(401).json({ success: false, error: 'Unauthorized: Institutional identity required for deletion.' });
+                }
             }
 
             const tablesWithBranchId = ['users', 'invoices', 'receipts'];

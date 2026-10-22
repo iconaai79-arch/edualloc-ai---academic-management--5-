@@ -2297,6 +2297,110 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                         }
                     }
+                } else if (type === 'retail_pos_sale' || type === 'retail_sale') {
+                    const saleId = metadata.saleId || `sale_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                    const storeId = metadata.storeId || transaction.institution_id || instId;
+                    const customerName = metadata.customerName || metadata.payerName || payerName || 'Walk-in Customer';
+                    const customerPhone = metadata.customerPhone || transaction.phone_number || '';
+                    const items = Array.isArray(metadata.items) ? metadata.items : [];
+                    const agentId = metadata.agentId || metadata.requesterId || null;
+
+                    // Deduplication check: see if a sale already exists with this ID or transaction reference
+                    const { data: existingSale } = await supabase
+                        .from('retail_sales')
+                        .select('id')
+                        .or(`id.eq.${saleId},payment_reference.eq.${transactionReference || transactionID || transaction.id}`)
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (!existingSale) {
+                        const { error: saleErr } = await supabase.from('retail_sales').insert({
+                            id: saleId,
+                            institution_id: instId || storeId || 'SYSTEM',
+                            store_id: storeId,
+                            customer_name: customerName,
+                            customer_phone: customerPhone,
+                            items: items,
+                            subtotal: metadata.subtotal || amt,
+                            discount: metadata.discount || 0,
+                            total_amount: amt,
+                            amount_paid: amt,
+                            balance: 0,
+                            payment_method: 'mpesa',
+                            payment_status: 'paid',
+                            payment_reference: transactionReference || transactionID || transaction.id,
+                            status: 'completed',
+                            created_at: new Date().toISOString()
+                        });
+
+                        if (saleErr) {
+                            console.error('[Reconcile IPN] Failed to insert retail sale:', saleErr.message);
+                        } else {
+                            console.log(`[Reconcile IPN] Successfully recorded retail sale ${saleId} for KES ${amt}`);
+
+                            // Decrement inventory stock
+                            for (const item of items) {
+                                const itemId = item.id || item.itemId || item.item_id;
+                                const qty = parseFloat(String(item.quantity || item.qty || 1));
+                                if (itemId && qty > 0) {
+                                    const { data: invItem } = await supabase
+                                        .from('retail_inventory_items')
+                                        .select('id, quantity_on_hand')
+                                        .eq('id', itemId)
+                                        .maybeSingle();
+                                    if (invItem) {
+                                        const newQty = Math.max(0, (invItem.quantity_on_hand || 0) - qty);
+                                        await supabase
+                                            .from('retail_inventory_items')
+                                            .update({ quantity_on_hand: newQty, updated_at: new Date().toISOString() })
+                                            .eq('id', itemId);
+                                    }
+                                }
+                            }
+
+                            // Record agent commission if applicable
+                            const commissionAmount = parseFloat(String(metadata.commissionAmount || 0));
+                            if (agentId && commissionAmount > 0) {
+                                await supabase.from('retail_commissions_ledger').insert({
+                                    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                    institution_id: instId || storeId || 'SYSTEM',
+                                    agent_id: agentId,
+                                    sale_id: saleId,
+                                    amount: commissionAmount,
+                                    rate: metadata.commissionRate || 0,
+                                    status: 'approved',
+                                    created_at: new Date().toISOString()
+                                });
+                            }
+
+                            // Generate receipt record
+                            await supabase.from('receipts').insert({
+                                id: `rec_ret_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                receipt_number: transactionReference || transactionID || `REC-${Date.now().toString().slice(-6)}`,
+                                institution_id: instId || storeId || 'SYSTEM',
+                                student_name: customerName,
+                                amount_paid: amt,
+                                payment_date: (timestamp ? timestamp.split('T')[0] : null) || new Date().toISOString().split('T')[0],
+                                payment_method: 'M-PESA (KCB IPN)',
+                                paid_for: 'Retail POS Sale',
+                                related_transaction_id: transactionReference || transactionID || transaction.id,
+                                remarks: `Retail POS Sale completed via KCB IPN (Ref: ${transactionReference || transactionID})`
+                            });
+
+                            if (metadata.requesterId) {
+                                await supabase.from('app_notifications').insert({
+                                    id: `ntf_ret_${Date.now()}`,
+                                    user_id: metadata.requesterId,
+                                    message: `Retail POS sale of KES ${amt} completed successfully! Ref: ${transactionReference || transactionID}.`,
+                                    type: 'success',
+                                    is_read: false,
+                                    timestamp: new Date().toISOString()
+                                });
+                            }
+                        }
+                    } else {
+                        console.log(`[Reconcile IPN] Retail sale ${existingSale.id} already exists for this payment.`);
+                    }
                 }
 
                 const shouldMarkReconciled = type !== 'bank_feed' || Boolean(metadata.studentId);
@@ -2314,7 +2418,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 // Write/Upsert to bank_transactions so it appears in Bank Feeds
                 try {
-                    const isReconciledNow = shouldMarkReconciled && (metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice' || type === 'event_registration');
+                    const isReconciledNow = shouldMarkReconciled && (metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'ds_invoice' || type === 'pm_invoice' || type === 'event_registration' || type === 'retail_pos_sale' || type === 'retail_sale');
                     
                     // Delete any temporary duplicate records created by database triggers under the raw reference ID
                     if (transactionID) {

@@ -33,6 +33,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
   const [hourlyRate, setHourlyRate] = useState<string>('');
   const [weekendHourlyRate, setWeekendHourlyRate] = useState<string>('');
   const [customPermissions, setCustomPermissions] = useState<Record<string, boolean>>({});
+  const [dahuaPin, setDahuaPin] = useState<string>('');
+  const [dahuaEnrollmentId, setDahuaEnrollmentId] = useState<string>('');
 
   const [branches, setBranches] = useState<Branch[]>(propsBranches || []);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
@@ -139,8 +141,27 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
 
       const rawWeekendHourly = user.weekendHourlyRate ?? (user as any).weekend_hourly_rate ?? user.metadata?.weekendHourlyRate;
       setWeekendHourlyRate(rawWeekendHourly !== undefined && rawWeekendHourly !== null && rawWeekendHourly !== '' ? String(rawWeekendHourly) : '');
+
+      // Load Dahua Biometric Enrollment for this staff member
+      const targetInstId = currentInstitution?.id || user.institutionId;
+      if (targetInstId && user.id) {
+        apiService.fetchModuleRecords<any>('biometric_enrollments', targetInstId)
+          .then(enrollments => {
+            const enr = (enrollments || []).find((e: any) => 
+              (e.staffId === user.id || e.staff_id === user.id)
+            );
+            if (enr) {
+              setDahuaPin(String(enr.devicePin || enr.device_pin || ''));
+              setDahuaEnrollmentId(enr.id || '');
+            } else {
+              setDahuaPin('');
+              setDahuaEnrollmentId('');
+            }
+          })
+          .catch(console.error);
+      }
     }
-  }, [user, fixedDepartmentId, selectableRoles]);
+  }, [user, fixedDepartmentId, selectableRoles, currentInstitution?.id]);
 
   const toggleRole = (r: Role) => {
     setRoles(prev =>
@@ -245,6 +266,44 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
           weekendHourlyRate: weekendHourlyRate.trim() !== '' && !isNaN(Number(weekendHourlyRate)) ? Number(weekendHourlyRate) : undefined,
         }
       });
+
+      // Persist / Update Dahua Biometric Enrollment if specified
+      if (dahuaPin.trim()) {
+        const cleanPin = dahuaPin.trim();
+        await apiService.saveModuleRecord('biometric_enrollments', {
+          ...(dahuaEnrollmentId ? { id: dahuaEnrollmentId } : {}),
+          institution_id: finalInstitutionId,
+          institutionId: finalInstitutionId,
+          staff_id: user.id,
+          staffId: user.id,
+          device_pin: cleanPin,
+          devicePin: cleanPin,
+          fingerprint_index: 0,
+          is_active: true,
+        });
+
+        // Backfill any unlinked attendance logs matching this Dahua device PIN
+        try {
+          const rawLogs = await apiService.fetchModuleRecords<any>('staff_attendance_logs', finalInstitutionId, { bypassCache: true });
+          const unlinkedForThisPin = (rawLogs || []).filter(l => 
+            (String(l.device_pin || l.devicePin || l.card_no || l.cardNo || '') === cleanPin)
+          );
+          for (const logItem of unlinkedForThisPin) {
+            if (!logItem.staff_id || logItem.staff_id !== user.id || !logItem.is_processed) {
+              await apiService.saveModuleRecord('staff_attendance_logs', {
+                ...logItem,
+                staff_id: user.id,
+                staffId: user.id,
+                is_processed: true,
+                isProcessed: true
+              });
+            }
+          }
+        } catch (backfillErr) {
+          console.warn('[EditUserModal] Backfill error:', backfillErr);
+        }
+      }
+
       onClose();
     } catch (err: any) {
       alert("Persistence Failure: " + (err.message || "The records could not be synchronized with the cloud registry."));
@@ -319,6 +378,34 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ user, departments,
                 <div>
                   <label className="block text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1.5 ml-1">{isRetailAgency ? 'ID Number' : (isCoop ? 'ID / Member Number' : 'Staff / Student ID')}</label>
                   <input type="text" value={staffId} onChange={(e) => setStaffId(e.target.value)} className="form-input font-mono font-bold text-indigo-600 dark:text-indigo-400" placeholder={isRetailAgency ? "e.g. 12345678" : "EMP-001"} />
+                </div>
+
+                {/* Dahua Facial Biometric Terminal Link */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
+                      Dahua Facial Biometric ID / Device PIN
+                    </label>
+                    {dahuaPin ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-black bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        Linked: #{dahuaPin}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-slate-100 dark:bg-slate-800 text-slate-400">
+                        Unlinked
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={dahuaPin}
+                    onChange={(e) => setDahuaPin(e.target.value)}
+                    className="form-input font-mono font-bold text-slate-900 dark:text-white"
+                    placeholder="e.g. 101, 1, 2, or Dahua terminal User ID"
+                  />
+                  <p className="text-[9px] text-slate-400 font-medium">
+                    Enter the User ID programmed on the Dahua facial recognition terminal (e.g. 101). Scans from the device with this ID will automatically link to this staff member.
+                  </p>
                 </div>
                 {(isEdu || isRetailAgency || isCoop) && (
                   <div>

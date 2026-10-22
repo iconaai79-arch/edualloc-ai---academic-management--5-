@@ -719,7 +719,19 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 metadata: {
                     type: 'retail_pos_sale',
                     storeId: targetStoreId,
+                    agentId: currentUser?.id,
                     customerId: selectedCustomer?.id,
+                    customerName: customerInfo.name || selectedCustomer?.name || 'Retail Customer',
+                    customerPhone: cleanPhone,
+                    customerEmail: customerInfo.email || selectedCustomer?.email || '',
+                    items: cart.map(c => ({
+                        itemId: c.item.id,
+                        name: (c.item as any).source === 'cafe' ? `${c.item.name} (Cafe)` : c.item.name,
+                        quantity: c.quantity,
+                        unitPrice: c.finalPrice,
+                        basePrice: (c.item as any).basePrice || (c.item as any).costPrice || 0,
+                        source: (c.item as any).source
+                    })),
                     carrierIncluded: includeCarrierCharges,
                     carrierFee: carrierCharge,
                     carrierName: resolvedCarrierDetails?.carrierName,
@@ -733,36 +745,6 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 setStkCheckoutRequestId(checkoutReqId);
                 setStkState('prompt_sent');
                 setStkStatusMessage(`STK Push dispatched to ${cleanPhone}. Please enter your M-Pesa PIN on your phone.`);
-
-                // Save pending transaction in mpesa_transactions for DB fast path
-                try {
-                    await apiService.saveModuleRecord('mpesa_transactions', {
-                        id: `txn_${Date.now()}`,
-                        transactionId: checkoutReqId,
-                        checkoutRequestId: checkoutReqId,
-                        institutionId: institutionId || 'SYSTEM',
-                        amount: finalPayableAmount,
-                        phoneNumber: cleanPhone,
-                        payerName: customerInfo.name || 'Retail Customer',
-                        status: 'pending',
-                        provider: 'kcb',
-                        customer_reference: orderRef,
-                        narration: `Retail POS Order`,
-                        credit_account_identifier: institutionId,
-                        metadata: {
-                            type: 'retail_pos_sale',
-                            storeId: targetStoreId,
-                            customerId: selectedCustomer?.id,
-                            carrierIncluded: includeCarrierCharges,
-                            carrierFee: carrierCharge,
-                            carrierName: resolvedCarrierDetails?.carrierName,
-                            carrierDestination: resolvedCarrierDetails?.destination
-                        },
-                        timestamp: new Date().toISOString()
-                    });
-                } catch (pErr) {
-                    console.warn("Could not write pending mpesa_transaction record:", pErr);
-                }
 
                 startStkPolling(checkoutReqId);
             } else {
@@ -881,17 +863,42 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 createdAt: new Date().toISOString()
             };
 
-            let savedSale;
-            try {
-                savedSale = await apiService.saveModuleRecord('retail_sales', saleData);
-            } catch (saveErr: any) {
-                console.warn("First save attempt failed, trying fallback without signature/metadata fields:", saveErr);
-                const fallbackSaleData = {
-                    ...saleData,
-                    signature: undefined,
-                    metadata: undefined
-                };
-                savedSale = await apiService.saveModuleRecord('retail_sales', fallbackSaleData);
+            let savedSale: any = null;
+            let alreadyRecordedByBackend = false;
+            if (stkCheckoutRequestId || mpesaRefCode) {
+                try {
+                    const db = apiService.getSupabase();
+                    if (db) {
+                        let query = db.from('retail_sales').select('*').limit(1);
+                        if (stkCheckoutRequestId) {
+                            query = query.or(`metadata->>kcbCheckoutRequestId.eq.${stkCheckoutRequestId},metadata->>mpesaReceiptNumber.eq.${mpesaRefCode || stkCheckoutRequestId}`);
+                        } else if (mpesaRefCode) {
+                            query = query.eq('metadata->>mpesaReceiptNumber', mpesaRefCode);
+                        }
+                        const { data: existingSales } = await query;
+                        if (existingSales && existingSales.length > 0) {
+                            savedSale = existingSales[0];
+                            alreadyRecordedByBackend = true;
+                            console.log('[DualModePOS] Sale already recorded by backend webhook:', savedSale.id);
+                        }
+                    }
+                } catch (checkErr) {
+                    console.warn('[DualModePOS] Checking existing sale error:', checkErr);
+                }
+            }
+
+            if (!savedSale) {
+                try {
+                    savedSale = await apiService.saveModuleRecord('retail_sales', saleData);
+                } catch (saveErr: any) {
+                    console.warn("First save attempt failed, trying fallback without signature/metadata fields:", saveErr);
+                    const fallbackSaleData = {
+                        ...saleData,
+                        signature: undefined,
+                        metadata: undefined
+                    };
+                    savedSale = await apiService.saveModuleRecord('retail_sales', fallbackSaleData);
+                }
             }
 
             if (savedSale && (savedSale as any).id) {
@@ -920,49 +927,51 @@ export function DualModePOS({ institutionId, currentUser, isEducation, preSelect
                 const commissionPromises: Promise<any>[] = [];
                 const stockUpdatePromises: Promise<any>[] = [];
 
-                // 1. Prepare Commissions
-                for (const c of cart) {
-                    const isCafe = (c.item as any).source === 'cafe';
-                    const basePrice = isCafe ? (c.item as any).basePrice : ((c.item as any).basePrice || (c.item as any).costPrice || 0);
-                    if (c.finalPrice > basePrice) {
-                        commissionPromises.push(
-                            apiService.saveModuleRecord('retail_commissions_ledger', {
-                                institutionId,
-                                agentId: currentUser.id,
-                                saleId: (savedSale as any).id,
-                                itemId: c.item.id,
-                                basePrice,
-                                soldPrice: c.finalPrice,
-                                commissionAmount: (c.finalPrice - basePrice) * c.quantity,
-                                isPaid: false,
-                                createdAt: new Date().toISOString()
-                            }).catch((commErr) => {
-                                console.error("Commission save failed:", commErr);
+                // 1. Prepare Commissions (if not already handled by backend)
+                if (!alreadyRecordedByBackend) {
+                    for (const c of cart) {
+                        const isCafe = (c.item as any).source === 'cafe';
+                        const basePrice = isCafe ? (c.item as any).basePrice : ((c.item as any).basePrice || (c.item as any).costPrice || 0);
+                        if (c.finalPrice > basePrice) {
+                            commissionPromises.push(
+                                apiService.saveModuleRecord('retail_commissions_ledger', {
+                                    institutionId,
+                                    agentId: currentUser.id,
+                                    saleId: (savedSale as any).id,
+                                    itemId: c.item.id,
+                                    basePrice,
+                                    soldPrice: c.finalPrice,
+                                    commissionAmount: (c.finalPrice - basePrice) * c.quantity,
+                                    isPaid: false,
+                                    createdAt: new Date().toISOString()
+                                }).catch((commErr) => {
+                                    console.error("Commission save failed:", commErr);
+                                })
+                            );
+                        }
+                    }
+
+                    // 2. Prepare Stock Reductions (if not already handled by backend)
+                    for (const c of cart) {
+                        const isCafe = (c.item as any).source === 'cafe';
+                        if (isCafe) continue;
+
+                        const retailItem = c.item as RetailInventoryItem;
+                        const newQty = Math.max(0, (retailItem.quantity || 0) - c.quantity);
+                        const { source, ...cleanRetailPayload } = retailItem as any;
+                        stockUpdatePromises.push(
+                            apiService.saveModuleRecord('retail_inventory_items', {
+                                ...cleanRetailPayload,
+                                quantity: newQty,
+                                lastUpdated: new Date().toISOString()
+                            }).catch((stockErr) => {
+                                console.error(`Stock update failed for item ${retailItem.name}:`, stockErr);
                             })
                         );
                     }
+
+                    await Promise.all([...commissionPromises, ...stockUpdatePromises]);
                 }
-
-                // 2. Prepare Stock Reductions
-                for (const c of cart) {
-                    const isCafe = (c.item as any).source === 'cafe';
-                    if (isCafe) continue;
-
-                    const retailItem = c.item as RetailInventoryItem;
-                    const newQty = Math.max(0, (retailItem.quantity || 0) - c.quantity);
-                    const { source, ...cleanRetailPayload } = retailItem as any;
-                    stockUpdatePromises.push(
-                        apiService.saveModuleRecord('retail_inventory_items', {
-                            ...cleanRetailPayload,
-                            quantity: newQty,
-                            lastUpdated: new Date().toISOString()
-                        }).catch((stockErr) => {
-                            console.error(`Stock update failed for item ${retailItem.name}:`, stockErr);
-                        })
-                    );
-                }
-
-                await Promise.all([...commissionPromises, ...stockUpdatePromises]);
 
                 // Thermal Receipt Preview
                 try {

@@ -1298,6 +1298,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     .from('mpesa_transactions')
                                     .select('*')
                                     .eq('checkout_request_id', checkoutRequestId)
+                                    .order('created_at', { ascending: false })
+                                    .limit(1)
                                     .maybeSingle();
 
                                 if (transaction) {
@@ -1497,6 +1499,125 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                                     });
                                                 }
                                             }
+                                        } else if (type === 'retail_pos_sale' || type === 'retail_sale') {
+                                            const storeId = metadata.storeId;
+                                            const mpesaRef = mpesaReceiptNumber || transaction.transaction_id || transaction.id;
+                                            const checkoutReqId = checkoutRequestId || transaction.checkout_request_id;
+
+                                            // Check if already recorded in retail_sales by payment ref or checkoutRequestId
+                                            let existingSale = null;
+                                            if (checkoutReqId) {
+                                                const { data: saleByCrid } = await supabase
+                                                    .from('retail_sales')
+                                                    .select('id')
+                                                    .eq('metadata->>kcbCheckoutRequestId', checkoutReqId)
+                                                    .maybeSingle();
+                                                existingSale = saleByCrid;
+                                            }
+                                            if (!existingSale && mpesaRef) {
+                                                const { data: saleByRef } = await supabase
+                                                    .from('retail_sales')
+                                                    .select('id')
+                                                    .eq('metadata->>mpesaReceiptNumber', mpesaRef)
+                                                    .maybeSingle();
+                                                existingSale = saleByRef;
+                                            }
+
+                                            if (!existingSale) {
+                                                const saleId = `sale_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                                                const saleData: any = {
+                                                    id: saleId,
+                                                    institution_id: instId || 'SYSTEM',
+                                                    store_id: storeId || null,
+                                                    agent_id: metadata.agentId || null,
+                                                    customer_id: metadata.customerId || null,
+                                                    customer_name: metadata.customerName || transaction.payer_name || 'Retail Customer',
+                                                    customer_phone: metadata.customerPhone || transaction.phone_number || '',
+                                                    customer_email: metadata.customerEmail || null,
+                                                    total_amount: amt,
+                                                    payment_method: 'kcb_stk',
+                                                    items: metadata.items || [],
+                                                    metadata: {
+                                                        kcbCheckoutRequestId: checkoutReqId,
+                                                        mpesaReceiptNumber: mpesaRef,
+                                                        paymentGateway: 'kcb_buni_open_banking',
+                                                        carrier: metadata.carrier,
+                                                        carrierFee: metadata.carrierFee,
+                                                        carrierName: metadata.carrierName,
+                                                        carrierDestination: metadata.carrierDestination
+                                                    },
+                                                    created_at: new Date().toISOString()
+                                                };
+
+                                                await supabase.from('retail_sales').insert(saleData);
+
+                                                // Deduct stock for inventory items
+                                                if (Array.isArray(metadata.items)) {
+                                                    for (const itm of metadata.items) {
+                                                        if (itm.itemId && itm.quantity > 0 && itm.source !== 'cafe') {
+                                                            try {
+                                                                const { data: itemData } = await supabase
+                                                                    .from('retail_inventory_items')
+                                                                    .select('quantity')
+                                                                    .eq('id', itm.itemId)
+                                                                    .maybeSingle();
+                                                                if (itemData) {
+                                                                    const newQty = Math.max(0, (Number(itemData.quantity) || 0) - Number(itm.quantity));
+                                                                    await supabase
+                                                                        .from('retail_inventory_items')
+                                                                        .update({ quantity: newQty, last_updated: new Date().toISOString() })
+                                                                        .eq('id', itm.itemId);
+                                                                }
+                                                            } catch (stockErr) {
+                                                                console.warn('[Payments Query Retail] Stock update warning:', stockErr);
+                                                            }
+                                                        }
+
+                                                        // Record commission if agent sold above base price
+                                                        if (metadata.agentId && itm.itemId && itm.unitPrice && itm.basePrice && itm.unitPrice > itm.basePrice) {
+                                                            try {
+                                                                await supabase.from('retail_commissions_ledger').insert({
+                                                                    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                                                                    institution_id: instId || 'SYSTEM',
+                                                                    agent_id: metadata.agentId,
+                                                                    sale_id: saleId,
+                                                                    item_id: itm.itemId,
+                                                                    base_price: itm.basePrice,
+                                                                    sold_price: itm.unitPrice,
+                                                                    commission_amount: (itm.unitPrice - itm.basePrice) * itm.quantity,
+                                                                    is_paid: false,
+                                                                    created_at: new Date().toISOString()
+                                                                });
+                                                            } catch (commErr) {
+                                                                console.warn('[Payments Query Retail] Commission insert warning:', commErr);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                // Insert Receipt
+                                                const receiptId = `rec_retail_${Date.now()}`;
+                                                await supabase.from('receipts').insert({
+                                                    id: receiptId,
+                                                    receipt_number: mpesaRef ? `${receiptPrefix}${mpesaRef}` : `${receiptPrefix}RET-${Date.now().toString().slice(-6)}`,
+                                                    institution_id: instId || 'SYSTEM',
+                                                    amount_paid: amt,
+                                                    payment_date: new Date().toISOString().split('T')[0],
+                                                    payment_method: 'KCB STK',
+                                                    related_transaction_id: mpesaRef || transaction.id
+                                                });
+                                            }
+
+                                            if (metadata.requesterId || metadata.agentId) {
+                                                await supabase.from('app_notifications').insert({
+                                                    id: `ntf_retail_${Date.now()}`,
+                                                    user_id: metadata.requesterId || metadata.agentId,
+                                                    message: `Retail sale of KES ${amt} verified successfully via KCB STK! Ref: ${mpesaRef}`,
+                                                    type: 'success',
+                                                    is_read: false,
+                                                    timestamp: new Date().toISOString()
+                                                });
+                                            }
                                         } else if (type === 'event_registration') {
                                             const eventId = metadata.eventId;
                                             const categoryId = metadata.categoryId;
@@ -1615,7 +1736,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                                         // Write to bank_transactions
                                         try {
-                                            const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'event_registration';
+                                            const isReconciledNow = metadata.reconciled === true || metadata.reconciled === 'true' || type === 'invoice' || type === 'car_invoice' || type === 'car_sales_invoices' || type === 'event_registration' || type === 'retail_pos_sale' || type === 'retail_sale';
                                             await supabase.from('bank_transactions').upsert({
                                                 id: transaction.id,
                                                 institution_id: instId,

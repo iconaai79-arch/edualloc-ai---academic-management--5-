@@ -240,6 +240,19 @@ export function RetailManager(props: RetailManagerProps) {
         businessSubType?.toLowerCase().includes('restaurant') ||
         businessSubType?.toLowerCase().includes('eatery');
 
+    const userRole = String(currentUser?.role || '').toLowerCase();
+    const isManagerRole = useMemo(() => {
+        return [
+            'super_admin', 'admin', 'head_teacher', 'retail_agent', 'manager', 'operations_manager', 'director', 'managing_director'
+        ].includes(userRole) || (typeof window !== 'undefined' && !!localStorage.getItem('eduai_super_admin_session'));
+    }, [userRole]);
+
+    const isFinanceRole = useMemo(() => {
+        return isManagerRole || [
+            'finance', 'finance_officer', 'accountant', 'accounts_clerk'
+        ].includes(userRole);
+    }, [isManagerRole, userRole]);
+
     // Counts for status badges
     const lowStockCount = useMemo(() => inventory.filter(i => (i.quantity || 0) <= ((i as any).reorderPoint || (i as any).minStockLevel || 5)).length, [inventory]);
     const pendingReqCount = useMemo(() => requisitions.filter(r => r.status === 'pending').length, [requisitions]);
@@ -307,36 +320,41 @@ export function RetailManager(props: RetailManagerProps) {
         }
     }, [theme]);
 
+    // Auto-redirect if non-authorized user lands on a restricted view
+    useEffect(() => {
+        if (['stores', 'config', 'activity_log'].includes(activeView) && !isManagerRole) {
+            setActiveView('dashboard');
+        } else if (['expenses', 'reports', 'commissions'].includes(activeView) && !isFinanceRole) {
+            setActiveView('dashboard');
+        }
+    }, [activeView, isManagerRole, isFinanceRole]);
+
     // Build comprehensive navigation items list
     const navItems: RetailNavItem[] = useMemo(() => {
-        if (isEducation) {
-            return [
-                { id: 'dashboard', label: 'Overview', description: 'Store metrics & stock levels', icon: LayoutDashboard, category: 'commerce', color: 'from-indigo-500 to-blue-600' },
-                { id: 'inventory', label: 'Inventory', description: 'Classroom & uniform supplies', icon: Package, category: 'commerce', badge: lowStockCount > 0 ? `${lowStockCount} Low` : undefined, color: 'from-blue-500 to-cyan-600' },
-                { id: 'stock_inwards', label: 'Receive Stock', description: 'Inward goods & supplier delivery', icon: Truck, category: 'commerce', color: 'from-violet-500 to-purple-600' },
-                { id: 'pos', label: 'Issue Desk', description: 'Direct issue to faculty & students', icon: Smartphone, category: 'commerce', color: 'from-emerald-500 to-teal-600' },
-                { id: 'transfers', label: 'Transfers', description: 'Inter-store inventory shifts', icon: ArrowRightLeft, category: 'commerce', color: 'from-amber-500 to-orange-600' },
-                
-                ...(isCountyManaged ? [{ id: 'shipments', label: 'County Shipments', description: 'HQ dispatched stock verification', icon: TruckIcon, category: 'operations' as const, color: 'from-amber-500 to-yellow-600' }] : []),
-                { id: 'teachers', label: 'Teachers', description: 'Faculty uniform & item quotas', icon: UserIcon, category: 'directory', color: 'from-indigo-500 to-blue-600' },
-                { id: 'support_staff', label: 'Support Staff', description: 'Staff requisitions & assets', icon: BriefcaseIcon, category: 'directory', color: 'from-slate-500 to-zinc-600' },
-                { id: 'students', label: 'Students', description: 'Student textbook & supply logs', icon: UserGroupIcon, category: 'directory', color: 'from-sky-500 to-cyan-600' },
-                
-                { id: 'stores', label: 'Manage Stores', description: 'Departmental store depots', icon: Store, category: 'operations', color: 'from-fuchsia-500 to-pink-600' },
-                { id: 'requisitions', label: 'Requests', description: 'Faculty & department orders', icon: FileText, category: 'operations', badge: pendingReqCount > 0 ? `${pendingReqCount} New` : undefined, color: 'from-purple-500 to-indigo-600' },
-                { id: 'goods_in_lieu', label: 'Goods in Lieu', description: 'Fee settlements via supplies', icon: HandCoins, category: 'operations', color: 'from-teal-500 to-emerald-600' },
-                { id: 'vendors', label: 'Suppliers', description: 'Approved vendor catalog', icon: BuildingIcon, category: 'operations', color: 'from-rose-500 to-red-600' },
-                { id: 'logistics', label: 'Logistics', description: 'Dispatch & delivery routes', icon: TruckIcon, category: 'operations', color: 'from-sky-500 to-blue-600' },
-                
-                { id: 'expenses', label: 'Expenses', description: 'Direct supply expenditures', icon: Receipt, category: 'financials', color: 'from-red-500 to-rose-600' },
-                
-                { id: 'reports', label: 'Reports', description: 'Audit trails & valuation logs', icon: BarChart3, category: 'system', color: 'from-indigo-500 to-violet-600' },
-                { id: 'config', label: 'Config', description: 'Reorder limits & thresholds', icon: Cog, category: 'system', color: 'from-slate-600 to-slate-800' },
-                { id: 'activity_log', label: 'Activity Log', description: 'Live operational ledger', icon: FileText, category: 'system', color: 'from-zinc-500 to-slate-600' },
-            ];
-        }
-
-        return [
+        const rawItems: RetailNavItem[] = isEducation ? [
+            { id: 'dashboard', label: 'Overview', description: 'Store metrics & stock levels', icon: LayoutDashboard, category: 'commerce', color: 'from-indigo-500 to-blue-600' },
+            { id: 'inventory', label: 'Inventory', description: 'Classroom & uniform supplies', icon: Package, category: 'commerce', badge: lowStockCount > 0 ? `${lowStockCount} Low` : undefined, color: 'from-blue-500 to-cyan-600' },
+            { id: 'stock_inwards', label: 'Receive Stock', description: 'Inward goods & supplier delivery', icon: Truck, category: 'commerce', color: 'from-violet-500 to-purple-600' },
+            { id: 'pos', label: 'Issue Desk', description: 'Direct issue to faculty & students', icon: Smartphone, category: 'commerce', color: 'from-emerald-500 to-teal-600' },
+            { id: 'transfers', label: 'Transfers', description: 'Inter-store inventory shifts', icon: ArrowRightLeft, category: 'commerce', color: 'from-amber-500 to-orange-600' },
+            
+            ...(isCountyManaged ? [{ id: 'shipments', label: 'County Shipments', description: 'HQ dispatched stock verification', icon: TruckIcon, category: 'operations' as const, color: 'from-amber-500 to-yellow-600' }] : []),
+            { id: 'teachers', label: 'Teachers', description: 'Faculty uniform & item quotas', icon: UserIcon, category: 'directory', color: 'from-indigo-500 to-blue-600' },
+            { id: 'support_staff', label: 'Support Staff', description: 'Staff requisitions & assets', icon: BriefcaseIcon, category: 'directory', color: 'from-slate-500 to-zinc-600' },
+            { id: 'students', label: 'Students', description: 'Student textbook & supply logs', icon: UserGroupIcon, category: 'directory', color: 'from-sky-500 to-cyan-600' },
+            
+            { id: 'stores', label: 'Manage Stores', description: 'Departmental store depots', icon: Store, category: 'operations', color: 'from-fuchsia-500 to-pink-600' },
+            { id: 'requisitions', label: 'Requests', description: 'Faculty & department orders', icon: FileText, category: 'operations', badge: pendingReqCount > 0 ? `${pendingReqCount} New` : undefined, color: 'from-purple-500 to-indigo-600' },
+            { id: 'goods_in_lieu', label: 'Goods in Lieu', description: 'Fee settlements via supplies', icon: HandCoins, category: 'operations', color: 'from-teal-500 to-emerald-600' },
+            { id: 'vendors', label: 'Suppliers', description: 'Approved vendor catalog', icon: BuildingIcon, category: 'operations', color: 'from-rose-500 to-red-600' },
+            { id: 'logistics', label: 'Logistics', description: 'Dispatch & delivery routes', icon: TruckIcon, category: 'operations', color: 'from-sky-500 to-blue-600' },
+            
+            { id: 'expenses', label: 'Expenses', description: 'Direct supply expenditures', icon: Receipt, category: 'financials', color: 'from-red-500 to-rose-600' },
+            
+            { id: 'reports', label: 'Reports', description: 'Audit trails & valuation logs', icon: BarChart3, category: 'system', color: 'from-indigo-500 to-violet-600' },
+            { id: 'config', label: 'Config', description: 'Reorder limits & thresholds', icon: Cog, category: 'system', color: 'from-slate-600 to-slate-800' },
+            { id: 'activity_log', label: 'Activity Log', description: 'Live operational ledger', icon: FileText, category: 'system', color: 'from-zinc-500 to-slate-600' },
+        ] : [
             // Core Commerce
             { id: 'dashboard', label: 'Overview', description: 'Agency sales & POS metrics', icon: LayoutDashboard, category: 'commerce', color: 'from-indigo-500 to-blue-600' },
             { id: 'inventory', label: 'Product Catalog', description: 'Live SKU inventory & variants', icon: Package, category: 'commerce', badge: lowStockCount > 0 ? `${lowStockCount} Low` : undefined, color: 'from-blue-500 to-cyan-600' },
@@ -361,7 +379,17 @@ export function RetailManager(props: RetailManagerProps) {
             { id: 'config', label: 'Store Config', description: 'Printers, barcodes, tax & VAT', icon: Cog, category: 'system', color: 'from-slate-600 to-slate-800' },
             { id: 'activity_log', label: 'Audit Trail', description: 'Real-time action timestamps', icon: FileText, category: 'system', color: 'from-zinc-500 to-slate-600' },
         ];
-    }, [isEducation, isCountyManaged, isHospitality, lowStockCount, pendingReqCount]);
+
+        return rawItems.filter(item => {
+            if (['stores', 'config', 'activity_log'].includes(item.id)) {
+                return isManagerRole;
+            }
+            if (['expenses', 'reports', 'commissions'].includes(item.id)) {
+                return isFinanceRole;
+            }
+            return true;
+        });
+    }, [isEducation, isCountyManaged, isHospitality, lowStockCount, pendingReqCount, isManagerRole, isFinanceRole]);
 
     // Filter items based on search query in sidebar
     const filteredNavItems = useMemo(() => {
@@ -959,11 +987,17 @@ export function RetailManager(props: RetailManagerProps) {
                         )}
 
                         {activeView === 'stores' && (
-                            <RetailStoresManager 
-                                institutionId={institutionId} 
-                                isEducation={isEducation} 
-                                currentUser={currentUser} 
-                            />
+                            isManagerRole ? (
+                                <RetailStoresManager 
+                                    institutionId={institutionId} 
+                                    isEducation={isEducation} 
+                                    currentUser={currentUser} 
+                                />
+                            ) : (
+                                <div className="p-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-[2.5rem] text-rose-800 dark:text-rose-400 font-black text-sm uppercase tracking-widest text-center shadow-lg">
+                                    ⛔ Access Denied: Only Store Managers and Agency Administrators are authorized to manage branch stores and outlets.
+                                </div>
+                            )
                         )}
 
                         {activeView === 'wishlist' && (
@@ -973,13 +1007,19 @@ export function RetailManager(props: RetailManagerProps) {
                         )}
 
                         {activeView === 'expenses' && (
-                            <RetailExpenses
-                                institutionId={institutionId}
-                                currentUser={currentUser}
-                                retailStores={filteredRetailStores}
-                                retailExpenses={retailExpenses}
-                                onAddRetailExpense={onAddRetailExpense!}
-                            />
+                            isFinanceRole ? (
+                                <RetailExpenses
+                                    institutionId={institutionId}
+                                    currentUser={currentUser}
+                                    retailStores={filteredRetailStores}
+                                    retailExpenses={retailExpenses}
+                                    onAddRetailExpense={onAddRetailExpense!}
+                                />
+                            ) : (
+                                <div className="p-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-[2.5rem] text-rose-800 dark:text-rose-400 font-black text-sm uppercase tracking-widest text-center shadow-lg">
+                                    ⛔ Access Denied: Store expenditures and financial ledgers are restricted to authorized finance personnel.
+                                </div>
+                            )
                         )}
 
                         {activeView === 'requisitions' && (
@@ -1080,10 +1120,16 @@ export function RetailManager(props: RetailManagerProps) {
                         )}
 
                         {activeView === 'commissions' && (
-                            <RetailCommissionLedger 
-                                institutionId={institutionId} 
-                                currentUser={currentUser} 
-                            />
+                            isFinanceRole ? (
+                                <RetailCommissionLedger 
+                                    institutionId={institutionId} 
+                                    currentUser={currentUser} 
+                                />
+                            ) : (
+                                <div className="p-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-[2.5rem] text-rose-800 dark:text-rose-400 font-black text-sm uppercase tracking-widest text-center shadow-lg">
+                                    ⛔ Access Denied: Agent commission ledgers and payout authorizations are restricted to management and finance personnel.
+                                </div>
+                            )
                         )}
 
                         {activeView === 'logistics' && (
@@ -1093,11 +1139,17 @@ export function RetailManager(props: RetailManagerProps) {
                         )}
 
                         {activeView === 'reports' && (
-                            <RetailReportsDashboard
-                                institutionId={institutionId}
-                                users={allUsers}
-                                isEducation={isEducation}
-                            />
+                            isFinanceRole ? (
+                                <RetailReportsDashboard
+                                    institutionId={institutionId}
+                                    users={allUsers}
+                                    isEducation={isEducation}
+                                />
+                            ) : (
+                                <div className="p-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-[2.5rem] text-rose-800 dark:text-rose-400 font-black text-sm uppercase tracking-widest text-center shadow-lg">
+                                    ⛔ Access Denied: Only management and finance personnel are authorized to view sales, profit, and audit analytics.
+                                </div>
+                            )
                         )}
 
                         {activeView === 'cafe_menu' && (
@@ -1107,18 +1159,30 @@ export function RetailManager(props: RetailManagerProps) {
                         )}
 
                         {activeView === 'config' && (
-                            <StoreConfigManager
-                                institutionId={institutionId}
-                                currentUser={currentUser}
-                                currentInstitution={currentInstitution}
-                            />
+                            isManagerRole ? (
+                                <StoreConfigManager
+                                    institutionId={institutionId}
+                                    currentUser={currentUser}
+                                    currentInstitution={currentInstitution}
+                                />
+                            ) : (
+                                <div className="p-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-[2.5rem] text-rose-800 dark:text-rose-400 font-black text-sm uppercase tracking-widest text-center shadow-lg">
+                                    ⛔ Access Denied: Retail configuration settings and reorder rules are restricted to administrative managers.
+                                </div>
+                            )
                         )}
 
                         {activeView === 'activity_log' && (
-                            <ActivityLogPanel 
-                                logs={inventoryLogs} 
-                                module="Inventory" 
-                            />
+                            isManagerRole ? (
+                                <ActivityLogPanel 
+                                    logs={inventoryLogs} 
+                                    module="Inventory" 
+                                />
+                            ) : (
+                                <div className="p-12 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-[2.5rem] text-rose-800 dark:text-rose-400 font-black text-sm uppercase tracking-widest text-center shadow-lg">
+                                    ⛔ Access Denied: Operational audit trails are restricted to administrative personnel.
+                                </div>
+                            )
                         )}
                     </div>
                 </main>

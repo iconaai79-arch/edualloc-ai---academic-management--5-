@@ -56,39 +56,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         try {
-            const body = req.body || {};
-            const events = Array.isArray(body.Events) ? body.Events : [body];
-            const processedCount = 0;
+            let body = req.body || {};
+            if (typeof body === 'string') {
+                try {
+                    body = JSON.parse(body);
+                } catch (_) {
+                    console.warn('[Dahua Webhook] Could not parse stringified body as JSON');
+                }
+            }
 
-            for (const ev of events) {
-                const data = ev.Data || ev.data || {};
-                const cardNo = (data.CardNo || data.cardNo || '').toString().trim();
-                const userId = (data.UserID || data.userId || '').toString().trim();
-                const createTimeStr = data.CreateTime || data.createTime;
+            const rawEvents = Array.isArray(body?.Events) 
+                ? body.Events 
+                : (Array.isArray(body) ? body : (Array.isArray(body?.records) ? body.records : [body]));
+
+            let processedCount = 0;
+
+            for (const ev of rawEvents) {
+                if (!ev || typeof ev !== 'object') continue;
+
+                // Support both nested ev.Data and flat ev payload
+                const data = ev.Data || ev.data || ev;
+                const cardNo = (data.CardNo || data.cardNo || data.CardNumber || data.cardNumber || data.card_no || ev.CardNo || ev.cardNo || '').toString().trim();
+                const userId = (data.UserID || data.userId || data.UserCode || data.userCode || data.PersonID || data.personId || data.EmployeeNo || data.employeeNo || data.pin || data.PIN || data.user_id || ev.UserID || ev.userId || ev.UserCode || '').toString().trim();
+                const createTimeStr = data.CreateTime || data.createTime || ev.CreateTime || ev.createTime || data.Time || ev.Time;
                 
-                if (!cardNo && !userId) continue;
+                const effectivePin = userId || cardNo || (data.Name ? String(data.Name) : 'Unknown_User');
+                if (!cardNo && !userId && !data.Name && !ev.Code) continue;
 
                 // Determine timestamp
                 let punchTime = new Date();
                 if (typeof createTimeStr === 'number') {
                     punchTime = new Date(createTimeStr * 1000);
                 } else if (createTimeStr) {
-                    punchTime = new Date(createTimeStr);
+                    const parsed = new Date(createTimeStr);
+                    if (!isNaN(parsed.getTime())) punchTime = parsed;
                 }
 
                 // Resolve matching user from Supabase database
                 let matchedUserId: string | null = null;
                 let matchedInstitutionId: string | null = null;
 
-                const { data: users } = await supabase
-                    .from('users')
-                    .select('id, institution_id, phone_number, staff_id')
-                    .or(`id.eq.${userId},staff_id.eq.${userId},phone_number.ilike.%${cardNo}%`);
+                // Build safe query conditions avoiding Postgres UUID crash
+                const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+                const orParts: string[] = [];
+                if (isUUID) orParts.push(`id.eq.${userId}`);
+                if (userId) orParts.push(`staff_id.eq.${userId}`);
+                if (cardNo) orParts.push(`phone_number.ilike.%${cardNo}%`);
+                if (userId && !isUUID) orParts.push(`phone_number.ilike.%${userId}%`);
 
-                if (users && users.length > 0) {
-                    matchedUserId = users[0].id;
-                    matchedInstitutionId = users[0].institution_id;
-                } else {
+                if (orParts.length > 0) {
+                    const { data: users, error: userErr } = await supabase
+                        .from('users')
+                        .select('id, institution_id, phone_number, staff_id')
+                        .or(orParts.join(','));
+
+                    if (!userErr && users && users.length > 0) {
+                        matchedUserId = users[0].id;
+                        matchedInstitutionId = users[0].institution_id;
+                    }
+                }
+
+                // Fallback to biometric_enrollments (Device PIN mapping)
+                if (!matchedUserId) {
                     const searchPin = userId || cardNo;
                     if (searchPin) {
                         const { data: enrollments } = await supabase
@@ -105,17 +134,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                 }
 
-                // Store in staff_attendance_logs
-                await supabase.from('staff_attendance_logs').insert([{
-                    institution_id: matchedInstitutionId,
-                    staff_id: matchedUserId,
-                    device_pin: userId || cardNo,
-                    punch_time: punchTime.toISOString(),
-                    punch_type: 0,
-                    verification_method: 4, // Face / Biometric
-                    raw_data: JSON.stringify(data),
-                    is_processed: !!matchedUserId
-                }]);
+                // Fallback institution_id if user is not yet matched/enrolled
+                if (!matchedInstitutionId) {
+                    const queryInst = (req.query.institution_id || req.query.institutionId || req.query.instId || '').toString().trim();
+                    if (queryInst) {
+                        matchedInstitutionId = queryInst;
+                    } else {
+                        const { data: anyInst } = await supabase.from('institutions').select('id').order('created_at', { ascending: false }).limit(1).maybeSingle();
+                        matchedInstitutionId = anyInst?.id || null;
+                    }
+                }
+
+                // Store in staff_attendance_logs (even if user is unlinked/unknown)
+                if (matchedInstitutionId) {
+                    const { error: insErr } = await supabase.from('staff_attendance_logs').insert([{
+                        institution_id: matchedInstitutionId,
+                        staff_id: matchedUserId,
+                        device_pin: effectivePin,
+                        punch_time: punchTime.toISOString(),
+                        punch_type: 0,
+                        verification_method: 4, // Face / Biometric
+                        raw_data: JSON.stringify(data),
+                        is_processed: !!matchedUserId
+                    }]);
+                    if (insErr) {
+                        console.error('[Dahua Webhook] Error inserting staff_attendance_log:', insErr);
+                    } else if (!matchedUserId) {
+                        processedCount++;
+                    }
+                }
 
                 // Also trigger teacher checkin RPC if staff member matched
                 if (matchedUserId && matchedInstitutionId) {
@@ -131,6 +178,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     });
                     if (rpcErr) {
                         console.error('[Dahua Webhook] RPC checkin error:', rpcErr);
+                    } else {
+                        processedCount++;
                     }
                 }
             }

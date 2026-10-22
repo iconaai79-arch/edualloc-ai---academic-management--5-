@@ -502,20 +502,51 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     const handleEnrollStaff = async () => {
         if (!enrollForm.staffId || !enrollForm.devicePin) {
-            alert('Staff and Device PIN are required');
+            alert('Staff member and Dahua Terminal ID / Device PIN are required');
             return;
         }
         try {
+            const cleanPin = enrollForm.devicePin.trim();
+            const existing = enrollments.find(e => e.staffId === enrollForm.staffId || e.devicePin === cleanPin);
+
             await apiService.saveModuleRecord('biometric_enrollments', {
+                ...(existing?.id ? { id: existing.id } : {}),
                 institution_id: institution.id,
+                institutionId: institution.id,
                 staff_id: enrollForm.staffId,
-                device_pin: enrollForm.devicePin,
+                staffId: enrollForm.staffId,
+                device_pin: cleanPin,
+                devicePin: cleanPin,
                 fingerprint_index: enrollForm.fingerprintIndex,
                 is_active: true,
             });
+
+            // Backfill any unlinked attendance logs with this device_pin
+            try {
+                const rawLogs = await apiService.fetchModuleRecords<any>('staff_attendance_logs', institution.id, { bypassCache: true });
+                const unlinkedForThisPin = (rawLogs || []).filter(l => 
+                    (String(l.device_pin || l.devicePin || l.card_no || l.cardNo || '') === cleanPin)
+                );
+                for (const logItem of unlinkedForThisPin) {
+                    if (!logItem.staff_id || logItem.staff_id !== enrollForm.staffId || !logItem.is_processed) {
+                        await apiService.saveModuleRecord('staff_attendance_logs', {
+                            ...logItem,
+                            staff_id: enrollForm.staffId,
+                            staffId: enrollForm.staffId,
+                            is_processed: true,
+                            isProcessed: true
+                        });
+                    }
+                }
+            } catch (backfillErr) {
+                console.warn('[Dahua Enrollment] Backfill warning:', backfillErr);
+            }
+
             setShowEnrollModal(false);
             setEnrollForm({ staffId: '', devicePin: '', fingerprintIndex: 0 });
-            loadEnrollments();
+            await loadEnrollments();
+            await loadTodayAttendance();
+            alert(`Staff member Dahua ID #${cleanPin} successfully linked and saved!`);
         } catch (err: any) {
             alert('Failed to enroll: ' + err.message);
         }
@@ -926,8 +957,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                     <div className="p-8 border-b border-slate-50 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
-                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Staff PIN Enrollment</h3>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Map each staff member to their device enrollment PIN</p>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Staff Dahua / Biometric Enrollment</h3>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Map each staff member to their Dahua terminal face ID or device PIN</p>
                         </div>
                         <div className="flex gap-2">
                             <input
@@ -941,7 +972,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                 onClick={() => setShowEnrollModal(true)}
                                 className="px-6 py-2 bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:bg-indigo-700 transition-all active:scale-95"
                             >
-                                + Enroll
+                                + Enroll Dahua ID
                             </button>
                         </div>
                     </div>
@@ -950,7 +981,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <thead>
                                 <tr className="bg-slate-50/80 dark:bg-slate-900/50">
                                     <th className="text-left px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Staff</th>
-                                    <th className="text-left px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Device PIN</th>
+                                    <th className="text-left px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Dahua ID / Device PIN</th>
                                     <th className="text-left px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Finger Index</th>
                                     <th className="text-left px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Enrolled</th>
                                     <th className="text-center px-4 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Action</th>
@@ -965,7 +996,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                     <UserGroupIcon className="w-8 h-8" />
                                                 </div>
                                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No staff enrolled</p>
-                                                <p className="text-[10px] text-slate-400">Enroll staff by mapping their ZKTeco device PIN to their system profile</p>
+                                                <p className="text-[10px] text-slate-400">Enroll staff by mapping their Dahua terminal User ID or ZKTeco device PIN to their system profile</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -987,17 +1018,32 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-4">
-                                                    <span className="px-3 py-1 bg-slate-100 dark:bg-slate-900 rounded-lg text-sm font-mono font-bold text-slate-700 dark:text-slate-300">{enr.devicePin}</span>
+                                                    <span className="px-3 py-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-sm font-mono font-bold">#{enr.devicePin}</span>
                                                 </td>
                                                 <td className="px-4 py-4 text-xs font-bold text-slate-500">{enr.fingerprintIndex ?? 0}</td>
                                                 <td className="px-4 py-4 text-xs font-bold text-slate-400">{new Date(enr.enrolledAt).toLocaleDateString()}</td>
                                                 <td className="px-4 py-4 text-center">
-                                                    <button
-                                                        onClick={() => handleRemoveEnrollment(enr.id)}
-                                                        className="px-3 py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
-                                                    >
-                                                        Remove
-                                                    </button>
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEnrollForm({
+                                                                    staffId: enr.staffId,
+                                                                    devicePin: enr.devicePin,
+                                                                    fingerprintIndex: enr.fingerprintIndex ?? 0
+                                                                });
+                                                                setShowEnrollModal(true);
+                                                            }}
+                                                            className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                        >
+                                                            Edit Dahua ID
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRemoveEnrollment(enr.id)}
+                                                            className="px-3 py-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -1108,8 +1154,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                     <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-200">
                         <div className="px-8 py-5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                             <div>
-                                <h3 className="text-md font-black text-slate-800 dark:text-white uppercase tracking-wider">Enroll Staff Member</h3>
-                                <p className="text-[10px] font-semibold text-slate-400">Link a staff profile to their device PIN</p>
+                                <h3 className="text-md font-black text-slate-800 dark:text-white uppercase tracking-wider">Link Staff to Dahua Terminal</h3>
+                                <p className="text-[10px] font-semibold text-slate-400">Map staff member to their facial ID or device PIN</p>
                             </div>
                             <button onClick={() => setShowEnrollModal(false)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition-all">
                                 <XIcon className="w-5 h-5" />
@@ -1118,27 +1164,43 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                         <div className="p-8 space-y-5">
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Staff Member *</label>
-                                <select value={enrollForm.staffId} onChange={e => setEnrollForm(f => ({ ...f, staffId: e.target.value }))}
+                                <select 
+                                    value={enrollForm.staffId} 
+                                    onChange={e => {
+                                        const selectedStaffId = e.target.value;
+                                        const existing = enrollments.find(en => en.staffId === selectedStaffId);
+                                        setEnrollForm(f => ({
+                                            ...f,
+                                            staffId: selectedStaffId,
+                                            devicePin: existing ? existing.devicePin : f.devicePin
+                                        }));
+                                    }}
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500">
-                                    <option value="">-- Select Staff --</option>
-                                    {staff.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
-                                    ))}
+                                    <option value="">-- Select Staff Member --</option>
+                                    {staff.map(s => {
+                                        const enrolled = enrollments.find(e => e.staffId === s.id);
+                                        return (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} ({s.role || 'Staff'}) {enrolled ? `[Dahua ID: #${enrolled.devicePin}]` : ''}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Device PIN *</label>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Dahua User ID / Device PIN *</label>
                                 <input type="text" value={enrollForm.devicePin} onChange={e => setEnrollForm(f => ({ ...f, devicePin: e.target.value }))}
-                                    placeholder="e.g. 1, 2, 100..."
-                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
-                                <p className="text-[10px] text-slate-400 mt-1">This is the enrollment number assigned to this staff on the biometric device</p>
+                                    placeholder="e.g. 101, 1, 2, or card number..."
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 font-mono" />
+                                <p className="text-[10px] text-slate-400 mt-1">This is the User ID configured on the Dahua facial recognition terminal (e.g. 101, 1, 2)</p>
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Finger Index</label>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Finger Index / Sub-ID</label>
                                 <select value={enrollForm.fingerprintIndex} onChange={e => setEnrollForm(f => ({ ...f, fingerprintIndex: parseInt(e.target.value) }))}
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500">
-                                    {[0,1,2,3,4,5,6,7,8,9].map(i => (
-                                        <option key={i} value={i}>{['Right Thumb','Right Index','Right Middle','Right Ring','Right Little','Left Thumb','Left Index','Left Middle','Left Ring','Left Little'][i]}</option>
+                                    <option value="0">Face Recognition / Primary (0)</option>
+                                    {[1,2,3,4,5,6,7,8,9].map(i => (
+                                        <option key={i} value={i}>Fingerprint / Secondary ({i})</option>
                                     ))}
                                 </select>
                             </div>
@@ -1147,7 +1209,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                     Cancel
                                 </button>
                                 <button onClick={handleEnrollStaff} className="px-8 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-md">
-                                    Save Enrollment
+                                    Save & Link Dahua ID
                                 </button>
                             </div>
                         </div>

@@ -1101,15 +1101,38 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         if (isRetailAgency) {
-            return [
+            const isManagerRole = isSuperAdmin || [
+                'admin', 'head_teacher', 'retail_agent', 'manager', 'operations_manager', 'director', 'managing_director'
+            ].includes(roleToUse || '');
+
+            const isFinanceRole = isManagerRole || [
+                'finance', 'finance_officer', 'accountant', 'accounts_clerk'
+            ].includes(roleToUse || '');
+
+            const tabs: { id: string; label: string; icon: React.ReactNode }[] = [
                 { id: 'retail', label: 'Retail & Inventory', icon: <StoreIcon className="w-5 h-5 mr-2" /> },
                 { id: 'customers', label: 'Customers', icon: <UserPlusIcon className="w-5 h-5 mr-2" /> },
-                { id: 'users', label: 'Staff & Agents', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> },
-                { id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> },
-                { id: 'comms', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> },
-                { id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> },
-                { id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> },
             ];
+
+            if (isManagerRole) {
+                tabs.push({ id: 'users', label: 'Staff & Agents', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
+            }
+
+            tabs.push({ id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> });
+
+            if (isManagerRole) {
+                tabs.push({ id: 'comms', label: 'Communications', icon: <ChatBubbleBottomCenterTextIcon className="w-5 h-5 mr-2" /> });
+            }
+
+            if (isFinanceRole) {
+                tabs.push({ id: 'reports', label: 'Analytics', icon: <ChartBarIcon className="w-5 h-5 mr-2" /> });
+            }
+
+            if (isManagerRole) {
+                tabs.push({ id: 'settings', label: 'Config', icon: <Cog8ToothIcon className="w-5 h-5 mr-2" /> });
+            }
+
+            return tabs;
         }
 
         if (isCampaign) {
@@ -1363,7 +1386,20 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
             if (tab.id === 'reports') {
                 if (props.currentUser?.role === 'super_admin' || !!localStorage.getItem('eduai_super_admin_session')) return true;
                 if (isAutoMarket) return ['director', 'finance'].includes(roleToUse || '');
+                if (isRetailAgency) return ['admin', 'head_teacher', 'retail_agent', 'manager', 'operations_manager', 'director', 'managing_director', 'finance', 'finance_officer'].includes(roleToUse || '');
                 return true; // Default visibility for other institutional types
+            }
+
+            if (tab.id === 'users') {
+                if (isRetailAgency) {
+                    return isSuperAdmin || ['admin', 'head_teacher', 'retail_agent', 'manager', 'operations_manager', 'director', 'managing_director'].includes(roleToUse || '');
+                }
+            }
+
+            if (tab.id === 'settings') {
+                if (isRetailAgency) {
+                    return isSuperAdmin || ['admin', 'head_teacher', 'retail_agent', 'manager', 'operations_manager', 'director', 'managing_director'].includes(roleToUse || '');
+                }
             }
 
             if (tab.id === 'showcase') {
@@ -3553,36 +3589,53 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         'inv_requisitions': 'requisitions',
                         'inv_vendors': 'vendors',
                         'inv_transfers': 'transfers',
-                        'inv_config': 'config'
+                        'inv_config': 'config',
+                        // For retail agency: procurement top-tab deep-links directly to vendors view
+                        'procurement': 'vendors'
                     };
 
-                    const isRetailTab = (isEdu && activeScope === 'inventory' && activeTab in retailTabMap) || activeTab === 'retail';
+                    const isRetailTab = (isEdu && activeScope === 'inventory' && activeTab in retailTabMap) || activeTab === 'retail' || (isRetailAgency && activeTab === 'procurement');
                     
                     if (isRetailTab) {
-                        const mappedTab = (isEdu && activeScope === 'inventory') ? retailTabMap[activeTab] : undefined;
+                        // For retail agency: procurement tab deep-links to vendors sub-view
+                        const mappedTab = (isRetailAgency && activeTab === 'procurement')
+                            ? 'vendors'
+                            : (isEdu && activeScope === 'inventory') ? retailTabMap[activeTab] : undefined;
 
-                        return isRetailAgency && activeTab === 'retail' ? (
-                            <RetailManager
-                                institutionId={props.currentInstitution?.id || ''}
-                                businessSubType={props.currentInstitution?.businessSubType}
-                                currentUser={props.currentUser!}
-                                retailStores={retailStores}
-                                inventory={inventory}
-                                retailExpenses={retailExpenses}
-                                onAddRetailExpense={props.onAddRetailExpense}
-                                requisitions={props.requisitions}
-                                onAddRequisition={props.onAddRequisition}
-                                onUpdateRequisition={props.onUpdateRequisition}
-                                isEducation={isEdu}
-                                allUsers={props.users || []}
-                                allCourses={props.courses || []}
-                                currentInstitution={props.currentInstitution}
-                                countyInventory={props.countyInventory}
-                                onMarkInventoryReceived={props.onMarkInventoryReceived}
-                                onEditUser={props.onEditUser}
-                                voteHeads={props.voteHeads}
-                            />
-                        ) : (
+                        // Retail agency: both 'retail' and 'procurement' tabs render RetailManager directly
+                        if (isRetailAgency) {
+                            return (
+                                <RetailManager
+                                    institutionId={props.currentInstitution?.id || ''}
+                                    businessSubType={props.currentInstitution?.businessSubType}
+                                    currentUser={props.currentUser!}
+                                    retailStores={retailStores}
+                                    inventory={inventory}
+                                    retailExpenses={retailExpenses}
+                                    onAddRetailExpense={props.onAddRetailExpense}
+                                    requisitions={props.requisitions}
+                                    onAddRequisition={props.onAddRequisition}
+                                    onUpdateRequisition={props.onUpdateRequisition}
+                                    isEducation={isEdu}
+                                    allUsers={props.users || []}
+                                    allCourses={props.courses || []}
+                                    currentInstitution={props.currentInstitution}
+                                    activeTab={mappedTab}
+                                    onTabChange={(tab) => {
+                                        const reverseMap = Object.entries(retailTabMap).find(([_, value]) => value === tab)?.[0];
+                                        if (reverseMap) setActiveTab(reverseMap as any);
+                                        else setActiveTab('retail' as any);
+                                    }}
+                                    countyInventory={props.countyInventory}
+                                    onMarkInventoryReceived={props.onMarkInventoryReceived}
+                                    onEditUser={props.onEditUser}
+                                    voteHeads={props.voteHeads}
+                                />
+                            );
+                        }
+
+                        // Education / school store: wrap with module access guard
+                        return (
                             <ModuleAccessGuard
                                 moduleId="school_store"
                                 moduleName="School Inventory"
@@ -3807,7 +3860,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     </div>
                 )}
 
-                {activeTab === 'procurement' && (
+                {activeTab === 'procurement' && !isRetailAgency && (
                     <ProcurementManager
                         requisitions={props.requisitions || []}
                         onAddRequisition={props.onAddRequisition!}

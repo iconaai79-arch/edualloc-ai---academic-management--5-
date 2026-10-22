@@ -11,6 +11,10 @@ import { XCircleIcon } from './icons/XCircleIcon';
 import { PrinterIcon } from './icons/PrinterIcon';
 import { ArrowPathIcon } from './icons/ArrowPathIcon';
 import { CameraIcon } from './icons/CameraIcon';
+import { FingerPrintIcon } from './icons/FingerPrintIcon';
+import { UserPlusIcon } from './icons/UserPlusIcon';
+import { PencilIcon } from './icons/PencilIcon';
+import { XIcon } from './icons/XIcon';
 
 import type { TransportVehicle, VehicleLog, User, Institution, Visitor, Course, TeacherCheckIn } from '../types';
 import { apiService } from '../services/apiService';
@@ -71,6 +75,190 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<'vehicle' | 'parent' | 'staff' | 'settings'>(initialTab || 'vehicle');
     const [activeUsers, setActiveUsers] = useState<User[]>(users);
+    const [liveCheckIns, setLiveCheckIns] = useState<any[]>(teacherCheckIns || []);
+
+    const [enrollments, setEnrollments] = useState<any[]>([]);
+    const [showDahuaEnrollModal, setShowDahuaEnrollModal] = useState(false);
+    const [enrollDahuaForm, setEnrollDahuaForm] = useState<{ staffId: string; devicePin: string }>({ staffId: '', devicePin: '' });
+    const [savingDahuaEnroll, setSavingDahuaEnroll] = useState(false);
+
+    useEffect(() => {
+        if (teacherCheckIns && teacherCheckIns.length > 0) {
+            setLiveCheckIns(teacherCheckIns);
+        }
+    }, [teacherCheckIns]);
+
+    const [refreshingStaffLogs, setRefreshingStaffLogs] = useState(false);
+    const handleRefreshStaffLogs = useCallback(async () => {
+        if (!currentInstitution?.id) return;
+        setRefreshingStaffLogs(true);
+        try {
+            const [records, primaryRawLogs, enrData] = await Promise.all([
+                apiService.fetchModuleRecords<any>('teacher_check_ins', currentInstitution.id, undefined, { bypassCache: true }).catch(() => []),
+                apiService.fetchModuleRecords<any>('staff_attendance_logs', currentInstitution.id, undefined, { order: 'punch_time.desc', limit: 100, bypassCache: true }).catch(() => []),
+                apiService.fetchModuleRecords<any>('biometric_enrollments', currentInstitution.id, undefined, { bypassCache: true }).catch(() => [])
+            ]);
+
+            // If institution-scoped query returned no attendance logs, fallback to global fetch to catch punches saved with fallback institution
+            let rawLogs = primaryRawLogs;
+            if (!rawLogs || rawLogs.length === 0) {
+                rawLogs = await apiService.fetchModuleRecords<any>('staff_attendance_logs', undefined, undefined, { order: 'punch_time.desc', limit: 100, bypassCache: true }).catch(() => []);
+            }
+
+            if (enrData && Array.isArray(enrData)) {
+                setEnrollments(enrData);
+            }
+
+            const todayLocal = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD local
+            const todayUtc = new Date().toISOString().split('T')[0];
+            const todayStr = todayLocal;
+            const checkInsList = Array.isArray(records) ? [...records] : [];
+
+            // Merge unassigned or unprocessed attendance logs
+            if (rawLogs && Array.isArray(rawLogs)) {
+                for (const raw of rawLogs) {
+                    const rawTime = raw.punch_time || raw.punchTime || raw.created_at;
+                    const pDate = new Date(rawTime);
+                    const pLocal = !isNaN(pDate.getTime()) ? pDate.toLocaleDateString('en-CA') : '';
+                    const pUtc = !isNaN(pDate.getTime()) ? pDate.toISOString().split('T')[0] : '';
+                    const isRecent = !isNaN(pDate.getTime()) && (Date.now() - pDate.getTime() < 24 * 3600 * 1000);
+                    const isToday = pLocal === todayLocal || pUtc === todayUtc || isRecent;
+                    if (!isToday) continue;
+
+                    const pin = (raw.device_pin || raw.devicePin || raw.user_id || '').toString().trim();
+                    const staffId = raw.staff_id || raw.staffId;
+
+                    // If it has staff_id, check if already in checkInsList
+                    const matchedStaff = activeUsers.find(u => u.id === staffId);
+                    if (matchedStaff) {
+                        const exists = checkInsList.some(c => (c.teacherId || c.teacher_id) === matchedStaff.id && (c.checkInDate || c.check_in_date) === todayStr);
+                        if (!exists) {
+                            const pTime = new Date(rawTime);
+                            const pTimeStr = isNaN(pTime.getTime()) ? '12:00:00' : pTime.toLocaleTimeString('en-GB');
+                            checkInsList.push({
+                                id: `raw_match_${raw.id}`,
+                                teacherId: matchedStaff.id,
+                                teacher_id: matchedStaff.id,
+                                teacherName: matchedStaff.name,
+                                checkInDate: todayStr,
+                                check_in_date: todayStr,
+                                morningCheckInTime: pTime.getHours() < 12 ? pTimeStr : undefined,
+                                afternoonCheckInTime: pTime.getHours() >= 12 ? pTimeStr : undefined,
+                                morningNotes: 'Dahua Biometric Terminal',
+                                afternoonNotes: 'Dahua Biometric Terminal',
+                            });
+                        }
+                    } else {
+                        // Check if an enrollment exists that links this pin to a user
+                        const enrolled = (enrData || []).find((e: any) => (e.device_pin || e.devicePin) === pin);
+                        const enrolledStaff = enrolled ? activeUsers.find(u => u.id === enrolled.staff_id || u.id === enrolled.staffId) : null;
+                        
+                        if (enrolledStaff) {
+                            const exists = checkInsList.some(c => (c.teacherId || c.teacher_id) === enrolledStaff.id && (c.checkInDate || c.check_in_date) === todayStr);
+                            if (!exists) {
+                                const pTime = new Date(rawTime);
+                                const pTimeStr = isNaN(pTime.getTime()) ? '12:00:00' : pTime.toLocaleTimeString('en-GB');
+                                checkInsList.push({
+                                    id: `raw_enr_${raw.id}`,
+                                    teacherId: enrolledStaff.id,
+                                    teacher_id: enrolledStaff.id,
+                                    teacherName: enrolledStaff.name,
+                                    checkInDate: todayStr,
+                                    check_in_date: todayStr,
+                                    morningCheckInTime: pTime.getHours() < 12 ? pTimeStr : undefined,
+                                    afternoonCheckInTime: pTime.getHours() >= 12 ? pTimeStr : undefined,
+                                    morningNotes: 'Dahua Biometric Terminal',
+                                    afternoonNotes: 'Dahua Biometric Terminal',
+                                });
+                            }
+                        } else {
+                            // Truly Unlinked: display it as an Unlinked Biometric Card!
+                            const pTime = new Date(rawTime);
+                            const timeStr = isNaN(pTime.getTime()) ? 'Just now' : pTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            checkInsList.push({
+                                id: `unlinked_${raw.id || Math.random()}`,
+                                isUnlinked: true,
+                                rawId: raw.id,
+                                devicePin: pin || 'Unknown',
+                                punchTime: rawTime,
+                                displayTime: timeStr,
+                                checkInDate: todayStr,
+                                check_in_date: todayStr
+                            });
+                        }
+                    }
+                }
+            }
+
+            setLiveCheckIns(checkInsList);
+        } catch (e) {
+            console.warn("Could not reload staff logs:", e);
+        } finally {
+            setRefreshingStaffLogs(false);
+        }
+    }, [currentInstitution?.id, activeUsers]);
+
+    const handleSaveDahuaEnrollment = async (staffId: string, devicePin: string) => {
+        if (!staffId || !devicePin || !currentInstitution?.id) {
+            alert("Please select a staff member and specify their Dahua Terminal User ID.");
+            return;
+        }
+        setSavingDahuaEnroll(true);
+        try {
+            const cleanPin = devicePin.trim();
+            const existing = enrollments.find(e => (e.staff_id || e.staffId) === staffId || (e.device_pin || e.devicePin) === cleanPin);
+
+            await apiService.saveModuleRecord('biometric_enrollments', {
+                ...(existing?.id ? { id: existing.id } : {}),
+                institution_id: currentInstitution.id,
+                staff_id: staffId,
+                device_pin: cleanPin,
+                is_active: true
+            });
+
+            // Backfill matching raw logs
+            try {
+                const unlinkedLogs = await apiService.fetchModuleRecords<any>('staff_attendance_logs', currentInstitution.id, undefined, {
+                    filter: { device_pin: cleanPin },
+                    limit: 20,
+                    bypassCache: true
+                }).catch(() => []);
+                for (const u of unlinkedLogs) {
+                    if (!u.is_processed || !u.staff_id) {
+                        await apiService.saveModuleRecord('staff_attendance_logs', {
+                            id: u.id,
+                            staff_id: staffId,
+                            is_processed: true
+                        }).catch(() => {});
+                    }
+                }
+            } catch (_) {}
+
+            if (onTeacherGateCheckIn) {
+                const hour = new Date().getHours();
+                const checkinType = hour < 12 ? 'Morning' : 'Afternoon';
+                await onTeacherGateCheckIn(staffId, checkinType, 'Dahua Biometric Terminal', `Biometric Linked (Dahua ID: ${cleanPin})`);
+            }
+
+            setShowDahuaEnrollModal(false);
+            setEnrollDahuaForm({ staffId: '', devicePin: '' });
+            await handleRefreshStaffLogs();
+            alert("Staff member successfully linked to Dahua Biometric ID!");
+        } catch (err: any) {
+            console.error("Failed to link Dahua ID:", err);
+            alert(`Failed to save link: ${err?.message || err}`);
+        } finally {
+            setSavingDahuaEnroll(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeTab === 'staff') {
+            handleRefreshStaffLogs();
+            const poller = setInterval(handleRefreshStaffLogs, 12000);
+            return () => clearInterval(poller);
+        }
+    }, [activeTab, handleRefreshStaffLogs]);
     
     const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(getPrinterConfig());
     const [pairedPrinters, setPairedPrinters] = useState<{ name: string; address: string }[]>([]);
@@ -2135,15 +2323,29 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         <h4 className="text-base font-black uppercase text-slate-850 dark:text-white tracking-tight">Staff Gate Attendance</h4>
                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Scan staff ID cards or mount entrance QR signboard</p>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', currentInstitution?.id || '')}
-                                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
-                                        title="Print Official Gate Attendance Signboard Poster"
-                                    >
-                                        <PrinterIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                                        Print Gate QR Signboard
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setEnrollDahuaForm({ staffId: selectedStaff?.id || '', devicePin: '' });
+                                                setShowDahuaEnrollModal(true);
+                                            }}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95"
+                                            title="Link or Update Dahua Biometric Terminal ID"
+                                        >
+                                            <UserPlusIcon className="w-4 h-4 text-white" />
+                                            + Link Dahua ID
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => printGateQrSignboard(currentInstitution?.name || 'School Entrance', currentInstitution?.id || '')}
+                                            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
+                                            title="Print Official Gate Attendance Signboard Poster"
+                                        >
+                                            <PrinterIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                            Print Gate QR Signboard
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="relative mb-6">
                                     <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
@@ -2168,28 +2370,55 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                 </div>
 
                                 <div className="space-y-3 max-h-[380px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {staffSearchTerm.length > 1 && filteredStaff.map(u => (
-                                        <button
-                                            key={u.id}
-                                            onClick={() => { setSelectedStaff(u); setStaffSearchTerm(u.name); }}
-                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
-                                                selectedStaff?.id === u.id
-                                                    ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20'
-                                                    : 'border-slate-100 dark:border-slate-850 bg-slate-50/40 dark:bg-slate-950/40 active:scale-[0.98]'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center uppercase shadow-inner">
-                                                    {u.name.charAt(0)}
+                                    {staffSearchTerm.length > 1 && filteredStaff.map(u => {
+                                        const enr = enrollments.find(e => (e.staff_id || e.staffId) === u.id);
+                                        const pin = enr?.device_pin || enr?.devicePin;
+                                        return (
+                                            <button
+                                                key={u.id}
+                                                onClick={() => { setSelectedStaff(u); setStaffSearchTerm(u.name); }}
+                                                className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
+                                                    selectedStaff?.id === u.id
+                                                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-900/20'
+                                                        : 'border-slate-100 dark:border-slate-850 bg-slate-50/40 dark:bg-slate-950/40 active:scale-[0.98]'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-black text-sm flex items-center justify-center uppercase shadow-inner">
+                                                        {u.name.charAt(0)}
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <p className="font-black text-sm text-slate-900 dark:text-white leading-none">{u.name}</p>
+                                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black mt-1.5">{u.role}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="text-left">
-                                                    <p className="font-black text-sm text-slate-900 dark:text-white leading-none">{u.name}</p>
-                                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-black mt-1.5">{u.role}</p>
+                                                <div className="flex items-center gap-2">
+                                                    {pin ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-mono font-black uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                            Dahua ID: #{pin}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-mono font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                            Dahua: Not Linked
+                                                        </span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEnrollDahuaForm({ staffId: u.id, devicePin: pin || '' });
+                                                            setShowDahuaEnrollModal(true);
+                                                        }}
+                                                        className="p-1.5 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-lg transition-all"
+                                                        title="Update Dahua Biometric ID"
+                                                    >
+                                                        <PencilIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <CheckCircleIcon className={`w-5 h-5 ${selectedStaff?.id === u.id ? 'text-indigo-500 opacity-100' : 'opacity-0'}`} />
                                                 </div>
-                                            </div>
-                                            <CheckCircleIcon className={`w-6 h-6 ${selectedStaff?.id === u.id ? 'text-indigo-500 opacity-100' : 'opacity-0'}`} />
-                                        </button>
-                                    ))}
+                                            </button>
+                                        );
+                                    })}
                                     {staffSearchTerm.length > 1 && filteredStaff.length === 0 && (
                                         <div className="text-center py-12">
                                             <UserIcon className="w-14 h-14 text-slate-350 dark:text-slate-750 mx-auto mb-3" />
@@ -2446,6 +2675,36 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         Clear
                                     </button>
                                 </div>
+
+                                {(() => {
+                                    const enr = enrollments.find(e => (e.staff_id || e.staffId) === selectedStaff.id);
+                                    const pin = enr?.device_pin || enr?.devicePin;
+                                    return (
+                                        <div className="flex items-center justify-between p-3.5 bg-white/80 dark:bg-slate-900/80 rounded-2xl border border-indigo-100 dark:border-indigo-950/60 shadow-sm">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                                                    <FingerPrintIcon className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Dahua Terminal Face ID</p>
+                                                    <p className="text-xs font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                                                        {pin ? `ID: #${pin}` : 'Not Linked Yet'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setEnrollDahuaForm({ staffId: selectedStaff.id, devicePin: pin || '' });
+                                                    setShowDahuaEnrollModal(true);
+                                                }}
+                                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border border-indigo-200 dark:border-indigo-800 cursor-pointer active:scale-95"
+                                            >
+                                                {pin ? 'Update Dahua ID' : '+ Link Dahua ID'}
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
 
                                 <div className="space-y-4">
                                     <div>
@@ -2725,24 +2984,86 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                     </>
                                 ) : (
                                     <>
-                                        <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest mb-6">Gate Log (Today's Staff)</h3>
-                                        <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
-                                            {((teacherCheckIns || []) as any[])
-                                                .filter(c => (c.checkInDate || c.check_in_date) === todayStr)
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h3 className="text-sm font-black uppercase text-slate-800 dark:text-white tracking-widest">Gate Log (Today's Staff)</h3>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleRefreshStaffLogs}
+                                                className="px-2.5 py-1 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border border-slate-200 dark:border-slate-800"
+                                                title="Refresh live check-in logs"
+                                            >
+                                                <ArrowPathIcon className={`w-3.5 h-3.5 ${refreshingStaffLogs ? 'animate-spin text-indigo-600' : ''}`} />
+                                                <span>{refreshingStaffLogs ? 'Syncing...' : 'Refresh'}</span>
+                                            </button>
+                                        </div>
+                                        <div className="space-y-4 max-h-[420px] overflow-y-auto pr-2">
+                                            {((liveCheckIns || []) as any[])
+                                                .filter(c => (c.checkInDate || c.check_in_date) === todayStr || c.isUnlinked)
                                                 .sort((a, b) => {
-                                                    const timeA = a.morningCheckInTime || a.morning_check_in_time || a.afternoonCheckInTime || a.afternoon_check_in_time || '';
-                                                    const timeB = b.morningCheckInTime || b.morning_check_in_time || b.afternoonCheckInTime || b.afternoon_check_in_time || '';
-                                                    return timeB.localeCompare(timeA);
+                                                    const timeA = a.punchTime || a.morningCheckInTime || a.morning_check_in_time || a.afternoonCheckInTime || a.afternoon_check_in_time || a.displayTime || '';
+                                                    const timeB = b.punchTime || b.morningCheckInTime || b.morning_check_in_time || b.afternoonCheckInTime || b.afternoon_check_in_time || b.displayTime || '';
+                                                    return String(timeB).localeCompare(String(timeA));
                                                 })
                                                 .map(c => {
+                                                    // 1. Unlinked Dahua Biometric Punch
+                                                    if (c.isUnlinked) {
+                                                        return (
+                                                            <div key={c.id} className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/25 border-2 border-amber-400/60 dark:border-amber-600/50 transition-all shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-1">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="p-2.5 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25 shadow-inner">
+                                                                            <FingerPrintIcon className="w-5 h-5 animate-pulse" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <h4 className="font-black text-sm text-slate-900 dark:text-white leading-tight">
+                                                                                    Dahua Biometric Punch
+                                                                                </h4>
+                                                                                <span className="text-[9px] font-black uppercase bg-amber-500/15 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-500/30">
+                                                                                    Unlinked Scan
+                                                                                </span>
+                                                                            </div>
+                                                                            <p className="text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300 mt-1">
+                                                                                Terminal User ID / PIN: <strong className="text-amber-700 dark:text-amber-400">#{c.devicePin}</strong>
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <span className="text-[10px] font-mono font-black text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xs">
+                                                                        {c.displayTime || 'Recent'}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between pt-2 border-t border-amber-200/60 dark:border-amber-800/40">
+                                                                    <span className="text-[10px] text-amber-800 dark:text-amber-300/80 font-semibold">
+                                                                        Scan recorded • ID not linked to staff profile
+                                                                    </span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setEnrollDahuaForm({ staffId: '', devicePin: c.devicePin });
+                                                                            setShowDahuaEnrollModal(true);
+                                                                        }}
+                                                                        className="px-3.5 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                                                                    >
+                                                                        <UserPlusIcon className="w-3.5 h-3.5" />
+                                                                        + Link to Staff Member
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+
                                                     const teacherId = c.teacherId || c.teacher_id;
                                                     const staff = activeUsers.find(u => u.id === teacherId);
-                                                    if (!staff) return null;
                                                     const morningTime = c.morningCheckInTime || c.morning_check_in_time;
                                                     const afternoonTime = c.afternoonCheckInTime || c.afternoon_check_in_time;
                                                     const morningNotes = c.morningNotes || c.morning_notes;
                                                     const afternoonNotes = c.afternoonNotes || c.afternoon_notes;
                                                     const notes = morningNotes || afternoonNotes;
+
+                                                    // Even if staff not in activeUsers, display log instead of returning null!
+                                                    const staffName = staff?.name || c.teacherName || c.staff_name || `Staff ID: ${teacherId ? teacherId.substring(0, 8) : 'Unknown'}`;
+                                                    const staffRole = staff?.role || 'Staff Member';
+
                                                     return (
                                                         <div key={c.id} className="flex gap-4 p-4 rounded-2xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-850 transition-all shadow-sm">
                                                             <div className="p-3 rounded-xl h-fit bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
@@ -2751,8 +3072,8 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                             <div className="flex-1">
                                                                 <div className="flex items-start justify-between">
                                                                     <div>
-                                                                        <h4 className="font-black text-sm text-slate-900 dark:text-white leading-tight">{staff.name}</h4>
-                                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">{staff.role}</p>
+                                                                        <h4 className="font-black text-sm text-slate-900 dark:text-white leading-tight">{staffName}</h4>
+                                                                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-1">{staffRole}</p>
                                                                     </div>
                                                                     <div className="flex flex-col gap-1 items-end">
                                                                         {morningTime && (
@@ -2776,7 +3097,7 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                                         </div>
                                                     );
                                                 })}
-                                            {((teacherCheckIns || []) as any[]).filter(c => (c.checkInDate || c.check_in_date) === todayStr).length === 0 && (
+                                            {((liveCheckIns || []) as any[]).filter(c => (c.checkInDate || c.check_in_date) === todayStr || c.isUnlinked).length === 0 && (
                                                 <div className="text-center py-12 animate-fade-in">
                                                     <ClockIcon className="w-12 h-12 text-slate-350 dark:text-slate-700 mx-auto mb-2 animate-pulse" />
                                                     <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">No staff check-ins logged today</p>
@@ -3121,6 +3442,94 @@ export const SecurityGatePassView: React.FC<SecurityGatePassViewProps> = ({
                                         </span>
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dahua Biometric ID Link / Enrollment Modal */}
+            {showDahuaEnrollModal && (
+                <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-md flex items-center justify-center z-[250] p-4 animate-in fade-in duration-150">
+                    <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 py-5 bg-gradient-to-r from-indigo-50 to-violet-50 dark:from-slate-950 dark:to-indigo-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/30">
+                                    <FingerPrintIcon className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Link Dahua Terminal ID</h3>
+                                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Map staff profile to face recognition User ID</p>
+                                </div>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setShowDahuaEnrollModal(false)}
+                                className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 text-slate-500 rounded-xl transition-all cursor-pointer"
+                            >
+                                <XIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-8 space-y-5">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5 ml-1">Select Staff Member *</label>
+                                <select
+                                    value={enrollDahuaForm.staffId}
+                                    onChange={e => {
+                                        const selectedId = e.target.value;
+                                        const existingEnr = enrollments.find(en => (en.staff_id || en.staffId) === selectedId);
+                                        setEnrollDahuaForm(f => ({
+                                            ...f,
+                                            staffId: selectedId,
+                                            devicePin: existingEnr ? (existingEnr.device_pin || existingEnr.devicePin) : f.devicePin
+                                        }));
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                                >
+                                    <option value="">-- Choose Staff Member --</option>
+                                    {filteredStaff.map(s => {
+                                        const enr = enrollments.find(e => (e.staff_id || e.staffId) === s.id);
+                                        const pin = enr?.device_pin || enr?.devicePin;
+                                        return (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} ({s.role}){pin ? ` • Current Dahua ID: #${pin}` : ' • Not Linked'}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5 ml-1">Dahua Terminal User ID / PIN / Card *</label>
+                                <input
+                                    type="text"
+                                    value={enrollDahuaForm.devicePin}
+                                    onChange={e => setEnrollDahuaForm(f => ({ ...f, devicePin: e.target.value }))}
+                                    placeholder="e.g. 101, 1, 2, or card number"
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-sm font-mono font-bold outline-none focus:ring-2 focus:ring-indigo-500 dark:text-white"
+                                />
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                                    Enter the User ID number registered on your Dahua face terminal (also visible as the User ID in unlinked Gate Log scans). Once saved, any facial punches will automatically check this teacher in.
+                                </p>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDahuaEnrollModal(false)}
+                                    className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={savingDahuaEnroll || !enrollDahuaForm.staffId || !enrollDahuaForm.devicePin.trim()}
+                                    onClick={() => handleSaveDahuaEnrollment(enrollDahuaForm.staffId, enrollDahuaForm.devicePin)}
+                                    className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md shadow-indigo-600/20 disabled:opacity-50 cursor-pointer flex items-center gap-2 active:scale-95"
+                                >
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                    {savingDahuaEnroll ? 'Saving & Linking...' : 'Save & Link Dahua ID'}
+                                </button>
                             </div>
                         </div>
                     </div>

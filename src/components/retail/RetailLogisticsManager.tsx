@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
-import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as MapPin, CurrencyIcon as Currency, UserIcon as UserCircle, EnvelopeIcon as Envelope, PhoneIcon as Phone, CheckCircleIcon as CheckCircle, XCircleIcon as XCircle, PencilIcon as Pencil } from '../icons';
+import { TruckIcon as Truck, PlusIcon as Plus, TrashIcon as Trash, MapPinIcon as MapPin, CurrencyIcon as Currency, UserIcon as UserCircle, EnvelopeIcon as Envelope, PhoneIcon as Phone, CheckCircleIcon as CheckCircle, XCircleIcon as XCircle, PencilIcon as Pencil, UploadIcon as Upload } from '../icons';
+import { RetailRatesExcelImportModal } from './RetailRatesExcelImportModal';
 
 interface Courier {
     id: string;
@@ -39,6 +40,7 @@ export function RetailLogisticsManager({ institutionId }: Props) {
     const [loading, setLoading] = useState(true);
     const [showAddCourier, setShowAddCourier] = useState(false);
     const [showAddRate, setShowAddRate] = useState(false);
+    const [showImportRates, setShowImportRates] = useState(false);
     const [activeTab, setActiveTab] = useState<'couriers' | 'rates'>('couriers');
 
     const [newCourier, setNewCourier] = useState<Partial<Courier>>({ status: 'Active' });
@@ -391,17 +393,32 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                         </div>
                     ) : (
                         <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-xl rounded-3xl border border-white/20 dark:border-slate-800/50 p-6">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="font-bold flex items-center gap-2">
-                                    <MapPin className="w-5 h-5 text-slate-400" />
-                                    Delivery Rate Matrix
-                                </h3>
-                                <button
-                                    onClick={openAddRate}
-                                    className="p-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                </button>
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                                <div>
+                                    <h3 className="font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                                        <MapPin className="w-5 h-5 text-indigo-600" />
+                                        Delivery Rate Matrix
+                                    </h3>
+                                    <p className="text-xs text-slate-400 font-medium">Manage destination zones, partner rates, and fulfillment timelines</p>
+                                </div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <button
+                                        onClick={() => setShowImportRates(true)}
+                                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all text-xs font-black uppercase tracking-wider flex items-center gap-2"
+                                        title="Import rates from Excel / CSV"
+                                    >
+                                        <Upload className="w-4 h-4" />
+                                        Import from Excel
+                                    </button>
+                                    <button
+                                        onClick={openAddRate}
+                                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all text-xs font-black uppercase tracking-wider flex items-center gap-1.5"
+                                        title="Add Single Rate"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Add Rate
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="overflow-x-auto">
@@ -625,6 +642,18 @@ export function RetailLogisticsManager({ institutionId }: Props) {
                     </div>
                 </div>
             )}
+            
+            {/* Excel Rates Importer Modal */}
+            <RetailRatesExcelImportModal
+                isOpen={showImportRates}
+                onClose={() => setShowImportRates(false)}
+                institutionId={institutionId}
+                couriers={couriers}
+                existingRates={rates}
+                onImportComplete={() => {
+                    fetchData();
+                }}
+            />
         </div>
     );
 }
