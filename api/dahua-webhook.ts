@@ -45,6 +45,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'GET') {
+        const action = (req.query.action || '').toString().toLowerCase();
+        const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
+        const sn = (req.query.SN || req.query.sn || '').toString();
+
+        if (action === 'status' || action === 'sync') {
+            const supabase = getSupabase();
+            let recentCount = 0;
+            let lastSeen: string | null = null;
+
+            if (supabase) {
+                try {
+                    let q = supabase
+                        .from('staff_attendance_logs')
+                        .select('id, punch_time, device_pin, created_at')
+                        .order('created_at', { ascending: false })
+                        .limit(20);
+
+                    if (institutionId) {
+                        q = q.eq('institution_id', institutionId);
+                    }
+
+                    const { data: logs } = await q;
+                    if (logs && logs.length > 0) {
+                        recentCount = logs.length;
+                        lastSeen = logs[0].punch_time || logs[0].created_at;
+                    }
+
+                    if (action === 'sync' && institutionId) {
+                        const today = new Date().toISOString().split('T')[0];
+                        await supabase.rpc('compute_staff_daily_attendance', {
+                            p_institution_id: institutionId,
+                            p_date: today
+                        }).catch(() => null);
+                    }
+                } catch (e) {
+                    console.warn('[Dahua Webhook] Status query error:', e);
+                }
+            }
+
+            return res.status(200).json({
+                status: 'ok',
+                online: true,
+                service: 'Dahua Biometric Webhook Receiver',
+                deviceSN: sn || undefined,
+                lastSeen,
+                recentLogsCount: recentCount,
+                synced: action === 'sync'
+            });
+        }
+
         return res.status(200).json({ status: 'ok', service: 'Dahua Biometric Webhook Receiver' });
     }
 

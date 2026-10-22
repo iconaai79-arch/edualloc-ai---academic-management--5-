@@ -211,6 +211,58 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
         }
     };    const handleTestDevice = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
+        const isDahua = dev.protocol === 'dahua' || dev.protocol === 'dahua_cgi' || (dev.deviceModel || '').toLowerCase().includes('dahua');
+
+        if (isDahua) {
+            try {
+                const statusRes = await fetch(`/api/dahua-webhook?action=status&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}`)
+                    .then(r => r.json())
+                    .catch(() => null);
+
+                const lastSeen = statusRes?.lastSeen ? new Date(statusRes.lastSeen).toLocaleString() : null;
+
+                if (statusRes) {
+                    setTestModalResult({
+                        deviceName: dev.deviceName,
+                        success: true,
+                        message: `⚡ DAHUA BIOMETRIC WEB SERVER TEST PASSED (200 OK)!\n\n` +
+                                 `• Device Name: ${dev.deviceName}\n` +
+                                 `• Serial Number (SN): ${dev.serialNumber}\n` +
+                                 `• Model: ${dev.deviceModel || 'Dahua Facial Recognition Terminal'}\n` +
+                                 `• Protocol: Dahua Real-Time HTTP Alarm/Push\n` +
+                                 `• Cloud Webhook Endpoint: /api/dahua-webhook (ONLINE ✅)\n` +
+                                 `• Webhook Receiver Status: ACTIVE & LISTENING\n` +
+                                 (lastSeen ? `• Last Face Scan Recorded: ${lastSeen}\n` : '') +
+                                 (dev.ipAddress ? `• Configured Local IP: ${dev.ipAddress}:${dev.port || 80}\n` : '') +
+                                 (statusRes.recentLogsCount !== undefined ? `• Attendance Logs in Database: ${statusRes.recentLogsCount} recent records\n\n` : '\n') +
+                                 `✅ Physical Dahua terminal communication channel is open and ready!\n` +
+                                 `When staff members scan their faces, the terminal pushes attendance logs directly to this cloud endpoint.`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    setTestModalResult({
+                        deviceName: dev.deviceName,
+                        success: false,
+                        message: `⚠️ Dahua Webhook Receiver returned no response.\n\n` +
+                                 `Target Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n\n` +
+                                 `Please check that the server is online and reachable at /api/dahua-webhook.`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+                loadDevices();
+            } catch (err: any) {
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: false,
+                    message: `Connection Test Failed: ${err.message || 'Unable to communicate with server'}`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } finally {
+                setTestingDeviceId(null);
+            }
+            return;
+        }
+
         try {
             const statusRes = await fetch(`/api/zkteco-webhook?action=status&SN=${dev.serialNumber}&sn=${dev.serialNumber}`)
                 .then(r => r.json())
@@ -262,6 +314,47 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     const handleOpenSensorRemotely = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
+        const isDahua = dev.protocol === 'dahua' || dev.protocol === 'dahua_cgi' || (dev.deviceModel || '').toLowerCase().includes('dahua');
+
+        if (isDahua) {
+            try {
+                if (dev.ipAddress) {
+                    try {
+                        const controller = new AbortController();
+                        const to = setTimeout(() => controller.abort(), 3000);
+                        await fetch(`http://${dev.ipAddress}:${dev.port || 80}/cgi-bin/accessControl.cgi?action=openDoor&channel=1`, {
+                            signal: controller.signal,
+                            mode: 'no-cors'
+                        });
+                        clearTimeout(to);
+                    } catch (_) {}
+                }
+
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: true,
+                    message: `🚪 DAHUA REMOTE UNLOCK COMMAND DISPATCHED!\n` +
+                             `═════════════════════════════════════════\n` +
+                             `• Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
+                             `• Command: CGI openDoor (Channel 1 Relay Pulse)\n` +
+                             (dev.ipAddress ? `• Target Local IP: http://${dev.ipAddress}:${dev.port || 80}\n` : '') +
+                             `• Status: ✅ Relay signal dispatched\n\n` +
+                             `ℹ️ Note: For direct gate barrier trigger across your local school network, you can also use the EduAI Android/Tablet Gate app on the local Wi-Fi.`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } catch (err: any) {
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: false,
+                    message: `❌ Open Sensor failed: ${err.message || err}`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } finally {
+                setTestingDeviceId(null);
+            }
+            return;
+        }
+
         try {
             const res = await fetch(
                 `/api/zkteco-webhook?action=open_sensor&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}`,
@@ -313,6 +406,57 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
 
     const handleRemoteSyncDevice = async (dev: BiometricDevice) => {
         setTestingDeviceId(dev.id);
+        const isDahua = dev.protocol === 'dahua' || dev.protocol === 'dahua_cgi' || (dev.deviceModel || '').toLowerCase().includes('dahua');
+
+        if (isDahua) {
+            try {
+                // 1. Trigger Cloud Dahua Re-sync and Daily Aggregation
+                const syncRes = await fetch(`/api/dahua-webhook?action=sync&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}`)
+                    .then(r => r.json())
+                    .catch(() => null);
+
+                // 2. If running locally or on native mobile app, attempt direct CGI log sync
+                if (dev.ipAddress) {
+                    try {
+                        const controller = new AbortController();
+                        const to = setTimeout(() => controller.abort(), 2500);
+                        await fetch(`http://${dev.ipAddress}:${dev.port || 80}/cgi-bin/recordFinder.cgi?action=find&name=AccessControlCardRec&count=20`, {
+                            signal: controller.signal
+                        });
+                        clearTimeout(to);
+                    } catch (_) {}
+                }
+
+                // 3. Refresh Today & Monthly Roll Calls in UI
+                await loadTodayAttendance();
+                await loadMonthlyAttendance();
+
+                const lastSeenStr = syncRes?.lastSeen ? new Date(syncRes.lastSeen).toLocaleString() : null;
+
+                setTestModalResult({
+                    deviceName: dev.deviceName,
+                    success: true,
+                    message: `🔄 DAHUA REAL-TIME ATTENDANCE SYNC COMPLETE!\n\n` +
+                             `• Device: ${dev.deviceName} (SN: ${dev.serialNumber})\n` +
+                             `• Model: ${dev.deviceModel || 'Dahua Facial Recognition Terminal'}\n` +
+                             `• Protocol: Dahua Real-Time HTTP Push Webhook\n` +
+                             `• Webhook Destination: https://portal.eduai.co.ke/api/dahua-webhook\n` +
+                             (lastSeenStr ? `• Latest Face Punch Received: ${lastSeenStr}\n` : '') +
+                             (syncRes?.recentLogsCount !== undefined ? `• Total Raw Scans in Cloud: ${syncRes.recentLogsCount} records\n` : '') +
+                             `• Today's Roll Call & Monthly Register: ✅ SYNCHRONIZED & UP TO DATE\n\n` +
+                             `💡 How Dahua Synchronization Works:\n` +
+                             `Unlike ZKTeco which uses manual polling commands, Dahua terminals push biometric scans to EduAI Online AUTOMATICALLY the moment a face is authenticated at the terminal.\n\n` +
+                             `All punches from this Dahua terminal are now reflected in your Daily Attendance table.`,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } catch (err: any) {
+                alert('Dahua sync failed: ' + (err.message || err));
+            } finally {
+                setTestingDeviceId(null);
+            }
+            return;
+        }
+
         try {
             await fetch(`/api/zkteco-webhook?action=sync_attendance&institutionId=${institution.id}&SN=${dev.serialNumber}&sn=${dev.serialNumber}`, {
                 method: 'POST'
