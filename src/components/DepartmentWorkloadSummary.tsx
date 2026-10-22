@@ -29,7 +29,7 @@ export const DepartmentWorkloadSummary: React.FC<DepartmentWorkloadSummaryProps>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 dark:text-white">{dept.departmentName}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{dept.subjectCount}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{dept.totalPeriods}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{dept.totalHours.toFixed(1)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{(Number(dept.totalHours) || 0).toFixed(1)}</td>
                         </tr>
                     ))}
                     {departmentWorkload.length === 0 && (

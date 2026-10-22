@@ -632,7 +632,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                     <td className="px-8 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white print:text-black">{data.name}</td>
                                     <td className="px-8 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 print:text-black">{data.subjectCount}</td>
                                     <td className="px-8 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400 print:text-black">{data.totalPeriods}</td>
-                                    <td className="px-8 py-4 whitespace-nowrap text-sm font-mono text-indigo-600 dark:text-indigo-400 print:text-black">{data.totalHours.toFixed(2)}h</td>
+                                    <td className="px-8 py-4 whitespace-nowrap text-sm font-mono text-indigo-600 dark:text-indigo-400 print:text-black">{(Number(data.totalHours) || 0).toFixed(2)}h</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -642,7 +642,7 @@ export const MasterCourseTimetableGrid: React.FC<MasterCourseTimetableGridProps>
                                     <td className="px-8 py-4 text-sm uppercase tracking-widest print:text-black">Aggregate Total</td>
                                     <td className="px-8 py-4 text-sm print:text-black">{overallTotals.subjectCount}</td>
                                     <td className="px-8 py-4 text-sm print:text-black">{overallTotals.totalPeriods}</td>
-                                    <td className="px-8 py-4 text-sm text-indigo-600 dark:text-indigo-400 print:text-black">{overallTotals.totalHours.toFixed(2)}h</td>
+                                    <td className="px-8 py-4 text-sm text-indigo-600 dark:text-indigo-400 print:text-black">{(Number(overallTotals.totalHours) || 0).toFixed(2)}h</td>
                                 </tr>
                             </tfoot>
                         )}

@@ -137,11 +137,11 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 attendanceDate: r.attendanceDate || r.attendance_date,
                 firstIn: r.firstIn || r.first_in,
                 lastOut: r.lastOut || r.last_out,
-                totalHours: r.totalHours ?? r.total_hours ?? 0,
-                overtimeHours: r.overtimeHours ?? r.overtime_hours ?? 0,
-                lateMinutes: r.lateMinutes ?? r.late_minutes ?? 0,
-                earlyLeaveMinutes: r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0,
-                punchCount: r.punchCount ?? r.punch_count ?? 1,
+                totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
+                overtimeHours: Number(r.overtimeHours ?? r.overtime_hours ?? 0) || 0,
+                lateMinutes: Number(r.lateMinutes ?? r.late_minutes ?? 0) || 0,
+                earlyLeaveMinutes: Number(r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0) || 0,
+                punchCount: Number(r.punchCount ?? r.punch_count ?? 1) || 1,
                 status: r.status || 'present'
             }));
             setDailyRecords(filtered);
@@ -163,11 +163,11 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 attendanceDate: r.attendanceDate || r.attendance_date,
                 firstIn: r.firstIn || r.first_in,
                 lastOut: r.lastOut || r.last_out,
-                totalHours: r.totalHours ?? r.total_hours ?? 0,
-                overtimeHours: r.overtimeHours ?? r.overtime_hours ?? 0,
-                lateMinutes: r.lateMinutes ?? r.late_minutes ?? 0,
-                earlyLeaveMinutes: r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0,
-                punchCount: r.punchCount ?? r.punch_count ?? 1,
+                totalHours: Number(r.totalHours ?? r.total_hours ?? 0) || 0,
+                overtimeHours: Number(r.overtimeHours ?? r.overtime_hours ?? 0) || 0,
+                lateMinutes: Number(r.lateMinutes ?? r.late_minutes ?? 0) || 0,
+                earlyLeaveMinutes: Number(r.earlyLeaveMinutes ?? r.early_leave_minutes ?? 0) || 0,
+                punchCount: Number(r.punchCount ?? r.punch_count ?? 1) || 1,
                 status: r.status || 'present'
             }));
             setMonthlyRecords(filtered);
@@ -565,10 +565,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     // Computed stats
     const todayStats = useMemo(() => {
         const present = dailyRecords.filter(r => r.status === 'present').length;
-        const late = dailyRecords.filter(r => r.lateMinutes > 0).length;
+        const late = dailyRecords.filter(r => (Number(r.lateMinutes) || 0) > 0).length;
         const absent = staff.length - dailyRecords.length;
         const avgHours = dailyRecords.length > 0
-            ? (dailyRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0) / dailyRecords.length).toFixed(1)
+            ? (dailyRecords.reduce((sum, r) => sum + (Number(r.totalHours) || 0), 0) / dailyRecords.length).toFixed(1)
             : '0.0';
         return { present, late, absent, avgHours, total: staff.length };
     }, [dailyRecords, staff]);
@@ -585,9 +585,9 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             }
             const entry = map.get(rec.staffId)!;
             if (rec.status === 'present' || rec.status === 'half-day') entry.days++;
-            if (rec.lateMinutes > 0) entry.late++;
-            entry.totalHours += rec.totalHours || 0;
-            entry.overtime += rec.overtimeHours || 0;
+            if ((Number(rec.lateMinutes) || 0) > 0) entry.late++;
+            entry.totalHours += (Number(rec.totalHours) || 0);
+            entry.overtime += (Number(rec.overtimeHours) || 0);
         }
         return Array.from(map.entries()).map(([staffId, data]) => ({ staffId, ...data }));
     }, [monthlyRecords, staff]);
@@ -597,6 +597,10 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const webhookUrl = typeof window !== 'undefined'
         ? `${window.location.origin}/zk`
         : 'https://portal.eduai.co.ke/zk';
+
+    const dahuaWebhookUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/api/dahua-webhook`
+        : 'https://portal.eduai.co.ke/api/dahua-webhook';
 
     const subTabs: { id: SubTab; label: string }[] = [
         { id: 'today', label: "Today's Roll Call" },
@@ -806,8 +810,8 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                             </td>
                                             <td className="px-4 py-4 text-center text-sm font-black text-slate-900 dark:text-white">{row.days}</td>
                                             <td className="px-4 py-4 text-center text-sm font-black text-amber-600">{row.late > 0 ? row.late : '—'}</td>
-                                            <td className="px-4 py-4 text-center text-sm font-black text-slate-900 dark:text-white">{row.totalHours.toFixed(1)}h</td>
-                                            <td className="px-4 py-4 text-center text-sm font-black text-emerald-600">{row.overtime > 0 ? `+${row.overtime.toFixed(1)}h` : '—'}</td>
+                                            <td className="px-4 py-4 text-center text-sm font-black text-slate-900 dark:text-white">{(Number(row.totalHours) || 0).toFixed(1)}h</td>
+                                            <td className="px-4 py-4 text-center text-sm font-black text-emerald-600">{(Number(row.overtime) || 0) > 0 ? `+${(Number(row.overtime) || 0).toFixed(1)}h` : '—'}</td>
                                         </tr>
                                     ))
                                 )}
@@ -820,23 +824,39 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
             {/* ═══════════ DEVICE FLEET ═══════════ */}
             {subTab === 'devices' && (
                 <div className="space-y-6">
-                    {/* Webhook URL Info */}
-                    <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-800 space-y-3">
-                        <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Ultra-Shortened ZKTeco ADMS Cloud Server URL</p>
-                            <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider">⚡ Easy Keypad Entry</span>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Shortest URL (Recommended for Keypad Entry)</p>
-                                <p className="text-sm font-mono text-emerald-600 dark:text-emerald-400 font-bold select-all">{webhookUrl}</p>
+                    {/* Webhook URLs Info (ZKTeco + Dahua) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* ZKTeco ADMS Card */}
+                        <div className="bg-indigo-50 dark:bg-indigo-950/20 p-6 rounded-3xl border border-indigo-100 dark:border-indigo-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">ZKTeco ADMS Cloud Server URL</p>
+                                <span className="px-3 py-1 bg-emerald-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider">⚡ ZKTeco Keypad</span>
                             </div>
-                            <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Alternative Short Path</p>
-                                <p className="text-sm font-mono text-sky-600 dark:text-sky-400 font-bold select-all">{typeof window !== 'undefined' ? `${window.location.origin}/adms` : 'https://portal.eduai.co.ke/adms'}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Shortest URL (Keypad Entry)</p>
+                                    <p className="text-sm font-mono text-emerald-600 dark:text-emerald-400 font-bold select-all">{webhookUrl}</p>
+                                </div>
+                                <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-indigo-200 dark:border-indigo-800">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Alternative Short Path</p>
+                                    <p className="text-sm font-mono text-sky-600 dark:text-sky-400 font-bold select-all">{typeof window !== 'undefined' ? `${window.location.origin}/adms` : 'https://portal.eduai.co.ke/adms'}</p>
+                                </div>
                             </div>
+                            <p className="text-[10px] text-indigo-500 font-semibold">On physical ZKTeco terminal: Menu ➔ Comm. ➔ Cloud Server / ADMS ➔ Set Server Domain to <code>portal.eduai.co.ke</code>, Path to <code>/zk</code>, Port <code>80</code>.</p>
                         </div>
-                        <p className="text-[10px] text-indigo-500 font-semibold">On your physical ZKTeco terminal screen: Menu ➔ Comm. ➔ Cloud Server / ADMS ➔ Set Server IP/Domain to <code>portal.eduai.co.ke</code>, Server Path to <code>/zk</code>, and Port to <code>80</code> (or <code>443</code>).</p>
+
+                        {/* Dahua Facial Biometric Card */}
+                        <div className="bg-emerald-50/70 dark:bg-emerald-950/20 p-6 rounded-3xl border border-emerald-100 dark:border-emerald-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">Dahua Facial Biometrics Webhook</p>
+                                <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-[9px] font-black uppercase tracking-wider">🎯 Dahua Terminal</span>
+                            </div>
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-emerald-200 dark:border-emerald-800">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Dahua Alarm Server / HTTP Push Destination URL</p>
+                                <p className="text-sm font-mono text-emerald-600 dark:text-emerald-400 font-bold select-all">{dahuaWebhookUrl}</p>
+                            </div>
+                            <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">In Dahua Device Web Portal: Network ➔ Access / Alarm Server / HTTP Push ➔ Set Destination URL to <code>{dahuaWebhookUrl}</code>, Port <code>80</code> (or <code>443</code>).</p>
+                        </div>
                     </div>
 
                     <div className="bg-white dark:bg-slate-800 rounded-[3rem] border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">

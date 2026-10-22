@@ -1794,7 +1794,7 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = (props) => {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{lec.subjectCount}</td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{lec.totalPeriods}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{lec.totalHours.toFixed(1)}</td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{(Number(lec.totalHours) || 0).toFixed(1)}</td>
                                             </tr>
                                         ))}
                                         {lecturerWorkload.length === 0 && (

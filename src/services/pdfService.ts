@@ -2934,11 +2934,11 @@ export const generateWorkloadStatisticsPdf = async (
         lec.roomNames || 'N/A',
         lec.subjectCount,
         lec.totalPeriods,
-        lec.totalHours.toFixed(1)
+        (Number(lec.totalHours) || 0).toFixed(1)
     ]);
 
-    const grandTotalHours = (lecturerWorkload || []).reduce((sum, lec) => sum + lec.totalHours, 0);
-    const grandTotalPeriods = (lecturerWorkload || []).reduce((sum, lec) => sum + lec.totalPeriods, 0);
+    const grandTotalHours = (lecturerWorkload || []).reduce((sum, lec) => sum + (Number(lec.totalHours) || 0), 0);
+    const grandTotalPeriods = (lecturerWorkload || []).reduce((sum, lec) => sum + (Number(lec.totalPeriods) || 0), 0);
 
     doc.autoTable({
         startY: yPos,
