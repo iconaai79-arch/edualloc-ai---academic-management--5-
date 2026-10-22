@@ -1081,7 +1081,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                         <div className="px-8 py-5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                             <div>
                                 <h3 className="text-md font-black text-slate-800 dark:text-white uppercase tracking-wider">Register Biometric Device</h3>
-                                <p className="text-[10px] font-semibold text-slate-400">Add a ZKTeco terminal to your institution</p>
+                                <p className="text-[10px] font-semibold text-slate-400">Add a ZKTeco or Dahua terminal to your institution</p>
                             </div>
                             <button onClick={() => setShowDeviceModal(false)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 hover:text-rose-600 text-slate-500 rounded-xl transition-all">
                                 <XIcon className="w-5 h-5" />
@@ -1091,13 +1091,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Serial Number *</label>
                                 <input type="text" value={deviceForm.serialNumber} onChange={e => setDeviceForm(f => ({ ...f, serialNumber: e.target.value }))}
-                                    placeholder="e.g. CJQ9204960012"
+                                    placeholder="e.g. CJQ9204960012 or Dahua SN"
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Device Name *</label>
                                 <input type="text" value={deviceForm.deviceName} onChange={e => setDeviceForm(f => ({ ...f, deviceName: e.target.value }))}
-                                    placeholder="e.g. Main Gate Terminal"
+                                    placeholder="e.g. Main Gate Dahua Face Terminal"
                                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -1106,25 +1106,42 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                     <select value={deviceForm.deviceModel} onChange={e => setDeviceForm(f => ({ ...f, deviceModel: e.target.value }))}
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500">
                                         <option value="">Select Model</option>
-                                        <option value="K40">K40</option>
-                                        <option value="K50">K50</option>
-                                        <option value="iClock 560">iClock 560</option>
-                                        <option value="iClock 880">iClock 880</option>
-                                        <option value="iClock 990">iClock 990</option>
-                                        <option value="SpeedFace V5L">SpeedFace V5L</option>
-                                        <option value="SpeedFace H5L">SpeedFace H5L</option>
-                                        <option value="Other">Other</option>
+                                        <optgroup label="Dahua Facial Terminals">
+                                            <option value="Dahua ASI Series (Face)">Dahua ASI Series (Face Recognition)</option>
+                                            <option value="Dahua ASI7213X">Dahua ASI7213X / ASI7214X</option>
+                                            <option value="Dahua ASI7223X">Dahua ASI7223X / ASI6213J</option>
+                                            <option value="Dahua SmartPSS">Dahua SmartPSS / Camera</option>
+                                        </optgroup>
+                                        <optgroup label="ZKTeco Terminals">
+                                            <option value="SpeedFace V5L">SpeedFace V5L</option>
+                                            <option value="SpeedFace H5L">SpeedFace H5L</option>
+                                            <option value="K40">K40</option>
+                                            <option value="K50">K50</option>
+                                            <option value="iClock 560">iClock 560</option>
+                                            <option value="iClock 880">iClock 880</option>
+                                            <option value="iClock 990">iClock 990</option>
+                                        </optgroup>
+                                        <option value="Other">Other / Generic</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Protocol</label>
-                                    <select value={deviceForm.protocol} onChange={e => setDeviceForm(f => ({ ...f, protocol: e.target.value as any }))}
+                                    <select value={deviceForm.protocol} onChange={e => {
+                                        const proto = e.target.value as any;
+                                        const isDahua = proto === 'dahua' || proto === 'dahua_cgi';
+                                        setDeviceForm(f => ({
+                                            ...f,
+                                            protocol: proto,
+                                            port: isDahua && (f.port === 4370 || !f.port) ? 80 : f.port,
+                                            deviceModel: isDahua && (!f.deviceModel || f.deviceModel.startsWith('K') || f.deviceModel.startsWith('iClock')) ? 'Dahua ASI Series (Face)' : f.deviceModel
+                                        }));
+                                    }}
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="dahua">Dahua Auto-Push / SmartPSS (Recommended)</option>
+                                        <option value="dahua_cgi">Dahua HTTP CGI / DSS Pro</option>
                                         <option value="adms">ZKTeco ADMS (Push)</option>
                                         <option value="pull">Pull SDK</option>
                                         <option value="biotime">ZKBioTime Cloud</option>
-                                        <option value="dahua">Dahua Auto-Push / SmartPSS</option>
-                                        <option value="dahua_cgi">Dahua HTTP CGI / DSS Pro</option>
                                         <option value="http_push">Generic HTTP Webhook Push</option>
                                     </select>
                                 </div>
@@ -1133,13 +1150,13 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">IP Address</label>
                                     <input type="text" value={deviceForm.ipAddress} onChange={e => setDeviceForm(f => ({ ...f, ipAddress: e.target.value }))}
-                                        placeholder="192.168.1.201"
+                                        placeholder="192.168.1.108"
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">Port</label>
-                                    <input type="number" value={deviceForm.port} onChange={e => setDeviceForm(f => ({ ...f, port: Number(e.target.value) || 4370 }))}
-                                        placeholder="4370"
+                                    <input type="number" value={deviceForm.port} onChange={e => setDeviceForm(f => ({ ...f, port: Number(e.target.value) || 80 }))}
+                                        placeholder="80"
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
                                 </div>
                             </div>
