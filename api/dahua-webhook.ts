@@ -49,6 +49,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const institutionId = (req.query.institutionId || req.query.institution_id || '').toString();
         const sn = (req.query.SN || req.query.sn || '').toString();
 
+        if (action === 'discover') {
+            const supabase = getSupabase();
+            if (!supabase) return res.status(500).json({ error: 'DB not configured' });
+
+            try {
+                // 1. Get already registered devices for this institution
+                const { data: registered } = await supabase
+                    .from('biometric_devices')
+                    .select('serial_number')
+                    .eq('institution_id', institutionId);
+
+                const registeredSns = new Set(
+                    (registered || []).map(d => (d.serial_number || '').trim().toLowerCase())
+                );
+
+                // 2. Query recent attendance logs to discover active terminals that sent punches
+                let logQuery = supabase
+                    .from('staff_attendance_logs')
+                    .select('id, institution_id, device_pin, punch_time, raw_data, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (institutionId) {
+                    logQuery = logQuery.or(`institution_id.eq.${institutionId},institution_id.is.null`);
+                }
+
+                const { data: rawLogs } = await logQuery;
+                const discoveredMap = new Map<string, any>();
+
+                for (const log of (rawLogs || [])) {
+                    let rawJson: any = {};
+                    try {
+                        rawJson = typeof log.raw_data === 'string' ? JSON.parse(log.raw_data) : (log.raw_data || {});
+                    } catch (_) {}
+
+                    const sn = (
+                        rawJson.SN ||
+                        rawJson.SerialNo ||
+                        rawJson.DeviceID ||
+                        rawJson.DeviceId ||
+                        rawJson.DevID ||
+                        ''
+                    ).toString().trim();
+
+                    if (!sn || registeredSns.has(sn.toLowerCase())) continue;
+
+                    if (!discoveredMap.has(sn)) {
+                        discoveredMap.set(sn, {
+                            serialNumber: sn,
+                            deviceName: rawJson.DeviceName || `Dahua Terminal (${sn})`,
+                            deviceModel: rawJson.DeviceType || rawJson.Model || 'Dahua Facial Recognition Terminal',
+                            lastSeen: log.punch_time || log.created_at,
+                            samplePin: log.device_pin,
+                            protocol: 'dahua'
+                        });
+                    }
+                }
+
+                return res.status(200).json({
+                    status: 'ok',
+                    discovered: Array.from(discoveredMap.values())
+                });
+            } catch (err: any) {
+                console.warn('[Dahua Webhook] Discover error:', err);
+                return res.status(200).json({ status: 'ok', discovered: [] });
+            }
+        }
+
         if (action === 'status' || action === 'sync') {
             const supabase = getSupabase();
             let recentCount = 0;
@@ -211,6 +279,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.error('[Dahua Webhook] Error inserting staff_attendance_log:', insErr);
                     } else if (!matchedUserId) {
                         processedCount++;
+                    }
+
+                    // Auto-register Dahua terminal in biometric_devices if serial number present
+                    const devSn = (data.SN || data.SerialNo || data.DeviceID || data.DeviceId || body?.SN || body?.SerialNo || body?.DeviceId || req.query.SN || req.query.sn || '').toString().trim();
+                    const devName = data.DeviceName || body?.DeviceName || 'Dahua Face Terminal';
+                    const devModel = data.DeviceType || body?.DeviceType || 'Dahua Facial Recognition Terminal';
+                    const clientIp = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim();
+
+                    if (matchedInstitutionId && devSn) {
+                        try {
+                            const { data: existingDev } = await supabase
+                                .from('biometric_devices')
+                                .select('id')
+                                .eq('institution_id', matchedInstitutionId)
+                                .eq('serial_number', devSn)
+                                .maybeSingle();
+
+                            if (!existingDev) {
+                                await supabase.from('biometric_devices').insert([{
+                                    institution_id: matchedInstitutionId,
+                                    serial_number: devSn,
+                                    device_name: `${devName} (${devSn})`,
+                                    device_model: devModel,
+                                    protocol: 'dahua',
+                                    ip_address: clientIp || null,
+                                    is_active: true,
+                                    last_sync_at: punchTime.toISOString()
+                                }]);
+                            } else {
+                                await supabase
+                                    .from('biometric_devices')
+                                    .update({ last_sync_at: punchTime.toISOString(), is_active: true })
+                                    .eq('id', existingDev.id);
+                            }
+                        } catch (_) {}
                     }
                 }
 
