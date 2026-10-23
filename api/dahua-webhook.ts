@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 // 1. Get already registered devices for this institution
                 const { data: registered } = await supabase
                     .from('biometric_devices')
-                    .select('serial_number')
+                    .select('id, serial_number, device_name, device_model, protocol, is_active, last_sync_at, ip_address, port')
                     .eq('institution_id', institutionId);
 
                 const registeredSns = new Set(
@@ -109,11 +109,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 return res.status(200).json({
                     status: 'ok',
-                    discovered: Array.from(discoveredMap.values())
+                    discovered: Array.from(discoveredMap.values()),
+                    registered: (registered || []).map(r => ({
+                        id: r.id,
+                        serialNumber: r.serial_number,
+                        deviceName: r.device_name,
+                        deviceModel: r.device_model,
+                        protocol: r.protocol,
+                        isActive: r.is_active,
+                        lastSyncAt: r.last_sync_at,
+                        ipAddress: r.ip_address,
+                        port: r.port
+                    })),
+                    recentLogsCount: (rawLogs || []).length
                 });
             } catch (err: any) {
                 console.warn('[Dahua Webhook] Discover error:', err);
-                return res.status(200).json({ status: 'ok', discovered: [] });
+                return res.status(200).json({ status: 'ok', discovered: [], registered: [] });
             }
         }
 

@@ -93,6 +93,7 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
     const [autoDetectingDahua, setAutoDetectingDahua] = useState(false);
     const [showAutoDetectModal, setShowAutoDetectModal] = useState(false);
     const [discoveredDevices, setDiscoveredDevices] = useState<any[]>([]);
+    const [registeredDahuaDevices, setRegisteredDahuaDevices] = useState<any[]>([]);
     const [claimingDeviceId, setClaimingDeviceId] = useState<string | null>(null);
 
     // Fetch data
@@ -659,9 +660,18 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                 .catch(() => null);
 
             setDiscoveredDevices(res?.discovered || []);
+            const apiReg = res?.registered || [];
+            if (apiReg.length > 0) {
+                setRegisteredDahuaDevices(apiReg);
+            } else {
+                const localDahua = devices.filter(d => d.protocol === 'dahua' || (d.deviceModel || '').toLowerCase().includes('dahua'));
+                setRegisteredDahuaDevices(localDahua);
+            }
         } catch (err: any) {
             console.error('Auto detect error:', err);
             setDiscoveredDevices([]);
+            const localDahua = devices.filter(d => d.protocol === 'dahua' || (d.deviceModel || '').toLowerCase().includes('dahua'));
+            setRegisteredDahuaDevices(localDahua);
         } finally {
             setAutoDetectingDahua(false);
         }
@@ -1744,74 +1754,148 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                     <p className="text-sm font-black text-slate-800 dark:text-white">Scanning Cloud Webhook for Incoming Dahua Terminals...</p>
                                     <p className="text-[10px] text-slate-400">Checking for recent face scans and network broadcasts from Dahua hardware</p>
                                 </div>
-                            ) : discoveredDevices.length > 0 ? (
-                                <div className="space-y-4">
-                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
-                                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                                            🎉 Found {discoveredDevices.length} Online Dahua Device{discoveredDevices.length > 1 ? 's' : ''}!
-                                        </span>
-                                        <button 
-                                            onClick={handleAutoDetectDahua} 
-                                            className="text-[9px] font-black uppercase text-emerald-600 hover:underline"
-                                        >
-                                            Refresh
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        {discoveredDevices.map((d, idx) => (
-                                            <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                                <div className="space-y-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black rounded-lg uppercase">Dahua Face</span>
-                                                        <h4 className="text-sm font-black text-slate-900 dark:text-white">{d.deviceName || `Terminal ${d.serialNumber}`}</h4>
+                            ) : (
+                                <>
+                                    {/* 1. Already Registered Dahua Fleet in Account */}
+                                    {registeredDahuaDevices.length > 0 && (
+                                        <div className="p-5 bg-emerald-50/70 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-800 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                                                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                    Configured Fleet: {registeredDahuaDevices.length} Device{registeredDahuaDevices.length > 1 ? 's' : ''} Already in Your Account
+                                                </span>
+                                                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 bg-emerald-600 text-white rounded-md">
+                                                    Registered ✅
+                                                </span>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {registeredDahuaDevices.map((regDev, rIdx) => (
+                                                    <div key={rIdx} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-emerald-100 dark:border-emerald-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <h4 className="font-black text-xs text-slate-900 dark:text-white">{regDev.deviceName || `Dahua Terminal (${regDev.serialNumber})`}</h4>
+                                                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 rounded text-slate-700 dark:text-slate-300">
+                                                                    SN: {regDev.serialNumber}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                                                {regDev.lastSyncAt ? (
+                                                                    <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                                                                        🟢 Last Face Scan Received: {new Date(regDev.lastSyncAt).toLocaleString()}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                                                        🟡 Listening on Webhook — Scan 1 face to record first punch
+                                                                    </span>
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setShowAutoDetectModal(false);
+                                                                    handleTestDevice(regDev);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-600 hover:text-white text-indigo-600 dark:text-indigo-300 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all border border-indigo-200 dark:border-indigo-800 whitespace-nowrap active:scale-95 shadow-sm"
+                                                            >
+                                                                ⚡ Test Status
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setShowAutoDetectModal(false);
+                                                                    handleRemoteSyncDevice(regDev);
+                                                                }}
+                                                                className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-600 hover:text-white text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all border border-emerald-200 dark:border-emerald-800 whitespace-nowrap active:scale-95 shadow-sm"
+                                                            >
+                                                                🔄 Sync Roll Call
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                    <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                                                        SN: <strong className="text-slate-800 dark:text-slate-200">{d.serialNumber}</strong>
-                                                    </p>
-                                                    {d.lastSeen && (
-                                                        <p className="text-[9px] text-slate-400">
-                                                            Last contact: {new Date(d.lastSeen).toLocaleString()}
-                                                        </p>
-                                                    )}
-                                                </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
-                                                <button
-                                                    onClick={() => handleClaimDahuaDevice(d)}
-                                                    disabled={claimingDeviceId === d.serialNumber}
-                                                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap"
+                                    {/* 2. New Unclaimed Dahua Terminals Detected */}
+                                    {discoveredDevices.length > 0 ? (
+                                        <div className="space-y-4">
+                                            <div className="p-3 bg-teal-50 dark:bg-teal-950/30 rounded-2xl border border-teal-200 dark:border-teal-800 flex items-center justify-between">
+                                                <span className="text-[10px] font-black uppercase tracking-wider text-teal-800 dark:text-teal-300">
+                                                    🎉 Found {discoveredDevices.length} NEW Dahua Terminal{discoveredDevices.length > 1 ? 's' : ''}!
+                                                </span>
+                                                <button 
+                                                    onClick={handleAutoDetectDahua} 
+                                                    className="text-[9px] font-black uppercase text-teal-600 hover:underline"
                                                 >
-                                                    {claimingDeviceId === d.serialNumber ? 'Adding...' : '+ Claim & Add to Account'}
+                                                    Refresh
                                                 </button>
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 text-center space-y-3">
-                                        <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
-                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-                                            </svg>
-                                        </div>
-                                        <h4 className="text-sm font-black text-slate-800 dark:text-white">No New Dahua Devices Detected Yet</h4>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            The cloud webhook is waiting for an incoming signal from your Dahua terminal.
-                                        </p>
-                                    </div>
 
-                                    <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 space-y-2 text-xs">
-                                        <p className="font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 text-[10px]">
-                                            ⚡ How to trigger instant detection:
-                                        </p>
-                                        <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 text-[11px]">
-                                            <li>Ensure your Dahua terminal has Destination Server set to: <code className="font-bold text-indigo-600 dark:text-indigo-400 select-all">{dahuaWebhookUrl}</code></li>
-                                            <li><strong>Scan 1 face</strong> in front of the Dahua camera (or click <strong>Test</strong> in the Dahua device web portal).</li>
-                                            <li>Click <strong>Scan Again</strong> below. EduAI will instantly catch the device and allow you to claim it with 1 click!</li>
-                                        </ol>
-                                    </div>
-                                </div>
+                                            <div className="space-y-3">
+                                                {discoveredDevices.map((d, idx) => (
+                                                    <div key={idx} className="p-5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                        <div className="space-y-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black rounded-lg uppercase">New Dahua Face</span>
+                                                                <h4 className="text-sm font-black text-slate-900 dark:text-white">{d.deviceName || `Terminal ${d.serialNumber}`}</h4>
+                                                            </div>
+                                                            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                                                SN: <strong className="text-slate-800 dark:text-slate-200">{d.serialNumber}</strong>
+                                                            </p>
+                                                            {d.lastSeen && (
+                                                                <p className="text-[9px] text-slate-400">
+                                                                    Last contact: {new Date(d.lastSeen).toLocaleString()}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => handleClaimDahuaDevice(d)}
+                                                            disabled={claimingDeviceId === d.serialNumber}
+                                                            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md active:scale-95 whitespace-nowrap"
+                                                        >
+                                                            {claimingDeviceId === d.serialNumber ? 'Adding...' : '+ Claim & Add to Account'}
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : registeredDahuaDevices.length > 0 ? (
+                                        <div className="p-5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700 text-center space-y-2">
+                                            <p className="text-xs font-black text-slate-700 dark:text-slate-200">
+                                                ✨ No Additional Unclaimed Dahua Devices Detected
+                                            </p>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                Your configured terminal above is already active in your account. The auto-detector only lists brand-new terminals that haven't been claimed yet.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 text-center space-y-3">
+                                                <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/40 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+                                                    </svg>
+                                                </div>
+                                                <h4 className="text-sm font-black text-slate-800 dark:text-white">No Dahua Devices Detected Yet</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                    The cloud webhook is waiting for an incoming signal from your Dahua terminal.
+                                                </p>
+                                            </div>
+
+                                            <div className="p-5 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-800 space-y-2 text-xs">
+                                                <p className="font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 text-[10px]">
+                                                    ⚡ How to trigger instant detection:
+                                                </p>
+                                                <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 text-[11px]">
+                                                    <li>Ensure your Dahua terminal has Destination Server set to: <code className="font-bold text-indigo-600 dark:text-indigo-400 select-all">{dahuaWebhookUrl}</code></li>
+                                                    <li><strong>Scan 1 face</strong> in front of the Dahua camera (or click <strong>Test</strong> in the Dahua device web portal).</li>
+                                                    <li>Click <strong>Scan Again</strong> below. EduAI will instantly catch the device and allow you to claim it with 1 click!</li>
+                                                </ol>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
 
