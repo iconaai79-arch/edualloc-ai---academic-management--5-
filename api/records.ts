@@ -1382,14 +1382,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 q = q.eq('institution_id', user.institutionId);
                             }
                         }
-                    } else if (effectiveTenantInstId && moduleName !== 'institutions' && !isTableWithoutInstitutionId(moduleName)) {
+                    } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
                         const rawId = effectiveTenantInstId.replace(/^inst_/, '');
                         const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
                         const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                        const instCol = moduleName === 'institutions' ? 'id' : 'institution_id';
                         if (instVariants.length === 1) {
-                            q = q.eq('institution_id', instVariants[0]);
+                            q = q.eq(instCol, instVariants[0]);
                         } else {
-                            q = q.in('institution_id', instVariants);
+                            q = q.in(instCol, instVariants);
                         }
                     }
                     if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
@@ -1491,10 +1492,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let data: any[] = [];
             let error: any = null;
 
-            // Fast query timeout: 3.5s for institutions to quickly fallback before watchdog; 8s for heavy/bulk modules; 5s for standard
-            const queryTimeout = moduleName === 'institutions' 
-                ? 3500 
-                : (['activity_log', 'activity_logs', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'books', 'library_transactions', 'financial_periods', 'financial_goals', 'bank_accounts', 'school_bank_accounts', 'fee_structures', 'vote_heads'].includes(moduleName) ? 8000 : 5000);
+            // Fast query timeout: 8s for heavy/bulk modules and institutions; 5s for standard
+            const queryTimeout = (['activity_log', 'activity_logs', 'ds_leads', 'ds_students', 'ds_lessons', 'ds_invoices', 'ds_payments', 'ds_expenditures', 'receipts', 'invoices', 'users', 'students', 'student_enrollments', 'visitors', 'building_visitor_logs', 'security_alerts', 'app_notifications', 'school_registry', 'teacher_check_ins', 'teacher_checkins', 'school_remedial_sessions', 'school_remedial_allocations', 'school_remedial_payouts', 'school_remedial_duty_roster', 'remedial_sessions', 'remedial_allocations', 'remedial_payouts', 'remedial_duty_roster', 'books', 'library_transactions', 'financial_periods', 'financial_goals', 'bank_accounts', 'school_bank_accounts', 'fee_structures', 'vote_heads', 'institutions'].includes(moduleName) ? 8000 : 5000);
             const executeWithTimeout = async (queryBuilder: any, timeoutMs: number = queryTimeout): Promise<any> => {
                 let timer: any;
                 const elapsed = Date.now() - requestStartTime;
@@ -1605,14 +1604,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             sqlConditions.push({ sql: `institution_id::text = $VAL`, val: user.institutionId });
                         }
                     }
-                } else if (effectiveTenantInstId && moduleName !== 'institutions' && !isTableWithoutInstitutionId(moduleName)) {
+                } else if (effectiveTenantInstId && !isTableWithoutInstitutionId(moduleName)) {
                     const rawId = effectiveTenantInstId.replace(/^inst_/, '');
                     const prefixedId = effectiveTenantInstId.startsWith('inst_') ? effectiveTenantInstId : `inst_${effectiveTenantInstId}`;
                     const instVariants = Array.from(new Set([effectiveTenantInstId, rawId, prefixedId])).filter(Boolean);
+                    const instCol = moduleName === 'institutions' ? 'id' : 'institution_id';
                     if (instVariants.length === 1) {
-                        sqlConditions.push({ sql: `"institution_id"::text = $VAL`, val: instVariants[0] });
+                        sqlConditions.push({ sql: `"${instCol}"::text = $VAL`, val: instVariants[0] });
                     } else {
-                        sqlConditions.push({ sql: `"institution_id"::text IN ($VAL, $VAL)`, vals: [instVariants[0], instVariants[1]] });
+                        sqlConditions.push({ sql: `"${instCol}"::text IN ($VAL, $VAL)`, vals: [instVariants[0], instVariants[1]] });
                     }
                 }
                 if (moduleName === 'app_notifications' && !isGroupOrSuperAdmin && user?.id && !getStrParam(req.query.user_id) && !getStrParam(req.query.userId)) {
@@ -1752,7 +1752,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     'institution_module_states',
                     'branches',
                     'payroll_records', 'payroll_runs', 'his_expenditures',
-                    'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'ds_vehicles',
+                    'vehicles', 'vehicle_logs', 'transport_onboarding', 'transport_bills', 'ds_vehicles', 'institutions'
                 ].includes(moduleName);
                 const canUseDirectPg = (isBulkModule || finalLimit > 1000) && _directPgDisabledUntil < Date.now();
                 let directPgSuccess = false;
