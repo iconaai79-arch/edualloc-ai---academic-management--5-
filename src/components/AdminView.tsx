@@ -712,6 +712,11 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const businessSubType = props.currentInstitution?.businessSubType;
     const isBusiness = institutionType === 'Business';
     const roleToUse = props.activeRole || props.currentUser?.role;
+    const isSuperAdmin = props.currentUser?.role === 'super_admin' || 
+                         (props.currentUser as any)?.is_super_admin === true || 
+                         isSuperAdminUser(props.currentUser) || 
+                         isSuperAdminUser(roleToUse) || 
+                         !!localStorage.getItem('eduai_super_admin_session');
 
     const isDS = useMemo(() => {
         return isDSInstitution(props.currentInstitution) || 
@@ -1437,7 +1442,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
         }
 
         return filteredTabs;
-    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope, isHeritage, isDos]);
+    }, [props.currentUser?.role, props.activeRole, props.currentInstitution, isSchool, isEdu, isBusiness, businessSubType, institutionType, isRetailAgency, activeScope, isHeritage, isDos, isSuperAdmin]);
 
     const stats = useMemo(() => {
         const pendingCount = (requests || []).filter((r: AllocationRequest) => r && (r.status === 'pending' || r.status === 'hod_approved')).length;

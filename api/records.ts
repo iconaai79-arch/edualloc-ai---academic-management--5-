@@ -835,7 +835,7 @@ const safeUpsertImsRecord = async (supabaseClient: any, payload: any) => {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PATCH,DELETE,HEAD');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST,PATCH,PUT,DELETE,HEAD');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS' || req.method === 'HEAD') return res.status(200).end();
@@ -7702,6 +7702,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                 break;
             }
+        }
 
             if (moduleName === 'school_remedial_rate_settings') {
                 const savedItem = Array.isArray(currentPayload) ? currentPayload[0] : currentPayload;
@@ -8061,10 +8062,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json(data?.[0] || { success: true, id: (recordData as any)?.id || getStrParam(id), module: moduleName });
         }
-    }
 
 
-        if (req.method === 'PATCH') {
+        if (req.method === 'PATCH' || req.method === 'PUT') {
             try {
                 const { data: updateData, ids: bodyIds } = req.body || {};
                 const rawId = req.query.id;

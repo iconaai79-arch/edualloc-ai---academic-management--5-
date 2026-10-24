@@ -10178,8 +10178,43 @@ export const apiService = {
                         if (res.ok) {
                             await localDb.delete('sync_queue', item.id);
                         } else if (res.status === 405) {
-                            console.warn(`[apiService] Server returned 405 Method Not Allowed for module sync [${item.module}]. Pausing offline queue sync.`);
-                            break;
+                            console.warn(`[apiService] Server returned 405 for module sync [${item.module}]. Retrying via PATCH if id exists, or clearing corrupt queue item.`);
+                            let patchSucceeded = false;
+                            if (item.data && item.data.id) {
+                                try {
+                                    const patchRes = await fetch(`/api/records?module=${item.module}&id=${item.data.id}`, {
+                                        method: 'PATCH',
+                                        headers: {
+                                            'Authorization': token ? `Bearer ${token}` : '',
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({ data: item.data })
+                                    });
+                                    if (patchRes.ok) {
+                                        await localDb.delete('sync_queue', item.id);
+                                        patchSucceeded = true;
+                                    }
+                                } catch (_) {}
+                            }
+                            if (!patchSucceeded) {
+                                const retries = (item.retries || 0) + 1;
+                                if (retries >= 3) {
+                                    console.warn(`[apiService] Discarding un-syncable item [${item.module}] (id: ${item.id}) after 3 attempts.`);
+                                    await localDb.delete('sync_queue', item.id);
+                                } else {
+                                    item.retries = retries;
+                                    await localDb.put('sync_queue', item);
+                                }
+                            }
+                        } else if (res.status >= 400 && res.status < 500) {
+                            const retries = (item.retries || 0) + 1;
+                            if (retries >= 3) {
+                                console.warn(`[apiService] Discarding invalid item [${item.module}] (id: ${item.id}) after HTTP ${res.status}.`);
+                                await localDb.delete('sync_queue', item.id);
+                            } else {
+                                item.retries = retries;
+                                await localDb.put('sync_queue', item);
+                            }
                         }
                     }
                 } catch (_) {
