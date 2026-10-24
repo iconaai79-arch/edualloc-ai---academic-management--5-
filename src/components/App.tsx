@@ -1774,19 +1774,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     }
                 } else {
                     localDb.bulkPut('institutions', insts).catch(() => {});
-                    try {
-                        const existingLs = (() => { try { return JSON.parse(localStorage.getItem('institutions') || 'null'); } catch { return null; } })();
-                        if (Array.isArray(existingLs) && existingLs.length > insts.length) {
-                            const map = new Map<string, Institution>();
-                            existingLs.forEach((i: any) => i && i.id && map.set(i.id, i));
-                            insts.forEach((i: any) => i && i.id && map.set(i.id, i));
-                            const merged = Array.from(map.values());
-                            safeLocalStorage.setItem('institutions', JSON.stringify(merged));
-                        } else {
-                            safeLocalStorage.setItem('institutions', JSON.stringify(insts));
-                        }
-                    } catch (_) {}
+                    safeLocalStorage.setItem('institutions', JSON.stringify(insts));
                 }
+
+                // Filter out any tombstoned deleted institution IDs
+                const deletedTombstone = new Set<string>(
+                    (() => { try { return JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]'); } catch { return []; } })()
+                );
+                if (deletedTombstone.size > 0 && Array.isArray(insts)) {
+                    insts = insts.filter(i => i && !deletedTombstone.has(i.id));
+                }
+
                 if (!u || u.length === 0) {
                     const localU = await localDb.getAll<User>('users').catch(() => []);
                     u = (localU && localU.length > 0) ? localU : INITIAL_USERS;
@@ -1815,17 +1813,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 : normalizedUsers;
             setUsers(scopedPhase1Users);
             setInstitutions(prev => {
-                if (insts && insts.length > 0) {
-                    if (insts.length <= 2 && prev && prev.length > 2) {
-                        return prev;
-                    }
-                    const prevMap = new Map((prev || []).map(p => [p.id, p]));
-                    insts.forEach(fi => {
-                        prevMap.set(fi.id, { ...(prevMap.get(fi.id) || {}), ...fi });
-                    });
-                    return Array.from(prevMap.values());
+                const deletedTombstone = new Set<string>(
+                    (() => { try { return JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]'); } catch { return []; } })()
+                );
+                const serverList = (insts || []).filter(i => i && !deletedTombstone.has(i.id));
+                if (serverList.length > 0) {
+                    return serverList;
                 }
-                return (prev && prev.length > 0) ? prev : (insts || []);
+                return (prev && prev.length > 0) ? prev.filter(i => i && !deletedTombstone.has(i.id)) : (insts || []);
             });
             setEvents(evts || []);
             if (cnts) setCounties(cnts);
@@ -1908,14 +1903,14 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             // ── Commit Phase 1 data → unlock UI immediately ──────────────────
             if (insts && insts.length > 0) {
                 setInstitutions(prev => {
-                    if (insts.length <= 2 && prev && prev.length > 2) {
-                        return prev;
+                    const deletedTombstone = new Set<string>(
+                        (() => { try { return JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]'); } catch { return []; } })()
+                    );
+                    const serverList = (insts || []).filter(i => i && !deletedTombstone.has(i.id));
+                    if (serverList.length > 0) {
+                        return serverList;
                     }
-                    const prevMap = new Map((prev || []).map(p => [p.id, p]));
-                    insts.forEach(fi => {
-                        prevMap.set(fi.id, { ...(prevMap.get(fi.id) || {}), ...fi });
-                    });
-                    return Array.from(prevMap.values());
+                    return (prev && prev.length > 0) ? prev.filter(i => i && !deletedTombstone.has(i.id)) : (insts || []);
                 });
             } else if (isOffline) {
                 setInstitutions(prev => (prev && prev.length > 0 ? prev : INITIAL_INSTITUTIONS));
@@ -4986,7 +4981,26 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             console.warn('[onDeleteInstitution] Purge error:', e);
             await apiService.deleteModuleRecord('institutions', id);
         }
-        loadData();
+        // Immediate clean in state, storage and localDb
+        setInstitutions(prev => (prev || []).filter(i => i && i.id !== id));
+        await localDb.delete('institutions', id).catch(() => {});
+        try {
+            const raw = localStorage.getItem('institutions');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    safeLocalStorage.setItem('institutions', JSON.stringify(parsed.filter((i: any) => i && i.id !== id)));
+                }
+            }
+        } catch (_) {}
+        try {
+            const tombstone: string[] = JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]');
+            if (!tombstone.includes(id)) {
+                tombstone.push(id);
+                localStorage.setItem('eduai_deleted_institution_ids', JSON.stringify(tombstone));
+            }
+        } catch (_) {}
+        await loadData(false, true);
     };
 
     const onToggleInstitutionStatus = async (id: string) => {
@@ -6950,7 +6964,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
              loadData(); 
         },
         onUpdateInstitution,
-        onDeleteInstitution: (id: string) => { if (id) onDeleteInstitution(id); },
+        onDeleteInstitution: async (id: string) => { if (id) await onDeleteInstitution(id); },
         onToggleInstitutionStatus,
         onToggleConstituencyStatus,
         onUpdateConstituency,

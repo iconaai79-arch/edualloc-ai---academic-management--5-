@@ -202,11 +202,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               // Ignore if column or table does not exist
             }
           }
+          try {
+            await pool.query(`DELETE FROM public.institutions WHERE id = ANY($1)`, [idsArray]);
+          } catch (_) {}
         }
 
-        for (const tbl of ['branches', 'institution_module_states', 'users']) {
+        // Always also cascade delete via Supabase client for all child tables
+        for (const tbl of relatedTables) {
           try {
             await supabase.from(tbl).delete().in('institution_id', idsArray);
+          } catch (_) {}
+          try {
+            await supabase.from(tbl).delete().in('institutionId', idsArray);
           } catch (_) {}
         }
       } catch (err) {
@@ -404,7 +411,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (delErr && !pgDeleteSuccess) {
         if (moduleName !== 'exam_units' && moduleName !== 'exam_broadsheets') {
           console.error(`[/api/delete] Supabase error for ${moduleName}:`, delErr);
-          return res.status(200).json({ success: false, error: delErr.message, code: delErr.code });
+          return res.status(400).json({ success: false, error: delErr.message, code: delErr.code });
         }
       }
     } catch (_) {}

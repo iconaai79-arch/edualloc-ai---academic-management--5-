@@ -4985,17 +4985,85 @@ export const apiService = {
         if (!institutionId) return;
 
         const affectedModules = [
-            'institutions', 'branches', 'branch_integration_configs',
-            'institution_module_states', 'users', 'departments', 'courses',
+            'branches', 'branch_integration_configs',
+            'institution_module_states', 'departments', 'courses',
             'subjects', 'rooms', 'buildings', 'academic_years', 'semesters',
             'academic_levels', 'allocation_requests', 'timetable_entries',
+            'exam_timetable_entries', 'student_enrollments', 'assessments', 'assessment_marks',
+            'fee_structures', 'invoices', 'receipts', 'mpesa_transactions', 'vote_heads',
             'inventory', 'visitors', 'security_alerts',
             'ds_students', 'ds_instructors', 'ds_vehicles', 'ds_lessons', 'ds_payments', 'ds_tests',
+            'ds_leads', 'ds_invoices', 'ds_expenditures', 'ds_settings', 'ds_skill_masteries',
             'his_patients', 'his_staff', 'his_wards', 'his_beds', 'his_appointments',
-            'property_management_properties', 'property_management_units', 'property_management_leases'
+            'property_management_properties', 'property_management_units', 'property_management_leases',
+            'car_sales_listings', 'car_sales_leads', 'car_sales_agreements',
+            'coop_farmers', 'coop_collections', 'coop_riders', 'coop_agrovet_inventory', 'coop_agrovet_sales',
+            'sacco_accounts', 'sacco_transactions', 'coop_monthly_payouts',
+            'retail_stores', 'retail_inventory_items', 'retail_suppliers', 'retail_expenses',
+            'transport_vehicles', 'transport_onboardings', 'transport_vehicle_logs',
+            'law_clients', 'law_matters', 'law_documents', 'law_time_entries', 'law_invoices', 'law_trust_transactions',
+            'class_subject_allocations', 'lesson_allocations', 'teacher_lesson_plans',
+            'student_attendances', 'student_conduct_records', 'observation_notes',
+            'school_remedial_sessions', 'school_remedial_rate_settings', 'school_remedial_payouts',
+            'school_remedial_allocations', 'school_remedial_subjects', 'school_remedial_duty_roster',
+            'users', 'institutions'
         ];
         affectedModules.forEach(m => invalidateModuleCache(m));
 
+        // 1. Client-side direct Supabase cascade if initialized
+        if (_supabase) {
+            for (const m of affectedModules) {
+                if (m === 'institutions') continue;
+                try { await _supabase.from(m).delete().eq('institution_id', institutionId); } catch (_) {}
+                try { await _supabase.from(m).delete().eq('institutionId', institutionId); } catch (_) {}
+            }
+            try {
+                await _supabase.from('institutions').delete().eq('id', institutionId);
+            } catch (_) {}
+        }
+
+        // 2. Direct SQL cascade execution
+        try {
+            await apiService.runMigration(`
+                DELETE FROM public.branches WHERE institution_id = '${institutionId}';
+                DELETE FROM public.institution_module_states WHERE institution_id = '${institutionId}';
+                DELETE FROM public.departments WHERE institution_id = '${institutionId}';
+                DELETE FROM public.courses WHERE institution_id = '${institutionId}';
+                DELETE FROM public.subjects WHERE institution_id = '${institutionId}';
+                DELETE FROM public.rooms WHERE institution_id = '${institutionId}';
+                DELETE FROM public.buildings WHERE institution_id = '${institutionId}';
+                DELETE FROM public.academic_years WHERE institution_id = '${institutionId}';
+                DELETE FROM public.semesters WHERE institution_id = '${institutionId}';
+                DELETE FROM public.academic_levels WHERE institution_id = '${institutionId}';
+                DELETE FROM public.allocation_requests WHERE institution_id = '${institutionId}';
+                DELETE FROM public.timetable_entries WHERE institution_id = '${institutionId}';
+                DELETE FROM public.student_enrollments WHERE institution_id = '${institutionId}';
+                DELETE FROM public.invoices WHERE institution_id = '${institutionId}';
+                DELETE FROM public.receipts WHERE institution_id = '${institutionId}';
+                DELETE FROM public.fee_structures WHERE institution_id = '${institutionId}';
+                DELETE FROM public.vote_heads WHERE institution_id = '${institutionId}';
+                DELETE FROM public.users WHERE institution_id = '${institutionId}';
+                DELETE FROM public.institutions WHERE id = '${institutionId}';
+            `);
+        } catch (_) {}
+
+        // 3. Backend proxy delete
+        try {
+            await apiService.deleteModuleRecord('institutions', institutionId);
+        } catch (_) {}
+
+        // 4. Remove from IndexedDB
+        try {
+            await localDb.delete('institutions', institutionId);
+            const localUsers = await localDb.getAll('users').catch(() => []);
+            for (const usr of localUsers) {
+                if (usr && (usr.institutionId === institutionId || usr.institution_id === institutionId)) {
+                    await localDb.delete('users', usr.id).catch(() => {});
+                }
+            }
+        } catch (_) {}
+
+        // 5. Clean local storage & session state
         try {
             const insts = ls.get('institutions');
             if (Array.isArray(insts)) {
@@ -5008,6 +5076,13 @@ export const apiService = {
             const users = ls.get('users');
             if (Array.isArray(users)) {
                 ls.set('users', users.filter((u: any) => u && u.institutionId !== institutionId && (u as any).institution_id !== institutionId));
+            }
+            const rawLs = localStorage.getItem('institutions');
+            if (rawLs) {
+                const parsed = JSON.parse(rawLs);
+                if (Array.isArray(parsed)) {
+                    safeLocalStorage.setItem('institutions', JSON.stringify(parsed.filter((i: any) => i && i.id !== institutionId)));
+                }
             }
         } catch (_) {}
 
@@ -5022,7 +5097,14 @@ export const apiService = {
             }
         } catch (_) {}
 
-        await apiService.deleteModuleRecord('institutions', institutionId);
+        // 6. Record in deleted tombstone so stale background refreshes never resurrect this institution
+        try {
+            const tombstone: string[] = JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]');
+            if (!tombstone.includes(institutionId)) {
+                tombstone.push(institutionId);
+                localStorage.setItem('eduai_deleted_institution_ids', JSON.stringify(tombstone));
+            }
+        } catch (_) {}
     },
 
     async saveModuleRecord<T = any>(module: string, data: T): Promise<T | null> {
@@ -6433,6 +6515,12 @@ export const apiService = {
             localDb.bulkPut('institutions', insts).catch(() => {});
         }
         if (!Array.isArray(insts)) insts = [];
+        const tombstone = new Set<string>(
+            (() => { try { return JSON.parse(localStorage.getItem('eduai_deleted_institution_ids') || '[]'); } catch { return []; } })()
+        );
+        if (tombstone.size > 0) {
+            insts = insts.filter(i => i && !tombstone.has(i.id));
+        }
         insts = insts.map(raw => {
             const inst = { ...raw } as any;
             inst.name = inst.name || inst.institution_name || 'Unnamed Institution';
