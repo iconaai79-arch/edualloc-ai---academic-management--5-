@@ -290,6 +290,24 @@ export async function collectAndDownloadTenantBackup(
 
     const instId = inst.id;
 
+    // Robust fetch helper that checks function existence and falls back to fetchModuleRecords
+    const safeFetch = async <T = any>(table: string, methodName?: string): Promise<T[]> => {
+        try {
+            if (methodName && typeof (apiService as any)?.[methodName] === 'function') {
+                const res = await (apiService as any)[methodName](instId);
+                if (Array.isArray(res)) return res;
+            }
+            if (typeof apiService?.fetchModuleRecords === 'function') {
+                const res = await apiService.fetchModuleRecords<T>(table, instId);
+                if (Array.isArray(res)) return res;
+            }
+            return [];
+        } catch (e) {
+            console.warn(`[tenantSqlBackup] Notice: safeFetch skipped ${table}:`, e);
+            return [];
+        }
+    };
+
     // Concurrently fetch all potential relational child records
     const [
         remoteBranches,
@@ -323,39 +341,39 @@ export async function collectAndDownloadTenantBackup(
         propUnits,
         propLeases
     ] = await Promise.all([
-        apiService.fetchModuleRecords<any>('branches', instId).catch(() => []),
-        apiService.fetchModuleRecords<User>('users', instId).catch(() => []),
-        apiService.fetchDepartments(instId).catch(() => []),
-        apiService.fetchCourses(instId).catch(() => []),
-        apiService.fetchSubjects(instId).catch(() => []),
-        apiService.fetchRooms(instId).catch(() => []),
-        apiService.fetchBuildings(instId).catch(() => []),
-        apiService.fetchAcademicYears(instId).catch(() => []),
-        apiService.fetchSemesters(instId).catch(() => []),
-        apiService.fetchAcademicLevels(instId).catch(() => []),
-        apiService.fetchAllocations(instId).catch(() => []),
-        apiService.fetchTimetable(instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('institution_module_states', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('inventory', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('visitors', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('security_alerts', instId).catch(() => []),
+        safeFetch<any>('branches'),
+        safeFetch<User>('users'),
+        safeFetch<any>('departments', 'fetchDepartments'),
+        safeFetch<any>('courses', 'fetchCourses'),
+        safeFetch<any>('subjects', 'fetchSubjects'),
+        safeFetch<any>('rooms', 'fetchRooms'),
+        safeFetch<any>('buildings', 'fetchBuildings'),
+        safeFetch<any>('academic_years', 'fetchAcademicYears'),
+        safeFetch<any>('semesters', 'fetchSemesters'),
+        safeFetch<any>('academic_levels', 'fetchAcademicLevels'),
+        safeFetch<any>('allocation_requests', 'fetchAllocations'),
+        safeFetch<any>('timetable_entries', 'fetchTimetable'),
+        safeFetch<any>('institution_module_states'),
+        safeFetch<any>('inventory'),
+        safeFetch<any>('visitors'),
+        safeFetch<any>('security_alerts'),
         // Driving school
-        apiService.fetchModuleRecords<any>('ds_students', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('ds_instructors', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('ds_vehicles', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('ds_lessons', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('ds_payments', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('ds_tests', instId).catch(() => []),
+        safeFetch<any>('ds_students'),
+        safeFetch<any>('ds_instructors'),
+        safeFetch<any>('ds_vehicles'),
+        safeFetch<any>('ds_lessons'),
+        safeFetch<any>('ds_payments'),
+        safeFetch<any>('ds_tests'),
         // Health
-        apiService.fetchModuleRecords<any>('his_patients', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('his_staff', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('his_wards', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('his_beds', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('his_appointments', instId).catch(() => []),
+        safeFetch<any>('his_patients'),
+        safeFetch<any>('his_staff'),
+        safeFetch<any>('his_wards'),
+        safeFetch<any>('his_beds'),
+        safeFetch<any>('his_appointments'),
         // Property
-        apiService.fetchModuleRecords<any>('property_management_properties', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('property_management_units', instId).catch(() => []),
-        apiService.fetchModuleRecords<any>('property_management_leases', instId).catch(() => [])
+        safeFetch<any>('property_management_properties'),
+        safeFetch<any>('property_management_units'),
+        safeFetch<any>('property_management_leases')
     ]);
 
     // Merge branches: combine remote and fallback

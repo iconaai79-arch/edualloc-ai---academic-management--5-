@@ -7,7 +7,7 @@ import { getGoogleDriveDirectUrl } from '../utils/googleDriveUtils';
 import { calculateRemedialSessionDuration, isRemedialSessionStale, buildAutoConcludedSession } from '../utils/timeUtils';
 import type {
     AllocationRequest, RequestStatus, User, Institution,
-    Priority, Department, Subject, Course, CompanyDetails, Room,
+    Priority, Department, Subject, Course, CompanyDetails, Room, Building,
     AcademicYear, Semester, TimetableEntry, SmsConfig,
     MpesaConfig, EmailConfig, TransactionStatus, InvoiceItem,
     MpesaTransaction, Receipt, Invoice, ExtensionRequest, AcademicLevel,
@@ -8089,6 +8089,7 @@ export const apiService = {
     async fetchAcademicYears(instId?: string): Promise<AcademicYear[]> { return apiService.fetchModuleRecords('academic_years', instId); },
     async fetchSemesters(instId?: string): Promise<Semester[]> { return apiService.fetchModuleRecords('semesters', instId); },
     async fetchRooms(instId?: string): Promise<Room[]> { return apiService.fetchModuleRecords('rooms', instId); },
+    async fetchBuildings(instId?: string): Promise<Building[]> { return apiService.fetchModuleRecords('buildings', instId); },
     async fetchAcademicLevels(instId?: string): Promise<AcademicLevel[]> { return apiService.fetchModuleRecords('academic_levels', instId); },
     async fetchVoteHeads(instId?: string): Promise<VoteHead[]> { return apiService.fetchModuleRecords('vote_heads', instId); },
     async fetchFeeStructures(instId?: string): Promise<FeeStructure[]> { return apiService.fetchModuleRecords('fee_structures', instId); },
