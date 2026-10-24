@@ -252,6 +252,65 @@ export function generateTenantSqlDump(data: TenantBackupData): string {
 }
 
 /**
+ * Safely executes a browser file download using a Blob and anchor element.
+ * Retains the ObjectURL for 60 seconds to prevent Chromium/Edge from aborting asynchronous downloads.
+ */
+export function executeSafeBlobDownload(content: string, fileName: string, mimeType = 'text/plain;charset=utf-8;'): string {
+    try {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.setAttribute('download', fileName);
+        link.rel = 'noopener';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+
+        // Dispatch synthetic click event
+        try {
+            const clickEvent = new MouseEvent('click', {
+                view: window,
+                bubbles: true,
+                cancelable: true
+            });
+            link.dispatchEvent(clickEvent);
+        } catch (_) {
+            link.click();
+        }
+
+        // Delay revokeObjectURL by 60 seconds so browser download manager finishes streaming
+        setTimeout(() => {
+            try {
+                if (link.parentNode) {
+                    document.body.removeChild(link);
+                }
+                URL.revokeObjectURL(url);
+            } catch (_) {}
+        }, 60000);
+
+        return fileName;
+    } catch (e) {
+        console.error('[tenantSqlBackup] Safe download failed, attempting data-uri fallback:', e);
+        try {
+            const dataUri = 'data:text/plain;charset=utf-8,' + encodeURIComponent(content);
+            const link = document.createElement('a');
+            link.href = dataUri;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+                if (link.parentNode) document.body.removeChild(link);
+            }, 1000);
+            return fileName;
+        } catch (innerErr) {
+            console.error('[tenantSqlBackup] Data URI fallback also failed:', innerErr);
+            throw e;
+        }
+    }
+}
+
+/**
  * Triggers a file download for the compiled SQL script in browser
  */
 export function downloadTenantSqlBackup(data: TenantBackupData): string {
@@ -264,17 +323,7 @@ export function downloadTenantSqlBackup(data: TenantBackupData): string {
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `backup_${cleanName}_${cleanCode}_${dateStr}.sql`;
 
-    const blob = new Blob([sqlContent], { type: 'application/sql;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    return fileName;
+    return executeSafeBlobDownload(sqlContent, fileName);
 }
 
 /**
@@ -672,6 +721,7 @@ export interface FullSqlBackupResult {
     totalRecords: number;
     totalTables: number;
     tableCounts: Record<string, number>;
+    sqlContent: string;
 }
 
 /**
@@ -680,18 +730,7 @@ export interface FullSqlBackupResult {
 export function downloadFullSqlBackup(sqlContent: string): string {
     const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = `eduai_full_database_backup_${dateStr}.sql`;
-
-    const blob = new Blob([sqlContent], { type: 'application/sql;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    return fileName;
+    return executeSafeBlobDownload(sqlContent, fileName);
 }
 
 /**
@@ -810,7 +849,8 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         fileName,
         totalRecords,
         totalTables: populatedTables,
-        tableCounts
+        tableCounts,
+        sqlContent: fullSql
     };
 }
 

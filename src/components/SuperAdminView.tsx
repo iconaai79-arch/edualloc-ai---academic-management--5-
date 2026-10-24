@@ -99,7 +99,7 @@ import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 import { apiService } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
-import { collectAndDownloadFullSqlBackup, FullSqlBackupProgress } from '../utils/tenantSqlBackup';
+import { collectAndDownloadFullSqlBackup, FullSqlBackupProgress, FullSqlBackupResult, executeSafeBlobDownload } from '../utils/tenantSqlBackup';
 import { BrandedPaper } from './BrandedPaper';
 import { AcademicYearManager } from './AcademicYearManager';
 import { SuperAdminReports } from './SuperAdminReports';
@@ -1587,6 +1587,8 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
 
     const [isExportingFullSql, setIsExportingFullSql] = useState(false);
     const [fullSqlExportProgress, setFullSqlExportProgress] = useState<FullSqlBackupProgress | null>(null);
+    const [downloadReadyBackup, setDownloadReadyBackup] = useState<FullSqlBackupResult | null>(null);
+    const [isBackupReadyModalOpen, setIsBackupReadyModalOpen] = useState(false);
 
     const handleDownloadFullSqlData = async () => {
         if (isExportingFullSql) return;
@@ -1620,7 +1622,9 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 onProgress: (p) => setFullSqlExportProgress(p)
             });
 
-            success(`Full database backup downloaded: ${result.fileName} (${result.totalRecords.toLocaleString()} records across ${result.totalTables} tables)`);
+            setDownloadReadyBackup(result);
+            setIsBackupReadyModalOpen(true);
+            success(`Full database backup compiled: ${result.fileName} (${result.totalRecords.toLocaleString()} records across ${result.totalTables} tables)`);
         } catch (err: any) {
             console.error("[SuperAdminView] Full SQL export failed:", err);
             toastError(err?.message || "Failed to generate full database SQL backup");
@@ -4964,12 +4968,42 @@ Please change it after login.`;
                                                     ) : (
                                                         <>
                                                             <DocumentArrowDownIcon className="w-5 h-5" />
-                                                            <span>Download Full SQL Data (.sql)</span>
+                                                            <span>{downloadReadyBackup ? 'Re-export Full SQL' : 'Download Full SQL Data (.sql)'}</span>
                                                         </>
                                                     )}
                                                 </button>
                                             </div>
                                         </div>
+
+                                        {downloadReadyBackup && (
+                                            <div className="mt-6 p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in relative z-10">
+                                                <div className="flex items-center gap-3">
+                                                    <CheckCircleIcon className="w-6 h-6 text-emerald-400 shrink-0" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-white">Latest Backup Ready: <span className="font-mono text-emerald-300">{downloadReadyBackup.fileName}</span></p>
+                                                        <p className="text-[10px] text-emerald-400/80 font-medium">{downloadReadyBackup.totalRecords.toLocaleString()} records across {downloadReadyBackup.totalTables} schemas ({(downloadReadyBackup.sqlContent.length / 1024).toFixed(1)} KB)</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                                    <button
+                                                        onClick={() => executeSafeBlobDownload(downloadReadyBackup.sqlContent, downloadReadyBackup.fileName)}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-600/30"
+                                                    >
+                                                        <DocumentArrowDownIcon className="w-4 h-4" />
+                                                        Save .sql File
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(downloadReadyBackup.sqlContent);
+                                                            success("Copied SQL to clipboard!");
+                                                        }}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                                                    >
+                                                        Copy SQL
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
@@ -7355,6 +7389,77 @@ Please change it after login.`;
                         setDeletingTenant(null);
                     }}
                 />
+            )}
+
+            {/* Full SQL Backup Ready Modal */}
+            {isBackupReadyModalOpen && downloadReadyBackup && (
+                <div className="fixed inset-0 z-[350] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in" onClick={() => setIsBackupReadyModalOpen(false)}>
+                    <div className="bg-slate-900 border-2 border-indigo-500/40 rounded-[2.5rem] p-8 max-w-lg w-full shadow-2xl relative overflow-hidden space-y-6 animate-scale-up" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                                    <Database className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">Export Complete</div>
+                                    <h3 className="text-xl font-black text-white">Full SQL Backup Ready</h3>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsBackupReadyModalOpen(false)}
+                                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 bg-slate-950/60 rounded-2xl border border-white/5 space-y-3 font-mono text-xs">
+                            <div className="flex justify-between items-center text-slate-400">
+                                <span>File Name:</span>
+                                <span className="text-white font-bold">{downloadReadyBackup.fileName}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-400">
+                                <span>Total Records:</span>
+                                <span className="text-emerald-400 font-bold">{downloadReadyBackup.totalRecords.toLocaleString()} rows</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-400">
+                                <span>Tables Exported:</span>
+                                <span className="text-indigo-300 font-bold">{downloadReadyBackup.totalTables} schemas</span>
+                            </div>
+                            <div className="flex justify-between items-center text-slate-400">
+                                <span>Data Size:</span>
+                                <span className="text-sky-300 font-bold">{(downloadReadyBackup.sqlContent.length / 1024).toFixed(1)} KB</span>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            Your full multi-tenant PostgreSQL dump was generated. If the browser blocked the automated download, click <strong className="text-white">Save .sql File</strong> below to save it directly to your computer.
+                        </p>
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                            <button
+                                onClick={() => {
+                                    executeSafeBlobDownload(downloadReadyBackup.sqlContent, downloadReadyBackup.fileName);
+                                    success("Downloading SQL backup file...");
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 py-4 px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-95 border border-indigo-400/30"
+                            >
+                                <DocumentArrowDownIcon className="w-5 h-5" />
+                                Save .sql File
+                            </button>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(downloadReadyBackup.sqlContent);
+                                    success("Full SQL backup copied to clipboard!");
+                                }}
+                                className="flex items-center justify-center gap-2 py-4 px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-black uppercase tracking-widest transition-all active:scale-95"
+                            >
+                                <CheckIcon className="w-4 h-4" />
+                                Copy SQL
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {assigningResellerFor && (

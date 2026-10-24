@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.idea
+.vscode
+*.log
+*.txt
+android
+desktop-zkteco-app
+tmp
+scratch
