@@ -274,6 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
                             onMarkAsRead={onMarkAsRead || (() => {})} 
                             currentUser={currentUser} 
                             currentInstitution={currentInstitution}
+                            activeRole={activeRole}
                             onAcknowledgeVisitorMet={onAcknowledgeVisitorMet}
                         />
 

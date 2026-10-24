@@ -3495,8 +3495,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 metadata: notifMeta
             }).catch(console.error);
 
-            // 2. Optimistically update notification state if assigned user is the current active session
-            if (currentUser && currentUser.id === targetHostId) {
+            // 2. Optimistically update notification state if assigned user is the current active session (and not super admin)
+            if (currentUser && currentUser.id === targetHostId && currentUser.role !== 'super_admin') {
                 setNotifications(prev => [{
                     id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     userId: targetHostId,
@@ -3658,7 +3658,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 type: 'guest_arrival',
                 metadata: notifMeta
             }).catch(console.error);
-            if (currentUser && currentUser.id === hostUser.id) {
+            if (currentUser && currentUser.id === hostUser.id && currentUser.role !== 'super_admin') {
                 setNotifications(prev => [{
                     id: `notif_${Date.now()}`,
                     userId: hostUser.id,

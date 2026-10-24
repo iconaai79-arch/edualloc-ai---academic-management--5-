@@ -274,6 +274,62 @@ export function isPMInstitution(institution: Partial<Institution> | null | undef
 }
 
 /**
+ * Centralized logic to determine if an institution uses the Security / Visitor Gate Operations module.
+ */
+export function isSecurityModuleEnabledForInstitution(institution: Partial<Institution> | null | undefined): boolean {
+    if (!institution || !institution.id || institution.id === 'GLOBAL') return false;
+
+    // 1. Check moduleStates for active/trial security or visitor modules
+    const hasActiveSecurityModule = institution.moduleStates?.some(m => {
+        const modId = String(m.moduleId || (m as any).module_id || '').toLowerCase();
+        const status = String(m.status || '').toLowerCase();
+        const isActive = status === 'active' || status === 'trial';
+        return isActive && (
+            modId === 'private_security' ||
+            modId === 'security' ||
+            modId === 'private-security' ||
+            modId === 'visitor' ||
+            modId === 'visitors' ||
+            modId === 'visitor_management' ||
+            modId === 'visitor_settings' ||
+            modId === 'security_gate' ||
+            modId === 'security_alerts' ||
+            modId === 'gatepass' ||
+            modId === 'sentinel_security'
+        );
+    });
+    if (hasActiveSecurityModule) return true;
+
+    // 2. Check institutionType or category or businessSubType
+    const type = String(institution.institutionType || (institution as any).institution_type || '').toLowerCase();
+    const cat = String(institution.category || '').toLowerCase();
+    const subType = String(institution.businessSubType || (institution as any).business_sub_type || '').toLowerCase();
+    const name = String(institution.name || '').toLowerCase();
+
+    if (
+        type.includes('security') ||
+        cat.includes('security') ||
+        subType.includes('security') ||
+        name.includes('security')
+    ) {
+        return true;
+    }
+
+    // 3. Check explicit security/visitor gate configurations enabled on the institution
+    if (
+        Boolean(institution.kioskSecurityPin) ||
+        institution.notifyHostOnVisitorArrival === true ||
+        institution.visitorAutoFinalizeEnabled === true ||
+        (institution as any).kioskStatus === 'active' ||
+        (institution as any).kioskStatus === 'locked'
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Centralized logic to determine if an institution is an educational entity.
  */
 export function isEduInstitution(institution: Partial<Institution> | null | undefined): boolean {
