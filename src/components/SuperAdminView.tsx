@@ -99,6 +99,7 @@ import { KenyanOfficialStamp } from './common/KenyanOfficialStamp';
 import { apiService } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
+import { collectAndDownloadFullSqlBackup, FullSqlBackupProgress } from '../utils/tenantSqlBackup';
 import { BrandedPaper } from './BrandedPaper';
 import { AcademicYearManager } from './AcademicYearManager';
 import { SuperAdminReports } from './SuperAdminReports';
@@ -583,7 +584,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         onLogAction
     } = props;
 
-    const { success, error: toastError } = useToast();
+    const { success, error: toastError, info: toastInfo } = useToast();
 
     const [activeTab, setActiveTab] = useState<'dashboard' | 'institutions' | 'hospitality' | 'auto_marketplace' | 'external_module' | 'interactions' | 'reports' | 'portal_links' | 'all_users' | 'academics' | 'communications' | 'settings' | 'migration' | 'user_activity' | 'demo_requests' | 'lead_scout' | 'campaigns' | 'financials' | 'integrations' | 'marketing' | 'expenses' | 'latency'>(() => {
         const params = new URLSearchParams(window.location.search);
@@ -1584,6 +1585,51 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
         URL.revokeObjectURL(url);
     };
 
+    const [isExportingFullSql, setIsExportingFullSql] = useState(false);
+    const [fullSqlExportProgress, setFullSqlExportProgress] = useState<FullSqlBackupProgress | null>(null);
+
+    const handleDownloadFullSqlData = async () => {
+        if (isExportingFullSql) return;
+        setIsExportingFullSql(true);
+        setFullSqlExportProgress({ currentTable: 'Initializing table schemas...', completedTables: 0, totalTables: 100, percent: 0 });
+        toastInfo?.("Initiating full multi-tenant PostgreSQL database export...");
+
+        try {
+            const inMemoryFallback: Record<string, any[]> = {
+                institutions: institutions || props.institutions || [],
+                users: users || props.users || [],
+                counties: counties || props.counties || [],
+                departments: departments || props.departments || [],
+                courses: courses || props.courses || [],
+                subjects: subjects || props.subjects || [],
+                rooms: rooms || props.rooms || [],
+                buildings: buildings || props.buildings || [],
+                academic_levels: academicLevels || props.academicLevels || [],
+                academic_years: academicYears || props.academicYears || [],
+                semesters: semesters || props.semesters || [],
+                allocation_requests: requests || props.requests || [],
+                allocations: allocations || props.allocations || [],
+                invoices: invoices || props.invoices || [],
+                receipts: receipts || props.receipts || [],
+                activity_log: activityLog || props.activityLog || [],
+                mpesa_transactions: transactions || props.transactions || []
+            };
+
+            const result = await collectAndDownloadFullSqlBackup({
+                inMemoryFallback,
+                onProgress: (p) => setFullSqlExportProgress(p)
+            });
+
+            success(`Full database backup downloaded: ${result.fileName} (${result.totalRecords.toLocaleString()} records across ${result.totalTables} tables)`);
+        } catch (err: any) {
+            console.error("[SuperAdminView] Full SQL export failed:", err);
+            toastError(err?.message || "Failed to generate full database SQL backup");
+        } finally {
+            setIsExportingFullSql(false);
+            setFullSqlExportProgress(null);
+        }
+    };
+
     const handleQuickAction = (tabId: string, settingsSubTab?: string, tTabSub?: 'scheduler' | 'calendar' | 'subjects') => {
         setActiveTab(tabId as any);
         if (settingsSubTab) setRequestedSettingsTab(settingsSubTab);
@@ -2222,16 +2268,26 @@ Please change it after login.`;
                                         Deploy virtual environments and simulate specialized modules across the entire EduAI ecosystem to verify integrity.
                                     </p>
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        const demoInst = institutions.find(i => i.institutionCode === 'INST001') || institutions[0];
-                                        setSelectedTenantForPerspective(demoInst);
-                                        setIsPerspectiveModalOpen(true);
-                                    }}
-                                    className="bg-indigo-600 text-white hover:bg-indigo-500 font-black text-[10px] uppercase tracking-[0.3em] px-10 py-5 rounded-[2rem] transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 whitespace-nowrap border border-indigo-400/20"
-                                >
-                                    Launch Virtual Console
-                                </button>
+                                <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+                                    <button
+                                        onClick={handleDownloadFullSqlData}
+                                        disabled={isExportingFullSql}
+                                        className="w-full sm:w-auto bg-slate-900/90 hover:bg-slate-800 text-white font-black text-[10px] uppercase tracking-[0.25em] px-8 py-5 rounded-[2rem] transition-all shadow-2xl border border-indigo-500/30 active:scale-95 whitespace-nowrap flex items-center justify-center gap-3 disabled:opacity-50"
+                                    >
+                                        {isExportingFullSql ? <ArrowPathIcon className="w-4 h-4 animate-spin text-indigo-400" /> : <Database className="w-4 h-4 text-indigo-400" />}
+                                        {isExportingFullSql ? `Exporting SQL (${fullSqlExportProgress?.percent || 0}%)...` : 'Download Full SQL Data'}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const demoInst = institutions.find(i => i.institutionCode === 'INST001') || institutions[0];
+                                            setSelectedTenantForPerspective(demoInst);
+                                            setIsPerspectiveModalOpen(true);
+                                        }}
+                                        className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-500 font-black text-[10px] uppercase tracking-[0.3em] px-10 py-5 rounded-[2rem] transition-all shadow-2xl shadow-indigo-500/40 active:scale-95 whitespace-nowrap border border-indigo-400/20"
+                                    >
+                                        Launch Virtual Console
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -2293,7 +2349,20 @@ Please change it after login.`;
                                 <div className="w-2 h-8 bg-indigo-500 rounded-full"></div>
                                 Command Center <span className="text-indigo-500 italic">Directives</span>
                             </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+                                <button
+                                    onClick={handleDownloadFullSqlData}
+                                    disabled={isExportingFullSql}
+                                    className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group text-left shadow-xl disabled:opacity-50"
+                                >
+                                    <div className="p-4 bg-indigo-600 rounded-2xl shadow-2xl shadow-indigo-500/20 text-white mb-6 group-hover:scale-110 transition-transform">
+                                        {isExportingFullSql ? <ArrowPathIcon className="w-6 h-6 animate-spin" /> : <Database className="w-6 h-6" />}
+                                    </div>
+                                    <span className="font-black text-sm uppercase tracking-tight text-white">Full SQL Backup</span>
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-2">
+                                        {isExportingFullSql ? `Exporting (${fullSqlExportProgress?.percent || 0}%)` : 'Download Live SQL Dump'}
+                                    </p>
+                                </button>
                                 <button
                                     onClick={() => setActiveTab('institutions')}
                                     className="flex flex-col items-start p-8 bg-slate-900/80 rounded-[2.5rem] border border-white/5 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all group text-left shadow-xl"
@@ -4851,10 +4920,62 @@ Please change it after login.`;
                         <div className="mt-6">
                             {settingsSubTab === 'system_build' && (
                                 <div className="space-y-6 animate-fade-in-up">
+                                    {/* Full Platform SQL Data Backup Card */}
+                                    <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 p-8 rounded-3xl border-2 border-indigo-500/30 shadow-2xl relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                                        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                                            <div className="space-y-3 max-w-2xl">
+                                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                                    <Database className="w-3.5 h-3.5" />
+                                                    Production Database Vault
+                                                </div>
+                                                <h3 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+                                                    Full Database Data Backup (.sql)
+                                                </h3>
+                                                <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                                                    Export complete live platform records across all institutions, branches, users, academic programs, and vertical modules into an executable PostgreSQL script with idempotent <code className="text-indigo-300 bg-indigo-950/70 px-1.5 py-0.5 rounded border border-indigo-500/30 font-mono text-xs">ON CONFLICT ("id") DO UPDATE</code> statements.
+                                                </p>
+                                                {fullSqlExportProgress && (
+                                                    <div className="pt-2 space-y-2 max-w-lg">
+                                                        <div className="flex justify-between text-xs text-indigo-300 font-bold">
+                                                            <span className="truncate max-w-[280px]">Exporting: {fullSqlExportProgress.currentTable}</span>
+                                                            <span>{fullSqlExportProgress.completedTables} / {fullSqlExportProgress.totalTables} ({fullSqlExportProgress.percent}%)</span>
+                                                        </div>
+                                                        <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-indigo-500/30">
+                                                            <div 
+                                                                className="h-full bg-gradient-to-r from-indigo-500 to-sky-400 rounded-full transition-all duration-200" 
+                                                                style={{ width: `${Math.max(5, fullSqlExportProgress.percent)}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                                                <button
+                                                    onClick={handleDownloadFullSqlData}
+                                                    disabled={isExportingFullSql}
+                                                    className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-500/40 transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap border border-indigo-400/30"
+                                                >
+                                                    {isExportingFullSql ? (
+                                                        <>
+                                                            <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                                                            <span>Exporting Data ({fullSqlExportProgress?.percent || 0}%)...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <DocumentArrowDownIcon className="w-5 h-5" />
+                                                            <span>Download Full SQL Data (.sql)</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
                                         <div>
-                                            <h3 className="text-xl font-black">Database Setup & Schema</h3>
-                                            <p className="text-sm text-slate-500 mt-1">Export SQL DDL scripts or execute migration directly on the cloud.</p>
+                                            <h3 className="text-xl font-black">Database Setup & Schema (DDL)</h3>
+                                            <p className="text-sm text-slate-500 mt-1">Export SQL DDL schema migration scripts or inspect table structures.</p>
                                         </div>
                                         <div className="flex bg-slate-100 dark:bg-slate-700 p-1.5 rounded-xl">
                                             <button onClick={() => setMigrationSubTab('full')} className={`px-6 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${migrationSubTab === 'full' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500'}`}>Full Platform</button>
@@ -4863,14 +4984,22 @@ Please change it after login.`;
                                     </div>
                                     <div className="bg-slate-900 p-8 rounded-3xl shadow-2xl relative border-4 border-slate-800">
                                         <div className="flex flex-wrap justify-between items-center mb-6 gap-4">
-                                            <h4 className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">PostgreSQL Deployment Script</h4>
-                                            <div className="flex gap-3">
+                                            <h4 className="font-bold text-slate-400 uppercase tracking-widest text-[10px]">PostgreSQL DDL Deployment Script</h4>
+                                            <div className="flex flex-wrap gap-3">
                                                 <button onClick={() => handleCopySql(getFullSqlScriptValue())} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
                                                     {copyStatus ? <CheckIcon className="w-4 h-4 text-green-500" /> : <CommandLineIcon className="w-4 h-4" />}
-                                                    {copyStatus ? 'Copied' : 'Copy SQL'}
+                                                    {copyStatus ? 'Copied' : 'Copy DDL'}
                                                 </button>
                                                 <button onClick={handleDownloadSql} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl transition-all active:scale-95">
-                                                    <DocumentArrowDownIcon className="w-4 h-4" /> Download .sql
+                                                    <DocumentArrowDownIcon className="w-4 h-4" /> Download DDL Schema (.sql)
+                                                </button>
+                                                <button 
+                                                    onClick={handleDownloadFullSqlData} 
+                                                    disabled={isExportingFullSql}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-600/30 transition-all active:scale-95 disabled:opacity-50"
+                                                >
+                                                    {isExportingFullSql ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                                                    {isExportingFullSql ? `Exporting SQL (${fullSqlExportProgress?.percent || 0}%)...` : 'Download Full SQL Data'}
                                                 </button>
                                             </div>
                                         </div>

@@ -446,3 +446,371 @@ export async function collectAndDownloadTenantBackup(
     return { fileName, totalRecords, data: backupData };
 }
 
+/**
+ * Ordered list of all PostgreSQL platform tables for global data dump
+ */
+export const FULL_PLATFORM_SQL_TABLES: string[] = [
+    // 1. Tenancy, Core & Geography
+    'counties',
+    'constituencies',
+    'institutions',
+    'branches',
+    'institution_module_states',
+    'school_registry',
+    'school_authorized_devices',
+    'school_router_profiles',
+
+    // 2. Identity & Access
+    'users',
+    'tasks',
+    'activity_log',
+
+    // 3. Academic Structure & Curriculum
+    'departments',
+    'academic_levels',
+    'academic_years',
+    'semesters',
+    'courses',
+    'subjects',
+    'class_subject_allocations',
+    'student_enrollments',
+
+    // 4. Physical Facilities & Logistics
+    'buildings',
+    'rooms',
+    'inventory',
+    'visitors',
+    'security_alerts',
+    'maintenance_requests',
+
+    // 5. Scheduling & Timetables
+    'timetable_settings',
+    'exam_timetable_settings',
+    'allocation_requests',
+    'allocations',
+    'timetable_entries',
+    'exam_timetable_entries',
+
+    // 6. Assessments & Grading
+    'assessments',
+    'assessment_marks',
+    'student_attendances',
+    'teacher_check_ins',
+    'student_absence_requests',
+    'absence_requests',
+    'feedback_submissions',
+    'lesson_ratings',
+
+    // 7. Finance, Fees & Ledgers
+    'vote_heads',
+    'fee_structures',
+    'financial_periods',
+    'financial_goals',
+    'invoices',
+    'receipts',
+    'expenses',
+    'school_bank_accounts',
+    'finance_numbering_configs',
+    'inter_bank_transfers',
+    'inter_vote_transfers',
+    'requisitions',
+    'payroll_records',
+    'bank_transactions',
+    'mpesa_transactions',
+    'airtel_transactions',
+    'intasend_transactions',
+    'ncba_transactions',
+    'invoice_clients',
+    'company_invoice_settings',
+
+    // 8. Boarding & Transport & Library
+    'boarding_houses',
+    'boarding_rooms',
+    'boarding_beds',
+    'boarding_allocations',
+    'boarding_maintenance_logs',
+    'boarding_checkins',
+    'boarding_checkouts',
+    'vehicles',
+    'transport_onboarding',
+    'vehicle_logs',
+    'library_books',
+    'library_issues',
+
+    // 9. School Remedials
+    'school_remedial_rate_settings',
+    'school_remedial_allocations',
+    'school_remedial_subjects',
+    'school_remedial_payouts',
+    'school_remedial_opening_balances',
+    'school_remedial_duty_roster',
+
+    // 10. Driving School Vertical (DS)
+    'ds_settings',
+    'ds_license_categories',
+    'ds_votes',
+    'ds_fee_structures',
+    'ds_instructors',
+    'ds_vehicles',
+    'ds_students',
+    'ds_lessons',
+    'ds_skill_mastery',
+    'ds_invoices',
+    'ds_payments',
+    'ds_tests',
+
+    // 11. Hospital Information System (HIS)
+    'his_staff',
+    'his_patients',
+    'his_wards',
+    'his_beds',
+    'his_admissions',
+    'his_inpatient_records',
+    'his_appointments',
+    'his_queue_calls',
+    'his_prescriptions',
+    'his_prescription_items',
+    'his_pharmacy_inventory',
+    'his_pharmacy_batches',
+    'his_pharmacy_interactions',
+    'his_pharmacy_sales',
+    'his_pharmacy_sale_items',
+    'his_pharmacy_ledger',
+    'his_pharmacy_settings',
+    'his_billing_items',
+    'his_invoices',
+    'his_claims',
+    'his_insurance_providers',
+    'his_insurance_remittances',
+    'his_expenditures',
+    'his_lab_requests',
+    'his_medical_notes',
+    'his_vital_statistics',
+    'his_clinical_events',
+    'his_dental_charts',
+    'his_eye_prescriptions',
+    'his_broadcasts',
+
+    // 12. Property Management (PM)
+    'pm_properties',
+    'pm_units',
+    'pm_tenants',
+    'pm_listings',
+    'pm_inquiries',
+    'pm_leases',
+    'pm_payments',
+    'pm_maintenance',
+    'property_management_properties',
+    'property_management_units',
+    'property_management_leases',
+
+    // 13. Auto Marketplace & Showroom
+    'car_sales_listings',
+    'car_test_drives',
+    'car_appraisals',
+    'car_sales_invoices',
+    'car_sales_payments',
+    'showroom_settings',
+
+    // 14. Cooperative & Agrovet
+    'coop_farmers',
+    'coop_collections',
+    'coop_riders',
+    'coop_agrovet_inventory',
+    'coop_agrovet_sales',
+    'sacco_accounts',
+    'sacco_transactions',
+    'coop_monthly_payouts',
+    'coop_expenses',
+    'coop_income',
+    'agrovet_products',
+    'agrovet_batches',
+    'agrovet_customers',
+    'agrovet_animals',
+    'agrovet_sales',
+    'agrovet_consultations',
+    'agrovet_credit',
+
+    // 15. Beauty / Vocational College
+    'bc_settings',
+    'bc_fee_structures',
+    'bc_trainers',
+    'bc_courses',
+    'bc_students',
+    'bc_practicals',
+    'bc_invoices',
+    'bc_payments',
+
+    // 16. Events, Legal & Operations
+    'events',
+    'event_categories',
+    'event_participants',
+    'event_splits',
+    'law_clients',
+    'law_matters',
+    'law_documents',
+    'law_time_entries',
+    'law_invoices',
+    'bulletin_items',
+    'document_collections',
+    'time_off_requests',
+    'leave_requests',
+    'contracts',
+    'demo_requests',
+    'lead_scout_records'
+];
+
+export interface FullSqlBackupProgress {
+    currentTable: string;
+    completedTables: number;
+    totalTables: number;
+    percent: number;
+}
+
+export interface FullSqlBackupResult {
+    fileName: string;
+    totalRecords: number;
+    totalTables: number;
+    tableCounts: Record<string, number>;
+}
+
+/**
+ * Triggers a browser download for the compiled full database SQL backup text
+ */
+export function downloadFullSqlBackup(sqlContent: string): string {
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `eduai_full_database_backup_${dateStr}.sql`;
+
+    const blob = new Blob([sqlContent], { type: 'application/sql;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    return fileName;
+}
+
+/**
+ * Gathers complete records across all platform tables and triggers a full SQL database backup download
+ */
+export async function collectAndDownloadFullSqlBackup(options?: {
+    inMemoryFallback?: Record<string, any[]>;
+    onProgress?: (progress: FullSqlBackupProgress) => void;
+}): Promise<FullSqlBackupResult> {
+    const { apiService } = await import('../services/apiService');
+
+    const totalTables = FULL_PLATFORM_SQL_TABLES.length;
+    let completedTables = 0;
+    const tableCounts: Record<string, number> = {};
+    const tableSqlSections: string[] = [];
+
+    // Process tables in concurrency-friendly batches of 4
+    const batchSize = 4;
+    for (let i = 0; i < FULL_PLATFORM_SQL_TABLES.length; i += batchSize) {
+        const batch = FULL_PLATFORM_SQL_TABLES.slice(i, i + batchSize);
+        await Promise.all(
+            batch.map(async (tableName) => {
+                let rows: any[] = [];
+                try {
+                    if (typeof apiService?.fetchModuleRecords === 'function') {
+                        rows = await apiService.fetchModuleRecords(tableName, undefined, undefined, {
+                            limit: 100000,
+                            bypassCache: true
+                        }).catch(() => []);
+                    }
+                } catch (e) {
+                    rows = [];
+                }
+
+                if (!Array.isArray(rows)) rows = [];
+
+                // Augment with in-memory fallback data if available
+                if (options?.inMemoryFallback && Array.isArray(options.inMemoryFallback[tableName])) {
+                    const fallbackList = options.inMemoryFallback[tableName];
+                    const existingKeys = new Set(rows.map(r => r?.id || JSON.stringify(r)));
+                    for (const item of fallbackList) {
+                        const key = item?.id || JSON.stringify(item);
+                        if (!existingKeys.has(key)) {
+                            rows.push(item);
+                            existingKeys.add(key);
+                        }
+                    }
+                }
+
+                completedTables++;
+                if (options?.onProgress) {
+                    options.onProgress({
+                        currentTable: tableName,
+                        completedTables,
+                        totalTables,
+                        percent: Math.round((completedTables / totalTables) * 100)
+                    });
+                }
+
+                if (rows.length > 0) {
+                    tableCounts[tableName] = rows.length;
+                    const sql = buildInsertStatements(tableName, rows);
+                    if (sql) {
+                        tableSqlSections.push(sql);
+                    }
+                }
+            })
+        );
+    }
+
+    const totalRecords = Object.values(tableCounts).reduce((acc, count) => acc + count, 0);
+    const populatedTables = Object.keys(tableCounts).length;
+    const now = new Date();
+    const timestamp = now.toISOString();
+
+    const header = [
+        `-- ============================================================================`,
+        `-- EduAI Automation - Master Multi-Tenant PostgreSQL Database Data Backup`,
+        `-- Generated At       : ${timestamp}`,
+        `-- Export Scope       : Full Platform (All Tenants, Users, Ledgers & Modules)`,
+        `-- Total Tables Dumped: ${populatedTables} of ${totalTables} monitored schemas`,
+        `-- Total Records      : ${totalRecords.toLocaleString()} rows`,
+        `-- Generated By       : Super Admin Cyber Command`,
+        `-- Mode               : Idempotent ON CONFLICT Upsert Executable Script`,
+        `-- ============================================================================`,
+        ``,
+        `SET statement_timeout = 0;`,
+        `SET lock_timeout = 0;`,
+        `SET client_encoding = 'UTF8';`,
+        `SET standard_conforming_strings = on;`,
+        `SET check_function_bodies = false;`,
+        `SET client_min_messages = warning;`,
+        `SET row_security = off;`,
+        ``,
+        `BEGIN;`,
+        ``,
+        `-- Temporarily defer all deferrable constraints for smooth relational resolution`,
+        `SET CONSTRAINTS ALL DEFERRED;`,
+        ``
+    ].join('\n');
+
+    const footer = [
+        ``,
+        `COMMIT;`,
+        ``,
+        `-- ============================================================================`,
+        `-- End of EduAI Automation Master PostgreSQL Data Backup (${totalRecords} records across ${populatedTables} tables)`,
+        `-- ============================================================================`,
+        ``
+    ].join('\n');
+
+    const fullSql = [header, ...tableSqlSections, footer].join('\n');
+    const fileName = downloadFullSqlBackup(fullSql);
+
+    return {
+        fileName,
+        totalRecords,
+        totalTables: populatedTables,
+        tableCounts
+    };
+}
+
