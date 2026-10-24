@@ -54,11 +54,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!supabase) return res.status(500).json({ error: 'DB not configured' });
 
             try {
-                // 1. Get already registered devices for this institution
-                const { data: registered } = await supabase
+                // 1. Get already registered devices for this institution (resilient to missing port column)
+                let registered: any[] = [];
+                const { data: regData, error: regErr } = await supabase
                     .from('biometric_devices')
-                    .select('id, serial_number, device_name, device_model, protocol, is_active, last_sync_at, ip_address, port')
+                    .select('*')
                     .eq('institution_id', institutionId);
+
+                if (!regErr && regData) {
+                    registered = regData;
+                } else {
+                    const { data: fallbackData } = await supabase
+                        .from('biometric_devices')
+                        .select('id, serial_number, device_name, device_model, protocol, is_active, last_sync_at, ip_address')
+                        .eq('institution_id', institutionId);
+                    registered = fallbackData || [];
+                }
 
                 const registeredSns = new Set(
                     (registered || []).map(d => (d.serial_number || '').trim().toLowerCase())

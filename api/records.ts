@@ -6579,6 +6579,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             if (moduleName === 'biometric_devices' || targetDbTable === 'biometric_devices') {
                 try {
+                    const pool = await getPgPool();
+                    if (pool) {
+                        await executeWithTimeout(
+                            pool.query(`
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS port INT DEFAULT 4370;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS comm_key INT DEFAULT 0;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS firmware_version VARCHAR(100);
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS user_count INT DEFAULT 0;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS fp_count INT DEFAULT 0;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS face_count INT DEFAULT 0;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS log_count INT DEFAULT 0;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'offline';
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS requests_count INT DEFAULT 0;
+                                ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_ip VARCHAR(50);
+                                NOTIFY pgrst, 'reload schema';
+                            `),
+                            2500
+                        ).catch(() => {});
+                    }
+                } catch (_) {}
+
+                try {
                     const items = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
                     for (const it of items) {
                         if (it && typeof it === 'object' && it.institution_id && it.serial_number) {
