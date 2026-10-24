@@ -4041,6 +4041,9 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                             letterheadConfig={props.letterheadConfig || props.currentInstitution?.letterheadConfig}
                             logoUrl={props.logoUrl || props.currentInstitution?.logoUrl}
                             onLogAction={props.onLogAction}
+                            initialInvoices={props.invoices}
+                            initialReceipts={props.receipts}
+                            onRefreshData={props.onRefreshData}
                         />
                     </Suspense>
                 )}

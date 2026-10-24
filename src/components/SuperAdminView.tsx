@@ -2609,6 +2609,8 @@ Please change it after login.`;
                                                 const isStudent = !!(r.studentId || (r as any).student_id || (r as any).studentName || (r as any).student_name || (r as any).feeStructureId);
                                                 return (!id || id === 'GLOBAL') && !isStudent;
                                             })}
+                                            onUpdateInvoice={(inv: Invoice) => props.onUpdateInvoice?.(inv.id, inv)}
+                                            onRefreshData={props.onRefreshData}
                                         />
                                     </div>
                                 ) : (

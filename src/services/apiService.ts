@@ -2139,6 +2139,47 @@ export const apiService = {
                         p.lessonTrajectory = traj;
                     });
                 }
+                if (module === 'invoices' && Array.isArray(finalResult)) {
+                    finalResult.forEach((inv: any) => {
+                        let meta = inv.metadata;
+                        if (typeof meta === 'string') {
+                            try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                            inv.metadata = meta;
+                        }
+                        if (typeof meta !== 'object' || meta === null) meta = {};
+
+                        const rawClient = inv.clientName || inv.client_name || meta.clientName || meta.client_name || meta.customer_name;
+                        if (rawClient && typeof rawClient === 'string' && rawClient.trim().length > 0) {
+                            inv.clientName = rawClient.trim();
+                            inv.client_name = rawClient.trim();
+                        }
+                        const rawClientId = inv.clientId || inv.client_id || meta.clientId || meta.client_id;
+                        if (rawClientId) {
+                            inv.clientId = rawClientId;
+                            inv.client_id = rawClientId;
+                        }
+                        const rawClientEmail = inv.clientEmail || inv.client_email || meta.clientEmail || meta.client_email;
+                        if (rawClientEmail) {
+                            inv.clientEmail = rawClientEmail;
+                            inv.client_email = rawClientEmail;
+                        }
+                        const rawClientPhone = inv.clientPhone || inv.client_phone || meta.clientPhone || meta.client_phone;
+                        if (rawClientPhone) {
+                            inv.clientPhone = rawClientPhone;
+                            inv.client_phone = rawClientPhone;
+                        }
+                        const rawTaxPin = inv.clientTaxPin || inv.client_tax_pin || meta.clientTaxPin || meta.client_tax_pin;
+                        if (rawTaxPin) {
+                            inv.clientTaxPin = rawTaxPin;
+                            inv.client_tax_pin = rawTaxPin;
+                        }
+                        const rawAddress = inv.clientAddress || inv.client_address || meta.clientAddress || meta.client_address;
+                        if (rawAddress) {
+                            inv.clientAddress = rawAddress;
+                            inv.client_address = rawAddress;
+                        }
+                    });
+                }
                 return finalResult;
             };
 
@@ -3429,6 +3470,47 @@ export const apiService = {
                     try { item.items = JSON.parse(item.items); } catch (e) { item.items = []; }
                 }
                 if (!Array.isArray(item.items)) item.items = [];
+
+                let meta = item.metadata;
+                if (typeof meta === 'string') {
+                    try { meta = JSON.parse(meta); } catch (e) { meta = {}; }
+                } else if (!meta || typeof meta !== 'object') {
+                    meta = {};
+                }
+                const cName = item.client_name || item.clientName || meta.clientName || meta.client_name;
+                if (cName) {
+                    item.client_name = cName;
+                    meta.clientName = cName;
+                    meta.client_name = cName;
+                }
+                const cId = item.client_id || item.clientId || meta.clientId || meta.client_id;
+                if (cId) {
+                    item.client_id = cId;
+                    meta.clientId = cId;
+                    meta.client_id = cId;
+                }
+                const cEmail = item.client_email || item.clientEmail || meta.clientEmail || meta.client_email;
+                if (cEmail) {
+                    item.client_email = cEmail;
+                    meta.clientEmail = cEmail;
+                }
+                const cPhone = item.client_phone || item.clientPhone || meta.clientPhone || meta.client_phone;
+                if (cPhone) {
+                    item.client_phone = cPhone;
+                    meta.clientPhone = cPhone;
+                }
+                const cTaxPin = item.client_tax_pin || item.clientTaxPin || meta.clientTaxPin || meta.client_tax_pin;
+                if (cTaxPin) {
+                    item.client_tax_pin = cTaxPin;
+                    meta.clientTaxPin = cTaxPin;
+                }
+                const cAddr = item.client_address || item.clientAddress || meta.clientAddress || meta.client_address;
+                if (cAddr) {
+                    item.client_address = cAddr;
+                    meta.clientAddress = cAddr;
+                }
+                item.metadata = meta;
+
                 delete item.created_at;
                 delete item.createdAt;
                 delete item.updated_at;
@@ -5031,7 +5113,7 @@ export const apiService = {
         // finance_numbering_configs), 'GLOBAL' is the canonical enterprise tenant identifier.
         // It is backed by an anchor row in public.institutions (migration 474) and FKs are dropped (migration 429),
         // so we preserve 'GLOBAL' as institution_id to ensure NOT NULL constraints in PostgreSQL are never violated.
-        if (['invoice_clients', 'company_invoice_settings', 'finance_numbering_configs'].includes(module) && payload && !payload.institution_id) {
+        if (['invoices', 'receipts', 'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs'].includes(module) && payload && !payload.institution_id && !payload.student_id && !payload.studentId) {
             payload.institution_id = 'GLOBAL';
         }
 

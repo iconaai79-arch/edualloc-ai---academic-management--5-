@@ -31,6 +31,8 @@ interface CorporateInvoicingManagerProps {
     initialReceipts?: Receipt[];
     letterheadConfig?: LetterheadConfig;
     logoUrl?: string | null;
+    onUpdateInvoice?: (inv: Invoice) => void;
+    onRefreshData?: () => Promise<void>;
 }
 
 const INVOICE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -83,7 +85,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     initialInvoices,
     initialReceipts,
     letterheadConfig,
-    logoUrl
+    logoUrl,
+    onUpdateInvoice,
+    onRefreshData
 }) => {
     const institutionId = currentInstitution?.id || currentUser?.institutionId || 'GLOBAL';
 
@@ -96,6 +100,44 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
     const [clients, setClients] = useState<InvoiceClient[]>([]);
     const [settings, setSettings] = useState<CompanyInvoiceSettings | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Sync initialInvoices from parent if provided, preserving any locally resolved client details
+    useEffect(() => {
+        if (!initialInvoices || initialInvoices.length === 0) return;
+        setInvoices(prev => {
+            const prevMap = new Map<string, Invoice>();
+            prev.forEach(i => prevMap.set(i.id, i));
+            return initialInvoices.map(incoming => {
+                const existing = prevMap.get(incoming.id);
+                const incomingName = incoming.clientName || (incoming as any).client_name;
+                const existingName = existing?.clientName || (existing as any)?.client_name;
+                const isIncomingGeneric = !incomingName || ['client', 'corporate client'].includes(incomingName.toLowerCase());
+                const isExistingGeneric = !existingName || ['client', 'corporate client'].includes(existingName.toLowerCase());
+                if (isIncomingGeneric && !isExistingGeneric && existing) {
+                    return {
+                        ...incoming,
+                        clientId: existing.clientId || (existing as any).client_id,
+                        client_id: existing.clientId || (existing as any).client_id,
+                        clientName: existing.clientName || (existing as any).client_name,
+                        client_name: existing.clientName || (existing as any).client_name,
+                        clientEmail: existing.clientEmail || (existing as any).client_email,
+                        client_email: existing.clientEmail || (existing as any).client_email,
+                        clientPhone: existing.clientPhone || (existing as any).client_phone,
+                        client_phone: existing.clientPhone || (existing as any).client_phone,
+                        clientTaxPin: existing.clientTaxPin || (existing as any).client_tax_pin,
+                        client_tax_pin: existing.clientTaxPin || (existing as any).client_tax_pin,
+                        clientAddress: existing.clientAddress || (existing as any).client_address,
+                        client_address: existing.clientAddress || (existing as any).client_address,
+                        metadata: {
+                            ...(incoming.metadata || {}),
+                            ...(existing.metadata || {})
+                        }
+                    };
+                }
+                return incoming;
+            });
+        });
+    }, [initialInvoices]);
 
     // Filters & Search
     const [searchQuery, setSearchQuery] = useState('');
@@ -582,6 +624,8 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
             }
 
             setInvoices(prev => prev.map(i => i.id === updatedInvoice.id ? updatedInvoice : i));
+            onUpdateInvoice?.(updatedInvoice);
+            onRefreshData?.().catch(() => {});
             onLogAction?.(`Assigned client "${targetName}" to invoice ${assignClientInvoice.invoiceNumber}`);
             alert(`Success: Invoice ${assignClientInvoice.invoiceNumber} updated with client "${targetName}"!`);
             setAssignClientInvoice(null);

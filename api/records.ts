@@ -1102,7 +1102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'users', 'vehicles', 'transport_onboarding', 'vehicle_logs',
           'suppliers', 'security_alerts', 'visitors', 'procurement_suppliers', 'procurement_items', 'procurement_lpos', 'procurement_invoices',
           'system_settings', 'institution_module_states', 'building_visitor_logs',
-          'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
+          'invoices', 'receipts', 'invoice_clients', 'company_invoice_settings', 'finance_numbering_configs',
           'stock_transactions', 'appointments',
           'inventory', 'observation_notes', 'student_attendances', 'student_conduct_records', 'teacher_lesson_plans', 'lesson_allocations', 'class_subject_allocations', 'enrollment_requests',
           'commission_withdrawal_requests', 'pm_units', 'pm_leases', 'pm_inspections', 'pm_notices', 'pm_deposit_refunds', 'pm_utility_readings', 'branches',
@@ -4688,6 +4688,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.issue_date === undefined) copy.issue_date = parseDate(copy.invoice_date);
                             delete copy.invoice_date;
                         }
+                        if (copy.invoiceNumber !== undefined) {
+                            if (copy.invoice_number === undefined) copy.invoice_number = copy.invoiceNumber;
+                            delete copy.invoiceNumber;
+                        }
+                        if (copy.dueDate !== undefined) {
+                            if (copy.due_date === undefined) copy.due_date = parseDate(copy.dueDate);
+                            delete copy.dueDate;
+                        }
                         if (copy.className !== undefined) {
                             if (copy.class_name === undefined) copy.class_name = copy.className;
                             delete copy.className;
@@ -4700,6 +4708,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             if (copy.class_name === undefined) copy.class_name = copy.student_class;
                             delete copy.student_class;
                         }
+                        if (copy.clientId !== undefined) {
+                            if (copy.client_id === undefined) copy.client_id = copy.clientId;
+                            delete copy.clientId;
+                        }
+                        if (copy.clientName !== undefined) {
+                            if (copy.client_name === undefined) copy.client_name = copy.clientName;
+                            delete copy.clientName;
+                        }
+                        if (copy.clientEmail !== undefined) {
+                            if (copy.client_email === undefined) copy.client_email = copy.clientEmail;
+                            delete copy.clientEmail;
+                        }
+                        if (copy.clientPhone !== undefined) {
+                            if (copy.client_phone === undefined) copy.client_phone = copy.clientPhone;
+                            delete copy.clientPhone;
+                        }
+                        if (copy.clientTaxPin !== undefined) {
+                            if (copy.client_tax_pin === undefined) copy.client_tax_pin = copy.clientTaxPin;
+                            delete copy.clientTaxPin;
+                        }
+                        if (copy.clientAddress !== undefined) {
+                            if (copy.client_address === undefined) copy.client_address = copy.clientAddress;
+                            delete copy.clientAddress;
+                        }
+                        if (copy.amountPaid !== undefined) {
+                            if (copy.amount_paid === undefined) copy.amount_paid = copy.amountPaid;
+                            delete copy.amountPaid;
+                        }
+                        if (copy.paidAmount !== undefined) {
+                            if (copy.amount_paid === undefined) copy.amount_paid = copy.paidAmount;
+                            delete copy.paidAmount;
+                        }
+                        if (copy.taxRate !== undefined) {
+                            if (copy.tax_rate === undefined) copy.tax_rate = copy.taxRate;
+                            delete copy.taxRate;
+                        }
+                        if (copy.taxAmount !== undefined) {
+                            if (copy.tax_amount === undefined) copy.tax_amount = copy.taxAmount;
+                            delete copy.taxAmount;
+                        }
+                        if (copy.discountAmount !== undefined) {
+                            if (copy.discount_amount === undefined) copy.discount_amount = copy.discountAmount;
+                            delete copy.discountAmount;
+                        }
+
+                        // Mirror client and corporate details in metadata JSON so data is never lost even if column cache reloads
+                        let metaObj: any = {};
+                        if (typeof copy.metadata === 'string') {
+                            try { metaObj = JSON.parse(copy.metadata); } catch (_) { metaObj = {}; }
+                        } else if (copy.metadata && typeof copy.metadata === 'object') {
+                            metaObj = { ...copy.metadata };
+                        }
+                        if (copy.client_name && !metaObj.clientName) metaObj.clientName = copy.client_name;
+                        if (copy.client_name && !metaObj.client_name) metaObj.client_name = copy.client_name;
+                        if (copy.client_id && !metaObj.clientId) metaObj.clientId = copy.client_id;
+                        if (copy.client_id && !metaObj.client_id) metaObj.client_id = copy.client_id;
+                        if (copy.client_email && !metaObj.clientEmail) metaObj.clientEmail = copy.client_email;
+                        if (copy.client_phone && !metaObj.clientPhone) metaObj.clientPhone = copy.client_phone;
+                        if (copy.client_tax_pin && !metaObj.clientTaxPin) metaObj.clientTaxPin = copy.client_tax_pin;
+                        if (copy.client_address && !metaObj.clientAddress) metaObj.clientAddress = copy.client_address;
+                        copy.metadata = metaObj;
                     }
 
                     // Strip un-cached transient fields that do not exist as physical columns
@@ -6744,6 +6813,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
                     
+                    if (moduleName === 'invoices' || targetDbTable === 'invoices') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_id TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_name TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_email TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_phone TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_tax_pin TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_address TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'KES';
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS notes TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS terms TEXT;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS subtotal NUMERIC;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS tax_rate NUMERIC;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS tax_amount NUMERIC;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS discount_amount NUMERIC;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS amount_paid NUMERIC DEFAULT 0;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS balance NUMERIC;
+                                        ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    3000
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        // Ensure client details are preserved inside metadata before stripping
+                        const preserveInvoiceField = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            let meta = copy.metadata;
+                            if (typeof meta === 'string') {
+                                try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                            } else if (!meta || typeof meta !== 'object') {
+                                meta = {};
+                            }
+                            if (copy[offendingCol] !== undefined) {
+                                meta[offendingCol] = copy[offendingCol];
+                                if (offendingCol === 'client_name') meta.clientName = copy[offendingCol];
+                                if (offendingCol === 'client_id') meta.clientId = copy[offendingCol];
+                                if (offendingCol === 'client_email') meta.clientEmail = copy[offendingCol];
+                                if (offendingCol === 'client_phone') meta.clientPhone = copy[offendingCol];
+                                if (offendingCol === 'client_tax_pin') meta.clientTaxPin = copy[offendingCol];
+                                if (offendingCol === 'client_address') meta.clientAddress = copy[offendingCol];
+                            }
+                            delete copy[offendingCol];
+                            if (offendingCol !== 'metadata') {
+                                copy.metadata = meta;
+                            }
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(preserveInvoiceField) : preserveInvoiceField(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     if (moduleName === 'biometric_devices' || targetDbTable === 'biometric_devices') {
                         try {
                             const pool = await getPgPool();
@@ -9227,6 +9355,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
                         
+                        if (moduleName === 'invoices' || targetDbTable === 'invoices') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_id TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_name TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_email TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_phone TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_tax_pin TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS client_address TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'KES';
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS notes TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS terms TEXT;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS subtotal NUMERIC;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS tax_rate NUMERIC;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS tax_amount NUMERIC;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS discount_amount NUMERIC;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS amount_paid NUMERIC DEFAULT 0;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS balance NUMERIC;
+                                            ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        3000
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+
+                            // Ensure client details are preserved inside metadata before stripping
+                            let meta = currentUpdateData.metadata;
+                            if (typeof meta === 'string') {
+                                try { meta = JSON.parse(meta); } catch (_) { meta = {}; }
+                            } else if (!meta || typeof meta !== 'object') {
+                                meta = {};
+                            }
+                            if (currentUpdateData[offendingCol] !== undefined) {
+                                meta[offendingCol] = currentUpdateData[offendingCol];
+                                if (offendingCol === 'client_name') meta.clientName = currentUpdateData[offendingCol];
+                                if (offendingCol === 'client_id') meta.clientId = currentUpdateData[offendingCol];
+                                if (offendingCol === 'client_email') meta.clientEmail = currentUpdateData[offendingCol];
+                                if (offendingCol === 'client_phone') meta.clientPhone = currentUpdateData[offendingCol];
+                                if (offendingCol === 'client_tax_pin') meta.clientTaxPin = currentUpdateData[offendingCol];
+                                if (offendingCol === 'client_address') meta.clientAddress = currentUpdateData[offendingCol];
+                            }
+                            delete currentUpdateData[offendingCol];
+                            if (offendingCol !== 'metadata') {
+                                currentUpdateData.metadata = meta;
+                            }
+                            patchRetries--;
+                            continue;
+                        }
+
                         if (moduleName === 'biometric_devices' || targetDbTable === 'biometric_devices') {
                             try {
                                 const pool = await getPgPool();
