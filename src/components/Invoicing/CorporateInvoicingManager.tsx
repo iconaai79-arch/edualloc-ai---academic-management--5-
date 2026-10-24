@@ -17,6 +17,7 @@ import { CheckCircleIcon } from '../icons/CheckCircleIcon';
 import { EyeIcon } from '../icons/EyeIcon';
 import { BanknotesIcon } from '../icons/BanknotesIcon';
 import { PencilIcon } from '../icons/PencilIcon';
+import { UserIcon } from '../icons/UserIcon';
 import { PrinterIcon } from '../icons/PrinterIcon';
 import { ShieldCheckIcon } from '../icons/ShieldCheckIcon';
 import { TrashIcon } from '../icons/TrashIcon';
@@ -146,6 +147,7 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
     // Modals
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+    const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
     const [isQuoteMode, setIsQuoteMode] = useState(false);
     const [showClientModal, setShowClientModal] = useState(false);
     const [editingClient, setEditingClient] = useState<InvoiceClient | null>(null);
@@ -924,7 +926,18 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
 
     // Helper to open create invoice/quote modal with auto-sequenced document number
     const handleOpenCreateDocModal = async (quoteMode: boolean) => {
+        setEditingInvoice(null);
         setIsQuoteMode(quoteMode);
+        setInvClientId('');
+        setInvIssueDate(new Date().toISOString().split('T')[0]);
+        const d = new Date();
+        d.setDate(d.getDate() + (formDefaultTermsDays || 14));
+        setInvDueDate(d.toISOString().split('T')[0]);
+        setInvTaxRate(formDefaultTaxRate ?? 16);
+        setInvDiscount(0);
+        setInvNotes(formNotesTemplate || '');
+        setInvTerms(formTermsTemplate || '');
+        setInvItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
         try {
             const nextNumber = await apiService.peekNextDocumentNumber(institutionId, quoteMode ? 'quote' : 'invoice');
             setCustomDocNumber(nextNumber);
@@ -936,16 +949,138 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
         setShowInvoiceModal(true);
     };
 
-    // Save New Invoice / Quote
+    // Helper to open edit invoice/quote modal with existing values
+    const handleOpenEditDocModal = (doc: Invoice) => {
+        setEditingInvoice(doc);
+        const isQuote = doc.status === 'quote';
+        setIsQuoteMode(isQuote);
+        setCustomDocNumber(doc.invoiceNumber || '');
+        setInvClientId(doc.clientId || (doc as any).client_id || '');
+        setInvIssueDate(doc.issueDate ? doc.issueDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+        setInvDueDate(doc.dueDate ? doc.dueDate.split('T')[0] : new Date().toISOString().split('T')[0]);
+        setInvTaxRate(Number(doc.taxRate !== undefined ? doc.taxRate : (formDefaultTaxRate ?? 16)));
+        setInvDiscount(Number(doc.discountAmount || (doc as any).discount_amount || 0));
+        setInvNotes(doc.notes || '');
+        setInvTerms(doc.terms || '');
+
+        const rawItems = doc.items && Array.isArray(doc.items) && doc.items.length > 0 ? doc.items : [];
+        if (rawItems.length > 0) {
+            setInvItems(rawItems.map(it => {
+                const qty = Number(it.quantity) || 1;
+                const uPrice = Number(it.unitPrice ?? (it as any).unit_price) || 0;
+                const amt = Number(it.amount) || (qty * uPrice);
+                return {
+                    description: it.description || '',
+                    quantity: qty,
+                    unitPrice: uPrice,
+                    amount: amt
+                };
+            }));
+        } else {
+            setInvItems([
+                {
+                    description: doc.notes || 'Service / Product Billing',
+                    quantity: 1,
+                    unitPrice: Number(doc.subtotal || doc.totalAmount) || 0,
+                    amount: Number(doc.subtotal || doc.totalAmount) || 0
+                }
+            ]);
+        }
+
+        if (previewInvoice) {
+            setPreviewInvoice(null);
+        }
+        setShowInvoiceModal(true);
+    };
+
+    // Save New or Updated Invoice / Quote
     const handleSaveInvoiceSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!invClientId) return alert('Please select a corporate client.');
         if (invItems.length === 0 || calculatedSubtotal <= 0) return alert('Please provide at least one valid line item with an amount.');
 
         const client = clients.find(c => c.id === invClientId);
-        const resolvedClientName = client?.clientName || (client as any)?.client_name || (client as any)?.name || 'Corporate Client';
+        const resolvedClientName = client?.clientName || (client as any)?.client_name || (client as any)?.name || editingInvoice?.clientName || 'Corporate Client';
         const docType = isQuoteMode ? 'quote' : 'invoice';
 
+        // Editing an existing invoice or quote
+        if (editingInvoice) {
+            const currentAmountPaid = Number(editingInvoice.amountPaid || 0);
+            const newBalance = Math.max(0, calculatedGrandTotal - currentAmountPaid);
+            const newStatus = isQuoteMode
+                ? 'quote'
+                : (newBalance <= 0 ? 'paid' : (currentAmountPaid > 0 ? 'partial' : 'pending'));
+
+            const updatedDoc: Invoice = {
+                ...editingInvoice,
+                invoiceNumber: customDocNumber.trim() || editingInvoice.invoiceNumber,
+                issueDate: invIssueDate,
+                dueDate: invDueDate,
+                items: invItems.map(it => {
+                    const qty = Number(it.quantity) || 1;
+                    const uPrice = Number(it.unitPrice) || 0;
+                    const amt = Number(it.amount) || (qty * uPrice);
+                    return {
+                        description: it.description || '',
+                        quantity: qty,
+                        unitPrice: uPrice,
+                        unit_price: uPrice,
+                        amount: amt
+                    } as any;
+                }),
+                subtotal: calculatedSubtotal,
+                taxRate: invTaxRate,
+                taxAmount: calculatedTaxAmount,
+                discountAmount: invDiscount,
+                totalAmount: calculatedGrandTotal,
+                amountPaid: currentAmountPaid,
+                balance: newBalance,
+                status: newStatus,
+                clientId: client?.id || invClientId || editingInvoice.clientId,
+                client_id: client?.id || invClientId || (editingInvoice as any).client_id,
+                clientName: resolvedClientName,
+                client_name: resolvedClientName,
+                clientEmail: client?.email || (client as any)?.client_email || editingInvoice.clientEmail,
+                client_email: client?.email || (client as any)?.client_email || (editingInvoice as any).client_email,
+                clientPhone: client?.phone || (client as any)?.client_phone || editingInvoice.clientPhone,
+                client_phone: client?.phone || (client as any)?.client_phone || (editingInvoice as any).client_phone,
+                clientTaxPin: client?.taxPin || (client as any)?.tax_pin || editingInvoice.clientTaxPin,
+                client_tax_pin: client?.taxPin || (client as any)?.tax_pin || (editingInvoice as any).client_tax_pin,
+                clientAddress: client?.address || (client as any)?.client_address || editingInvoice.clientAddress,
+                client_address: client?.address || (client as any)?.client_address || (editingInvoice as any).client_address,
+                currency: formCurrency || editingInvoice.currency || 'KES',
+                notes: invNotes,
+                terms: invTerms,
+                metadata: {
+                    ...(editingInvoice.metadata || {}),
+                    clientId: client?.id || invClientId || editingInvoice.clientId,
+                    client_id: client?.id || invClientId || (editingInvoice as any).client_id,
+                    clientName: resolvedClientName,
+                    client_name: resolvedClientName,
+                    clientEmail: client?.email || (client as any)?.client_email || editingInvoice.clientEmail,
+                    clientPhone: client?.phone || (client as any)?.client_phone || editingInvoice.clientPhone,
+                    clientTaxPin: client?.taxPin || (client as any)?.tax_pin || editingInvoice.clientTaxPin,
+                    clientAddress: client?.address || (client as any)?.client_address || editingInvoice.clientAddress
+                }
+            };
+
+            try {
+                await apiService.saveModuleRecord('invoices', updatedDoc);
+                setInvoices(prev => prev.map(i => i.id === updatedDoc.id ? updatedDoc : i));
+                onUpdateInvoice?.(updatedDoc);
+                setShowInvoiceModal(false);
+                setEditingInvoice(null);
+                onLogAction?.(`Updated corporate ${isQuoteMode ? 'Quote' : 'Invoice'} ${updatedDoc.invoiceNumber} for ${resolvedClientName} (${formCurrency} ${calculatedGrandTotal.toLocaleString()})`);
+                alert(`Success: ${isQuoteMode ? 'Quotation' : 'Invoice'} ${updatedDoc.invoiceNumber} updated successfully!`);
+                setInvItems([{ description: '', quantity: 1, unitPrice: 0, amount: 0 }]);
+                setInvDiscount(0);
+            } catch (err: any) {
+                alert('Failed to update document: ' + err.message);
+            }
+            return;
+        }
+
+        // Creating a new document
         // Obtain sequential number from the configured sequence
         let serial = customDocNumber.trim();
         if (!serial) {
@@ -1683,11 +1818,18 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 <td className="p-3 text-center">
                                                     <div className="flex items-center justify-center gap-1">
                                                         <button
-                                                            onClick={() => handleOpenAssignClientModal(inv)}
+                                                            onClick={() => handleOpenEditDocModal(inv)}
                                                             className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                                            title="Assign / Edit Client"
+                                                            title="Edit Invoice Values (Items, Rates, Amounts)"
                                                         >
                                                             <PencilIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenAssignClientModal(inv)}
+                                                            className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Assign / Change Client"
+                                                        >
+                                                            <UserIcon className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => setPreviewInvoice(inv)}
@@ -1838,11 +1980,18 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                                 <td className="p-4 text-center">
                                                     <div className="flex items-center justify-center gap-1.5">
                                                         <button
-                                                            onClick={() => handleOpenAssignClientModal(doc)}
+                                                            onClick={() => handleOpenEditDocModal(doc)}
                                                             className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                                            title="Assign / Edit Client"
+                                                            title={`Edit ${activeTab === 'quotes' ? 'Quotation' : 'Invoice'} Values (Items, Rates, Amounts)`}
                                                         >
                                                             <PencilIcon className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleOpenAssignClientModal(doc)}
+                                                            className="p-1.5 text-slate-400 hover:text-amber-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                            title="Assign / Change Client"
+                                                        >
+                                                            <UserIcon className="w-4 h-4" />
                                                         </button>
                                                         {activeTab === 'quotes' && (
                                                             <button
@@ -2684,7 +2833,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-8">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
                             <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                                {isQuoteMode ? 'Create New Corporate Quotation' : 'Issue Official Tax Invoice'}
+                                {editingInvoice
+                                    ? `Edit ${isQuoteMode ? 'Corporate Quotation' : 'Official Tax Invoice'} (${editingInvoice.invoiceNumber})`
+                                    : (isQuoteMode ? 'Create New Corporate Quotation' : 'Issue Official Tax Invoice')}
                             </h3>
                             <button onClick={() => setShowInvoiceModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
                                 <XIcon className="w-4 h-4" />
@@ -2707,13 +2858,23 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                             placeholder={isQuoteMode ? `${formQuotePrefix}${formQuoteNextNumber}` : `${formInvoicePrefix}${formInvoiceNextNumber}`}
                                             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-mono font-black text-indigo-600 dark:text-indigo-400 outline-none focus:border-indigo-600 w-44"
                                         />
-                                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                                            Auto-Sequenced
-                                        </span>
+                                        {editingInvoice ? (
+                                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+                                                Editing Existing Document
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                                                Auto-Sequenced
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="text-[11px] text-slate-500">
-                                    Next Configured: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{isQuoteMode ? `${formQuotePrefix}${formQuoteNextNumber}` : `${formInvoicePrefix}${formInvoiceNextNumber}`}</span>
+                                    {editingInvoice ? (
+                                        <span>Original Balance: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{formCurrency} {Number(editingInvoice.balance ?? editingInvoice.totalAmount).toLocaleString()}</span></span>
+                                    ) : (
+                                        <span>Next Configured: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{isQuoteMode ? `${formQuotePrefix}${formQuoteNextNumber}` : `${formInvoicePrefix}${formInvoiceNextNumber}`}</span></span>
+                                    )}
                                 </div>
                             </div>
 
@@ -2872,7 +3033,9 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                     type="submit"
                                     className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-md"
                                 >
-                                    {isQuoteMode ? 'Save & Issue Quotation' : 'Save & Issue Tax Invoice'}
+                                    {editingInvoice
+                                        ? `Save Changes to ${isQuoteMode ? 'Quotation' : 'Tax Invoice'}`
+                                        : (isQuoteMode ? 'Save & Issue Quotation' : 'Save & Issue Tax Invoice')}
                                 </button>
                             </div>
                         </form>
@@ -3246,6 +3409,13 @@ export const CorporateInvoicingManager: React.FC<CorporateInvoicingManagerProps>
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleOpenEditDocModal(previewInvoice)}
+                                    className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition-all"
+                                    title="Edit Line Items, Amounts, and Notes"
+                                >
+                                    <PencilIcon className="w-4 h-4" /> Edit Values
+                                </button>
                                 <button
                                     onClick={() => handleDownloadDocument(previewInvoice)}
                                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm flex items-center gap-1.5 transition-all"
