@@ -6744,6 +6744,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     }
                     console.warn(`[api/records] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${maxRetries} left)...`);
                     
+                    if (moduleName === 'biometric_devices' || targetDbTable === 'biometric_devices') {
+                        try {
+                            const pool = await getPgPool();
+                            if (pool) {
+                                await executeWithTimeout(
+                                    pool.query(`
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS port INT DEFAULT 4370;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS comm_key INT DEFAULT 0;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS firmware_version VARCHAR(100);
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS user_count INT DEFAULT 0;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS fp_count INT DEFAULT 0;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS face_count INT DEFAULT 0;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS log_count INT DEFAULT 0;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'offline';
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS requests_count INT DEFAULT 0;
+                                        ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_ip VARCHAR(50);
+                                        NOTIFY pgrst, 'reload schema';
+                                    `),
+                                    2500
+                                ).catch(() => {});
+                            }
+                        } catch (_) {}
+
+                        const BIOMETRIC_EXTENDED_COLS = ['port', 'comm_key', 'commKey', 'firmware_version', 'firmwareVersion', 'user_count', 'userCount', 'fp_count', 'fpCount', 'face_count', 'faceCount', 'log_count', 'logCount', 'last_heartbeat', 'lastHeartbeat', 'status', 'requests_count', 'requestsCount', 'last_ip', 'lastIp'];
+                        const stripBioExtended = (item: any) => {
+                            if (!item || typeof item !== 'object') return item;
+                            const copy = { ...item };
+                            BIOMETRIC_EXTENDED_COLS.forEach(c => {
+                                delete copy[c];
+                            });
+                            delete copy.metadata;
+                            return copy;
+                        };
+                        currentPayload = Array.isArray(currentPayload) ? currentPayload.map(stripBioExtended) : stripBioExtended(currentPayload);
+                        maxRetries--;
+                        continue;
+                    }
+
                     if (moduleName === 'institutions' || targetDbTable === 'institutions') {
                         try {
                             const pool = await getPgPool();
@@ -9188,6 +9227,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                         console.warn(`[api/records PATCH] Schema cache stale: stripping un-cached column '${offendingCol}' for [${moduleName}] and retrying (${patchRetries} left)...`);
                         
+                        if (moduleName === 'biometric_devices' || targetDbTable === 'biometric_devices') {
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS port INT DEFAULT 4370;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS comm_key INT DEFAULT 0;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS firmware_version VARCHAR(100);
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS user_count INT DEFAULT 0;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS fp_count INT DEFAULT 0;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS face_count INT DEFAULT 0;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS log_count INT DEFAULT 0;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'offline';
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS requests_count INT DEFAULT 0;
+                                            ALTER TABLE public.biometric_devices ADD COLUMN IF NOT EXISTS last_ip VARCHAR(50);
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2500
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+
+                            const BIOMETRIC_EXTENDED_COLS = ['port', 'comm_key', 'commKey', 'firmware_version', 'firmwareVersion', 'user_count', 'userCount', 'fp_count', 'fpCount', 'face_count', 'faceCount', 'log_count', 'logCount', 'last_heartbeat', 'lastHeartbeat', 'status', 'requests_count', 'requestsCount', 'last_ip', 'lastIp'];
+                            BIOMETRIC_EXTENDED_COLS.forEach(c => {
+                                delete currentUpdateData[c];
+                            });
+                            delete currentUpdateData.metadata;
+                            patchRetries--;
+                            continue;
+                        }
+
                         if (moduleName === 'institutions' || targetDbTable === 'institutions') {
                             try {
                                 const pool = await getPgPool();
