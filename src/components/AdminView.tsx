@@ -494,7 +494,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     };
 
 
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'timetable' | 'users' | 'customers' | 'courses' | 'leaveout' | 'boarding' | 'comms' | 'settings' | 'reports' | 'transport' | 'logistics' | 'deliveries' | 'retail' | 'procurement' | 'external_module' | 'coop' | 'sacco' | 'agrovet' | 'car_service' | 'farmers' | 'collections' | 'riders' | 'payouts' | 'finances' | 'approvals' | 'church' | 'driving_school' | 'law' | 'community' | 'alumni' | 'hospitality' | 'auto_marketplace' | 'showcase' | 'fuel_station' | 'ds_students' | 'ds_leads' | 'ds_lessons' | 'ds_fleet' | 'ds_instructors' | 'ds_finance' | 'ds_broadcaster' | 'bc_students' | 'bc_courses' | 'bc_finance' | 'bc_practicals' | 'bc_trainers' | 'bc_broadcaster' | 'campaign' | 'enrollment' | 'enrollment_students' | 'enrollment_teachers' | 'enrollment_support_staff' | 'enrollment_broadcaster' | 'enrollment_calendar' | 'enrollment_guests' | 'enrollment_portal_hub' | 'inv_dashboard' | 'inv_inventory' | 'inv_stock_inwards' | 'inv_pos' | 'inv_teachers' | 'inv_support_staff' | 'inv_students' | 'inv_reports' | 'inv_logistics' | 'inv_stores' | 'inv_expenses' | 'inv_requisitions' | 'inv_vendors' | 'inv_transfers' | 'inv_config' | 'ng_cdf' | 'eduflow' | 'eduvote' | 'eduvote_projector' | 'ai_hub' | 'remedials' | 'beauty_college' | 'fiscal_guard' | 'milling' | 'corporate_invoices' | 'network_devices'>('dashboard');
     const [activeScope, setActiveScope] = useState<'console_hub' | 'academics' | 'inventory' | 'boarding' | 'logistics' | 'ds' | 'bc' | 'eduvote' | 'remedials'>(() => {
         const isDSInst = props.currentInstitution && (
             isDSInstitution(props.currentInstitution) || 
@@ -524,6 +524,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
     const [isAddListingModalOpen, setIsAddListingModalOpen] = useState(false);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<CarListing | null>(null);
     const [autoSubTab, setAutoSubTab] = useState<'dashboard' | 'inventory' | 'financials' | 'bank_feeds' | 'showroom_settings' | 'customers'>('dashboard');
+    const [retailAgencySubTab, setRetailAgencySubTab] = useState<string>('dashboard');
     const [isAddCarInvoiceModalOpen, setIsAddCarInvoiceModalOpen] = useState(false);
     const [isAddCarPaymentModalOpen, setIsAddCarPaymentModalOpen] = useState(false);
     const [isAddCarLeadModalOpen, setIsAddCarLeadModalOpen] = useState(false);
@@ -1123,6 +1124,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                 tabs.push({ id: 'users', label: 'Staff & Agents', icon: <UserGroupIcon className="w-5 h-5 mr-2" /> });
             }
 
+            tabs.push({ id: 'deliveries', label: 'Deliveries', icon: <TruckIcon className="w-5 h-5 mr-2" /> });
             tabs.push({ id: 'procurement', label: 'Procurement', icon: <ShoppingBagIcon className="w-5 h-5 mr-2" /> });
 
             if (isManagerRole) {
@@ -3595,19 +3597,35 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                         'inv_vendors': 'vendors',
                         'inv_transfers': 'transfers',
                         'inv_config': 'config',
-                        // For retail agency: procurement top-tab deep-links directly to vendors view
-                        'procurement': 'vendors'
+                        // For retail agency: procurement top-tab deep-links directly to vendors view, deliveries to logistics
+                        'procurement': 'vendors',
+                        'deliveries': 'logistics',
+                        'logistics': 'logistics'
                     };
 
-                    const isRetailTab = (isEdu && activeScope === 'inventory' && activeTab in retailTabMap) || activeTab === 'retail' || (isRetailAgency && activeTab === 'procurement');
+                    const isRetailTab = (isEdu && activeScope === 'inventory' && activeTab in retailTabMap)
+                        || activeTab === 'retail'
+                        || (isRetailAgency && (
+                            activeTab === 'procurement' ||
+                            activeTab === 'deliveries' ||
+                            activeTab === 'logistics' ||
+                            activeTab === 'inv_logistics' ||
+                            activeTab in retailTabMap
+                        ));
                     
                     if (isRetailTab) {
-                        // For retail agency: procurement tab deep-links to vendors sub-view
-                        const mappedTab = (isRetailAgency && activeTab === 'procurement')
-                            ? 'vendors'
+                        // For retail agency: procurement tab deep-links to vendors sub-view, deliveries deep-links to logistics
+                        const mappedTab = isRetailAgency
+                            ? (activeTab === 'deliveries' || activeTab === 'logistics' || activeTab === 'inv_logistics')
+                                ? 'logistics'
+                                : (activeTab === 'procurement')
+                                ? 'vendors'
+                                : activeTab in retailTabMap
+                                ? retailTabMap[activeTab]
+                                : (activeTab === 'retail' ? (retailAgencySubTab || 'dashboard') : undefined)
                             : (isEdu && activeScope === 'inventory') ? retailTabMap[activeTab] : undefined;
 
-                        // Retail agency: both 'retail' and 'procurement' tabs render RetailManager directly
+                        // Retail agency: 'retail', 'deliveries', and 'procurement' tabs render RetailManager directly
                         if (isRetailAgency) {
                             return (
                                 <RetailManager
@@ -3627,9 +3645,14 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                                     currentInstitution={props.currentInstitution}
                                     activeTab={mappedTab}
                                     onTabChange={(tab) => {
-                                        const reverseMap = Object.entries(retailTabMap).find(([_, value]) => value === tab)?.[0];
-                                        if (reverseMap) setActiveTab(reverseMap as any);
-                                        else setActiveTab('retail' as any);
+                                        setRetailAgencySubTab(tab);
+                                        if (tab === 'logistics') {
+                                            setActiveTab('deliveries' as any);
+                                        } else if (tab === 'vendors') {
+                                            setActiveTab('procurement' as any);
+                                        } else {
+                                            setActiveTab('retail' as any);
+                                        }
                                     }}
                                     countyInventory={props.countyInventory}
                                     onMarkInventoryReceived={props.onMarkInventoryReceived}
@@ -4068,7 +4091,7 @@ export const AdminView: React.FC<AdminViewProps> = (props) => {
                     />
                 )}
 
-                {activeTab === 'logistics' && !(isLogistics && !isEdu && !isSchool) && (
+                {activeTab === 'logistics' && !isRetailAgency && !(isLogistics && !isEdu && !isSchool) && (
                     <LogisticsManager 
                         currentInstitution={props.currentInstitution!}
                         users={(props.users || []).filter(u => !props.currentInstitution?.id || !u.institutionId || (u as any).institution_id === props.currentInstitution.id || u.institutionId === props.currentInstitution.id)}
