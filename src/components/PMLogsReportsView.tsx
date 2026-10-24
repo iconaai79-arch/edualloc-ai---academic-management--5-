@@ -92,14 +92,129 @@ export const safeFormatNumber = (val: any): string => {
     return num.toLocaleString();
 };
 
+export const parseSafeIsoDate = (rawDate?: any, fallbackDate?: any, defaultTime = '12:00:00'): string => {
+    const candidates = [rawDate, fallbackDate];
+    for (const cand of candidates) {
+        if (!cand) continue;
+        const str = String(cand).trim();
+        if (!str || str.toLowerCase() === 'invalid date' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
+            continue;
+        }
+
+        // Direct parse
+        const direct = new Date(str);
+        if (!isNaN(direct.getTime())) {
+            return direct.toISOString();
+        }
+
+        // YYYY-MM-DD format
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            const parsed = new Date(`${str}T${defaultTime}Z`);
+            if (!isNaN(parsed.getTime())) return parsed.toISOString();
+        }
+
+        // YYYY-MM-DD prefix with arbitrary suffix
+        if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+            const datePart = str.substring(0, 10);
+            const parsed = new Date(`${datePart}T${defaultTime}Z`);
+            if (!isNaN(parsed.getTime())) return parsed.toISOString();
+        }
+
+        // DD/MM/YYYY or DD-MM-YYYY
+        const dmy = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+        if (dmy) {
+            const parsed = new Date(`${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}T${defaultTime}Z`);
+            if (!isNaN(parsed.getTime())) return parsed.toISOString();
+        }
+    }
+
+    return new Date().toISOString();
+};
+
 export const safeFormatDate = (val: any): string => {
     if (!val) return 'Recent';
     try {
         const d = new Date(val);
-        return isNaN(d.getTime()) ? String(val) : d.toLocaleString();
-    } catch {
-        return String(val);
-    }
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    } catch {}
+
+    try {
+        const iso = parseSafeIsoDate(val);
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    } catch {}
+
+    return 'Recent';
+};
+
+export const safeFormatDateOnly = (val: any): string => {
+    if (!val) return 'Recent';
+    try {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+    } catch {}
+
+    try {
+        const iso = parseSafeIsoDate(val);
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        }
+    } catch {}
+
+    return 'Recent';
+};
+
+export const safeFormatTimeOnly = (val: any): string => {
+    if (!val) return '—';
+    try {
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    } catch {}
+
+    try {
+        const iso = parseSafeIsoDate(val);
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    } catch {}
+
+    return '—';
 };
 
 
@@ -177,7 +292,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_pay_${p.id}`,
-                timestamp: p.paymentDate ? (p.paymentDate.includes('T') ? p.paymentDate : `${p.paymentDate}T12:00:00Z`) : (p.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(p.paymentDate || (p as any).payment_date, p.createdAt || (p as any).created_at, '12:00:00'),
                 category: 'Financial',
                 action: `${p.paymentType || 'Rent'} Payment Received`,
                 propertyName: prop?.name,
@@ -205,7 +320,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_inv_${inv.id}`,
-                timestamp: inv.createdAt || inv.dueDate || new Date().toISOString(),
+                timestamp: parseSafeIsoDate(inv.createdAt || (inv as any).created_at, inv.dueDate || (inv as any).due_date, '09:00:00'),
                 category: 'Financial',
                 action: `Billing Invoice Generated (#${inv.invoiceNumber || inv.id.substring(0, 6)})`,
                 propertyName: prop?.name,
@@ -231,7 +346,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_disb_${d.id}`,
-                timestamp: d.disbursementDate ? `${d.disbursementDate}T12:00:00Z` : (d.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(d.disbursementDate || (d as any).disbursement_date, d.createdAt || (d as any).created_at, '12:00:00'),
                 category: 'Financial',
                 action: `Landlord Disbursement Payout`,
                 propertyName: prop?.name,
@@ -253,7 +368,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
             const prop = ex.propertyId ? propertyMap.get(ex.propertyId) : undefined;
             items.push({
                 id: `pm_exp_${ex.id}`,
-                timestamp: ex.expenseDate ? `${ex.expenseDate}T12:00:00Z` : (ex.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(ex.expenseDate || (ex as any).expense_date, ex.createdAt || (ex as any).created_at, '12:00:00'),
                 category: 'Financial',
                 action: `Expense Voucher Recorded (${ex.category || 'Maintenance'})`,
                 propertyName: prop?.name,
@@ -277,7 +392,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_ut_${u.id}`,
-                timestamp: u.readingDate ? `${u.readingDate}T10:00:00Z` : (u.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(u.readingDate || (u as any).reading_date, u.createdAt || (u as any).created_at, '10:00:00'),
                 category: 'Utilities',
                 action: `${u.utilityType || 'Utility'} Reading Logged`,
                 propertyName: prop?.name,
@@ -303,7 +418,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_nt_${n.id}`,
-                timestamp: n.issuedDate ? `${n.issuedDate}T09:00:00Z` : (n.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(n.issuedDate || (n as any).issued_date, n.createdAt || (n as any).created_at, '09:00:00'),
                 category: 'Notices',
                 action: `${n.noticeType || 'Official'} Notice Dispatched`,
                 propertyName: prop?.name,
@@ -330,7 +445,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_insp_${insp.id}`,
-                timestamp: insp.inspectionDate ? `${insp.inspectionDate}T14:00:00Z` : (insp.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(insp.inspectionDate || (insp as any).inspection_date, insp.createdAt || (insp as any).created_at, '14:00:00'),
                 category: 'Inspections',
                 action: `${insp.inspectionType || 'Move-out'} Inspection Recorded`,
                 propertyName: prop?.name,
@@ -358,7 +473,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_ref_${ref.id}`,
-                timestamp: ref.refundDate ? `${ref.refundDate}T15:00:00Z` : (ref.createdAt || new Date().toISOString()),
+                timestamp: parseSafeIsoDate(ref.refundDate || (ref as any).refund_date, ref.createdAt || (ref as any).created_at, '15:00:00'),
                 category: 'Inspections',
                 action: `Security Deposit Refund Settled`,
                 propertyName: prop?.name,
@@ -384,7 +499,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `pm_tk_${tk.id}`,
-                timestamp: tk.createdAt || new Date().toISOString(),
+                timestamp: parseSafeIsoDate(tk.createdAt || (tk as any).created_at, (tk as any).date, '11:00:00'),
                 category: 'Maintenance',
                 action: `Maintenance Ticket: ${tk.title || 'Work Order'}`,
                 propertyName: prop?.name,
@@ -408,7 +523,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
 
             items.push({
                 id: `act_${act.id}`,
-                timestamp: act.timestamp || (act as any).created_at || new Date().toISOString(),
+                timestamp: parseSafeIsoDate(act.timestamp || (act as any).created_at, (act as any).date, '12:00:00'),
                 category: 'Audit',
                 action: act.action || 'Administrative Action',
                 details: act.details || (act as any).message || 'System operation executed',
@@ -424,7 +539,7 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
         remoteSmsLogs.forEach(sms => {
             items.push({
                 id: `sms_${sms.id}`,
-                timestamp: (sms as any).created_at || sms.timestamp || new Date().toISOString(),
+                timestamp: parseSafeIsoDate((sms as any).created_at || sms.timestamp, (sms as any).sent_at, '12:00:00'),
                 category: 'SMS',
                 action: `SMS Alert (${sms.recipient || 'Recipient'})`,
                 targetName: sms.recipient,
@@ -439,7 +554,11 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
         });
 
         // Sort descending by timestamp (newest first)
-        items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        items.sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+        });
 
         return items;
     }, [
@@ -971,9 +1090,8 @@ export const PMLogsReportsView: React.FC<PMLogsReportsViewProps> = ({
                                 </tr>
                             ) : (
                                 paginatedLogs.map((log) => {
-                                    const logDate = new Date(log.timestamp);
-                                    const dateStr = logDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                                    const timeStr = logDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                                    const dateStr = safeFormatDateOnly(log.timestamp);
+                                    const timeStr = safeFormatTimeOnly(log.timestamp);
 
                                     return (
                                         <tr

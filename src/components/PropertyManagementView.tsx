@@ -8291,7 +8291,15 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     const unit = units.find(u => u.id === lease?.unitId);
                                     return (
                                         <tr key={insp.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-5 text-xs text-slate-500 font-bold">{new Date(insp.inspectionDate).toLocaleDateString()}</td>
+                                            <td className="p-5 text-xs text-slate-500 font-bold">
+                                                {(() => {
+                                                    const d = insp.inspectionDate ? new Date(insp.inspectionDate) : null;
+                                                    if (d && !isNaN(d.getTime())) return d.toLocaleDateString();
+                                                    const fb = insp.createdAt ? new Date(insp.createdAt) : null;
+                                                    if (fb && !isNaN(fb.getTime())) return fb.toLocaleDateString();
+                                                    return 'Recent';
+                                                })()}
+                                            </td>
                                             <td className="p-5">
                                                 <div className="font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || '—'}</div>
                                                 <div className="text-[9px] text-slate-400 uppercase font-black">Unit {unit?.unitNumber || '—'}</div>
@@ -8454,7 +8462,16 @@ export const PropertyManagementView: React.FC<PropertyManagementViewProps> = (pr
                                     const deductions = ref.rentArrearsDeduction + ref.utilityArrearsDeduction + ref.damageRepairDeduction + ref.otherDeductions;
                                     return (
                                         <tr key={ref.id} className="border-t border-slate-50 dark:border-slate-700/50 hover:bg-slate-50/50 transition-colors">
-                                            <td className="p-5 text-xs text-slate-500 font-bold">{new Date(ref.statementDate).toLocaleDateString()}</td>
+                                            <td className="p-5 text-xs text-slate-500 font-bold">
+                                                {(() => {
+                                                    const d = ref.statementDate ? new Date(ref.statementDate) : null;
+                                                    if (d && !isNaN(d.getTime())) return d.toLocaleDateString();
+                                                    const fb = ref.refundDate || (ref as any).createdAt;
+                                                    const fbD = fb ? new Date(fb) : null;
+                                                    if (fbD && !isNaN(fbD.getTime())) return fbD.toLocaleDateString();
+                                                    return 'Recent';
+                                                })()}
+                                            </td>
                                             <td className="p-5">
                                                 <div className="font-black text-slate-900 dark:text-white uppercase italic">{tenant?.name || '—'}</div>
                                                 <div className="text-[9px] text-slate-400 uppercase font-black">Unit {unit?.unitNumber || '—'}</div>
