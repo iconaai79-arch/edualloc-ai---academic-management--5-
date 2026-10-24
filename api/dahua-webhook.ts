@@ -154,10 +154,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     if (action === 'sync' && institutionId) {
                         const today = new Date().toISOString().split('T')[0];
-                        await supabase.rpc('compute_staff_daily_attendance', {
-                            p_institution_id: institutionId,
-                            p_date: today
-                        }).catch(() => null);
+                        try {
+                            await supabase.rpc('compute_staff_daily_attendance', {
+                                p_institution_id: institutionId,
+                                p_date: today
+                            });
+                        } catch (_) {}
                     }
                 } catch (e) {
                     console.warn('[Dahua Webhook] Status query error:', e);
