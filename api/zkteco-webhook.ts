@@ -63,9 +63,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     .update({
                         last_sync_at: new Date().toISOString(),
                         last_ip: clientIp,
-                        requests_count: (existingDevice.requests_count || 0) + 1
+                        requests_count: (existingDevice.requests_count || 0) + 1,
+                        is_active: true
                     })
                     .eq('id', existingDevice.id);
+            } else if (institutionId) {
+                await supabase
+                    .from('biometric_devices')
+                    .insert([{
+                        institution_id: institutionId,
+                        serial_number: serialNumber,
+                        device_name: `ZKTeco Terminal (${serialNumber})`,
+                        protocol: 'adms',
+                        ip_address: clientIp || null,
+                        is_active: true,
+                        last_sync_at: new Date().toISOString(),
+                        requests_count: 1
+                    }]);
             }
         } catch (e) {
             console.error('[ZKTeco] Ping update error:', e);

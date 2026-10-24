@@ -3830,16 +3830,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 : appendBranch(recordWithTenancy);
 
             const isValidUUID = (str: any) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-            const UUID_STRICT_MODULES = ['biometric_devices', 'student_attendance', 'staff_attendance_daily', 'biometric_logs', 'biometric_enrollments'];
+            const UUID_STRICT_MODULES = [
+                'biometric_devices', 'biometric_enrollments', 'biometric_logs',
+                'staff_attendance_daily', 'student_attendance',
+                'zkteco_commands', 'zkteco_attendance_raw',
+                'sms_logs', 'sms_outbox', 'sms_gateway_logs', 'integration_logs',
+                'audit_logs', 'activity_logs',
+                'retail_customers',
+                'private_security_guards', 'private_security_deployments', 'private_security_incidents',
+                'procurement_suppliers', 'procurement_lpos', 'procurement_invoices', 'procurement_items'
+            ];
 
             const sanitizeUUIDs = (r: any) => {
                 if (!r || typeof r !== 'object') return r;
                 const cleaned = { ...r };
-                // Only strip non-UUID IDs if the target module specifically requires PostgreSQL UUID data type
-                if (UUID_STRICT_MODULES.includes(moduleName) || (typeof cleaned.id === 'string' && cleaned.id.startsWith('att_') && moduleName.includes('attendance'))) {
-                    if (cleaned.id && typeof cleaned.id === 'string' && !isValidUUID(cleaned.id)) {
-                        console.warn(`[api/records] Stripping non-UUID id '${cleaned.id}' for module '${moduleName}'`);
-                        delete cleaned.id;
+                const isUUIDModule = UUID_STRICT_MODULES.includes(moduleName) || UUID_STRICT_MODULES.includes(targetDbTable);
+                if (isUUIDModule || (typeof cleaned.id === 'string' && cleaned.id.startsWith('att_') && moduleName.includes('attendance'))) {
+                    if (!cleaned.id || typeof cleaned.id !== 'string' || !isValidUUID(cleaned.id)) {
+                        cleaned.id = randomUUID();
                     }
                 }
                 if (moduleName === 'receipts' || moduleName === 'ds_payments') {
@@ -6500,12 +6508,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
             }
 
+            if (moduleName === 'biometric_devices' || targetDbTable === 'biometric_devices') {
+                try {
+                    const items = Array.isArray(currentPayload) ? currentPayload : [currentPayload];
+                    for (const it of items) {
+                        if (it && typeof it === 'object' && it.institution_id && it.serial_number) {
+                            const { data: existingDevice } = await executeWithTimeout(
+                                supabase
+                                    .from('biometric_devices')
+                                    .select('id')
+                                    .eq('institution_id', it.institution_id)
+                                    .ilike('serial_number', it.serial_number)
+                                    .maybeSingle(),
+                                2500
+                            ).catch(() => ({ data: null }));
+                            if (existingDevice?.id) {
+                                it.id = existingDevice.id;
+                            }
+                        }
+                    }
+                } catch (preBioErr) {
+                    console.warn('[api/records] Pre-aligning biometric_devices note:', preBioErr);
+                }
+            }
+
             let data: any = null;
 
             let error: any = null;
             let maxRetries = 10;
             let tableSupportsMetadata = TABLES_WITH_METADATA.has(targetDbTable);
-            let tableRequiresUUID = false;
+            let tableRequiresUUID = UUID_STRICT_MODULES.includes(moduleName) || UUID_STRICT_MODULES.includes(targetDbTable);
 
             while (maxRetries >= 0) {
                 // Safety check: if function execution approaches timeout threshold, break immediately for offline fallback
@@ -6595,8 +6627,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (currentPayload) {
                     const ensureValidId = (item: any) => {
                         if (!item || typeof item !== 'object') return item;
-                        if (!item.id || item.id === 'null' || item.id === 'undefined') {
-                            item.id = (tableRequiresUUID || moduleName === 'sms_logs')
+                        if (!item.id || item.id === 'null' || item.id === 'undefined' || (tableRequiresUUID && !isValidUUID(item.id))) {
+                            item.id = tableRequiresUUID
                                 ? randomUUID()
                                 : `${moduleName}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
                         }
@@ -7452,7 +7484,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             copy.id = randomUUID();
                         }
-                        ['institution_id', 'institutionId', 'sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id', 'customer_id', 'customerId'].forEach(k => {
+                        ['sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id', 'customer_id', 'customerId'].forEach(k => {
                             if (k in copy && copy[k] && (!isValidUUID(copy[k]) || copy[k] === offendingVal)) {
                                 if (tableSupportsMetadata) {
                                     const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
@@ -9525,7 +9557,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         const offendingVal = offendingMatch ? offendingMatch[1] : null;
                         const copy = { ...currentUpdateData };
                         if (copy.id && (!isValidUUID(copy.id) || copy.id === offendingVal)) delete copy.id;
-                        ['institution_id', 'institutionId', 'sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id'].forEach(k => {
+                        ['sender_id', 'senderId', 'student_id', 'studentId', 'parent_id', 'parentId', 'user_id', 'userId', 'doctor_id', 'patient_id', 'driver_id'].forEach(k => {
                             if (k in copy && copy[k] && (!isValidUUID(copy[k]) || copy[k] === offendingVal)) {
                                 copy[k] = null;
                             }

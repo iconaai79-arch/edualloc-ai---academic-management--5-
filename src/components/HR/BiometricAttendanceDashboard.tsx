@@ -1123,13 +1123,30 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a48.667 48.667 0 00-1.53 8.523M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
                                                     </svg>
                                                 </div>
-                                                <span className={`text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
-                                                    dev.isActive
-                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
-                                                        : 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:border-slate-700'
-                                                }`}>
-                                                    {dev.isActive ? 'Online' : 'Offline'}
-                                                </span>
+                                                {(() => {
+                                                    const isRecentlyActive = dev.lastSyncAt && (Date.now() - new Date(dev.lastSyncAt).getTime() < 5 * 60 * 1000);
+                                                    if (!dev.isActive) {
+                                                        return (
+                                                            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:border-slate-700">
+                                                                Disabled
+                                                            </span>
+                                                        );
+                                                    }
+                                                    if (isRecentlyActive) {
+                                                        return (
+                                                            <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 flex items-center gap-1.5 animate-pulse">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                                Connected
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <span className="text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full border bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800 flex items-center gap-1.5">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                                            Standby
+                                                        </span>
+                                                    );
+                                                })()}
                                             </div>
                                             <div>
                                                 <h4 className="text-lg font-black text-slate-900 dark:text-white">{dev.deviceName}</h4>
@@ -1139,8 +1156,14 @@ export const BiometricAttendanceDashboard: React.FC<BiometricAttendanceDashboard
                                                 {dev.locationDescription && (
                                                     <p className="text-[10px] font-bold text-slate-400 mt-1">📍 {dev.locationDescription}</p>
                                                 )}
-                                                {dev.lastSyncAt && (
-                                                    <p className="text-[10px] font-bold text-slate-400 mt-1">Last sync: {new Date(dev.lastSyncAt).toLocaleString()}</p>
+                                                {dev.lastSyncAt ? (
+                                                    <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                                        Last heartbeat: {new Date(dev.lastSyncAt).toLocaleString()}
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-[10px] font-bold text-amber-500/80 mt-1">
+                                                        ⏳ Waiting for initial ping from terminal
+                                                    </p>
                                                 )}
                                             </div>
                                             <div className="grid grid-cols-4 gap-2 pt-2">
