@@ -9854,6 +9854,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         currentUpdateData = copy;
                         patchRetries--;
                         continue;
+                    } else if ((error.code === '23505' || String(error.message || '').includes('unique constraint') || String(error.message || '').includes('duplicate key')) && patchRetries > 0) {
+                        const errMsg = String(error.message || '').toLowerCase();
+                        if (errMsg.includes('institutions_email_key') || ((targetDbTable === 'institutions' || moduleName === 'institutions') && errMsg.includes('email'))) {
+                            console.warn(`[api/records PATCH] Unique constraint violation on institutions.email (institutions_email_key). Attempting self-healing recovery (${patchRetries} left)...`);
+                            try {
+                                const pool = await getPgPool();
+                                if (pool) {
+                                    await executeWithTimeout(
+                                        pool.query(`
+                                            ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_email_key CASCADE;
+                                            ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_email_unique CASCADE;
+                                            ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS uq_institutions_email CASCADE;
+                                            ALTER TABLE public.institutions ALTER COLUMN email DROP NOT NULL;
+                                            DROP INDEX IF EXISTS public.institutions_email_key;
+                                            NOTIFY pgrst, 'reload schema';
+                                        `),
+                                        2500
+                                    ).catch(() => {});
+                                }
+                            } catch (_) {}
+                            const copy = { ...currentUpdateData };
+                            if (patchTableSupportsMetadata) {
+                                const meta = typeof copy.metadata === 'object' && copy.metadata !== null ? { ...copy.metadata } : {};
+                                if (copy.email) meta.contactEmail = copy.email;
+                                copy.metadata = meta;
+                            }
+                            delete copy.email;
+                            currentUpdateData = copy;
+                            patchRetries--;
+                            continue;
+                        }
+                        break;
                     } else {
                         break;
                     }
