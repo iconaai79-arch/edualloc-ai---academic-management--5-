@@ -392,8 +392,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
 
             if (action === 'execute_sql') {
-                const { sql } = req.body;
-                if (!sql) return res.status(400).json({ error: 'SQL query required' });
+                const { sql, statements: providedStatements, continueOnError = false } = req.body;
+                if (!sql && (!providedStatements || !Array.isArray(providedStatements) || providedStatements.length === 0)) {
+                    return res.status(400).json({ error: 'SQL query or statements array required' });
+                }
 
                 const connectionString = 
                     process.env.DATABASE_URL || 
@@ -531,12 +533,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     return stmts;
                 };
 
-                const statements = splitStatements(sql);
-                const statementsToRun = statements.length > 0 ? statements : [sql];
+                const statementsToRun = (Array.isArray(providedStatements) && providedStatements.length > 0)
+                    ? providedStatements
+                    : (sql ? splitStatements(sql) : []);
                 const MAX_RETRIES = 5;
                 let lastError: any = null;
                 let lastResult: any = null;
                 const accumulatedRows: any[] = [];
+                const executionErrors: any[] = [];
+                let successCount = 0;
 
                 for (const singleStmt of statementsToRun) {
                     let stmtSuccess = false;
@@ -618,9 +623,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         }
                     }
 
-                    if (!stmtSuccess && lastError) {
+                    if (stmtSuccess) {
+                        successCount++;
+                    } else if (lastError) {
                         console.error(`[SQL Engine Statement Failed]:`, singleStmt.substring(0, 100), lastError);
-                        break;
+                        executionErrors.push({
+                            statement: singleStmt.length > 250 ? singleStmt.substring(0, 250) + '...' : singleStmt,
+                            message: lastError.message || "SQL Execution Error",
+                            code: lastError.code,
+                            detail: lastError.detail
+                        });
+                        if (!continueOnError) {
+                            break;
+                        }
                     }
                 }
 
@@ -628,7 +643,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     await pool.end().catch(() => {});
                 } catch {}
 
-                if (lastError) {
+                if (lastError && !continueOnError) {
                     console.error("[SQL Engine Error]:", lastError);
                     return res.status(200).json({
                         success: false,
@@ -636,12 +651,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         detail: lastError.detail,
                         hint: lastError.hint,
                         code: lastError.code,
+                        executedCount: successCount,
+                        failedCount: executionErrors.length,
+                        errors: executionErrors,
                         env: getEnvInfo()
                     });
                 }
 
                 return res.status(200).json({
-                    success: true,
+                    success: executionErrors.length === 0 || continueOnError,
+                    executedCount: successCount,
+                    failedCount: executionErrors.length,
+                    errors: executionErrors,
                     data: accumulatedRows.length > 0 ? accumulatedRows : (lastResult?.rows || []),
                     command: lastResult?.command,
                     rowCount: lastResult?.rowCount

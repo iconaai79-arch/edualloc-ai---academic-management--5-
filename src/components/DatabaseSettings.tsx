@@ -8,6 +8,8 @@ import { InformationCircleIcon } from './icons/InformationCircleIcon';
 import { LockClosedIcon } from './icons/LockClosedIcon';
 import { CommandLineIcon } from './icons/CommandLineIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
+import { ArrowUpTrayIcon } from './icons/ArrowUpTrayIcon';
+import { FullSqlImportModal } from './superadmin/FullSqlImportModal';
 import { apiService, initSupabaseClient } from '../services/apiService';
 
 interface DatabaseSettingsProps {
@@ -41,6 +43,7 @@ export const DatabaseSettings: React.FC<DatabaseSettingsProps> = ({
     const [isRepairing, setIsRepairing] = useState(false);
     const [debugInfo, setDebugInfo] = useState<string | null>(null);
     const [migrationMsg, setMigrationMsg] = useState('');
+    const [isSqlImportModalOpen, setIsSqlImportModalOpen] = useState(false);
 
     useEffect(() => { if (dbConfig) setConfig(dbConfig); }, [dbConfig]);
 
@@ -730,6 +733,13 @@ ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS floor_price DECIMAL(15, 
                         <ArrowPathIcon className="w-4 h-4" /> Sync Full Platform Schema
                     </button>
 
+                    <button
+                        onClick={() => setIsSqlImportModalOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                    >
+                        <ArrowUpTrayIcon className="w-4 h-4" /> Import Full SQL Script
+                    </button>
+
                     {onRunAlumniMigration && (
                         <button
                             onClick={async () => {
@@ -777,6 +787,14 @@ ALTER TABLE car_sales_listings ADD COLUMN IF NOT EXISTS floor_price DECIMAL(15, 
                     )}
                 </div>
             </div>
+
+            <FullSqlImportModal
+                isOpen={isSqlImportModalOpen}
+                onClose={() => setIsSqlImportModalOpen(false)}
+                onSuccess={(res) => {
+                    alert(`SQL Import Finished: Successfully executed ${res.executedCount.toLocaleString()} statements across ${res.affectedTables.length} tables.`);
+                }}
+            />
         </div>
     );
 };

@@ -100,6 +100,7 @@ import { apiService } from '../services/apiService';
 import { useToast } from '../services/ToastContext';
 import { generateFullSqlScript } from '../utils/sqlGenerator';
 import { collectAndDownloadFullSqlBackup, FullSqlBackupProgress, FullSqlBackupResult, executeSafeBlobDownload } from '../utils/tenantSqlBackup';
+import { FullSqlImportModal } from './superadmin/FullSqlImportModal';
 import { BrandedPaper } from './BrandedPaper';
 import { AcademicYearManager } from './AcademicYearManager';
 import { SuperAdminReports } from './SuperAdminReports';
@@ -1589,6 +1590,7 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
     const [fullSqlExportProgress, setFullSqlExportProgress] = useState<FullSqlBackupProgress | null>(null);
     const [downloadReadyBackup, setDownloadReadyBackup] = useState<FullSqlBackupResult | null>(null);
     const [isBackupReadyModalOpen, setIsBackupReadyModalOpen] = useState(false);
+    const [isSqlImportModalOpen, setIsSqlImportModalOpen] = useState(false);
 
     const handleDownloadFullSqlData = async () => {
         if (isExportingFullSql) return;
@@ -4956,6 +4958,13 @@ Please change it after login.`;
                                             </div>
                                             <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                                                 <button
+                                                    onClick={() => setIsSqlImportModalOpen(true)}
+                                                    className="flex items-center justify-center gap-3 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] shadow-2xl shadow-emerald-600/40 transition-all active:scale-95 whitespace-nowrap border border-emerald-400/30"
+                                                >
+                                                    <ArrowUpTrayIcon className="w-5 h-5" />
+                                                    <span>Import Full SQL (.sql)</span>
+                                                </button>
+                                                <button
                                                     onClick={handleDownloadFullSqlData}
                                                     disabled={isExportingFullSql}
                                                     className="flex items-center justify-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-[0.2em] shadow-2xl shadow-indigo-500/40 transition-all active:scale-95 disabled:opacity-50 whitespace-nowrap border border-indigo-400/30"
@@ -5026,6 +5035,12 @@ Please change it after login.`;
                                                 </button>
                                                 <button onClick={handleDownloadSql} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl transition-all active:scale-95">
                                                     <DocumentArrowDownIcon className="w-4 h-4" /> Download DDL Schema (.sql)
+                                                </button>
+                                                <button 
+                                                    onClick={() => setIsSqlImportModalOpen(true)}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl shadow-emerald-600/30 transition-all active:scale-95"
+                                                >
+                                                    <ArrowUpTrayIcon className="w-4 h-4" /> Import SQL Script
                                                 </button>
                                                 <button 
                                                     onClick={handleDownloadFullSqlData} 
@@ -9411,6 +9426,13 @@ Please change it after login.`;
                 onClose={() => setShowScanToPayModal(false)}
                 companyDetails={companyDetails}
                 mpesaConfig={localMpesaConfig}
+            />
+            <FullSqlImportModal
+                isOpen={isSqlImportModalOpen}
+                onClose={() => setIsSqlImportModalOpen(false)}
+                onSuccess={(res) => {
+                    success?.(`Import complete! Executed ${res.executedCount.toLocaleString()} SQL statements.`);
+                }}
             />
         </div>
     );
