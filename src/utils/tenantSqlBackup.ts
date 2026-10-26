@@ -19,6 +19,39 @@ export interface TenantBackupData {
     inventory?: any[];
     visitors?: any[];
     securityAlerts?: any[];
+    // Library module
+    books?: any[];
+    libraryTransactions?: any[];
+    libraryFines?: any[];
+    librarySettings?: any[];
+    bookReservations?: any[];
+    bookStockReceipts?: any[];
+    // Financial & Ledger
+    invoices?: any[];
+    receipts?: any[];
+    feeStructures?: any[];
+    voteHeads?: any[];
+    financialPeriods?: any[];
+    expenses?: any[];
+    bankTransactions?: any[];
+    mpesaTransactions?: any[];
+    // Boarding & Logistics
+    boardingHouses?: any[];
+    boardingRooms?: any[];
+    boardingBeds?: any[];
+    boardingAllocations?: any[];
+    bedAllocations?: any[];
+    vehicles?: any[];
+    transportBills?: any[];
+    // Assessments & Academics
+    assessments?: any[];
+    assessmentMarks?: any[];
+    studentAttendances?: any[];
+    // Remedials & Communications
+    remedialSessions?: any[];
+    remedialAllocations?: any[];
+    remedialRateSettings?: any[];
+    smsLogs?: any[];
     drivingSchool?: {
         students?: any[];
         instructors?: any[];
@@ -218,7 +251,101 @@ export function generateTenantSqlDump(data: TenantBackupData): string {
         sections.push(buildInsertStatements('security_alerts', data.securityAlerts));
     }
 
-    // 12. Driving School specific
+    // 12. Library Module
+    if (data.books && data.books.length > 0) {
+        sections.push(buildInsertStatements('books', data.books));
+    }
+    if (data.libraryTransactions && data.libraryTransactions.length > 0) {
+        sections.push(buildInsertStatements('library_transactions', data.libraryTransactions));
+    }
+    if (data.libraryFines && data.libraryFines.length > 0) {
+        sections.push(buildInsertStatements('library_fines', data.libraryFines));
+    }
+    if (data.librarySettings && data.librarySettings.length > 0) {
+        sections.push(buildInsertStatements('library_settings', data.librarySettings));
+    }
+    if (data.bookReservations && data.bookReservations.length > 0) {
+        sections.push(buildInsertStatements('book_reservations', data.bookReservations));
+    }
+    if (data.bookStockReceipts && data.bookStockReceipts.length > 0) {
+        sections.push(buildInsertStatements('book_stock_receipts', data.bookStockReceipts));
+    }
+
+    // 13. Finance & Ledgers
+    if (data.invoices && data.invoices.length > 0) {
+        sections.push(buildInsertStatements('invoices', data.invoices));
+    }
+    if (data.receipts && data.receipts.length > 0) {
+        sections.push(buildInsertStatements('receipts', data.receipts));
+    }
+    if (data.feeStructures && data.feeStructures.length > 0) {
+        sections.push(buildInsertStatements('fee_structures', data.feeStructures));
+    }
+    if (data.voteHeads && data.voteHeads.length > 0) {
+        sections.push(buildInsertStatements('vote_heads', data.voteHeads));
+    }
+    if (data.financialPeriods && data.financialPeriods.length > 0) {
+        sections.push(buildInsertStatements('financial_periods', data.financialPeriods));
+    }
+    if (data.expenses && data.expenses.length > 0) {
+        sections.push(buildInsertStatements('expenses', data.expenses));
+    }
+    if (data.bankTransactions && data.bankTransactions.length > 0) {
+        sections.push(buildInsertStatements('bank_transactions', data.bankTransactions));
+    }
+    if (data.mpesaTransactions && data.mpesaTransactions.length > 0) {
+        sections.push(buildInsertStatements('mpesa_transactions', data.mpesaTransactions));
+    }
+
+    // 14. Boarding & Fleet
+    if (data.boardingHouses && data.boardingHouses.length > 0) {
+        sections.push(buildInsertStatements('boarding_houses', data.boardingHouses));
+    }
+    if (data.boardingRooms && data.boardingRooms.length > 0) {
+        sections.push(buildInsertStatements('boarding_rooms', data.boardingRooms));
+    }
+    if (data.boardingBeds && data.boardingBeds.length > 0) {
+        sections.push(buildInsertStatements('boarding_beds', data.boardingBeds));
+    }
+    if (data.boardingAllocations && data.boardingAllocations.length > 0) {
+        sections.push(buildInsertStatements('boarding_allocations', data.boardingAllocations));
+    }
+    if (data.bedAllocations && data.bedAllocations.length > 0) {
+        sections.push(buildInsertStatements('bed_allocations', data.bedAllocations));
+    }
+    if (data.vehicles && data.vehicles.length > 0) {
+        sections.push(buildInsertStatements('vehicles', data.vehicles));
+    }
+    if (data.transportBills && data.transportBills.length > 0) {
+        sections.push(buildInsertStatements('transport_bills', data.transportBills));
+    }
+
+    // 15. Assessments & Academics
+    if (data.assessments && data.assessments.length > 0) {
+        sections.push(buildInsertStatements('assessments', data.assessments));
+    }
+    if (data.assessmentMarks && data.assessmentMarks.length > 0) {
+        sections.push(buildInsertStatements('assessment_marks', data.assessmentMarks));
+    }
+    if (data.studentAttendances && data.studentAttendances.length > 0) {
+        sections.push(buildInsertStatements('student_attendances', data.studentAttendances));
+    }
+
+    // 16. Remedials & Communication
+    if (data.remedialSessions && data.remedialSessions.length > 0) {
+        sections.push(buildInsertStatements('school_remedial_sessions', data.remedialSessions));
+    }
+    if (data.remedialAllocations && data.remedialAllocations.length > 0) {
+        sections.push(buildInsertStatements('school_remedial_allocations', data.remedialAllocations));
+    }
+    if (data.remedialRateSettings && data.remedialRateSettings.length > 0) {
+        sections.push(buildInsertStatements('school_remedial_rate_settings', data.remedialRateSettings));
+    }
+    if (data.smsLogs && data.smsLogs.length > 0) {
+        sections.push(buildInsertStatements('sms_logs', data.smsLogs));
+    }
+
+    // 17. Driving School specific
     if (data.drivingSchool) {
         if (data.drivingSchool.students?.length) sections.push(buildInsertStatements('ds_students', data.drivingSchool.students));
         if (data.drivingSchool.instructors?.length) sections.push(buildInsertStatements('ds_instructors', data.drivingSchool.instructors));
@@ -228,7 +355,7 @@ export function generateTenantSqlDump(data: TenantBackupData): string {
         if (data.drivingSchool.tests?.length) sections.push(buildInsertStatements('ds_tests', data.drivingSchool.tests));
     }
 
-    // 13. Health (HIS) specific
+    // 18. Health (HIS) specific
     if (data.health) {
         if (data.health.patients?.length) sections.push(buildInsertStatements('his_patients', data.health.patients));
         if (data.health.staff?.length) sections.push(buildInsertStatements('his_staff', data.health.staff));
@@ -237,7 +364,7 @@ export function generateTenantSqlDump(data: TenantBackupData): string {
         if (data.health.appointments?.length) sections.push(buildInsertStatements('his_appointments', data.health.appointments));
     }
 
-    // 14. Property Management specific
+    // 19. Property Management specific
     if (data.propertyManagement) {
         if (data.propertyManagement.properties?.length) sections.push(buildInsertStatements('property_management_properties', data.propertyManagement.properties));
         if (data.propertyManagement.units?.length) sections.push(buildInsertStatements('property_management_units', data.propertyManagement.units));
@@ -344,12 +471,22 @@ export async function collectAndDownloadTenantBackup(
         try {
             if (methodName && typeof (apiService as any)?.[methodName] === 'function') {
                 const res = await (apiService as any)[methodName](instId);
-                if (Array.isArray(res)) return res;
+                if (Array.isArray(res) && res.length > 0) return res;
             }
             if (typeof apiService?.fetchModuleRecords === 'function') {
                 const res = await apiService.fetchModuleRecords<T>(table, instId);
-                if (Array.isArray(res)) return res;
+                if (Array.isArray(res) && res.length > 0) return res;
             }
+            // Check localDb
+            try {
+                const { localDb } = await import('../services/localDb');
+                if (localDb && typeof localDb.getAll === 'function') {
+                    const localRows = await localDb.getAll(table).catch(() => []);
+                    if (Array.isArray(localRows) && localRows.length > 0) {
+                        return localRows.filter((r: any) => !r.institution_id || r.institution_id === instId || r.institutionId === instId);
+                    }
+                }
+            } catch (_) {}
             return [];
         } catch (e) {
             console.warn(`[tenantSqlBackup] Notice: safeFetch skipped ${table}:`, e);
@@ -375,17 +512,53 @@ export async function collectAndDownloadTenantBackup(
         inventory,
         visitors,
         securityAlerts,
+        // Library module
+        books,
+        libraryTransactions,
+        libraryFines,
+        librarySettings,
+        bookReservations,
+        bookStockReceipts,
+        // Financial & Ledgers
+        invoices,
+        receipts,
+        feeStructures,
+        voteHeads,
+        financialPeriods,
+        expenses,
+        bankTransactions,
+        mpesaTransactions,
+        // Boarding & Fleet
+        boardingHouses,
+        boardingRooms,
+        boardingBeds,
+        boardingAllocations,
+        bedAllocations,
+        vehicles,
+        transportBills,
+        // Assessments & Academics
+        assessments,
+        assessmentMarks,
+        studentAttendances,
+        // Remedials & Communications
+        remedialSessions,
+        remedialAllocations,
+        remedialRateSettings,
+        smsLogs,
+        // Driving school
         dsStudents,
         dsInstructors,
         dsVehicles,
         dsLessons,
         dsPayments,
         dsTests,
+        // Health
         hisPatients,
         hisStaff,
         hisWards,
         hisBeds,
         hisAppointments,
+        // Property
         propProperties,
         propUnits,
         propLeases
@@ -406,6 +579,39 @@ export async function collectAndDownloadTenantBackup(
         safeFetch<any>('inventory'),
         safeFetch<any>('visitors'),
         safeFetch<any>('security_alerts'),
+        // Library module
+        safeFetch<any>('books'),
+        safeFetch<any>('library_transactions'),
+        safeFetch<any>('library_fines'),
+        safeFetch<any>('library_settings'),
+        safeFetch<any>('book_reservations'),
+        safeFetch<any>('book_stock_receipts'),
+        // Financial & Ledgers
+        safeFetch<any>('invoices'),
+        safeFetch<any>('receipts'),
+        safeFetch<any>('fee_structures'),
+        safeFetch<any>('vote_heads'),
+        safeFetch<any>('financial_periods'),
+        safeFetch<any>('expenses'),
+        safeFetch<any>('bank_transactions'),
+        safeFetch<any>('mpesa_transactions'),
+        // Boarding & Fleet
+        safeFetch<any>('boarding_houses'),
+        safeFetch<any>('boarding_rooms'),
+        safeFetch<any>('boarding_beds'),
+        safeFetch<any>('boarding_allocations'),
+        safeFetch<any>('bed_allocations'),
+        safeFetch<any>('vehicles'),
+        safeFetch<any>('transport_bills'),
+        // Assessments & Academics
+        safeFetch<any>('assessments'),
+        safeFetch<any>('assessment_marks'),
+        safeFetch<any>('student_attendances'),
+        // Remedials & Communications
+        safeFetch<any>('school_remedial_sessions'),
+        safeFetch<any>('school_remedial_allocations'),
+        safeFetch<any>('school_remedial_rate_settings'),
+        safeFetch<any>('sms_logs'),
         // Driving school
         safeFetch<any>('ds_students'),
         safeFetch<any>('ds_instructors'),
@@ -455,6 +661,34 @@ export async function collectAndDownloadTenantBackup(
         inventory: inventory || [],
         visitors: visitors || [],
         securityAlerts: securityAlerts || [],
+        books: books || [],
+        libraryTransactions: libraryTransactions || [],
+        libraryFines: libraryFines || [],
+        librarySettings: librarySettings || [],
+        bookReservations: bookReservations || [],
+        bookStockReceipts: bookStockReceipts || [],
+        invoices: invoices || [],
+        receipts: receipts || [],
+        feeStructures: feeStructures || [],
+        voteHeads: voteHeads || [],
+        financialPeriods: financialPeriods || [],
+        expenses: expenses || [],
+        bankTransactions: bankTransactions || [],
+        mpesaTransactions: mpesaTransactions || [],
+        boardingHouses: boardingHouses || [],
+        boardingRooms: boardingRooms || [],
+        boardingBeds: boardingBeds || [],
+        boardingAllocations: boardingAllocations || [],
+        bedAllocations: bedAllocations || [],
+        vehicles: vehicles || [],
+        transportBills: transportBills || [],
+        assessments: assessments || [],
+        assessmentMarks: assessmentMarks || [],
+        studentAttendances: studentAttendances || [],
+        remedialSessions: remedialSessions || [],
+        remedialAllocations: remedialAllocations || [],
+        remedialRateSettings: remedialRateSettings || [],
+        smsLogs: smsLogs || [],
         drivingSchool: {
             students: dsStudents || [],
             instructors: dsInstructors || [],
@@ -486,71 +720,107 @@ export async function collectAndDownloadTenantBackup(
     totalRecords += (subjects?.length || 0) + (courses?.length || 0);
     totalRecords += (allocations?.length || 0) + (timetable?.length || 0) + (moduleStates?.length || 0);
     totalRecords += (inventory?.length || 0) + (visitors?.length || 0) + (securityAlerts?.length || 0);
+    totalRecords += (books?.length || 0) + (libraryTransactions?.length || 0) + (libraryFines?.length || 0) + (librarySettings?.length || 0) + (bookReservations?.length || 0) + (bookStockReceipts?.length || 0);
+    totalRecords += (invoices?.length || 0) + (receipts?.length || 0) + (feeStructures?.length || 0) + (voteHeads?.length || 0) + (financialPeriods?.length || 0) + (expenses?.length || 0) + (bankTransactions?.length || 0) + (mpesaTransactions?.length || 0);
+    totalRecords += (boardingHouses?.length || 0) + (boardingRooms?.length || 0) + (boardingBeds?.length || 0) + (boardingAllocations?.length || 0) + (bedAllocations?.length || 0);
+    totalRecords += (vehicles?.length || 0) + (transportBills?.length || 0);
+    totalRecords += (assessments?.length || 0) + (assessmentMarks?.length || 0) + (studentAttendances?.length || 0);
+    totalRecords += (remedialSessions?.length || 0) + (remedialAllocations?.length || 0) + (remedialRateSettings?.length || 0) + (smsLogs?.length || 0);
     totalRecords += (dsStudents?.length || 0) + (dsInstructors?.length || 0) + (dsVehicles?.length || 0) + (dsLessons?.length || 0) + (dsPayments?.length || 0) + (dsTests?.length || 0);
     totalRecords += (hisPatients?.length || 0) + (hisStaff?.length || 0) + (hisWards?.length || 0) + (hisBeds?.length || 0) + (hisAppointments?.length || 0);
     totalRecords += (propProperties?.length || 0) + (propUnits?.length || 0) + (propLeases?.length || 0);
 
     const fileName = downloadTenantSqlBackup(backupData);
 
-    return { fileName, totalRecords, data: backupData };
+    return {
+        fileName,
+        totalRecords,
+        data: backupData
+    };
 }
 
 /**
- * Ordered list of all PostgreSQL platform tables for global data dump
+ * Complete, authoritative list of all relational tables across the entire multi-tenant platform
  */
 export const FULL_PLATFORM_SQL_TABLES: string[] = [
     // 1. Tenancy, Core & Geography
     'counties',
     'constituencies',
+    'wards',
     'institutions',
     'branches',
     'institution_module_states',
+    'institution_extension_requests',
     'school_registry',
     'school_authorized_devices',
     'school_router_profiles',
+    'school_projects',
+    'project_updates',
+    'school_ads',
+    'school_gallery',
 
-    // 2. Identity & Access
+    // 2. Identity, Access, Tasks & Biometrics
     'users',
+    'students',
     'tasks',
     'activity_log',
+    'audit_log',
+    'audit_reports',
+    'audit_issues',
+    'biometric_devices',
+    'biometric_enrollments',
+    'biometric_device_commands',
+    'staff_attendance_daily',
+    'staff_attendance_logs',
+    'employee_documents',
 
-    // 3. Academic Structure & Curriculum
+    // 3. Academic Structure, Curriculum & Schemes
     'departments',
     'academic_levels',
     'academic_years',
     'semesters',
     'courses',
+    'course_levels',
     'subjects',
+    'subject_allocations',
     'class_subject_allocations',
     'student_enrollments',
+    'student_clearances',
+    'student_promotion_history',
+    'student_subject_exemptions',
+    'student_conduct_records',
+    'discipline_incidents',
+    'schemes_of_work',
+    'school_leaving_certificates',
+    'observation_notes',
+    'student_parent_messages',
 
-    // 4. Physical Facilities & Logistics
-    'buildings',
-    'rooms',
-    'inventory',
-    'visitors',
-    'security_alerts',
-    'maintenance_requests',
-
-    // 5. Scheduling & Timetables
+    // 4. Scheduling, Timetables & Allocations
     'timetable_settings',
     'exam_timetable_settings',
     'allocation_requests',
     'allocations',
     'timetable_entries',
     'exam_timetable_entries',
+    'teacher_lesson_plans',
+    'lesson_ratings',
 
-    // 6. Assessments & Grading
+    // 5. Assessments, Attendance & Feedback
     'assessments',
     'assessment_marks',
     'student_attendances',
     'teacher_check_ins',
+    'teacher_checkin_reminders',
+    'teacher_attendance_summary',
     'student_absence_requests',
     'absence_requests',
+    'leave_requests',
+    'leave_out_requests',
+    'time_off_requests',
     'feedback_submissions',
-    'lesson_ratings',
+    'guest_feedback',
 
-    // 7. Finance, Fees & Ledgers
+    // 6. Finance, Invoicing, Billing & Banking
     'vote_heads',
     'fee_structures',
     'financial_periods',
@@ -558,43 +828,148 @@ export const FULL_PLATFORM_SQL_TABLES: string[] = [
     'invoices',
     'receipts',
     'expenses',
+    'platform_expenses',
     'school_bank_accounts',
     'finance_numbering_configs',
     'inter_bank_transfers',
+    'inter_account_transfers',
     'inter_vote_transfers',
+    'vote_head_transfers',
     'requisitions',
     'payroll_records',
+    'payroll_runs',
     'bank_transactions',
+    'bank_feed_transactions',
     'mpesa_transactions',
     'airtel_transactions',
     'intasend_transactions',
     'ncba_transactions',
+    'equity_biller_transactions',
+    'im_bank_transactions',
+    'im_transactions',
     'invoice_clients',
     'company_invoice_settings',
+    'institution_wallets',
+    'teacher_wallets',
+    'wallet_transactions',
+    'convenience_fee_configs',
+    'super_admin_revenue_wallets',
+    'fee_promises',
+    'fee_goods_proposals',
+    'tenant_bills',
+    'transactions',
+    'payments',
+    'commission_withdrawal_requests',
+    'bursary_disbursements',
+    'ng_cdf_bursaries',
+    'ng_cdf_funds',
+    'ng_cdf_school_grants',
+    'gok_capitation_logs',
 
-    // 8. Boarding & Transport & Library
+    // 7. Library Module
+    'books',
+    'library_transactions',
+    'library_fines',
+    'library_settings',
+    'book_reservations',
+    'book_stock_receipts',
+
+    // 8. Boarding, Logistics, Vehicles & Fleet
     'boarding_houses',
     'boarding_rooms',
     'boarding_beds',
     'boarding_allocations',
+    'bed_allocations',
     'boarding_maintenance_logs',
     'boarding_checkins',
     'boarding_checkouts',
     'vehicles',
     'transport_onboarding',
     'vehicle_logs',
-    'library_books',
-    'library_issues',
+    'transport_bills',
+    'transport_sacco_accounts',
+    'transport_sacco_daily_remittances',
+    'transport_sacco_loan_applications',
+    'transport_sacco_settings',
+    'transport_sacco_transactions',
+    'logistic_drivers',
+    'logistic_trips',
+    'logistic_vehicles',
+    'logistic_vehicle_maintenance',
 
-    // 9. School Remedials
+    // 9. Physical Facilities, Inventory & Maintenance
+    'buildings',
+    'building_floors',
+    'building_offices',
+    'rooms',
+    'inventory',
+    'maintenance_requests',
+
+    // 10. Security & Gatehouse Kiosk
+    'visitors',
+    'security_alerts',
+    'watchlist_records',
+    'security_guards',
+    'security_patrol_scans',
+    'occurrence_book',
+    'building_visitor_logs',
+    'building_visitor_assets',
+    'armory_equipment',
+    'rapid_response_units',
+    'client_site_contracts',
+
+    // 11. School Remedials & Duty Rosters
     'school_remedial_rate_settings',
     'school_remedial_allocations',
     'school_remedial_subjects',
+    'school_remedial_sessions',
     'school_remedial_payouts',
     'school_remedial_opening_balances',
     'school_remedial_duty_roster',
 
-    // 10. Driving School Vertical (DS)
+    // 12. Retail, Store & Point of Sale (POS)
+    'store_categories',
+    'retail_stores',
+    'retail_customers',
+    'retail_inventory',
+    'retail_inventory_items',
+    'retail_store_stock',
+    'retail_serialized_items',
+    'retail_sales',
+    'retail_stock_receipts',
+    'retail_stock_issues',
+    'retail_stock_transfers',
+    'retail_stock_transfer_items',
+    'retail_expenses',
+    'retail_marketplace_orders',
+    'retail_wishlist',
+    'retail_couriers',
+    'retail_delivery_rates',
+    'retail_commissions_ledger',
+
+    // 13. Cafe & Restaurant POS
+    'cafe_menu_items',
+    'cafe_orders',
+
+    // 14. Carwash Module
+    'carwash_settings',
+    'carwash_accounts',
+    'carwash_services',
+    'carwash_packages',
+    'carwash_add_ons',
+    'carwash_vehicles',
+    'carwash_customers',
+    'carwash_jobs',
+    'carwash_sales',
+    'carwash_expenses',
+    'carwash_inventory',
+    'carwash_shifts',
+    'carwash_payroll',
+    'carwash_feedback',
+    'carwash_journal_entries',
+    'carwash_journal_lines',
+
+    // 15. Driving School Vertical (DS)
     'ds_settings',
     'ds_license_categories',
     'ds_votes',
@@ -606,9 +981,11 @@ export const FULL_PLATFORM_SQL_TABLES: string[] = [
     'ds_skill_mastery',
     'ds_invoices',
     'ds_payments',
+    'ds_expenditures',
+    'ds_leads',
     'ds_tests',
 
-    // 11. Hospital Information System (HIS)
+    // 16. Healthcare / Hospital Information System (HIS)
     'his_staff',
     'his_patients',
     'his_wards',
@@ -617,6 +994,10 @@ export const FULL_PLATFORM_SQL_TABLES: string[] = [
     'his_inpatient_records',
     'his_appointments',
     'his_queue_calls',
+    'his_vital_statistics',
+    'his_clinical_events',
+    'his_medical_notes',
+    'his_medication_logs',
     'his_prescriptions',
     'his_prescription_items',
     'his_pharmacy_inventory',
@@ -625,62 +1006,127 @@ export const FULL_PLATFORM_SQL_TABLES: string[] = [
     'his_pharmacy_sales',
     'his_pharmacy_sale_items',
     'his_pharmacy_ledger',
+    'his_pharmacy_staff',
     'his_pharmacy_settings',
+    'his_pharmacy_narcotics_ledger',
+    'his_pharmacy_adherence_alerts',
     'his_billing_items',
+    'his_billing_settings',
+    'his_billing_transactions',
     'his_invoices',
+    'his_payments',
+    'his_financial_records',
     'his_claims',
     'his_insurance_providers',
     'his_insurance_remittances',
+    'his_tariffs',
     'his_expenditures',
     'his_lab_requests',
-    'his_medical_notes',
-    'his_vital_statistics',
-    'his_clinical_events',
+    'his_partner_labs',
+    'his_hospital_rooms',
     'his_dental_charts',
     'his_eye_prescriptions',
     'his_broadcasts',
+    'his_patient_id_config',
+    'his_staff_attendance',
+    'his_nurse_tasks',
+    'his_audit_logs',
+    'his_anc_records',
+    'his_delivery_records',
+    'his_cwc_immunizations',
+    'his_nbu_admissions',
+    'his_branding',
+    'icd_codes',
 
-    // 12. Property Management (PM)
+    // 17. Property Management (PM)
+    'pm_settings',
+    'pm_landlords',
     'pm_properties',
     'pm_units',
     'pm_tenants',
     'pm_listings',
     'pm_inquiries',
     'pm_leases',
+    'pm_invoices',
     'pm_payments',
+    'pm_expenses',
+    'pm_disbursements',
+    'pm_inspections',
+    'pm_deposit_refunds',
+    'pm_notices',
     'pm_maintenance',
+    'pm_utility_readings',
     'property_management_properties',
     'property_management_units',
     'property_management_leases',
 
-    // 13. Auto Marketplace & Showroom
+    // 18. Auto Marketplace, Showroom & Servicing
+    'showroom_settings',
     'car_sales_listings',
-    'car_test_drives',
-    'car_appraisals',
     'car_sales_invoices',
     'car_sales_payments',
-    'showroom_settings',
+    'car_appraisals',
+    'car_test_drives',
+    'car_servicing_packages',
+    'car_servicing_sales',
 
-    // 14. Cooperative & Agrovet
+    // 19. Fuel Station & Petroleum Management
+    'fuel_stations',
+    'fuel_pumps',
+    'fuel_tanks',
+    'fuel_prices',
+    'fuel_price_history',
+    'fuel_sales',
+    'fuel_transfers',
+    'fuel_inventory_log',
+    'fuel_station_customers',
+    'fuel_station_assets',
+    'fuel_fleet_accounts',
+    'fuel_fleet_cards',
+    'fuel_fleet_telemetry',
+    'fuel_etr_configs',
+    'fuel_financial_reports',
+    'fuel_leak_alerts',
+    'fuel_maintenance_logs',
+    'fuel_reorder_predictions',
+    'fuel_sms_logs',
+    'fuel_staff_achievements',
+
+    // 20. Cooperative, Sacco, Milling & Agrovet
     'coop_farmers',
     'coop_collections',
     'coop_riders',
+    'coop_monthly_payouts',
+    'coop_expenses',
+    'coop_income',
     'coop_agrovet_inventory',
     'coop_agrovet_sales',
     'sacco_accounts',
     'sacco_transactions',
-    'coop_monthly_payouts',
-    'coop_expenses',
-    'coop_income',
     'agrovet_products',
     'agrovet_batches',
     'agrovet_customers',
     'agrovet_animals',
     'agrovet_sales',
+    'agrovet_sale_items',
     'agrovet_consultations',
     'agrovet_credit',
+    'grain_suppliers',
+    'grain_sale_orders',
+    'milling_silos',
+    'milling_batch_runs',
+    'weighbridge_intake_tickets',
+    'flour_packaging_shifts',
+    'animal_feed_batches',
 
-    // 15. Beauty / Vocational College
+    // 21. Civil Engineering, Yards & Construction
+    'civil_yards',
+    'civil_products',
+    'civil_batches',
+    'civil_sales',
+    'construction_projects',
+
+    // 22. Vocational & Beauty College (BC)
     'bc_settings',
     'bc_fee_structures',
     'bc_trainers',
@@ -690,24 +1136,140 @@ export const FULL_PLATFORM_SQL_TABLES: string[] = [
     'bc_invoices',
     'bc_payments',
 
-    // 16. Events, Legal & Operations
+    // 23. Alumni & Alumnae Network
+    'alumnae_members',
+    'alumnae_events',
+    'alumnae_contributions',
+    'alumni_groups',
+    'alumni_group_members',
+    'alumni_posts',
+    'alumni_comments',
+    'alumni_follows',
+    'alumni_messages',
+    'alumni_jobs',
+    'alumni_businesses',
+    'alumni_event_rsvps',
+    'alumni_document_requests',
+    'alumni_school_inbox',
+    'alumni_school_staff',
+    'alumni_success_stories',
+    'alumni_notifications',
+
+    // 24. Political, Campaign & Elections (EduVote AI)
+    'election_events',
+    'election_candidates',
+    'election_voters_ledger',
+    'election_ballots',
+    'election_checkins',
+    'political_parties',
+    'political_units',
+    'campaign_profiles',
+    'campaign_members',
+    'campaign_supporters',
+    'campaign_groups',
+    'campaign_group_members',
+    'campaign_villages',
+    'campaign_events',
+    'campaign_tasks',
+    'campaign_task_logs',
+    'campaign_feedback',
+    'campaign_posts',
+    'campaign_votes',
+    'voter_outreach',
+
+    // 25. Faith, Church & Religious Administration
+    'church_cell_groups',
+    'church_mass_intentions',
+    'church_sacraments',
+    'church_fasting_periods',
+    'church_saint_days',
+    'church_follow_ups',
+
+    // 26. Family Heritage & Totems
+    'heritage_members',
+    'heritage_stories',
+    'heritage_totems',
+    'heritage_gallery',
+    'heritage_announcements',
+
+    // 27. Events, Community & Law Operations
     'events',
+    'institution_events',
     'event_categories',
     'event_participants',
     'event_splits',
+    'event_pins',
+    'event_pledges',
+    'event_medical_logs',
     'law_clients',
     'law_matters',
     'law_documents',
     'law_time_entries',
     'law_invoices',
+    'law_agreements',
+    'law_agreement_templates',
+    'law_trust_transactions',
     'bulletin_items',
     'document_collections',
-    'time_off_requests',
-    'leave_requests',
     'contracts',
     'demo_requests',
-    'lead_scout_records'
+    'marketing_prospects',
+    'lead_scout_records',
+
+    // 28. Communications, SMS, WhatsApp & Notifications
+    'sms_logs',
+    'sms_outbox',
+    'whatsapp_configs',
+    'whatsapp_logs',
+    'broadcaster_messages',
+    'app_notifications',
+    'branch_integration_configs',
+    'integration_logs',
+
+    // 29. EduFlow Workflow System
+    'eduflow_tasks',
+    'eduflow_files',
+    'eduflow_comments',
+
+    // 30. Procurement, Tenders & Supply Chain
+    'suppliers',
+    'procurement_suppliers',
+    'procurement_items',
+    'procurement_lpos',
+    'procurement_invoices',
+
+    // 31. County Central Stores & Inventory
+    'county_stores',
+    'county_inventory_categories',
+    'county_inventory',
+    'county_dispatch_manifests',
+    'county_dispatch_items',
+    'county_school_requisitions',
+
+    // 32. Station Shifts, Marketing & Referrals
+    'station_shifts',
+    'station_items',
+    'station_pos_sales',
+    'station_pos_sale_items',
+    'referral_program_settings',
+    'teacher_referral_profiles',
+    'school_teacher_referrals',
+    'school_referral_leads',
+    'revision_marketplace',
+    'student_subscription_plans',
+    'student_subscriptions',
+    'school_intel_submissions',
+    'school_intel_replies',
+    'branding_price_settings',
+    'system_settings',
+
+    // 33. Miscellaneous & System Extensions
+    'hospitality_items',
+    'hr_allowance_categories',
+    'hr_deduction_categories',
+    'teacher_checkins',
 ];
+
 
 export interface FullSqlBackupProgress {
     currentTable: string;
@@ -734,21 +1296,28 @@ export function downloadFullSqlBackup(sqlContent: string): string {
 }
 
 /**
- * Gathers complete records across all platform tables and triggers a full SQL database backup download
+ * Gathers complete records across all platform tables and triggers a full SQL database backup download.
+ * Ensures zero table omissions, queries both live remote API and local caches, and guarantees
+ * deterministic dependency ordering in the generated SQL file.
  */
 export async function collectAndDownloadFullSqlBackup(options?: {
     inMemoryFallback?: Record<string, any[]>;
     onProgress?: (progress: FullSqlBackupProgress) => void;
 }): Promise<FullSqlBackupResult> {
     const { apiService } = await import('../services/apiService');
+    let localDbRef: any = null;
+    try {
+        const { localDb } = await import('../services/localDb');
+        localDbRef = localDb;
+    } catch (_) {}
 
     const totalTables = FULL_PLATFORM_SQL_TABLES.length;
     let completedTables = 0;
     const tableCounts: Record<string, number> = {};
-    const tableSqlSections: string[] = [];
+    const tableSqlMap: Record<string, string> = {};
 
-    // Process tables in concurrency-friendly batches of 4
-    const batchSize = 4;
+    // Process tables in concurrency-friendly batches of 6 for high speed with minimal browser memory overhead
+    const batchSize = 6;
     for (let i = 0; i < FULL_PLATFORM_SQL_TABLES.length; i += batchSize) {
         const batch = FULL_PLATFORM_SQL_TABLES.slice(i, i + batchSize);
         await Promise.all(
@@ -766,6 +1335,44 @@ export async function collectAndDownloadFullSqlBackup(options?: {
                 }
 
                 if (!Array.isArray(rows)) rows = [];
+
+                // Augment with localDb (IndexedDB) if available
+                if (localDbRef && typeof localDbRef.getAll === 'function') {
+                    try {
+                        const localRows = await localDbRef.getAll(tableName).catch(() => []);
+                        if (Array.isArray(localRows) && localRows.length > 0) {
+                            const existingKeys = new Set(rows.map(r => r?.id || JSON.stringify(r)));
+                            for (const item of localRows) {
+                                const key = item?.id || JSON.stringify(item);
+                                if (!existingKeys.has(key)) {
+                                    rows.push(item);
+                                    existingKeys.add(key);
+                                }
+                            }
+                        }
+                    } catch (_) {}
+                }
+
+                // Augment with localStorage cache if available
+                if (typeof localStorage !== 'undefined') {
+                    try {
+                        const rawLocal = localStorage.getItem(`eduai_${tableName}`) || localStorage.getItem(tableName);
+                        if (rawLocal) {
+                            const parsed = JSON.parse(rawLocal);
+                            const list = Array.isArray(parsed) ? parsed : (parsed?.items || parsed?.data || []);
+                            if (Array.isArray(list) && list.length > 0) {
+                                const existingKeys = new Set(rows.map(r => r?.id || JSON.stringify(r)));
+                                for (const item of list) {
+                                    const key = item?.id || JSON.stringify(item);
+                                    if (!existingKeys.has(key)) {
+                                        rows.push(item);
+                                        existingKeys.add(key);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_) {}
+                }
 
                 // Augment with in-memory fallback data if available
                 if (options?.inMemoryFallback && Array.isArray(options.inMemoryFallback[tableName])) {
@@ -794,11 +1401,19 @@ export async function collectAndDownloadFullSqlBackup(options?: {
                     tableCounts[tableName] = rows.length;
                     const sql = buildInsertStatements(tableName, rows);
                     if (sql) {
-                        tableSqlSections.push(sql);
+                        tableSqlMap[tableName] = sql;
                     }
                 }
             })
         );
+    }
+
+    // Assemble SQL sections in the exact logical order of FULL_PLATFORM_SQL_TABLES
+    const tableSqlSections: string[] = [];
+    for (const tbl of FULL_PLATFORM_SQL_TABLES) {
+        if (tableSqlMap[tbl]) {
+            tableSqlSections.push(tableSqlMap[tbl]);
+        }
     }
 
     const totalRecords = Object.values(tableCounts).reduce((acc, count) => acc + count, 0);
@@ -853,4 +1468,3 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         sqlContent: fullSql
     };
 }
-

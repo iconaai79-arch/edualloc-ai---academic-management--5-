@@ -1616,7 +1616,12 @@ export const SuperAdminView: React.FC<SuperAdminViewProps> = (props: SuperAdminV
                 invoices: invoices || props.invoices || [],
                 receipts: receipts || props.receipts || [],
                 activity_log: activityLog || props.activityLog || [],
-                mpesa_transactions: transactions || props.transactions || []
+                mpesa_transactions: transactions || props.transactions || [],
+                books: (props as any).books || [],
+                library_transactions: (props as any).libraryTransactions || (props as any).library_transactions || [],
+                student_enrollments: (props as any).studentEnrollments || (props as any).student_enrollments || [],
+                fee_structures: (props as any).feeStructures || (props as any).fee_structures || [],
+                vote_heads: (props as any).voteHeads || (props as any).vote_heads || []
             };
 
             const result = await collectAndDownloadFullSqlBackup({
