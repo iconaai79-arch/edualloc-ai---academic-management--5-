@@ -1,6 +1,6 @@
 -- ==========================================================================
 -- EduAi Automation - Master Schema
--- Generated on: 26/10/2026, 10:43:22 AM
+-- Generated on: 26/10/2026, 10:58:39 AM
 -- ==========================================================================
 
 -- 1. CORE SYSTEM & TENANCY --
@@ -4204,7 +4204,6 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_students_institution_id ON student_enrollments(institution_id);
 CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id_asc ON student_enrollments(institution_id, id ASC);
 CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_id_desc ON student_enrollments(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_status ON student_enrollments(institution_id, status);
 CREATE INDEX IF NOT EXISTS idx_attendances_institution_id ON student_attendances(institution_id);
 CREATE INDEX IF NOT EXISTS idx_attendances_date ON student_attendances(date);
 CREATE INDEX IF NOT EXISTS idx_invoices_institution_id ON invoices(institution_id);
@@ -4245,8 +4244,6 @@ CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_id_desc ON ds_invoices(instituti
 CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_student ON ds_invoices(institution_id, student_id);
 CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_status ON ds_invoices(institution_id, status);
 CREATE INDEX IF NOT EXISTS idx_ds_payments_inst ON ds_payments(institution_id);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_desc ON ds_payments(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_invoice ON ds_payments(institution_id, invoice_id);
 CREATE INDEX IF NOT EXISTS idx_pm_tenants_inst ON pm_tenants(institution_id);
 CREATE INDEX IF NOT EXISTS idx_pm_leases_inst ON pm_leases(institution_id);
 CREATE INDEX IF NOT EXISTS idx_pm_invoices_inst ON pm_invoices(institution_id);
@@ -4265,41 +4262,10 @@ CREATE INDEX IF NOT EXISTS idx_rii_inst_sku ON retail_inventory_items(institutio
 CREATE INDEX IF NOT EXISTS idx_rss_inst_store ON retail_store_stock(institution_id, store_id);
 CREATE INDEX IF NOT EXISTS idx_cafe_orders_inst ON cafe_orders(institution_id);
 CREATE INDEX IF NOT EXISTS idx_vehicles_inst ON vehicles(institution_id);
-CREATE INDEX IF NOT EXISTS idx_vehicles_inst_id_desc ON vehicles(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_vehicles_inst_id_asc ON vehicles(institution_id, id ASC);
-CREATE INDEX IF NOT EXISTS idx_vehicles_inst_plate ON vehicles(institution_id, plate_number);
-CREATE INDEX IF NOT EXISTS idx_vehicles_inst_status ON vehicles(institution_id, status);
-CREATE INDEX IF NOT EXISTS idx_vehicles_inst_driver ON vehicles(institution_id, driver_id);
-CREATE INDEX IF NOT EXISTS idx_vehicles_inst_created ON vehicles(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_id_desc ON transport_onboarding(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_timestamp ON transport_onboarding(institution_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_student ON transport_onboarding(institution_id, student_id);
-CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_vehicle ON transport_onboarding(institution_id, vehicle_id);
-CREATE INDEX IF NOT EXISTS idx_transport_onboarding_inst_created ON transport_onboarding(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_id_desc ON vehicle_logs(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_timestamp ON vehicle_logs(institution_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_vehicle ON vehicle_logs(institution_id, vehicle_id);
-CREATE INDEX IF NOT EXISTS idx_vehicle_logs_inst_created ON vehicle_logs(institution_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_id_desc ON ds_vehicles(institution_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_plate ON ds_vehicles(institution_id, plate_number);
 CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_status ON ds_vehicles(institution_id, status);
 CREATE INDEX IF NOT EXISTS idx_ds_vehicles_inst_created ON ds_vehicles(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_institution_id ON ds_payments(institution_id);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_desc ON ds_payments(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_asc ON ds_payments(institution_id, id ASC);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_invoice ON ds_payments(institution_id, invoice_id);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_student ON ds_payments(institution_id, student_id);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_date ON ds_payments(institution_id, payment_date DESC);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_created ON ds_payments(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_status ON ds_payments(institution_id, status);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_branch ON ds_payments(institution_id, branch_id);
-CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_receipt ON ds_payments(institution_id, receipt_number);
-CREATE INDEX IF NOT EXISTS idx_app_notifications_user_timestamp ON app_notifications(user_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_app_notifications_user_created ON app_notifications(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_app_notifications_user_is_read ON app_notifications(user_id, is_read, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_timestamp ON app_notifications(institution_id, timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_created ON app_notifications(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_app_notifications_id ON app_notifications(id);
 CREATE INDEX IF NOT EXISTS idx_visitors_inst ON visitors(institution_id);
 CREATE INDEX IF NOT EXISTS idx_event_pins_inst ON event_pins(institution_id);
 CREATE INDEX IF NOT EXISTS idx_maint_requests_inst_id_desc ON maintenance_requests(institution_id, id DESC);
@@ -4334,37 +4300,10 @@ CREATE INDEX IF NOT EXISTS idx_intasend_tx_inst ON intasend_transactions(institu
 CREATE INDEX IF NOT EXISTS idx_intasend_tx_tracking ON intasend_transactions(tracking_id);
 CREATE INDEX IF NOT EXISTS idx_ncba_tx_inst ON ncba_transactions(institution_id);
 CREATE INDEX IF NOT EXISTS idx_ncba_tx_ref ON ncba_transactions(reference_no);
-CREATE INDEX IF NOT EXISTS idx_activity_log_inst_id_desc ON activity_log(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_log_inst_timestamp ON activity_log(institution_id, "timestamp" DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_inst_created_desc ON activity_log(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_activity_log_inst_module ON activity_log(institution_id, module);
-CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_id_desc ON payroll_records(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_payment_date ON payroll_records(institution_id, payment_date DESC);
-CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_created ON payroll_records(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_month ON payroll_records(institution_id, month);
 CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_staff ON payroll_records(institution_id, staff_id);
 CREATE INDEX IF NOT EXISTS idx_payroll_records_inst_status ON payroll_records(institution_id, status);
-CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_id_desc ON payroll_runs(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_payroll_runs_inst_created ON payroll_runs(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_id_desc ON his_expenditures(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_date ON his_expenditures(institution_id, date DESC);
 CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_created ON his_expenditures(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_id_desc ON vote_heads(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_id_asc ON vote_heads(institution_id, id ASC);
-CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_created ON vote_heads(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_priority ON vote_heads(institution_id, priority);
-CREATE INDEX IF NOT EXISTS idx_vote_heads_inst_name ON vote_heads(institution_id, name);
-CREATE INDEX IF NOT EXISTS idx_vote_heads_academic_year ON vote_heads(institution_id, academic_year_id);
-CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_desc ON fee_structures(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_id_asc ON fee_structures(institution_id, id ASC);
-CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_academic_year ON fee_structures(institution_id, academic_year_id);
-CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_created ON fee_structures(institution_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_fee_structures_inst_vote_head ON fee_structures(institution_id, vote_head_id);
-CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_id_desc ON financial_periods(institution_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_id_asc ON financial_periods(institution_id, id ASC);
-CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_status ON financial_periods(institution_id, status);
-CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_dates ON financial_periods(institution_id, start_date DESC, end_date DESC);
-CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_name ON financial_periods(institution_id, name);
 
 
 
