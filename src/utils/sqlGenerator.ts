@@ -42,6 +42,28 @@ BEGIN
     ) THEN
         EXECUTE 'CREATE TABLE auth.users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP)';
     END IF;
+
+    -- Bootstrap Supabase roles if running on standalone/vanilla PostgreSQL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+            CREATE ROLE anon NOLOGIN;
+        END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+            CREATE ROLE authenticated NOLOGIN;
+        END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+            CREATE ROLE service_role NOLOGIN;
+        END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
 END $$;
 
 -- RLS Helper Functions (Optimized)
@@ -3920,6 +3942,7 @@ CREATE POLICY "Delete pledges for institutional staff" ON event_pledges FOR DELE
 DO $core_policy$
 DECLARE
     t TEXT;
+    r TEXT;
 BEGIN
     FOR t IN SELECT unnest(ARRAY[
         'academic_levels', 'departments', 'academic_years', 'semesters', 'buildings', 'rooms', 
@@ -4008,11 +4031,15 @@ BEGIN
             EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_insert', t);
             EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_update', t);
             EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_delete', t);
-            EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated, anon USING (true)', t || '_select', t);
-            EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL AND length(id) > 0)', t || '_insert', t);
-            EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0) WITH CHECK (id IS NOT NULL AND length(id) > 0)', t || '_update', t);
-            EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0)', t || '_delete', t);
-            EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT USING (true)', t || '_select', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT WITH CHECK (id IS NOT NULL AND length(id) > 0)', t || '_insert', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE USING (id IS NOT NULL AND length(id) > 0) WITH CHECK (id IS NOT NULL AND length(id) > 0)', t || '_update', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE USING (id IS NOT NULL AND length(id) > 0)', t || '_delete', t);
+            FOR r IN SELECT unnest(ARRAY['anon', 'authenticated', 'service_role']) LOOP
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+                    EXECUTE format('GRANT ALL ON public.%I TO %I', t, r);
+                END IF;
+            END LOOP;
         END IF;
     END LOOP;
 END $core_policy$;
