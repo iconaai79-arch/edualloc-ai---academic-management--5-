@@ -153,6 +153,21 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_security_pin TEXT
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_status TEXT DEFAULT 'active';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
 
+CREATE TABLE IF NOT EXISTS public.branches (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    location TEXT,
+    code TEXT,
+    phone TEXT,
+    email TEXT,
+    manager_user_id TEXT,
+    is_active BOOLEAN DEFAULT true,
+    linked_institution_id TEXT REFERENCES public.institutions(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS system_settings (
     id INTEGER PRIMARY KEY,
     data JSONB DEFAULT '{}'::jsonb NOT NULL,
@@ -273,6 +288,47 @@ CREATE TABLE IF NOT EXISTS law_agreements (
     signed_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.coop_farmers (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    email TEXT,
+    account_number TEXT,
+    kra_pin TEXT,
+    national_id TEXT,
+    location TEXT,
+    status TEXT DEFAULT 'active',
+    joined_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.coop_riders (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    vehicle_number TEXT,
+    delivery_rate_per_kg DECIMAL(10, 2) DEFAULT 0.00,
+    delivery_rate_per_liter DECIMAL(10, 2) DEFAULT 0.00,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.coop_collections (
+    id TEXT PRIMARY KEY,
+    farmer_id TEXT NOT NULL REFERENCES coop_farmers(id) ON DELETE CASCADE,
+    rider_id TEXT REFERENCES coop_riders(id) ON DELETE SET NULL,
+    product_type TEXT NOT NULL,
+    quantity DECIMAL(12, 2) NOT NULL,
+    unit TEXT NOT NULL,
+    quality_score DECIMAL(5, 2) DEFAULT 0.00,
+    collection_date DATE DEFAULT CURRENT_DATE,
+    status TEXT DEFAULT 'pending',
+    recorded_by TEXT NOT NULL,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS coop_expenses (
@@ -516,6 +572,23 @@ CREATE TABLE IF NOT EXISTS synergy_messages (
     is_read BOOLEAN DEFAULT FALSE,
     child_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS public.app_notifications (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES public.institutions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT '',
+    message TEXT DEFAULT '',
+    type TEXT DEFAULT 'info',
+    link TEXT,
+    purpose TEXT,
+    visitor_name TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    is_read BOOLEAN DEFAULT false,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS subjects (
@@ -908,6 +981,68 @@ CREATE TABLE IF NOT EXISTS store_categories (
     sort_order INTEGER NOT NULL DEFAULT 0,
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.retail_stores (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    store_type TEXT NOT NULL DEFAULT 'main_store',
+    location TEXT,
+    store_manager_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    agent_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    is_active BOOLEAN DEFAULT true,
+    mpesa_config JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.retail_inventory_items (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT,
+    base_price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    srp_price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    unit TEXT NOT NULL DEFAULT 'pcs',
+    image_url TEXT,
+    reorder_level INTEGER NOT NULL DEFAULT 0,
+    marketplace_enabled BOOLEAN DEFAULT false,
+    buffer_stock INTEGER NOT NULL DEFAULT 0,
+    sku TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.retail_store_stock (
+    id TEXT PRIMARY KEY,
+    store_id TEXT NOT NULL REFERENCES public.retail_stores(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL REFERENCES public.retail_inventory_items(id) ON DELETE CASCADE,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(store_id, item_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.retail_sales (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    store_id TEXT REFERENCES public.retail_stores(id) ON DELETE SET NULL,
+    agent_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    payment_method TEXT NOT NULL DEFAULT 'cash',
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    customer_name TEXT,
+    customer_phone TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.retail_expenses (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    store_id TEXT REFERENCES public.retail_stores(id) ON DELETE SET NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    category TEXT NOT NULL,
+    description TEXT,
+    date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    recorded_by_id TEXT REFERENCES public.users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS broadcaster_messages (
@@ -1888,6 +2023,23 @@ CREATE TABLE IF NOT EXISTS pm_leases (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS public.pm_invoices (
+    id TEXT PRIMARY KEY,
+    invoice_number TEXT NOT NULL,
+    lease_id TEXT REFERENCES public.pm_leases(id) ON DELETE SET NULL,
+    tenant_id TEXT NOT NULL REFERENCES public.pm_tenants(id) ON DELETE CASCADE,
+    unit_id TEXT REFERENCES public.pm_units(id) ON DELETE SET NULL,
+    description TEXT,
+    amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    items JSONB DEFAULT '[]'::jsonb,
+    issue_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    due_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    status TEXT NOT NULL DEFAULT 'Draft',
+    notes TEXT,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS pm_payments (
     id TEXT PRIMARY KEY,
     lease_id TEXT REFERENCES pm_leases(id) ON DELETE CASCADE,
@@ -2014,6 +2166,32 @@ BEGIN
         )', 'Institutional tenancy manage: ' || t, t);
     END LOOP;
 END $policy$;
+
+-- 11B. CAFE & RESTAURANT POS
+CREATE TABLE IF NOT EXISTS public.cafe_menu_items (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    base_price DECIMAL(12,2) NOT NULL DEFAULT 0,
+    category TEXT DEFAULT 'Cafe',
+    image_url TEXT,
+    is_available BOOLEAN DEFAULT true,
+    sku TEXT,
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.cafe_orders (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    job_id TEXT REFERENCES public.carwash_jobs(id) ON DELETE SET NULL,
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_method TEXT NOT NULL DEFAULT 'tab',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
 -- Standard Cafe RLS
 ALTER TABLE cafe_orders ENABLE ROW LEVEL SECURITY;
@@ -3253,6 +3431,50 @@ CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_dates ON financial_periods
 CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_name ON financial_periods (institution_id, name);
 
 -- Global Vehicles & Transport RLS & Resilience --
+CREATE TABLE IF NOT EXISTS public.vehicles (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    plate_number TEXT NOT NULL,
+    model TEXT,
+    vehicle_type TEXT DEFAULT 'school',
+    capacity INTEGER DEFAULT 14,
+    driver_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    assistant_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    status TEXT DEFAULT 'active',
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.transport_onboarding (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    vehicle_id TEXT REFERENCES public.vehicles(id) ON DELETE SET NULL,
+    student_id TEXT REFERENCES public.users(id) ON DELETE CASCADE,
+    direction TEXT DEFAULT 'to_school',
+    status TEXT DEFAULT 'pending',
+    location_lat DOUBLE PRECISION,
+    location_lng DOUBLE PRECISION,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    parent_confirmed_at TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.vehicle_logs (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    vehicle_id TEXT REFERENCES public.vehicles(id) ON DELETE CASCADE,
+    event_type TEXT DEFAULT 'entry',
+    security_id TEXT REFERENCES public.users(id) ON DELETE SET NULL,
+    notes TEXT,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "vehicles_all_access" ON vehicles;
 CREATE POLICY "vehicles_all_access" ON vehicles FOR ALL USING (true) WITH CHECK (true);
@@ -3714,7 +3936,6 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_receipts_institution_id ON receipts(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_receipts_student_id ON receipts(student_id);`,
         `CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at DESC);`,
-        `CREATE INDEX IF NOT EXISTS idx_transactions_institution_id ON transactions(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_mpesa_txns_institution_id ON mpesa_transactions(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_bank_txns_institution_id ON bank_transactions(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_airtel_tx_inst_created_desc ON airtel_transactions(institution_id, created_at DESC, id DESC);`,
@@ -3763,7 +3984,6 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         `CREATE INDEX IF NOT EXISTS idx_coop_expenses_inst ON coop_expenses(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_coop_income_inst ON coop_income(institution_id);`,
         // Retail & Restaurant
-        `CREATE INDEX IF NOT EXISTS idx_retail_inv_inst ON retail_inventory(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_retail_sales_inst ON retail_sales(institution_id);`,
         `CREATE INDEX IF NOT EXISTS idx_retail_stores_inst_id_desc ON retail_stores(institution_id, id DESC);`,
         `CREATE INDEX IF NOT EXISTS idx_retail_stores_inst_name ON retail_stores(institution_id, name);`,
