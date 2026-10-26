@@ -3582,6 +3582,97 @@ CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_timestamp ON app_notificat
 CREATE INDEX IF NOT EXISTS idx_app_notifications_inst_created ON app_notifications (institution_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_app_notifications_id ON app_notifications (id);
 
+-- Leave Out Requests Table & Indexes --
+CREATE TABLE IF NOT EXISTS public.leave_out_requests (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    student_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    class_teacher_id TEXT,
+    headteacher_id TEXT,
+    headteacher_approved_at TEXT,
+    headteacher_remarks TEXT,
+    approved_by TEXT,
+    approved_by_role TEXT,
+    parent_notified_at TEXT,
+    boarding_master_id TEXT,
+    security_id TEXT,
+    reason TEXT,
+    leave_date TEXT,
+    return_date TEXT,
+    status TEXT DEFAULT 'pending',
+    sheet_url TEXT,
+    house_checked_out_at TEXT,
+    gate_checked_out_at TEXT,
+    home_arrival_at TEXT,
+    home_departure_at TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- EduVote AI Tables --
+CREATE TABLE IF NOT EXISTS public.election_events (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    academic_year_id TEXT,
+    status TEXT DEFAULT 'draft',
+    voting_system TEXT DEFAULT 'fptp',
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.election_candidates (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    election_id TEXT NOT NULL REFERENCES election_events(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    position TEXT NOT NULL,
+    tagline TEXT,
+    manifesto TEXT,
+    poster_url TEXT,
+    status TEXT DEFAULT 'approved',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(election_id, student_id, position)
+);
+
+CREATE TABLE IF NOT EXISTS public.election_voters_ledger (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    election_id TEXT NOT NULL REFERENCES election_events(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    voted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    device_fingerprint TEXT,
+    UNIQUE(election_id, student_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.election_ballots (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    election_id TEXT NOT NULL REFERENCES election_events(id) ON DELETE CASCADE,
+    position TEXT NOT NULL,
+    candidate_id TEXT REFERENCES election_candidates(id) ON DELETE CASCADE,
+    preference_rank INTEGER DEFAULT 1,
+    receipt_hash TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.election_checkins (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    election_id TEXT NOT NULL REFERENCES election_events(id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    checked_in_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(election_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_election_events_inst ON election_events(institution_id);
+CREATE INDEX IF NOT EXISTS idx_election_candidates_election ON election_candidates(election_id);
+CREATE INDEX IF NOT EXISTS idx_election_voters_ledger_lookup ON election_voters_ledger(election_id, student_id);
+CREATE INDEX IF NOT EXISTS idx_election_ballots_lookup ON election_ballots(election_id, candidate_id);
+CREATE INDEX IF NOT EXISTS idx_election_checkins_lookup ON election_checkins(election_id, student_id);
+
 -- Global School Registry RLS --
 ALTER TABLE school_registry ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public select: school_registry" ON school_registry;
@@ -3835,10 +3926,10 @@ BEGIN
         'allocation_requests', 'timetable_entries', 'exam_timetable_entries', 'assignments', 
         'student_attendances', 'enrollment_requests', 'vote_heads', 'financial_periods', 
         'fee_structures', 'inventory', 'stock_transactions',
-        'activity_log', 'system_settings', 'counties', 'suppliers', 'requisitions',
+        'activity_log', 'suppliers', 'requisitions',
         'books', 'library_transactions', 'library_fines', 'book_reservations',
         'book_stock_receipts', 'library_settings', 'security_alerts', 'visitors',
-        'appointments', 'tasks', 'feedback_submissions', 'lesson_ratings',
+        'appointments', 'feedback_submissions', 'lesson_ratings',
         'bulletin_items',
         'document_collections', 'watchlist_records', 'maintenance_requests',
         'teacher_check_ins', 'his_staff_attendance', 'his_dental_charts',
@@ -3846,22 +3937,65 @@ BEGIN
         'his_broadcasts', 'institution_module_states',
         'ds_instructors', 'ds_vehicles', 'ds_students', 'ds_lessons', 'ds_skill_mastery', 'ds_settings', 'ds_fee_structures', 'ds_invoices', 'ds_payments', 'ds_license_categories', 'ds_votes',
         'bc_settings', 'bc_courses', 'bc_students', 'bc_trainers', 'bc_fee_structures', 'bc_invoices', 'bc_payments', 'bc_practicals',
-        'car_sales_listings', 'car_test_drive_bookings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
+        'car_sales_listings', 'car_appraisals', 'car_sales_invoices', 'car_sales_payments', 'showroom_settings',
         'heritage_members', 'heritage_stories', 'heritage_galleries', 'heritage_announcements',
         'student_enrollments', 'bank_transactions', 'store_categories',
         'broadcaster_messages', 'institution_events', 'event_pins',
-        'synergy_posts', 'synergy_comments', 'synergy_messages',
-        'election_events', 'election_candidates', 'election_voters_ledger', 'election_ballots', 'election_checkins'
+        'synergy_posts',
+        'election_events', 'election_candidates', 'election_voters_ledger', 'election_ballots', 'election_checkins',
+        'leave_out_requests'
     ]) LOOP
-        IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
-            EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy select: ' || t, t);
-            EXECUTE format('CREATE POLICY %I ON %I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', 'Institutional tenancy select: ' || t, t);
-
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = t AND column_name = 'institution_id'
+        ) THEN
+            EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Institutional tenancy select: ' || t, t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', 'Institutional tenancy select: ' || t, t);
             
-            EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy manage: ' || t, t);
-            EXECUTE format('CREATE POLICY %I ON %I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', 'Institutional tenancy manage: ' || t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Institutional tenancy manage: ' || t, t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', 'Institutional tenancy manage: ' || t, t);
         END IF;
     END LOOP;
+
+    -- Dedicated Non-Tenant & Global Reference Table Policies
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'counties') THEN
+        ALTER TABLE public.counties ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "counties_read" ON public.counties;
+        CREATE POLICY "counties_read" ON public.counties FOR SELECT USING (true);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'system_settings') THEN
+        ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "system_settings_read" ON public.system_settings;
+        CREATE POLICY "system_settings_read" ON public.system_settings FOR SELECT USING (true);
+        DROP POLICY IF EXISTS "system_settings_manage" ON public.system_settings;
+        CREATE POLICY "system_settings_manage" ON public.system_settings FOR ALL USING (public.get_curr_user_role() = 'super_admin') WITH CHECK (public.get_curr_user_role() = 'super_admin');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'tasks') THEN
+        ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "tasks_access" ON public.tasks;
+        CREATE POLICY "tasks_access" ON public.tasks FOR ALL USING (true) WITH CHECK (true);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'car_test_drive_bookings') THEN
+        ALTER TABLE public.car_test_drive_bookings ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "car_test_drive_bookings_all" ON public.car_test_drive_bookings;
+        CREATE POLICY "car_test_drive_bookings_all" ON public.car_test_drive_bookings FOR ALL USING (true) WITH CHECK (true);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'synergy_comments') THEN
+        ALTER TABLE public.synergy_comments ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "synergy_comments_all" ON public.synergy_comments;
+        CREATE POLICY "synergy_comments_all" ON public.synergy_comments FOR ALL USING (true) WITH CHECK (true);
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'synergy_messages') THEN
+        ALTER TABLE public.synergy_messages ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "synergy_messages_all" ON public.synergy_messages;
+        CREATE POLICY "synergy_messages_all" ON public.synergy_messages FOR ALL USING (true) WITH CHECK (true);
+    END IF;
 
     -- High-performance non-recursive tenancy policies for absence & request tables
     FOR t IN SELECT unnest(ARRAY['student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests']) LOOP
