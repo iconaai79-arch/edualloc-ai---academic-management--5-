@@ -1,7 +1,7 @@
 
 import {
     INITIAL_USERS, INITIAL_INSTITUTIONS, INITIAL_ACADEMIC_YEARS,
-    INITIAL_SEMESTERS, INITIAL_ACADEMIC_LEVELS
+    INITIAL_SEMESTERS, INITIAL_ACADEMIC_LEVELS, INITIAL_DEPARTMENTS
 } from '../constants';
 
 const escapeSql = (str: string | null | undefined) => {
@@ -4339,12 +4339,17 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
     sql += `-- SEED INITIAL SYSTEM DATA\n`;
     sql += `-- ==========================================================================\n\n`;
 
-    // CRITICAL FIX: Explicitly ensure SYSTEM institution exists first to satisfy FK constraints for super_admin
+    // CRITICAL FIX: Explicitly ensure SYSTEM and Kigumo institutions exist first to satisfy FK constraints
     sql += `INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests) VALUES ('SYSTEM', 'System Administration', 'system@eduai.com', '0000000000', 'University', 'active', 'SYS-ADMIN', FALSE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;\n`;
+    sql += `INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests) VALUES ('Kigumo', 'Kigumo Constituency', 'constituency@app.com', '0722222222', 'Constituency', 'active', 'KIGUMO-CDF', FALSE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;\n`;
 
     INITIAL_INSTITUTIONS.forEach(i => {
-        if (i.id === 'SYSTEM') return; // Skip SYSTEM as it's already handled above
+        if (i.id === 'SYSTEM' || i.id === 'Kigumo') return; // Skip SYSTEM and Kigumo as they are handled above
         sql += `INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests, is_otp_enabled) VALUES (${escapeSql(i.id)}, ${escapeSql(i.name)}, ${escapeSql(i.email)}, ${escapeSql(i.phoneNumber)}, ${escapeSql(i.institutionType)}, ${escapeSql(i.status)}, ${escapeSql(i.institutionCode)}, TRUE, ${i.isOtpEnabled ? 'TRUE' : 'FALSE'}) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, is_otp_enabled = EXCLUDED.is_otp_enabled;\n`;
+    });
+
+    INITIAL_DEPARTMENTS.forEach(d => {
+        sql += `INSERT INTO departments (id, name, institution_id) VALUES (${escapeSql(d.id)}, ${escapeSql(d.name)}, ${escapeSql(d.institutionId)}) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
     INITIAL_ACADEMIC_LEVELS.forEach(al => {

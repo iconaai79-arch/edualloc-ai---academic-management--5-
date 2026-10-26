@@ -122,7 +122,8 @@ export const INITIAL_DEPARTMENTS: Department[] = [
     { id: 'dept_math', name: 'Mathematics & Computer Science', institutionId: INST_DEMO },
     { id: 'dept_lang', name: 'Languages & Humanities', institutionId: INST_DEMO },
     { id: 'dept_sci', name: 'Pure & Applied Sciences', institutionId: INST_DEMO },
-    { id: 'dept_arts', name: 'Creative Arts', institutionId: INST_DEMO }
+    { id: 'dept_arts', name: 'Creative Arts', institutionId: INST_DEMO },
+    { id: 'dept_maintenance', name: 'Maintenance & Facilities', institutionId: INST_DEMO }
 ];
 
 export const INITIAL_SUBJECTS: Subject[] = [

@@ -1,6 +1,6 @@
 -- ==========================================================================
 -- EduAi Automation - Master Schema
--- Generated on: 26/10/2026, 10:58:39 AM
+-- Generated on: 26/10/2026, 11:08:04 AM
 -- ==========================================================================
 
 -- 1. CORE SYSTEM & TENANCY --
@@ -4312,7 +4312,13 @@ CREATE INDEX IF NOT EXISTS idx_his_expenditures_inst_created ON his_expenditures
 -- ==========================================================================
 
 INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests) VALUES ('SYSTEM', 'System Administration', 'system@eduai.com', '0000000000', 'University', 'active', 'SYS-ADMIN', FALSE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests) VALUES ('Kigumo', 'Kigumo Constituency', 'constituency@app.com', '0722222222', 'Constituency', 'active', 'KIGUMO-CDF', FALSE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 INSERT INTO institutions (id, name, email, phone_number, institution_type, status, institution_code, use_allocation_requests, is_otp_enabled) VALUES ('INST001', 'Modern Science Academy', 'admin@edu.com', '020111222', 'Education', 'active', 'INST001', TRUE, FALSE) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, is_otp_enabled = EXCLUDED.is_otp_enabled;
+INSERT INTO departments (id, name, institution_id) VALUES ('dept_math', 'Mathematics & Computer Science', 'INST001') ON CONFLICT (id) DO NOTHING;
+INSERT INTO departments (id, name, institution_id) VALUES ('dept_lang', 'Languages & Humanities', 'INST001') ON CONFLICT (id) DO NOTHING;
+INSERT INTO departments (id, name, institution_id) VALUES ('dept_sci', 'Pure & Applied Sciences', 'INST001') ON CONFLICT (id) DO NOTHING;
+INSERT INTO departments (id, name, institution_id) VALUES ('dept_arts', 'Creative Arts', 'INST001') ON CONFLICT (id) DO NOTHING;
+INSERT INTO departments (id, name, institution_id) VALUES ('dept_maintenance', 'Maintenance & Facilities', 'INST001') ON CONFLICT (id) DO NOTHING;
 INSERT INTO academic_levels (id, name, institution_id) VALUES ('ug', 'Undergraduate', 'INST001') ON CONFLICT (id) DO NOTHING;
 INSERT INTO academic_levels (id, name, institution_id) VALUES ('senior', 'Senior Secondary', 'INST001') ON CONFLICT (id) DO NOTHING;
 INSERT INTO academic_years (id, name, start_date, end_date, institution_id, status) VALUES ('ay_2024', '2024/2025', '2024-09-01', '2025-08-31', 'INST001', 'active') ON CONFLICT (id) DO NOTHING;
