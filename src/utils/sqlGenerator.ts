@@ -49,6 +49,20 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE IF NOT EXISTS counties (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    phone_number TEXT,
+    admin_name TEXT,
+    logo_url TEXT,
+    letterhead_url TEXT,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    location JSONB
+);
+
 CREATE TABLE IF NOT EXISTS institutions (
     id TEXT PRIMARY KEY,
     institution_id TEXT,
@@ -138,20 +152,6 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS visitor_arrival_sms_tem
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_security_pin TEXT DEFAULT '1234';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS kiosk_status TEXT DEFAULT 'active';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
-
-CREATE TABLE IF NOT EXISTS counties (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    code TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL,
-    phone_number TEXT,
-    admin_name TEXT,
-    logo_url TEXT,
-    letterhead_url TEXT,
-    status TEXT DEFAULT 'active',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    location JSONB
-);
 
 CREATE TABLE IF NOT EXISTS system_settings (
     id INTEGER PRIMARY KEY,
@@ -385,46 +385,6 @@ CREATE TABLE IF NOT EXISTS school_registry (
 CREATE INDEX IF NOT EXISTS idx_sr_knec ON school_registry(knec_code);
 CREATE INDEX IF NOT EXISTS idx_sr_slug ON school_registry(slug);
 
-CREATE TABLE IF NOT EXISTS synergy_posts (
-    id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
-    course_level_id TEXT,
-    author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    author_name TEXT NOT NULL,
-    author_role TEXT NOT NULL,
-    author_photo_url TEXT,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    photo_url TEXT,
-    video_url TEXT,
-    likes TEXT[] DEFAULT '{}',
-    comments_count INTEGER DEFAULT 0,
-    student_ids TEXT[] DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS synergy_comments (
-    id TEXT PRIMARY KEY,
-    post_id TEXT NOT NULL REFERENCES synergy_posts(id) ON DELETE CASCADE,
-    author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    author_name TEXT NOT NULL,
-    author_role TEXT NOT NULL,
-    author_photo_url TEXT,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS synergy_messages (
-    id TEXT PRIMARY KEY,
-    sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    child_id TEXT REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 \n-- 2. ACADEMIC STRUCTURE --\n
 CREATE TABLE IF NOT EXISTS academic_levels (
     id TEXT PRIMARY KEY,
@@ -516,6 +476,46 @@ CREATE TABLE IF NOT EXISTS courses (
     curriculum_type TEXT DEFAULT '8-4-4',
     schedule_profile_id TEXT,
     levels JSONB DEFAULT '[]'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS synergy_posts (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    course_id TEXT REFERENCES courses(id) ON DELETE SET NULL,
+    course_level_id TEXT,
+    author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    author_name TEXT NOT NULL,
+    author_role TEXT NOT NULL,
+    author_photo_url TEXT,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    photo_url TEXT,
+    video_url TEXT,
+    likes TEXT[] DEFAULT '{}',
+    comments_count INTEGER DEFAULT 0,
+    student_ids TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS synergy_comments (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL REFERENCES synergy_posts(id) ON DELETE CASCADE,
+    author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    author_name TEXT NOT NULL,
+    author_role TEXT NOT NULL,
+    author_photo_url TEXT,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS synergy_messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipient_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    child_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS subjects (
