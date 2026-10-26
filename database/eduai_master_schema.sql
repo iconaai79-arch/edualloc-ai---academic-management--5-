@@ -1,9 +1,36 @@
 -- ==========================================================================
 -- EduAi Automation - Master Schema
--- Generated on: 26/10/2026, 9:49:28 AM
+-- Generated on: 26/10/2026, 9:54:39 AM
 -- ==========================================================================
 
 -- 1. CORE SYSTEM & TENANCY --
+
+-- Environment Compatibility Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Ensure auth schema and helpers exist for standard PostgreSQL environments
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'auth') THEN
+        CREATE SCHEMA auth;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc p 
+        JOIN pg_namespace n ON p.pronamespace = n.oid 
+        WHERE n.nspname = 'auth' AND p.proname = 'uid'
+    ) THEN
+        EXECUTE 'CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $fn$ SELECT NULL::uuid $fn$';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_tables 
+        WHERE schemaname = 'auth' AND tablename = 'users'
+    ) THEN
+        EXECUTE 'CREATE TABLE auth.users (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP)';
+    END IF;
+END $$;
 
 -- RLS Helper Functions (Optimized)
 CREATE OR REPLACE FUNCTION public.get_curr_user_inst_id()
