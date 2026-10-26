@@ -1,6 +1,6 @@
 -- ==========================================================================
 -- EduAi Automation - Master Schema
--- Generated on: 26/10/2026, 10:15:41 AM
+-- Generated on: 26/10/2026, 10:21:43 AM
 -- ==========================================================================
 
 -- 1. CORE SYSTEM & TENANCY --
@@ -3712,6 +3712,7 @@ CREATE TABLE IF NOT EXISTS event_splits (
 
 CREATE TABLE IF NOT EXISTS event_medical_logs (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     participant_id TEXT NOT NULL REFERENCES event_participants(id) ON DELETE CASCADE,
     tent_number TEXT,
@@ -3720,6 +3721,8 @@ CREATE TABLE IF NOT EXISTS event_medical_logs (
     status TEXT NOT NULL DEFAULT 'under_observation',
     recorded_at TEXT NOT NULL DEFAULT (to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
 );
+
+ALTER TABLE event_medical_logs ADD COLUMN IF NOT EXISTS institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE;
 
 CREATE TABLE IF NOT EXISTS event_pledges (
     id TEXT PRIMARY KEY,
@@ -3809,10 +3812,10 @@ DROP POLICY IF EXISTS "Insert medical logs for everyone" ON event_medical_logs;
 CREATE POLICY "Insert medical logs for everyone" ON event_medical_logs FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Update medical logs for all authenticated" ON event_medical_logs;
 DROP POLICY IF EXISTS "Update medical logs for institutional staff" ON event_medical_logs;
-CREATE POLICY "Update medical logs for institutional staff" ON event_medical_logs FOR UPDATE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin' OR EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
+CREATE POLICY "Update medical logs for institutional staff" ON event_medical_logs FOR UPDATE USING (EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 DROP POLICY IF EXISTS "Delete medical logs for all authenticated" ON event_medical_logs;
 DROP POLICY IF EXISTS "Delete medical logs for institutional staff" ON event_medical_logs;
-CREATE POLICY "Delete medical logs for institutional staff" ON event_medical_logs FOR DELETE USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin' OR EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
+CREATE POLICY "Delete medical logs for institutional staff" ON event_medical_logs FOR DELETE USING (EXISTS (SELECT 1 FROM events e WHERE e.id = event_id AND (e.institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = 'super_admin')));
 
 DROP POLICY IF EXISTS "Insert pledges for all authenticated" ON event_pledges;
 DROP POLICY IF EXISTS "Insert pledges for everyone" ON event_pledges;
