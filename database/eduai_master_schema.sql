@@ -1,6 +1,6 @@
 -- ==========================================================================
 -- EduAi Automation - Master Schema
--- Generated on: 26/10/2026, 9:05:30 AM
+-- Generated on: 26/10/2026, 9:20:59 AM
 -- ==========================================================================
 
 -- 1. CORE SYSTEM & TENANCY --
@@ -1968,20 +1968,20 @@ DECLARE
     t TEXT;
 BEGIN
     FOR t IN SELECT unnest(ARRAY['carwash_packages', 'carwash_customers', 'carwash_vehicles', 'carwash_jobs', 'carwash_inventory', 'carwash_feedback', 'carwash_shifts']) LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
-        EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy select: ' || t, t);
+        EXECUTE format('CREATE POLICY %I ON %I FOR SELECT USING (
             (public.get_curr_user_role() = ''super_admin'') 
             OR (institution_id::text = public.get_curr_user_inst_id())
-        )', t, t);
+        )', 'Institutional tenancy select: ' || t, t);
 
-        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
-        EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy manage: ' || t, t);
+        EXECUTE format('CREATE POLICY %I ON %I FOR ALL USING (
             (public.get_curr_user_role() = ''super_admin'') 
             OR (
                 institution_id::text = public.get_curr_user_inst_id()
                 AND public.get_curr_user_role() IN (''admin'', ''head_teacher'', ''carwash_admin'', ''carwash_attendant'')
             )
-        )', t, t);
+        )', 'Institutional tenancy manage: ' || t, t);
     END LOOP;
 END $policy$;
 
@@ -2000,20 +2000,20 @@ DECLARE
     t TEXT;
 BEGIN
     FOR t IN SELECT unnest(ARRAY['agrovet_products', 'agrovet_batches', 'agrovet_customers', 'agrovet_animals', 'agrovet_sales', 'agrovet_consultations', 'agrovet_credit']) LOOP
-        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
-        EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy select: ' || t, t);
+        EXECUTE format('CREATE POLICY %I ON %I FOR SELECT USING (
             (public.get_curr_user_role() = ''super_admin'') 
             OR (institution_id::text = public.get_curr_user_inst_id())
-        )', t, t);
+        )', 'Institutional tenancy select: ' || t, t);
 
-        EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
-        EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (
+        EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy manage: ' || t, t);
+        EXECUTE format('CREATE POLICY %I ON %I FOR ALL USING (
             (public.get_curr_user_role() = ''super_admin'') 
             OR (
                 institution_id::text = public.get_curr_user_inst_id()
                 AND public.get_curr_user_role() IN (''admin'', ''head_teacher'', ''agrovet_admin'', ''vet'')
             )
-        )', t, t);
+        )', 'Institutional tenancy manage: ' || t, t);
     END LOOP;
 END $policy$;
 
@@ -3576,12 +3576,12 @@ BEGIN
         'election_events', 'election_candidates', 'election_voters_ledger', 'election_ballots', 'election_checkins'
     ]) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
-            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %%I" ON %%I', t, t);
-            EXECUTE format('CREATE POLICY "Institutional tenancy select: %%I" ON %%I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy select: ' || t, t);
+            EXECUTE format('CREATE POLICY %I ON %I FOR SELECT USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', 'Institutional tenancy select: ' || t, t);
 
             
-            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %%I" ON %%I', t, t);
-            EXECUTE format('CREATE POLICY "Institutional tenancy manage: %%I" ON %%I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON %I', 'Institutional tenancy manage: ' || t, t);
+            EXECUTE format('CREATE POLICY %I ON %I FOR ALL USING (institution_id = public.get_curr_user_inst_id() OR public.get_curr_user_role() = ''super_admin'')', 'Institutional tenancy manage: ' || t, t);
         END IF;
     END LOOP;
 
@@ -3589,8 +3589,8 @@ BEGIN
     FOR t IN SELECT unnest(ARRAY['student_absence_requests', 'absence_requests', 'time_off_requests', 'leave_requests', 'leave_out_requests']) LOOP
         IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = t) THEN
             EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy select: %I" ON public.%I', t, t);
-            EXECUTE format('DROP POLICY IF EXISTS "Institutional tenancy manage: %I" ON public.%I', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Institutional tenancy select: ' || t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Institutional tenancy manage: ' || t, t);
             EXECUTE format('DROP POLICY IF EXISTS "master_unblock_%I" ON public.%I', t, t);
             EXECUTE format('DROP POLICY IF EXISTS "%I_select" ON public.%I', t, t);
             EXECUTE format('DROP POLICY IF EXISTS "%I_insert" ON public.%I', t, t);
