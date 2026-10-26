@@ -1,6 +1,6 @@
 -- ==========================================================================
 -- EduAi Automation - Master Schema
--- Generated on: 26/10/2026, 10:34:50 AM
+-- Generated on: 26/10/2026, 10:43:22 AM
 -- ==========================================================================
 
 -- 1. CORE SYSTEM & TENANCY --
@@ -1359,14 +1359,30 @@ CREATE INDEX IF NOT EXISTS idx_ds_instructors_institution_id ON public.ds_instru
 CREATE TABLE IF NOT EXISTS ds_vehicles (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    registration_number TEXT NOT NULL,
+    plate_number TEXT,
+    registration_number TEXT,
+    make TEXT,
     model TEXT,
     transmission TEXT DEFAULT 'Manual',
+    vehicle_type TEXT,
+    last_service_date DATE,
+    next_service_date DATE,
     status TEXT DEFAULT 'Active',
     assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS plate_number TEXT;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS registration_number TEXT;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS make TEXT;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS model TEXT;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS transmission TEXT DEFAULT 'Manual';
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS vehicle_type TEXT;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS last_service_date DATE;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS next_service_date DATE;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active';
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_ds_vehicles_institution_id ON public.ds_vehicles(institution_id);
 
@@ -1390,6 +1406,15 @@ CREATE TABLE IF NOT EXISTS ds_students (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS passport_number TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS license_type_interested TEXT;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS theory_progress_percent INTEGER DEFAULT 0;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS practical_progress_percent INTEGER DEFAULT 0;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS theory_test_score INTEGER;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS practical_test_score INTEGER;
+ALTER TABLE public.ds_students ADD COLUMN IF NOT EXISTS ntsa_booking_status TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_ds_students_institution_id ON public.ds_students(institution_id);
 CREATE INDEX IF NOT EXISTS idx_ds_students_inst_id_composite ON public.ds_students(institution_id, id DESC);
 
@@ -1412,10 +1437,17 @@ CREATE TABLE IF NOT EXISTS ds_lessons (
     attendance_logs JSONB DEFAULT '[]'::jsonb,
     reminder_sent BOOLEAN DEFAULT false,
     checkout_reminder_sent BOOLEAN DEFAULT false,
+    topic TEXT,
+    instructor_notes TEXT,
+    route_tracked_data JSONB DEFAULT '{}'::jsonb,
     notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.ds_lessons ADD COLUMN IF NOT EXISTS topic TEXT;
+ALTER TABLE public.ds_lessons ADD COLUMN IF NOT EXISTS instructor_notes TEXT;
+ALTER TABLE public.ds_lessons ADD COLUMN IF NOT EXISTS route_tracked_data JSONB DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_ds_lessons_institution_id ON public.ds_lessons(institution_id);
 CREATE INDEX IF NOT EXISTS idx_ds_lessons_inst_id_composite ON public.ds_lessons(institution_id, id DESC);
@@ -1431,9 +1463,22 @@ CREATE TABLE IF NOT EXISTS ds_invoices (
     status TEXT DEFAULT 'Unpaid',
     due_date DATE,
     items JSONB DEFAULT '[]'::jsonb,
+    student_name TEXT,
+    fee_structure_id TEXT,
+    class_name TEXT,
+    total_amount DECIMAL(12, 2) DEFAULT 0,
+    paid_amount DECIMAL(12, 2) DEFAULT 0,
+    notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS student_name TEXT;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS fee_structure_id TEXT;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS class_name TEXT;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS total_amount DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(12, 2) DEFAULT 0;
+ALTER TABLE public.ds_invoices ADD COLUMN IF NOT EXISTS notes TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_ds_invoices_institution_id ON public.ds_invoices(institution_id);
 CREATE INDEX IF NOT EXISTS idx_ds_invoices_inst_id_composite ON public.ds_invoices(institution_id, id DESC);
@@ -2974,16 +3019,22 @@ CREATE TABLE IF NOT EXISTS ds_instructors (
 CREATE TABLE IF NOT EXISTS ds_vehicles (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    plate_number TEXT NOT NULL,
-    make TEXT NOT NULL,
-    model TEXT NOT NULL,
-    transmission TEXT NOT NULL,
+    plate_number TEXT,
+    registration_number TEXT,
+    make TEXT,
+    model TEXT,
+    transmission TEXT DEFAULT 'Manual',
     vehicle_type TEXT,
     last_service_date DATE,
     next_service_date DATE,
-    status TEXT DEFAULT 'Operational',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    status TEXT DEFAULT 'Active',
+    assigned_instructor_id TEXT REFERENCES ds_instructors(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS plate_number TEXT;
+ALTER TABLE public.ds_vehicles ADD COLUMN IF NOT EXISTS registration_number TEXT;
 
 CREATE TABLE IF NOT EXISTS ds_students (
     id TEXT PRIMARY KEY,
@@ -3513,7 +3564,8 @@ CREATE INDEX IF NOT EXISTS idx_financial_periods_inst_name ON financial_periods 
 CREATE TABLE IF NOT EXISTS public.vehicles (
     id TEXT PRIMARY KEY,
     institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
-    plate_number TEXT NOT NULL,
+    plate_number TEXT,
+    registration_number TEXT,
     model TEXT,
     vehicle_type TEXT DEFAULT 'school',
     capacity INTEGER DEFAULT 14,
@@ -3524,6 +3576,15 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS plate_number TEXT;
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS registration_number TEXT;
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS model TEXT;
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS vehicle_type TEXT DEFAULT 'school';
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 14;
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS driver_id TEXT REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS assistant_id TEXT REFERENCES public.users(id) ON DELETE SET NULL;
+ALTER TABLE public.vehicles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 
 CREATE TABLE IF NOT EXISTS public.transport_onboarding (
     id TEXT PRIMARY KEY,
