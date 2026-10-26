@@ -545,8 +545,17 @@ CREATE TABLE IF NOT EXISTS users (
     profile_photo_url TEXT,
     unavailability JSONB DEFAULT '[]'::jsonb,
     password_last_updated TIMESTAMP WITH TIME ZONE,
-    password_expires_at TIMESTAMP WITH TIME ZONE
+    password_expires_at TIMESTAMP WITH TIME ZONE,
+    status TEXT DEFAULT 'active',
+    branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 \n-- 4. CURRICULUM & SCHEDULING --\n
 CREATE TABLE IF NOT EXISTS courses (
     id TEXT PRIMARY KEY,
@@ -920,8 +929,13 @@ CREATE TABLE IF NOT EXISTS receipts (
     payment_method TEXT,
     related_transaction_id TEXT,
     invoice_id TEXT REFERENCES invoices(id) ON DELETE SET NULL,
-    student_id TEXT REFERENCES users(id) ON DELETE SET NULL
+    student_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.receipts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 CREATE TABLE IF NOT EXISTS fee_goods_proposals (
     id TEXT PRIMARY KEY,
@@ -1042,11 +1056,16 @@ CREATE TABLE IF NOT EXISTS public.retail_inventory_items (
 
 CREATE TABLE IF NOT EXISTS public.retail_store_stock (
     id TEXT PRIMARY KEY,
+    institution_id TEXT REFERENCES public.institutions(id) ON DELETE CASCADE,
     store_id TEXT NOT NULL REFERENCES public.retail_stores(id) ON DELETE CASCADE,
     item_id TEXT NOT NULL REFERENCES public.retail_inventory_items(id) ON DELETE CASCADE,
     quantity INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(store_id, item_id)
 );
+
+ALTER TABLE public.retail_store_stock ADD COLUMN IF NOT EXISTS institution_id TEXT REFERENCES public.institutions(id) ON DELETE CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.retail_sales (
     id TEXT PRIMARY KEY,
@@ -1408,9 +1427,14 @@ CREATE TABLE IF NOT EXISTS ds_payments (
     payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     receipt_number TEXT,
     notes TEXT,
+    status TEXT DEFAULT 'Completed',
+    branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Completed';
+ALTER TABLE public.ds_payments ADD COLUMN IF NOT EXISTS branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_ds_payments_institution_id ON public.ds_payments(institution_id);
 CREATE INDEX IF NOT EXISTS idx_ds_payments_inst_id_composite ON public.ds_payments(institution_id, id DESC);
@@ -3096,10 +3120,14 @@ CREATE TABLE IF NOT EXISTS ds_payments (
     payment_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     receipt_number TEXT NOT NULL,
     received_by TEXT,
+    status TEXT DEFAULT 'Completed',
+    branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS student_id TEXT;
+ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Completed';
+ALTER TABLE ds_payments ADD COLUMN IF NOT EXISTS branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL;
 
 -- 14.5 BEAUTY COLLEGE MODULE
 CREATE TABLE IF NOT EXISTS bc_trainers (
@@ -3838,15 +3866,15 @@ BEGIN
             EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
             EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Institutional tenancy select: ' || t, t);
             EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Institutional tenancy manage: ' || t, t);
-            EXECUTE format('DROP POLICY IF EXISTS "master_unblock_%I" ON public.%I', t, t);
-            EXECUTE format('DROP POLICY IF EXISTS "%I_select" ON public.%I', t, t);
-            EXECUTE format('DROP POLICY IF EXISTS "%I_insert" ON public.%I', t, t);
-            EXECUTE format('DROP POLICY IF EXISTS "%I_update" ON public.%I', t, t);
-            EXECUTE format('DROP POLICY IF EXISTS "%I_delete" ON public.%I', t, t);
-            EXECUTE format('CREATE POLICY "%I_select" ON public.%I FOR SELECT TO authenticated, anon USING (true)', t, t);
-            EXECUTE format('CREATE POLICY "%I_insert" ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL AND length(id) > 0)', t, t);
-            EXECUTE format('CREATE POLICY "%I_update" ON public.%I FOR UPDATE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0) WITH CHECK (id IS NOT NULL AND length(id) > 0)', t, t);
-            EXECUTE format('CREATE POLICY "%I_delete" ON public.%I FOR DELETE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0)', t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'master_unblock_' || t, t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_select', t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_insert', t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_update', t);
+            EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_delete', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR SELECT TO authenticated, anon USING (true)', t || '_select', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR INSERT TO authenticated, anon WITH CHECK (id IS NOT NULL AND length(id) > 0)', t || '_insert', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR UPDATE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0) WITH CHECK (id IS NOT NULL AND length(id) > 0)', t || '_update', t);
+            EXECUTE format('CREATE POLICY %I ON public.%I FOR DELETE TO authenticated, anon USING (id IS NOT NULL AND length(id) > 0)', t || '_delete', t);
             EXECUTE format('GRANT ALL ON public.%I TO anon, authenticated, service_role', t);
         END IF;
     END LOOP;
