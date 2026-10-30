@@ -99,7 +99,9 @@ export function escapeSqlLiteral(val: any): string {
 }
 
 /**
- * Converts a table row into an SQL INSERT statement
+ * Converts a table row into an SQL INSERT statement with dynamic self-healing DDL.
+ * Ensures the target table and all columns exist before INSERT runs so that platforms
+ * like Neon, Supabase, or vanilla PostgreSQL never fail with "adds rows to tables it does not create".
  */
 function buildInsertStatements(tableName: string, rows: any[]): string {
     if (!Array.isArray(rows) || rows.length === 0) return '';
@@ -121,7 +123,46 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
     if (columns.length === 0) return '';
 
     const lines: string[] = [];
-    lines.push(`-- Table: public.${tableName} (${rows.length} records)`);
+    lines.push(`-- ============================================================================`);
+    lines.push(`-- Table: public."${tableName}" (${rows.length} records)`);
+    lines.push(`-- ============================================================================`);
+
+    // Self-healing DDL: create table if missing, then ensure all columns exist
+    const hasId = columns.includes('id');
+    if (hasId) {
+        const sampleVal = rows.find(r => r && r.id !== null && r.id !== undefined)?.id;
+        const idType = (typeof sampleVal === 'number' && Number.isInteger(sampleVal)) ? 'BIGINT' : 'TEXT';
+        lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
+        lines.push(`    "id" ${idType} PRIMARY KEY`);
+        lines.push(`);`);
+    } else {
+        const firstCol = columns[0];
+        const sampleVal = rows.find(r => r && r[firstCol] !== null && r[firstCol] !== undefined)?.[firstCol];
+        let firstType = 'TEXT';
+        if (typeof sampleVal === 'boolean') firstType = 'BOOLEAN';
+        else if (typeof sampleVal === 'number') firstType = Number.isInteger(sampleVal) ? 'BIGINT' : 'NUMERIC';
+        else if (sampleVal && typeof sampleVal === 'object') firstType = 'JSONB';
+        lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
+        lines.push(`    "${firstCol}" ${firstType}`);
+        lines.push(`);`);
+    }
+
+    for (const col of columns) {
+        if (hasId && col === 'id') continue;
+        if (!hasId && col === columns[0]) continue;
+        const sampleRow = rows.find(r => r && r[col] !== null && r[col] !== undefined);
+        const sampleVal = sampleRow ? sampleRow[col] : undefined;
+        let colType = 'TEXT';
+        if (typeof sampleVal === 'boolean') {
+            colType = 'BOOLEAN DEFAULT FALSE';
+        } else if (typeof sampleVal === 'number') {
+            colType = Number.isInteger(sampleVal) ? 'BIGINT' : 'NUMERIC';
+        } else if (sampleVal && typeof sampleVal === 'object') {
+            colType = "JSONB DEFAULT '{}'::jsonb";
+        }
+        lines.push(`ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType};`);
+    }
+    lines.push('');
 
     // Batch in groups of 50 for clean SQL readability
     const chunkSize = 50;
@@ -1469,13 +1510,15 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         ``,
         `BEGIN;`,
         ``,
-        `-- Temporarily defer all deferrable constraints for smooth relational resolution`,
+        `-- Temporarily defer constraints and disable replication triggers if permissions allow`,
+        `DO $$ BEGIN SET session_replication_role = 'replica'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
         `SET CONSTRAINTS ALL DEFERRED;`,
         ``
     ].join('\n');
 
     const footer = [
         ``,
+        `DO $$ BEGIN SET session_replication_role = 'origin'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
         `COMMIT;`,
         ``,
         `-- ============================================================================`,

@@ -100,6 +100,71 @@ CREATE TABLE IF NOT EXISTS counties (
     location JSONB
 );
 
+CREATE TABLE IF NOT EXISTS subcounties (
+    id TEXT PRIMARY KEY,
+    county_id TEXT REFERENCES counties(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS constituencies (
+    id TEXT PRIMARY KEY,
+    county_id TEXT REFERENCES counties(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS wards (
+    id TEXT PRIMARY KEY,
+    constituency_id TEXT REFERENCES constituencies(id) ON DELETE CASCADE,
+    subcounty_id TEXT REFERENCES subcounties(id) ON DELETE SET NULL,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS students (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT,
+    admission_number TEXT,
+    name TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    gender TEXT,
+    dob DATE,
+    class_id TEXT,
+    stream_id TEXT,
+    academic_level_id TEXT,
+    parent_name TEXT,
+    parent_phone TEXT,
+    parent_email TEXT,
+    status TEXT DEFAULT 'active',
+    data JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT,
+    user_id TEXT,
+    user_name TEXT,
+    action TEXT NOT NULL,
+    details JSONB,
+    ip_address TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_reports (
+    id TEXT PRIMARY KEY,
+    institution_id TEXT,
+    generated_by TEXT,
+    title TEXT NOT NULL,
+    report_type TEXT,
+    parameters JSONB,
+    summary JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS institutions (
     id TEXT PRIMARY KEY,
     institution_id TEXT,
