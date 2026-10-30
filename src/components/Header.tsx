@@ -27,6 +27,7 @@ interface HeaderProps {
     activeRole?: Role;
     onSwitchRole?: (role: Role) => void;
     onExitPerspective?: () => void;
+    exitPerspectiveLabel?: string;
     onToggleHealthSystem?: () => void;
     isHealthSystemOpen?: boolean;
     onTogglePharmacySystem?: () => void;
@@ -82,7 +83,7 @@ const TrialTimer: React.FC<{ trialEndsAt: string }> = ({ trialEndsAt }) => {
 export const Header: React.FC<HeaderProps> = ({ 
     currentUser, institutionName, onLogout, onEditProfile, logoUrl, systemLogoUrl, 
     applicationTitle, notifications, onMarkAsRead, currentInstitution, 
-    isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, 
+    isApiOnline = true, activeRole, onSwitchRole, onExitPerspective, exitPerspectiveLabel, 
     onToggleHealthSystem, isHealthSystemOpen, onTogglePharmacySystem, isPharmacySystemOpen, primaryColor, secondaryColor,
     hidePerspectiveSwitcher, androidUrl, onOpenShowcase, onAcknowledgeVisitorMet
 }) => {
@@ -200,7 +201,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 className="flex items-center gap-2 px-4 py-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-red-100 dark:border-red-800 hover:bg-red-100 transition-all shadow-sm active:scale-95 animate-pulse"
                             >
                                 <ArrowRightOnRectangleIcon className="w-3.5 h-3.5" />
-                                Exit Perspective
+                                {exitPerspectiveLabel || "Exit Perspective"}
                             </button>
                         )}
                         {showTrialTimer && currentInstitution.trialEndsAt && (

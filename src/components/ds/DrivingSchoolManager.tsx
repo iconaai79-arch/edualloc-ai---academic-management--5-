@@ -4170,7 +4170,7 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         return (currentInstitution?.smsBalance ?? (currentInstitution as any)?.sms_balance ?? 0);
     }, [currentInstitution]);
 
-    const { success, error: toastError, info: toastInfo } = useToast();
+    const { success, error: toastError, info: toastInfo, warning: toastWarning } = useToast();
     const {
         instructors, vehicles, students, lessons, mastery, settings, invoices, payments,
         addInstructor: onAddInstructor,
@@ -4774,7 +4774,21 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
-            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
+            const outboxItems = targets.map(t => ({
+                id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: currentInstitution?.id,
+                institution_id: currentInstitution?.id,
+                recipient: t.phone,
+                recipientName: t.name,
+                message: t.message,
+                units: calculateSmsPages(t.message),
+                status: 'pending',
+                reason: `Insufficient SMS balance (${currentBalance} available, ${requiredUnits} required)`,
+                source: `Fee Reminder: ${feeReminderType === 'shortfall' ? 'Milestone Shortfall' : 'Outstanding Balance'}`,
+                createdAt: new Date().toISOString()
+            }));
+            await apiService.saveToSmsOutbox(outboxItems);
+            toastWarning(`Insufficient SMS Units (${currentBalance} available, ${requiredUnits} required). ${targets.length} reminder message(s) moved to Outbox.`);
             setIsSendingReminders(false);
             return;
         }
@@ -4859,7 +4873,21 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
-            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
+            const outboxItems = targets.map(t => ({
+                id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: currentInstitution?.id,
+                institution_id: currentInstitution?.id,
+                recipient: t.phone,
+                recipientName: t.name,
+                message: t.message,
+                units: calculateSmsPages(t.message),
+                status: 'pending',
+                reason: `Insufficient SMS balance (${currentBalance} available, ${requiredUnits} required)`,
+                source: 'Payment Milestone Reminder',
+                createdAt: new Date().toISOString()
+            }));
+            await apiService.saveToSmsOutbox(outboxItems);
+            toastWarning(`Insufficient SMS Units (${currentBalance} available, ${requiredUnits} required). ${targets.length} reminder message(s) moved to Outbox.`);
             setIsSendingReminders(false);
             setFeeReminderType(originalType);
             return;
@@ -4918,7 +4946,20 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
-            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
+            const outboxItems = targets.map(t => ({
+                id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: currentInstitution?.id,
+                institution_id: currentInstitution?.id,
+                recipient: t.phone,
+                message: t.message,
+                units: calculateSmsPages(t.message),
+                status: 'pending',
+                reason: `Insufficient SMS balance (${currentBalance} available, ${requiredUnits} required)`,
+                source: 'PDL Expiry Alert',
+                createdAt: new Date().toISOString()
+            }));
+            await apiService.saveToSmsOutbox(outboxItems);
+            toastWarning(`Insufficient SMS Units (${currentBalance} available, ${requiredUnits} required). ${targets.length} PDL alert(s) moved to Outbox.`);
             return;
         }
 
@@ -4962,7 +5003,20 @@ const DrivingSchoolManagerInner: React.FC<DrivingSchoolManagerProps> = ({
         const currentBalance = activeSmsBalance;
         const requiredUnits = targets.reduce((sum, t) => sum + (calculateSmsPages(t.message)), 0);
         if (currentBalance < requiredUnits) {
-            toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}.`);
+            const outboxItems = targets.map(t => ({
+                id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: currentInstitution?.id,
+                institution_id: currentInstitution?.id,
+                recipient: t.phone,
+                message: t.message,
+                units: calculateSmsPages(t.message),
+                status: 'pending',
+                reason: `Insufficient SMS balance (${currentBalance} available, ${requiredUnits} required)`,
+                source: 'Assessment Test Preparation Notice',
+                createdAt: new Date().toISOString()
+            }));
+            await apiService.saveToSmsOutbox(outboxItems);
+            toastWarning(`Insufficient SMS Units (${currentBalance} available, ${requiredUnits} required). ${targets.length} test notification(s) moved to Outbox.`);
             return;
         }
 
@@ -5348,13 +5402,30 @@ END $$;
                 if (student.phone && currentInstitution?.smsConfig) {
                     const instName = settings?.schoolName || (currentInstitution?.name && !currentInstitution.name.toLowerCase().includes('law firm') ? currentInstitution.name : 'Driving School');
                     const msg = `CREDENTIAL RESET: Your ${instName} portal password has been reset. Login: ${student.email || student.phone} New PIN: ${newPassword}`;
-                    await apiService.sendSms(
-                        student.phone, 
-                        msg,
-                        currentInstitution.smsConfig,
-                        calculateSmsPages(msg),
-                        billableInstitutionId
-                    );
+                    const pages = calculateSmsPages(msg);
+                    if (activeSmsBalance < pages) {
+                        await apiService.saveToSmsOutbox([{
+                            institutionId: currentInstitution?.id,
+                            institution_id: currentInstitution?.id,
+                            recipient: student.phone,
+                            recipientName: student.fullName,
+                            message: msg,
+                            units: pages,
+                            status: 'pending',
+                            reason: `Insufficient SMS balance (${activeSmsBalance} available, ${pages} required)`,
+                            source: `Password Reset: ${student.fullName}`,
+                            createdAt: new Date().toISOString()
+                        }]);
+                        toastWarning(`Insufficient SMS balance (${activeSmsBalance} available, ${pages} required). Password reset SMS moved to Outbox. Generated PIN is: ${newPassword}`);
+                    } else {
+                        await apiService.sendSms(
+                            student.phone, 
+                            msg,
+                            currentInstitution.smsConfig,
+                            pages,
+                            billableInstitutionId
+                        );
+                    }
                 } else {
                     alert(`New PIN for ${student.fullName} is: ${newPassword}\nPlease share this with the student safely.`);
                 }
@@ -8482,7 +8553,21 @@ END $$;
                                                                                 // Ensure live SMS broadcast via gateway
                                                                                 const pages = calculateSmsPages(msg);
                                                                                 if (activeSmsBalance < pages) {
-                                                                                    toastError(`Insufficient SMS units (${activeSmsBalance} available, ${pages} required). Please top up SMS units.`);
+                                                                                    await apiService.saveToSmsOutbox([{
+                                                                                        id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                                                                        institutionId: currentInstitution?.id,
+                                                                                        institution_id: currentInstitution?.id,
+                                                                                        recipient: lead.phone,
+                                                                                        recipientName: lead.fullName,
+                                                                                        message: msg,
+                                                                                        units: pages,
+                                                                                        status: 'pending',
+                                                                                        reason: `Insufficient SMS balance (${activeSmsBalance} available, ${pages} required)`,
+                                                                                        source: `Lead Quotation: ${lead.fullName}`,
+                                                                                        createdAt: new Date().toISOString()
+                                                                                    }]);
+                                                                                    await updateLead({ ...lead, status: 'Quotation Sent', quotedAmount: baseFeeAmount, items: leadVoteHeads });
+                                                                                    toastWarning(`Insufficient SMS units (${activeSmsBalance} available, ${pages} required). Quotation message moved to Outbox.`);
                                                                                     setIsBuySMSModalOpen(true);
                                                                                     return;
                                                                                 }
@@ -8824,7 +8909,21 @@ END $$;
                                                             if (confirm(`Send Fee Quotation SMS to ${viewQuoteModalLead.fullName} (${viewQuoteModalLead.phone})?\n\nMessage payload:\n"${msg}"`)) {
                                                                 const pages = calculateSmsPages(msg);
                                                                 if (activeSmsBalance < pages) {
-                                                                    toastError(`Insufficient SMS units (${activeSmsBalance} available, ${pages} required). Please top up SMS units.`);
+                                                                    await apiService.saveToSmsOutbox([{
+                                                                        id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                                                        institutionId: currentInstitution?.id,
+                                                                        institution_id: currentInstitution?.id,
+                                                                        recipient: viewQuoteModalLead.phone,
+                                                                        recipientName: viewQuoteModalLead.fullName,
+                                                                        message: msg,
+                                                                        units: pages,
+                                                                        status: 'pending',
+                                                                        reason: `Insufficient SMS units (${activeSmsBalance} available, ${pages} required)`,
+                                                                        source: `Lead Quotation: ${viewQuoteModalLead.fullName}`,
+                                                                        createdAt: new Date().toISOString()
+                                                                    }]);
+                                                                    await updateLead({ ...viewQuoteModalLead, status: 'Quotation Sent', quotedAmount: modalTotalAmount, items: modalVoteHeads });
+                                                                    toastWarning(`Insufficient SMS units (${activeSmsBalance} available, ${pages} required). Quotation message moved to Outbox.`);
                                                                     setIsBuySMSModalOpen(true);
                                                                     return;
                                                                 }
@@ -13601,8 +13700,49 @@ END $$;
                                          requiredUnits = phones.length * pages;
                                          
                                          if (currentBalance < requiredUnits) {
-                                             toastError(`Insufficient SMS Units! Required: ${requiredUnits}, Available: ${currentBalance}. Please top up.`);
+                                             // Move all target SMS to Outbox queue
+                                             const outboxItems = phones.map(p => ({
+                                                 id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                                 institutionId: currentInstitution?.id,
+                                                 institution_id: currentInstitution?.id,
+                                                 recipient: p,
+                                                 message: fullMsg,
+                                                 units: pages,
+                                                 status: 'pending',
+                                                 reason: `Insufficient SMS balance (${currentBalance} available, ${requiredUnits} required)`,
+                                                 source: `Broadcast: ${data.title || 'Institutional Broadcast'}`,
+                                                 createdAt: new Date().toISOString()
+                                             }));
+                                             await apiService.saveToSmsOutbox(outboxItems);
+
+                                             // Send emails if any
+                                             if (emails.length > 0) {
+                                                 await Promise.all(emails.map(email => apiService.sendEmail(email, `${priorityPrefix}${data.title}`, finalMessage)));
+                                             }
+
+                                             // Record broadcast log indicating queued to Outbox
+                                             try {
+                                                 const logRecord = {
+                                                     id: broadcastId,
+                                                     institutionId: currentInstitution?.id || 'inst',
+                                                     institution_id: currentInstitution?.id || 'inst',
+                                                     target: data.target + (data.target === 'Students' && data.targetCategory ? ` (${data.targetCategory})` : data.target === 'Students' && data.targetGroup ? ` (${data.targetGroup})` : ''),
+                                                     channel: 'SMS (Queued to Outbox)' + (emails.length > 0 ? ' / Email' : ''),
+                                                     subject: data.title || "Institutional Broadcast",
+                                                     body: finalMessage,
+                                                     recipientsCount: targetUsers.length,
+                                                     recipients_count: targetUsers.length,
+                                                     status: 'Queued to Outbox',
+                                                     createdAt: new Date().toISOString(),
+                                                     created_at: new Date().toISOString()
+                                                 };
+                                                 await apiService.saveModuleRecord('broadcaster_messages', logRecord);
+                                             } catch (_) {}
+
+                                             if (onRefreshData) onRefreshData().catch(() => {});
+                                             toastWarning(`Insufficient SMS Units (${currentBalance} available, ${requiredUnits} required). ${phones.length} message(s) moved to Outbox.`);
                                              setIsActionLoading(false);
+                                             setActionModal(null);
                                              return;
                                          }
                                          smsResInfo = await apiService.sendSms(phones, fullMsg, currentInstitution?.smsConfig, pages, billableInstitutionId);

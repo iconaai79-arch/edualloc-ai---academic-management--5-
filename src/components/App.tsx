@@ -306,6 +306,12 @@ export const App: React.FC = () => {
             return stored ? JSON.parse(stored) : null;
         } catch (e) { return null; }
     });
+    const [originalResellerSession, setOriginalResellerSession] = useState<User | null>(() => {
+        try {
+            const stored = localStorage.getItem('eduai_reseller_session');
+            return stored ? JSON.parse(stored) : null;
+        } catch (e) { return null; }
+    });
     const [users, setUsers] = useState<User[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
@@ -1863,7 +1869,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
             // ── Module Onboarding: show wizard for edu admins with no active modules ──
             const EDU_TYPES = ['education', 'primary', 'secondary', 'college', 'university', 'institute', 'tvet', 'polytechnic', 'school', 'academy', 'high school', 'kindergarten', 'nursery', 'pre-primary', 'vocational'];
-            const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!localStorage.getItem('eduai_super_admin_session');
+            const isResellerImpersonating = !!(currentUser as any)?.impersonatedByReseller || !!originalResellerSession || !!localStorage.getItem('eduai_reseller_session') || sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true';
+            const isSuperAdminImpersonating = !!currentUser?.isImpersonated || !!originalSuperAdminSession || !!originalResellerSession || !!localStorage.getItem('eduai_super_admin_session') || !!localStorage.getItem('eduai_reseller_session') || isResellerImpersonating;
             const isEduAdmin = !isDsInst && !isDrivingSchool && (EDU_TYPES.includes(instTypeLower) || isEduInstitution(activeInst) || isSchoolInstitution(activeInst)) && currentUser && currentUser.role !== 'super_admin' && !isSuperAdminImpersonating && ['admin', 'head_teacher', 'dos', 'deputy', 'deputy_hoi_academics', 'deputy_hoi_boarding', 'deputy_hoi_administration', 'cao', 'managing_director', 'hoi', 'operation_manager', 'operations_manager'].includes(currentUser.role);
             if (isEduAdmin && activeInst && activeInst.status !== 'active') {
                 const activeModules = (imsPhase1 || []).filter((m: any) => (m.institutionId === activeInst.id || m.institution_id === activeInst.id) && (m.status === 'active' || m.status === 'trial'));
@@ -4804,10 +4811,17 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         setCurrentUser(null);
         setImpersonatedRole(null);
         setOriginalSuperAdminSession(null);
+        setOriginalResellerSession(null);
         setIsSimulatorMode(false);
         setIsHealthSystemOpen(false);
         setIsPharmacySystemOpen(false);
         localStorage.removeItem('eduai_super_admin_session');
+        localStorage.removeItem('eduai_reseller_session');
+        localStorage.removeItem('eduai_impersonated_user');
+        try {
+            sessionStorage.removeItem('eduai_impersonated_by_admin');
+            sessionStorage.removeItem('eduai_impersonated_by_reseller');
+        } catch (_) {}
     };
 
     // Reset pagination limits when user or institution context changes
@@ -5322,10 +5336,16 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             }
 
             if (admin) {
-                // Save original super admin session if not already in an impersonated session
+                // Save original super admin or reseller session if not already in an impersonated session
                 if (!originalSuperAdminSession && currentUser?.role === 'super_admin') {
                     setOriginalSuperAdminSession(currentUser);
                     localStorage.setItem('eduai_super_admin_session', JSON.stringify(currentUser));
+                } else if (!originalResellerSession && (currentUser?.role === 'reseller' || activeInstitution?.institutionType === 'Reseller')) {
+                    setOriginalResellerSession(currentUser);
+                    localStorage.setItem('eduai_reseller_session', JSON.stringify(currentUser));
+                    try {
+                        sessionStorage.setItem('eduai_impersonated_by_reseller', 'true');
+                    } catch (_) {}
                 }
 
                 // For Property Management institutions, always use property_admin so routing
@@ -5349,6 +5369,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
                 const isBranchInst = (branches || []).some((b: any) => b.id === institutionId || b.id === `br_${institutionId}` || b.linked_institution_id === institutionId);
 
+                const isFromReseller = currentUser?.role === 'reseller' || !!originalResellerSession || activeInstitution?.institutionType === 'Reseller';
                 const impersonatedUser = {
                     ...admin,
                     institutionId: targetCounty ? targetCounty.id : institutionId,
@@ -5356,6 +5377,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     branchId: isBranchInst ? institutionId : undefined,
                     role: resolvedRole as Role,
                     isImpersonated: true,
+                    impersonatedByReseller: isFromReseller,
                     passwordLastUpdated: admin.passwordLastUpdated || new Date().toISOString()
                 };
                 
@@ -5368,7 +5390,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             }
             setIsTransitioning(false);
         }, 300);
-    }, [users, institutions, counties, schoolRegistry, currentUser, originalSuperAdminSession, toastError, branches]);
+    }, [users, institutions, counties, schoolRegistry, currentUser, originalSuperAdminSession, originalResellerSession, activeInstitution, toastError, branches]);
     
 
 
@@ -5620,6 +5642,43 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         } else {
             try {
                 sessionStorage.removeItem('eduai_impersonated_by_admin');
+            } catch (_) {}
+            apiService.clearSession();
+            window.location.href = window.location.origin + window.location.pathname;
+        }
+    };
+
+    const onRestoreResellerSession = () => {
+        let resellerUser = originalResellerSession;
+        if (!resellerUser) {
+            try {
+                const stored = localStorage.getItem('eduai_reseller_session');
+                if (stored) resellerUser = JSON.parse(stored);
+            } catch (_) {}
+        }
+        if (resellerUser) {
+            setIsTransitioning(true);
+            setTimeout(() => {
+                setOriginalResellerSession(null);
+                setImpersonatedRole(null);
+                setIsSimulatorMode(false);
+                setIsHealthSystemOpen(false);
+                setIsPharmacySystemOpen(false);
+                localStorage.removeItem('eduai_reseller_session');
+                localStorage.removeItem('eduai_impersonated_user');
+                try {
+                    sessionStorage.removeItem('eduai_impersonated_by_admin');
+                    sessionStorage.removeItem('eduai_impersonated_by_reseller');
+                } catch (_) {}
+                setCurrentUser(resellerUser);
+                apiService.storeSession(resellerUser);
+                setIsTransitioning(false);
+                window.location.href = window.location.origin + window.location.pathname;
+            }, 100);
+        } else {
+            try {
+                sessionStorage.removeItem('eduai_impersonated_by_admin');
+                sessionStorage.removeItem('eduai_impersonated_by_reseller');
             } catch (_) {}
             apiService.clearSession();
             window.location.href = window.location.origin + window.location.pathname;
@@ -8394,9 +8453,12 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
         const isSuperAdminImpersonating = !!currentUser?.isImpersonated || 
                                           !!(currentUser as any)?.impersonated || 
                                           !!originalSuperAdminSession || 
+                                          !!originalResellerSession ||
                                           !!localStorage.getItem('eduai_super_admin_session') || 
+                                          !!localStorage.getItem('eduai_reseller_session') ||
                                           !!localStorage.getItem('eduai_impersonated_user') ||
-                                          sessionStorage.getItem('eduai_impersonated_by_admin') === 'true';
+                                          sessionStorage.getItem('eduai_impersonated_by_admin') === 'true' ||
+                                          sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true';
         if (!isSuperAdminImpersonating) {
             const inst = institutions.find(i => i.id === currentUser.institutionId) || (activeInstitution ? activeInstitution : undefined);
             const isReseller = inst?.institutionType === 'Reseller' || currentUser.role === 'reseller';
@@ -8473,6 +8535,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
             currentUser.role !== 'super_admin' && 
             !isSuperAdminImpersonating && 
             !originalSuperAdminSession && 
+            !originalResellerSession &&
+            !localStorage.getItem('eduai_reseller_session') &&
             !isSimulatorMode) {
             return (
                 <Suspense fallback={<SystemPulseLoader message="Security Handshake..." />}>
@@ -8544,6 +8608,25 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                     </Suspense>
                 ) : currentUser ? (
                     <>
+                        {Boolean(originalResellerSession || localStorage.getItem('eduai_reseller_session')) && (
+                            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 text-white px-4 py-2.5 text-xs font-semibold shadow-md flex items-center justify-between z-[110] relative">
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white/20">
+                                        <SparklesIcon className="w-3.5 h-3.5 text-white" />
+                                    </span>
+                                    <span>
+                                        <strong>Reseller Mode:</strong> You are accessing client workspace <span className="underline font-bold decoration-white/40">{activeInstitution?.name || 'Tenant Portal'}</span>
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={onRestoreResellerSession}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-white text-emerald-900 hover:bg-emerald-50 rounded-full font-bold shadow-sm transition-all text-xs cursor-pointer active:scale-95"
+                                >
+                                    <ArrowRightOnRectangleIcon className="w-3.5 h-3.5 text-emerald-600" />
+                                    Return to Reseller Portal
+                                </button>
+                            </div>
+                        )}
                         <Header
                             currentUser={currentUser}
                             institutionName={activeBranding.displayName}
@@ -8569,12 +8652,23 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                     setSelectedRole(r);
                                 });
                             }}
-                            onExitPerspective={(impersonatedRole || selectedRole) ? () => {
-                                React.startTransition(() => {
-                                    setImpersonatedRole(null);
-                                    setSelectedRole(null);
-                                });
-                            } : undefined}
+                            onExitPerspective={
+                                (originalResellerSession || localStorage.getItem('eduai_reseller_session')) ? onRestoreResellerSession :
+                                (originalSuperAdminSession || localStorage.getItem('eduai_super_admin_session')) ? onRestoreSuperAdminSession :
+                                (impersonatedRole || selectedRole) ? () => {
+                                    React.startTransition(() => {
+                                        setImpersonatedRole(null);
+                                        setSelectedRole(null);
+                                    });
+                                } : undefined
+                            }
+                            exitPerspectiveLabel={
+                                (originalResellerSession || localStorage.getItem('eduai_reseller_session'))
+                                    ? "Return to Reseller Portal"
+                                    : (originalSuperAdminSession || localStorage.getItem('eduai_super_admin_session'))
+                                        ? "Return to Super Admin"
+                                        : "Exit Perspective"
+                            }
                             onToggleHealthSystem={() => setIsHealthSystemOpen(!isHealthSystemOpen)}
                             onTogglePharmacySystem={() => setIsPharmacySystemOpen(!isPharmacySystemOpen)}
                             isHealthSystemOpen={isHealthSystemOpen}
@@ -9064,7 +9158,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                             currentUser={currentUser}
                                             currentInstitution={effectiveDSInstitution}
                                             onLogout={handleLogout}
-                                            onExitPerspective={originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined)}
+                                            onExitPerspective={(originalResellerSession || localStorage.getItem('eduai_reseller_session')) ? onRestoreResellerSession : (originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined))}
                                         />
                                     </DrivingSchoolProvider>
                                 ) : (isDSWorkspace && activeRole !== 'student' && activeRole !== 'parent' && activeRole !== 'super_admin') ? (
@@ -9085,7 +9179,7 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                                         courses={courses}
                                         subjects={subjects}
                                         rooms={rooms}
-                                        onExitPerspective={originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined)}
+                                        onExitPerspective={(originalResellerSession || localStorage.getItem('eduai_reseller_session')) ? onRestoreResellerSession : (originalSuperAdminSession ? onRestoreSuperAdminSession : (impersonatedRole ? () => setImpersonatedRole(null) : undefined))}
                                         enrollmentRequests={enrollmentRequests}
                                         generatedTimetable={generatedTimetable}
                                         examTimetable={examTimetable}
@@ -10558,7 +10652,22 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                 )}
                 <PerspectiveReturnButton
                     role={impersonatedRole}
-                    isImpersonatedSession={!!originalSuperAdminSession || !!currentUser?.isImpersonated || !!localStorage.getItem('eduai_super_admin_session') || sessionStorage.getItem('eduai_impersonated_by_admin') === 'true'}
+                    isImpersonatedSession={
+                        !!originalSuperAdminSession || 
+                        !!originalResellerSession || 
+                        !!currentUser?.isImpersonated || 
+                        !!localStorage.getItem('eduai_super_admin_session') || 
+                        !!localStorage.getItem('eduai_reseller_session') || 
+                        sessionStorage.getItem('eduai_impersonated_by_admin') === 'true' ||
+                        sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true'
+                    }
+                    impersonatorType={
+                        (originalResellerSession || localStorage.getItem('eduai_reseller_session') || sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true')
+                            ? 'reseller'
+                            : (originalSuperAdminSession || localStorage.getItem('eduai_super_admin_session') || sessionStorage.getItem('eduai_impersonated_by_admin') === 'true')
+                                ? 'super_admin'
+                                : null
+                    }
                     hasCurrentUser={!!currentUser}
                     isPublicView={showMarketplace || showMarketing || showGuestPortal || showGuestFeedback || showTenantStore}
                     hideReturnToLogin={showTenantStore}
@@ -10581,7 +10690,11 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
                             window.history.pushState({}, '', '/');
                         }
                     }}
-                    onRestoreSession={onRestoreSuperAdminSession}
+                    onRestoreSession={
+                        (originalResellerSession || localStorage.getItem('eduai_reseller_session') || sessionStorage.getItem('eduai_impersonated_by_reseller') === 'true')
+                            ? onRestoreResellerSession
+                            : onRestoreSuperAdminSession
+                    }
                 />
                 {showBookDemo && (
                     <Suspense fallback={null}>

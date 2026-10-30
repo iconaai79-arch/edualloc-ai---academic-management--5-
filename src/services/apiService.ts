@@ -5890,9 +5890,12 @@ export const apiService = {
                 institutionId: m.institutionId || m.institution_id,
                 institution_id: m.institutionId || m.institution_id,
                 recipient: String(recipient).trim(),
+                recipientName: m.recipientName || m.recipient_name || '',
                 message: m.message || '',
                 units: Number(m.units) || Math.ceil((m.message || '').length / 160) || 1,
                 status: m.status || 'pending',
+                reason: m.reason || 'Insufficient SMS Units',
+                source: m.source || 'Direct Dispatch',
                 createdAt: m.createdAt || m.created_at || new Date().toISOString()
             };
         }).filter(m => Boolean(m.recipient) && m.recipient !== '—');
@@ -5904,9 +5907,14 @@ export const apiService = {
         await apiService.deleteModuleRecord('sms_outbox', id);
     },
     async clearSmsOutbox(institutionId: string): Promise<void> {
-        // Since we don't have a bulk delete by filter in proxy, 
-        // we'll fetch then delete individual for now, or just let users delete manually.
-        // For "Retry All", we'll delete each as it succeeds.
+        try {
+            const items = await apiService.fetchSmsOutbox(institutionId);
+            if (items && items.length > 0) {
+                await Promise.all(items.map(item => apiService.deleteModuleRecord('sms_outbox', item.id)));
+            }
+        } catch (e) {
+            console.error('[apiService] Failed to clear SMS outbox:', e);
+        }
     },
     async fetchFeePromises(institutionId: string): Promise<FeePromise[]> {
         return apiService.fetchModuleRecords('fee_promises', institutionId, undefined, {

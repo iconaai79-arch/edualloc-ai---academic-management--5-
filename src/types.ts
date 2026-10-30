@@ -422,6 +422,7 @@ export interface User {
     passwordExpiresAt?: string;
     countyId?: string;
     isImpersonated?: boolean;
+    impersonatedByReseller?: boolean;
     vehicleId?: string;
     farmerId?: string;
     riderId?: string;

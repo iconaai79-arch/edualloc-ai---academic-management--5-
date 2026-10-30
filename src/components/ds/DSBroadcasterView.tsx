@@ -7,8 +7,9 @@ import { UsersIcon } from '../icons/UsersIcon';
 import { BellIcon } from '../icons/BellIcon';
 import { SearchIcon } from '../icons/SearchIcon';
 import { MegaphoneIcon, SignalIcon } from '../his/HealthIcons';
-import { TruckIcon, CalendarDaysIcon, AcademicCapIcon } from '../icons';
+import { TruckIcon, CalendarDaysIcon, AcademicCapIcon, TrashIcon, CheckCircleIcon, ArchiveBoxIcon, PaperAirplaneIcon, CheckIcon, ClockIcon } from '../icons';
 import { apiService } from '../../services/apiService';
+import { useToast } from '../../services/ToastContext';
 import type { DSLead } from '../../types';
 
 interface Broadcast {
@@ -137,20 +138,25 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
     instructors = [],
     onRefreshData
 }) => {
+    const { success: toastSuccess, error: toastError, warning: toastWarning, info: toastInfo } = useToast();
     const [activeTab, setActiveTab] = useState<'Live Feed' | 'Sent' | 'SMS Logs' | 'Outbox'>('Sent');
     const [sentBroadcasts, setSentBroadcasts] = useState<any[]>([]);
     const [smsLogs, setSmsLogs] = useState<any[]>([]);
+    const [outboxMessages, setOutboxMessages] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [loadingSent, setLoadingSent] = useState(false);
+    const [dispatchingId, setDispatchingId] = useState<string | null>(null);
+    const [isDispatchingAll, setIsDispatchingAll] = useState(false);
 
     const fetchHistory = useCallback(async () => {
         if (!currentInstitution?.id) return;
         setLoadingSent(true);
         try {
-            // Fetch broadcaster messages (campaigns and bulk messages)
-            const [bRes, smsRes] = await Promise.all([
+            // Fetch broadcaster messages, SMS delivery logs, and SMS outbox queue
+            const [bRes, smsRes, obRes] = await Promise.all([
                 apiService.fetchModuleRecords<any>('broadcaster_messages', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
-                apiService.fetchModuleRecords<any>('sms_logs', currentInstitution.id, undefined, { limit: 100000 }).catch(() => [])
+                apiService.fetchModuleRecords<any>('sms_logs', currentInstitution.id, undefined, { limit: 100000 }).catch(() => []),
+                apiService.fetchSmsOutbox(currentInstitution.id).catch(() => [])
             ]);
 
             // Sort broadcaster messages by date descending
@@ -167,6 +173,14 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
                 return timeB - timeA;
             });
             setSmsLogs(sortedSms);
+
+            // Sort Outbox messages by date descending
+            const sortedOutbox = (obRes || []).sort((a: any, b: any) => {
+                const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
+                const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
+                return timeB - timeA;
+            });
+            setOutboxMessages(sortedOutbox);
 
             // Synthesize broadcasts from sms_logs if broadcaster_messages is empty or to complement individual/bulk logs
             let combinedBroadcasts = [...sortedBroadcasts];
@@ -211,7 +225,7 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
 
             setSentBroadcasts(combinedBroadcasts);
         } catch (e) {
-            console.error("Failed to load sent messages and SMS logs:", e);
+            console.error("Failed to load sent messages, SMS logs, and Outbox:", e);
         } finally {
             setLoadingSent(false);
         }
@@ -229,6 +243,159 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
     };
 
     const currentSmsBalance = currentInstitution?.smsBalance ?? currentInstitution?.sms_balance ?? 0;
+    const totalOutboxUnits = outboxMessages.reduce((sum, m) => sum + (Number(m.units) || 1), 0);
+
+    const handleDispatchSingle = async (item: any) => {
+        const units = Number(item.units) || 1;
+        if (currentSmsBalance < units) {
+            toastError(`Insufficient SMS Units! Required: ${units}, Available: ${currentSmsBalance}. Please top up.`);
+            if (onBuySms) onBuySms();
+            return;
+        }
+
+        setDispatchingId(item.id);
+        try {
+            const billableId = currentInstitution?.parentInstitutionId || currentInstitution?.id;
+            const res = await apiService.sendSms(
+                item.recipient,
+                item.message,
+                currentInstitution?.smsConfig,
+                units,
+                billableId
+            );
+
+            if (res?.success !== false) {
+                await apiService.removeFromSmsOutbox(item.id);
+                setOutboxMessages(prev => prev.filter(m => m.id !== item.id));
+
+                if (billableId) {
+                    const newBal = Math.max(0, currentSmsBalance - units);
+                    if (currentInstitution) {
+                        currentInstitution.smsBalance = newBal;
+                        currentInstitution.sms_balance = newBal;
+                    }
+                    await apiService.saveModuleRecord('institutions', {
+                        id: billableId,
+                        smsBalance: newBal,
+                        sms_balance: newBal
+                    }).catch(() => {});
+                }
+
+                toastSuccess(`Message dispatched to ${item.recipientName || item.recipient}!`);
+                await fetchHistory();
+                if (onRefreshData) await onRefreshData();
+            } else {
+                toastError(`SMS Gateway error: ${res?.message || 'Failed to dispatch'}`);
+            }
+        } catch (err: any) {
+            console.error('Failed to dispatch outbox message:', err);
+            toastError(err?.message || 'Failed to dispatch message.');
+        } finally {
+            setDispatchingId(null);
+        }
+    };
+
+    const handleDispatchAllOutbox = async () => {
+        if (outboxMessages.length === 0) return;
+        if (currentSmsBalance < 1) {
+            toastError(`Available SMS balance is 0 units. Please top up before dispatching.`);
+            if (onBuySms) onBuySms();
+            return;
+        }
+
+        if (currentSmsBalance < totalOutboxUnits) {
+            if (!window.confirm(`Current balance (${currentSmsBalance} units) is less than required (${totalOutboxUnits} units). Proceed to dispatch as many messages as the balance allows?`)) {
+                return;
+            }
+        }
+
+        setIsDispatchingAll(true);
+        let sentCount = 0;
+        let failedCount = 0;
+        let currentRemaining = currentSmsBalance;
+        const billableId = currentInstitution?.parentInstitutionId || currentInstitution?.id;
+
+        try {
+            for (const msg of outboxMessages) {
+                const units = Number(msg.units) || 1;
+                if (currentRemaining < units) {
+                    break;
+                }
+
+                try {
+                    const res = await apiService.sendSms(
+                        msg.recipient,
+                        msg.message,
+                        currentInstitution?.smsConfig,
+                        units,
+                        billableId
+                    );
+
+                    if (res?.success !== false) {
+                        await apiService.removeFromSmsOutbox(msg.id);
+                        currentRemaining = Math.max(0, currentRemaining - units);
+                        sentCount++;
+                    } else {
+                        failedCount++;
+                    }
+                } catch (sendErr) {
+                    failedCount++;
+                }
+            }
+
+            if (billableId && sentCount > 0) {
+                if (currentInstitution) {
+                    currentInstitution.smsBalance = currentRemaining;
+                    currentInstitution.sms_balance = currentRemaining;
+                }
+                await apiService.saveModuleRecord('institutions', {
+                    id: billableId,
+                    smsBalance: currentRemaining,
+                    sms_balance: currentRemaining
+                }).catch(() => {});
+            }
+
+            if (sentCount > 0) {
+                toastSuccess(`Dispatched ${sentCount} queued message${sentCount > 1 ? 's' : ''}! Remaining balance: ${currentRemaining} units.`);
+            }
+            if (failedCount > 0) {
+                toastWarning(`${failedCount} message${failedCount > 1 ? 's' : ''} could not be dispatched.`);
+            }
+            if (sentCount === 0 && failedCount === 0 && currentRemaining < 1) {
+                toastError("Insufficient balance to send any messages. Please top up units.");
+            }
+
+            await fetchHistory();
+            if (onRefreshData) await onRefreshData();
+        } catch (err: any) {
+            toastError("Bulk dispatch error: " + (err?.message || err));
+        } finally {
+            setIsDispatchingAll(false);
+        }
+    };
+
+    const handleDeleteOutbox = async (id: string) => {
+        if (!window.confirm("Remove this message from Outbox?")) return;
+        try {
+            await apiService.removeFromSmsOutbox(id);
+            setOutboxMessages(prev => prev.filter(m => m.id !== id));
+            toastSuccess("Message removed from Outbox.");
+        } catch (err: any) {
+            toastError("Failed to delete message: " + (err?.message || err));
+        }
+    };
+
+    const handleClearAllOutbox = async () => {
+        if (outboxMessages.length === 0) return;
+        if (!window.confirm(`Discard all ${outboxMessages.length} message(s) in Outbox?`)) return;
+        try {
+            await apiService.clearSmsOutbox(currentInstitution.id);
+            setOutboxMessages([]);
+            toastSuccess("Outbox cleared successfully.");
+        } catch (err: any) {
+            toastError("Failed to clear outbox: " + (err?.message || err));
+        }
+    };
 
     const filteredBroadcasts = sentBroadcasts.filter(msg => {
         if (!searchQuery.trim()) return true;
@@ -249,6 +416,18 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
             (log.message || '').toLowerCase().includes(q) ||
             (log.status || '').toLowerCase().includes(q) ||
             (log.provider || '').toLowerCase().includes(q)
+        );
+    });
+
+    const filteredOutboxMessages = outboxMessages.filter(msg => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (msg.recipient || '').toLowerCase().includes(q) ||
+            (msg.recipientName || '').toLowerCase().includes(q) ||
+            (msg.message || '').toLowerCase().includes(q) ||
+            (msg.source || '').toLowerCase().includes(q) ||
+            (msg.reason || '').toLowerCase().includes(q)
         );
     });
 
@@ -317,6 +496,63 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
                 </div>
             </div>
 
+            {/* Outbox Pending Alert Banner */}
+            {outboxMessages.length > 0 && (
+                <div className="p-5 md:p-6 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 rounded-[2rem] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-sm">
+                            <ArchiveBoxIcon className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                                <p className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                    {outboxMessages.length} SMS Message{outboxMessages.length > 1 ? 's' : ''} Held in Outbox
+                                </p>
+                            </div>
+                            <p className="text-xs text-amber-700/90 dark:text-amber-300/80 mt-1">
+                                Messages moved to Outbox because SMS balance was insufficient. Total units required: <span className="font-black text-amber-900 dark:text-amber-100">{totalOutboxUnits}</span> (Available: <span className="font-black text-amber-900 dark:text-amber-100">{currentSmsBalance}</span>).
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+                        {activeTab !== 'Outbox' && (
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('Outbox')}
+                                className="flex-1 md:flex-none px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
+                            >
+                                Open Outbox ({outboxMessages.length})
+                            </button>
+                        )}
+                        {onBuySms && currentSmsBalance < totalOutboxUnits && (
+                            <button
+                                type="button"
+                                onClick={onBuySms}
+                                className="flex-1 md:flex-none px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-1.5"
+                            >
+                                <SparklesIcon className="w-3.5 h-3.5" /> Top Up Units
+                            </button>
+                        )}
+                        {currentSmsBalance >= totalOutboxUnits && (
+                            <button
+                                type="button"
+                                onClick={handleDispatchAllOutbox}
+                                disabled={isDispatchingAll}
+                                className="flex-1 md:flex-none px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-md flex items-center justify-center gap-2"
+                            >
+                                {isDispatchingAll ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                    <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                                )}
+                                Dispatch All Outbox
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Visual Signal Mixer / Live Feed */}
                 <div className="lg:col-span-8 space-y-8">
@@ -345,30 +581,171 @@ export const DSBroadcasterView: React.FC<DSBroadcasterViewProps> = ({
                                 { id: 'Sent', label: `Sent Broadcasts (${sentBroadcasts.length})` },
                                 { id: 'SMS Logs', label: `SMS Delivery Logs (${smsLogs.length})` },
                                 { id: 'Live Feed', label: 'Live Monitoring' },
-                                { id: 'Outbox', label: 'Outbox' }
+                                { id: 'Outbox', label: `Outbox (${outboxMessages.length})`, count: outboxMessages.length }
                             ].map(tab => (
                                 <button 
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all whitespace-nowrap ${
+                                    className={`text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all whitespace-nowrap flex items-center gap-2 ${
                                         activeTab === tab.id 
                                         ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 shadow-sm border border-indigo-100 dark:border-indigo-900/50' 
                                         : 'text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
                                     }`}
                                 >
-                                    {tab.label}
+                                    <span>{tab.label}</span>
+                                    {tab.id === 'Outbox' && outboxMessages.length > 0 && (
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                    )}
                                 </button>
                             ))}
                         </div>
 
                         <div className="space-y-4">
                             {activeTab === 'Outbox' ? (
-                                <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
-                                    <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-400">
-                                        <MegaphoneIcon className="w-8 h-8 opacity-50" />
-                                    </div>
-                                    <h4 className="text-sm font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Outbox is Empty</h4>
-                                    <p className="text-xs text-slate-400 mt-2">All scheduled and queued broadcasts have been dispatched.</p>
+                                <div className="space-y-4">
+                                    {/* Outbox Header / Action Bar */}
+                                    {outboxMessages.length > 0 && (
+                                        <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div className="text-xs text-slate-600 dark:text-slate-300">
+                                                <span className="font-black text-slate-900 dark:text-white">{filteredOutboxMessages.length}</span> queued message{filteredOutboxMessages.length !== 1 ? 's' : ''} • Required: <span className="font-bold text-indigo-600">{totalOutboxUnits} Units</span> • Available: <span className="font-bold text-emerald-600">{currentSmsBalance} Units</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                                                {onBuySms && currentSmsBalance < totalOutboxUnits && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={onBuySms}
+                                                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                    >
+                                                        + Top Up
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDispatchAllOutbox}
+                                                    disabled={isDispatchingAll || outboxMessages.length === 0}
+                                                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                                                >
+                                                    {isDispatchingAll ? (
+                                                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                    ) : (
+                                                        <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                                                    )}
+                                                    Dispatch All
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleClearAllOutbox}
+                                                    disabled={isDispatchingAll || outboxMessages.length === 0}
+                                                    className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                                >
+                                                    Clear All
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {filteredOutboxMessages.length === 0 ? (
+                                        <div className="text-center py-12 bg-slate-50 dark:bg-slate-800/30 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700">
+                                            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4 text-emerald-500">
+                                                <CheckCircleIcon className="w-8 h-8 opacity-80" />
+                                            </div>
+                                            <h4 className="text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-widest">
+                                                {outboxMessages.length === 0 ? 'Outbox is Empty' : 'No Outbox Messages Match Filter'}
+                                            </h4>
+                                            <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto">
+                                                {outboxMessages.length === 0 
+                                                    ? 'All scheduled and queued broadcasts have been dispatched. Whenever SMS credits are insufficient, messages are automatically saved here for one-click release once topped up.'
+                                                    : 'Try clearing your search query to see all queued outbox messages.'
+                                                }
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        filteredOutboxMessages.map((msg, idx) => {
+                                            const units = Number(msg.units) || 1;
+                                            const isDispatching = dispatchingId === msg.id;
+                                            const canSend = currentSmsBalance >= units;
+                                            const dateStr = new Date(msg.created_at || msg.createdAt || Date.now()).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+
+                                            return (
+                                                <div 
+                                                    key={msg.id || idx} 
+                                                    className="p-5 md:p-6 rounded-[2rem] border bg-slate-50 dark:bg-slate-800/60 border-amber-200/60 dark:border-amber-900/40 hover:shadow-md transition-all space-y-4"
+                                                >
+                                                    <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                                                        <div className="flex items-start gap-3.5">
+                                                            <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5 border border-amber-200 dark:border-amber-800/50">
+                                                                <ArchiveBoxIcon className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                                                                        {msg.recipientName ? `${msg.recipientName} (${msg.recipient})` : msg.recipient}
+                                                                    </h4>
+                                                                    <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                                                        Queued (Low SMS)
+                                                                    </span>
+                                                                    {msg.source && (
+                                                                        <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                                                                            {msg.source}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                                    <span>{dateStr}</span>
+                                                                    <span>•</span>
+                                                                    <span className="text-indigo-600 dark:text-indigo-400 font-black">{units} SMS Unit{units > 1 ? 's' : ''}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Actions per item */}
+                                                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDispatchSingle(msg)}
+                                                                disabled={isDispatching || isDispatchingAll}
+                                                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm ${
+                                                                    canSend 
+                                                                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white' 
+                                                                        : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-amber-100 hover:text-amber-800'
+                                                                }`}
+                                                                title={canSend ? 'Send now with available credits' : `Requires ${units} units (Available: ${currentSmsBalance})`}
+                                                            >
+                                                                {isDispatching ? (
+                                                                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                                ) : (
+                                                                    <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                                                                )}
+                                                                {canSend ? 'Send Now' : 'Retry (Low Units)'}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteOutbox(msg.id)}
+                                                                disabled={isDispatching || isDispatchingAll}
+                                                                className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-all"
+                                                                title="Delete from Outbox"
+                                                            >
+                                                                <TrashIcon className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Message Content */}
+                                                    <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 text-xs font-mono text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words leading-relaxed">
+                                                        {msg.message}
+                                                    </div>
+
+                                                    {/* Reason Banner */}
+                                                    {msg.reason && (
+                                                        <div className="flex items-center gap-2 text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-500/20">
+                                                            <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0" />
+                                                            <span>Reason: {msg.reason}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
                                 </div>
                             ) : activeTab === 'SMS Logs' ? (
                                 loadingSent ? (

@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "seed:counties": "node database/seed_kenyan_admin_units.js",
     "migrate": "node database/run_migration_direct.js",
+    "migrate:master": "node database/run_migration_direct.js eduai_master_schema.sql",
+    "migrate:schema": "node database/run_migration_direct.js eduai_master_schema.sql",
     "migrate:library": "node database/run_migration_direct.js library_management_update.sql",
     "migrate:boarding": "node database/run_migration_direct.js migrations/002_boarding_management.sql",
     "upload:showcase": "node scripts/upload_showcase_ftp.js",

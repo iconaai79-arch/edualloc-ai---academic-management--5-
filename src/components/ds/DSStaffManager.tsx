@@ -93,7 +93,7 @@ export const DSStaffManager: React.FC<DSStaffManagerProps> = ({
     settings,
     onUpdateSettings
 }) => {
-    const { success, error: toastError, info: toastInfo } = useToast();
+    const { success, error: toastError, info: toastInfo, warning: toastWarning } = useToast();
 
     // Director Authorization Check
     const isDirector = useMemo(() => isUserDirector(currentUser), [currentUser]);
@@ -600,8 +600,26 @@ export const DSStaffManager: React.FC<DSStaffManagerProps> = ({
                     
                     const message = `Welcome to ${schoolName}!\nYour ${roleLabel} account is ready.\nPortal: ${portalUrl}\nUsername: ${staffFormData.phone}\nPassword: ${tempPass}\nPlease change your password on first login.`;
                     
-                    await apiService.sendSms(staffFormData.phone, message, currentInstitution?.smsConfig, 1, institutionId);
-                    toastInfo("Welcome credentials sent to staff phone via SMS.");
+                    const curBal = currentInstitution?.smsBalance ?? currentInstitution?.sms_balance ?? 0;
+                    if (curBal < 1) {
+                        await apiService.saveToSmsOutbox([{
+                            id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                            institutionId: institutionId,
+                            institution_id: institutionId,
+                            recipient: staffFormData.phone,
+                            recipientName: staffFormData.name,
+                            message,
+                            units: 1,
+                            status: 'pending',
+                            reason: 'Insufficient SMS balance',
+                            source: 'Staff Welcome Credentials',
+                            createdAt: new Date().toISOString()
+                        }]);
+                        toastWarning("Insufficient SMS balance. Staff welcome credentials moved to Outbox.");
+                    } else {
+                        await apiService.sendSms(staffFormData.phone, message, currentInstitution?.smsConfig, 1, institutionId);
+                        toastInfo("Welcome credentials sent to staff phone via SMS.");
+                    }
                 } catch (smsErr) {
                     console.warn('[DSStaffManager] SMS dispatch error:', smsErr);
                 }
@@ -693,8 +711,26 @@ export const DSStaffManager: React.FC<DSStaffManagerProps> = ({
                 const portalUrl = window.location.origin;
                 const message = `Notice from ${schoolName}:\nYour portal login password has been reset.\nPortal: ${portalUrl}\nUsername: ${passwordStaffTarget.phone}\nNew Password: ${newPasswordValue.trim()}`;
                 
-                await apiService.sendSms(passwordStaffTarget.phone, message, currentInstitution?.smsConfig, 1, institutionId);
-                toastInfo("Password update SMS dispatched to staff phone.");
+                const curBal = currentInstitution?.smsBalance ?? currentInstitution?.sms_balance ?? 0;
+                if (curBal < 1) {
+                    await apiService.saveToSmsOutbox([{
+                        id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                        institutionId: institutionId,
+                        institution_id: institutionId,
+                        recipient: passwordStaffTarget.phone,
+                        recipientName: passwordStaffTarget.name,
+                        message,
+                        units: 1,
+                        status: 'pending',
+                        reason: 'Insufficient SMS balance',
+                        source: 'Staff Password Reset',
+                        createdAt: new Date().toISOString()
+                    }]);
+                    toastWarning(`Insufficient SMS balance. Password reset SMS moved to Outbox. PIN: ${newPasswordValue.trim()}`);
+                } else {
+                    await apiService.sendSms(passwordStaffTarget.phone, message, currentInstitution?.smsConfig, 1, institutionId);
+                    toastInfo("Password update SMS dispatched to staff phone.");
+                }
             }
 
             success(`Password updated for ${passwordStaffTarget.name}.`);

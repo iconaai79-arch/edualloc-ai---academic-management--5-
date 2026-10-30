@@ -82,7 +82,7 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
     onOpenCompleteImport
 }) => {
 
-    const { success, error: toastError } = useToast();
+    const { success, error: toastError, warning: toastWarning } = useToast();
 
 
 
@@ -364,6 +364,25 @@ export const DSReportsView: React.FC<DSReportsViewProps> = ({
         if (!window.confirm(`Send Fee Reminder SMS to ${item.fullName} (${item.phone})?\n\n"${msg}"`)) {
             return;
         }
+        const currentBal = currentInstitution?.smsBalance ?? currentInstitution?.sms_balance ?? 0;
+        if (currentBal < 1) {
+            await apiService.saveToSmsOutbox([{
+                id: `ob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: currentInstitution?.id,
+                institution_id: currentInstitution?.id,
+                recipient: item.phone,
+                recipientName: item.fullName,
+                message: msg,
+                units: 1,
+                status: 'pending',
+                reason: `Insufficient SMS balance (${currentBal} available, 1 required)`,
+                source: `Fee Reminder: ${item.fullName}`,
+                createdAt: new Date().toISOString()
+            }]);
+            toastWarning(`Insufficient SMS units. Fee reminder for ${item.fullName} has been moved to Outbox.`);
+            return;
+        }
+
         try {
             await apiService.sendSms(item.phone, msg, undefined, 1, currentInstitution?.id);
             success(`Fee balance reminder SMS sent to ${item.fullName}!`);

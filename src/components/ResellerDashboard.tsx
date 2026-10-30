@@ -618,7 +618,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                                                     <button
                                                         onClick={() => onImpersonate(tenant.id)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                                                        title="Log in as this client to provide support"
+                                                        title="Log in as this client to provide support (you can return to the Reseller Portal at any time)"
                                                     >
                                                         <LockClosedIcon className="w-4 h-4" />
                                                         Access
@@ -1139,7 +1139,7 @@ const ResellerDashboard: React.FC<ResellerDashboardProps> = ({
                             })}
                         </div>
                         <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-                            <p className="text-xs text-slate-400 font-medium">Selecting a perspective will instantly launch that module's view for this client.</p>
+                            <p className="text-xs text-slate-500 font-medium">Selecting a perspective will launch that client's workspace. You can return to the Reseller Portal at any time via the top banner or floating return button.</p>
                         </div>
                     </div>
                 </div>
