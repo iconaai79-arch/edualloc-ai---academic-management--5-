@@ -30,6 +30,13 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions JSON
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "'aiModelTier" TEXT DEFAULT 'premium';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "usersInstitutionIdFkey" JSONB;
 
+-- FIX INSTITUTION MODULE STATES CONSTRAINTS
+DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN module_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN status DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_module_id_key;
+ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_fkey;
+
 -- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS (100% COVERAGE)
 ${universalDdl}
 `;
@@ -65,6 +72,11 @@ BEGIN
     END IF;
 END $$;
 
+-- SYNC AND POPULATE MODULE_ID FOR INSTITUTION_MODULE_STATES
+UPDATE public.institution_module_states 
+SET module_id = regexp_replace(regexp_replace(id, '^ims_', ''), '_inst_.*$', '')
+WHERE module_id IS NULL OR module_id = '';
+
 -- RE-ENABLE INSTITUTION FOREIGN KEY CONSTRAINTS
 DO $$
 BEGIN
@@ -91,6 +103,13 @@ function fixEmptyStringForJson(line) {
     let fixed = line.replace(/(::jsonb|TRUE|FALSE|NULL|\d+),\s*'',/g, '$1, NULL,');
     fixed = fixed.replace(/,\s*'',\s*(NULL|TRUE|FALSE|\d+|'\[|'\{|::jsonb)/g, ', NULL, $1');
     return fixed;
+}
+
+function fixImsLine(line) {
+    if (!line.includes("'ims_") || !line.includes(", NULL,")) return line;
+    return line.replace(/\('ims_([a-zA-Z0-9_]+?)_inst_([a-zA-Z0-9_]+?)',\s*'inst_([a-zA-Z0-9_]+?)',\s*NULL,/g, (match, moduleName, instSuffix, instSuffix2) => {
+        return `('ims_${moduleName}_inst_${instSuffix}', 'inst_${instSuffix2}', '${moduleName}',`;
+    });
 }
 
 const reverseReplacements = {};
@@ -195,6 +214,7 @@ async function patchFile(filename) {
     let fixedJsonEmptyStrings = 0;
     let replacedOrphanCounties = 0;
     let replacedInsertHeaders = 0;
+    let fixedImsRows = 0;
 
     for await (let line of rl) {
         if (line.includes('stream_definitions TEXT[] DEFAULT')) {
@@ -230,6 +250,14 @@ async function patchFile(filename) {
             }
         }
 
+        if (line.includes("'ims_")) {
+            const fixed = fixImsLine(line);
+            if (fixed !== line) {
+                line = fixed;
+                fixedImsRows++;
+            }
+        }
+
         if (line.includes("''")) {
             const fixed = fixEmptyStringForJson(line);
             if (fixed !== line) {
@@ -249,7 +277,7 @@ async function patchFile(filename) {
 
     fs.unlinkSync(filePath);
     fs.renameSync(tempPath, filePath);
-    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
+    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, ims rows populated: ${fixedImsRows}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
 }
 
 async function run() {
