@@ -11,6 +11,12 @@ const filesToPatch = [
     'eduai_full_database_backup_2026-10-30 (2).sql'
 ];
 
+const replacementsPath = path.join(__dirname, 'table_col_replacements.json');
+const tableReplacements = fs.existsSync(replacementsPath) ? JSON.parse(fs.readFileSync(replacementsPath, 'utf8')) : {};
+
+const universalDdlPath = path.join(__dirname, 'generated_universal_ddl.sql');
+const universalDdl = fs.existsSync(universalDdlPath) ? fs.readFileSync(universalDdlPath, 'utf8') : '';
+
 const injectionSQL = `
 -- FIX INSTITUTION FOREIGN KEYS FOR DATA RESTORE
 ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey;
@@ -23,6 +29,9 @@ ALTER TABLE public.institutions DROP COLUMN IF EXISTS stream_definitions CASCADE
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "'aiModelTier" TEXT DEFAULT 'premium';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "usersInstitutionIdFkey" JSONB;
+
+-- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS (100% COVERAGE)
+${universalDdl}
 `;
 
 const postRestoreSQL = `
@@ -41,6 +50,20 @@ UPDATE public.institutions
 SET reseller_id = NULL 
 WHERE reseller_id IS NOT NULL 
   AND reseller_id NOT IN (SELECT id FROM public.institutions);
+
+-- SYNC BRANCHES CAMELCASE COLUMNS TO SNAKE_CASE
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='branches' AND column_name='institutionId') THEN
+        UPDATE public.branches SET institution_id = COALESCE(institution_id, "institutionId") WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='branches' AND column_name='createdAt') THEN
+        UPDATE public.branches SET created_at = COALESCE(created_at, "createdAt") WHERE created_at IS NULL AND "createdAt" IS NOT NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='branches' AND column_name='updatedAt') THEN
+        UPDATE public.branches SET updated_at = COALESCE(updated_at, "updatedAt") WHERE updated_at IS NULL AND "updatedAt" IS NOT NULL;
+    END IF;
+END $$;
 
 -- RE-ENABLE INSTITUTION FOREIGN KEY CONSTRAINTS
 DO $$
@@ -70,6 +93,22 @@ function fixEmptyStringForJson(line) {
     return fixed;
 }
 
+function replaceInsertHeader(line, tableReplacements) {
+    if (!line.startsWith('INSERT INTO public."')) return line;
+    const match = line.match(/^(INSERT INTO public\."([^"]+)"\s*\()([^)]+)(\)\s*VALUES.*)$/);
+    if (!match) return line;
+
+    const [_, prefix, tableName, headerCols, suffix] = match;
+    const replacements = tableReplacements[tableName.toLowerCase()];
+    if (!replacements) return line;
+
+    let newHeader = headerCols;
+    for (const [oldCol, newCol] of Object.entries(replacements)) {
+        newHeader = newHeader.replaceAll(oldCol, newCol);
+    }
+    return prefix + newHeader + suffix;
+}
+
 async function patchFile(filename) {
     const filePath = path.join(downloadsDir, filename);
     if (!fs.existsSync(filePath)) {
@@ -91,6 +130,7 @@ async function patchFile(filename) {
     let replacedDefinitions = 0;
     let fixedJsonEmptyStrings = 0;
     let replacedOrphanCounties = 0;
+    let replacedInsertHeaders = 0;
 
     for await (let line of rl) {
         if (line.includes('stream_definitions TEXT[] DEFAULT')) {
@@ -111,10 +151,18 @@ async function patchFile(filename) {
             replacedOrphanCounties++;
         }
 
-        if (!patchedInsert && line.includes('INSERT INTO public."institutions"')) {
+        if (!patchedInsert && line.startsWith('INSERT INTO public.')) {
             writeStream.write(injectionSQL + '\n');
             patchedInsert = true;
-            console.log(`  -> Injected DDL before INSERT INTO public."institutions"`);
+            console.log(`  -> Injected universal DDL before first INSERT statement (${line.substring(0, 50)})`);
+        }
+
+        if (line.startsWith('INSERT INTO public."')) {
+            const replaced = replaceInsertHeader(line, tableReplacements);
+            if (replaced !== line) {
+                line = replaced;
+                replacedInsertHeaders++;
+            }
         }
 
         if (line.includes("''")) {
@@ -136,10 +184,12 @@ async function patchFile(filename) {
 
     fs.unlinkSync(filePath);
     fs.renameSync(tempPath, filePath);
-    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
+    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
 }
 
 async function run() {
+    console.log(`Loaded ${Object.keys(tableReplacements).length} table column replacement definitions.`);
+    console.log(`Loaded universal DDL statements.`);
     for (const file of filesToPatch) {
         await patchFile(file);
     }

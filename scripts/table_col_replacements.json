@@ -1,0 +1,1241 @@
+{
+  "counties": {
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"adminName\"": "\"admin_name\"",
+    "\"logoUrl\"": "\"logo_url\"",
+    "\"letterheadUrl\"": "\"letterhead_url\""
+  },
+  "institutions": {
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"institutionType\"": "\"institution_type\"",
+    "\"subscriptionEndsAt\"": "\"subscription_ends_at\"",
+    "\"trialEndsAt\"": "\"trial_ends_at\"",
+    "\"institutionCode\"": "\"institution_code\"",
+    "\"themeColor\"": "\"theme_color\"",
+    "\"logoUrl\"": "\"logo_url\"",
+    "\"footerImageUrl\"": "\"footer_image_url\"",
+    "\"letterheadConfig\"": "\"letterhead_config\"",
+    "\"isInDemoMode\"": "\"is_in_demo_mode\"",
+    "\"customSubscriptionPrice\"": "\"custom_subscription_price\"",
+    "\"gradingSystems\"": "\"grading_systems\"",
+    "\"activeGradingSystemId\"": "\"active_grading_system_id\"",
+    "\"timetableSettings\"": "\"timetable_settings\"",
+    "\"examTimetableSettings\"": "\"exam_timetable_settings\"",
+    "\"useAllocationRequests\"": "\"use_allocation_requests\"",
+    "\"scheduleProfiles\"": "\"schedule_profiles\"",
+    "\"countyId\"": "\"county_id\"",
+    "\"isOtpEnabled\"": "\"is_otp_enabled\"",
+    "\"smsBalance\"": "\"sms_balance\"",
+    "\"smsConfig\"": "\"sms_config\"",
+    "\"businessSubType\"": "\"business_sub_type\"",
+    "\"resellerId\"": "\"reseller_id\"",
+    "\"marketplaceEnabled\"": "\"marketplace_enabled\"",
+    "\"listingQuota\"": "\"listing_quota\"",
+    "\"mpesaConfig\"": "\"mpesa_config\"",
+    "\"ncbaConfig\"": "\"ncba_config\"",
+    "\"coopSettings\"": "\"coop_settings\"",
+    "\"aiModelTier\"": "\"ai_model_tier\"",
+    "\"parentAbsenceNotificationsEnabled\"": "\"parent_absence_notifications_enabled\"",
+    "\"farmerSmsBillingEnabled\"": "\"farmer_sms_billing_enabled\"",
+    "\"googleDriveConfig\"": "\"google_drive_config\"",
+    "\"kcbConfig\"": "\"kcb_config\"",
+    "\"kioskUrl\"": "\"kiosk_url\"",
+    "\"useSubdomain\"": "\"use_subdomain\"",
+    "\"customSubdomain\"": "\"custom_subdomain\"",
+    "\"storeHoursEnforced\"": "\"store_hours_enforced\"",
+    "\"storeOpenTime\"": "\"store_open_time\"",
+    "\"storeCloseTime\"": "\"store_close_time\"",
+    "\"emailConfig\"": "\"email_config\"",
+    "\"coopConfig\"": "\"coop_config\"",
+    "\"streamDefinitions\"": "\"stream_definitions\"",
+    "\"customModulePricing\"": "\"custom_module_pricing\"",
+    "\"customSmsPrice\"": "\"custom_sms_price\"",
+    "\"kioskSecurityPin\"": "\"kiosk_security_pin\"",
+    "\"kioskStatus\"": "\"kiosk_status\"",
+    "\"visitorAutoFinalizeEnabled\"": "\"visitor_auto_finalize_enabled\"",
+    "\"visitorAutoFinalizeTime\"": "\"visitor_auto_finalize_time\"",
+    "\"notifyHostOnVisitorArrival\"": "\"notify_host_on_visitor_arrival\"",
+    "\"visitorArrivalSmsTemplate\"": "\"visitor_arrival_sms_template\"",
+    "\"institutionId\"": "\"institution_id\""
+  },
+  "branches": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"linkedInstitutionId\"": "\"linked_institution_id\"",
+    "\"managerUserId\"": "\"manager_user_id\"",
+    "\"isActive\"": "\"is_active\""
+  },
+  "institution_module_states": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"moduleId\"": "\"module_id\"",
+    "\"activatedAt\"": "\"activated_at\"",
+    "\"trialEndsAt\"": "\"trial_ends_at\"",
+    "\"subscriptionEndsAt\"": "\"subscription_ends_at\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "institution_extension_requests": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"requesterId\"": "\"requester_id\"",
+    "\"requestedAt\"": "\"requested_at\"",
+    "\"resolvedAt\"": "\"resolved_at\"",
+    "\"resolvedBy\"": "\"resolved_by\""
+  },
+  "school_registry": {
+    "\"subCounty\"": "\"sub_county\"",
+    "\"knecCode\"": "\"knec_code\"",
+    "\"specialNeedType\"": "\"special_need_type\"",
+    "\"disabilityType\"": "\"disability_type\"",
+    "\"accommodationType\"": "\"accommodation_type\"",
+    "\"genderType\"": "\"gender_type\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "users": {
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"staffId\"": "\"staff_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"departmentId\"": "\"department_id\"",
+    "\"courseId\"": "\"course_id\"",
+    "\"courseLevelId\"": "\"course_level_id\"",
+    "\"enrolledSubjectIds\"": "\"enrolled_subject_ids\"",
+    "\"parentIds\"": "\"parent_ids\"",
+    "\"studentIds\"": "\"student_ids\"",
+    "\"profilePhotoUrl\"": "\"profile_photo_url\"",
+    "\"passwordLastUpdated\"": "\"password_last_updated\"",
+    "\"passwordExpiresAt\"": "\"password_expires_at\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"branchId\"": "\"branch_id\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "activity_log": {
+    "\"userId\"": "\"user_id\"",
+    "\"userName\"": "\"user_name\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"institutionName\"": "\"institution_name\"",
+    "\"ipAddress\"": "\"ip_address\"",
+    "\"macAddress\"": "\"mac_address\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "departments": {
+    "\"institutionId\"": "\"institution_id\""
+  },
+  "academic_levels": {
+    "\"institutionId\"": "\"institution_id\""
+  },
+  "academic_years": {
+    "\"startDate\"": "\"start_date\"",
+    "\"endDate\"": "\"end_date\"",
+    "\"institutionId\"": "\"institution_id\""
+  },
+  "semesters": {
+    "\"academicYearId\"": "\"academic_year_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"startDate\"": "\"start_date\"",
+    "\"endDate\"": "\"end_date\"",
+    "\"requestDeadline\"": "\"request_deadline\"",
+    "\"enrollmentDeadline\"": "\"enrollment_deadline\""
+  },
+  "courses": {
+    "\"departmentId\"": "\"department_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"academicLevelId\"": "\"academic_level_id\"",
+    "\"shortName\"": "\"short_name\"",
+    "\"curriculumType\"": "\"curriculum_type\"",
+    "\"scheduleProfileId\"": "\"schedule_profile_id\""
+  },
+  "subjects": {
+    "\"departmentId\"": "\"department_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"lessonStructure\"": "\"lesson_structure\"",
+    "\"isComplete\"": "\"is_complete\"",
+    "\"hasExam\"": "\"has_exam\"",
+    "\"dedicatedRoomId\"": "\"dedicated_room_id\"",
+    "\"shortName\"": "\"short_name\"",
+    "\"targetCourseLevelId\"": "\"target_course_level_id\""
+  },
+  "student_enrollments": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"enrollmentType\"": "\"enrollment_type\"",
+    "\"admissionNumber\"": "\"admission_number\"",
+    "\"enrollmentDate\"": "\"enrollment_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"assessmentNo\"": "\"assessment_no\"",
+    "\"dateOfBirth\"": "\"date_of_birth\""
+  },
+  "allocation_requests": {
+    "\"subjectId\"": "\"subject_id\"",
+    "\"lecturerId\"": "\"lecturer_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"academicYearId\"": "\"academic_year_id\"",
+    "\"semesterId\"": "\"semester_id\"",
+    "\"signatureUrl\"": "\"signature_url\"",
+    "\"courseLevelIds\"": "\"course_level_ids\"",
+    "\"proposedChanges\"": "\"proposed_changes\"",
+    "\"courseLevelSelections\"": "\"course_level_selections\"",
+    "\"subjectIds\"": "\"subject_ids\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "timetable_entries": {
+    "\"startTime\"": "\"start_time\"",
+    "\"endTime\"": "\"end_time\"",
+    "\"subjectId\"": "\"subject_id\"",
+    "\"lecturerId\"": "\"lecturer_id\"",
+    "\"roomId\"": "\"room_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"academicYearId\"": "\"academic_year_id\"",
+    "\"semesterId\"": "\"semester_id\"",
+    "\"attendanceStatus\"": "\"attendance_status\"",
+    "\"sharedWithPracticeTeacherId\"": "\"shared_with_practice_teacher_id\"",
+    "\"isConflicting\"": "\"is_conflicting\"",
+    "\"courseId\"": "\"course_id\"",
+    "\"courseLevelId\"": "\"course_level_id\""
+  },
+  "assessments": {
+    "\"lecturerId\"": "\"lecturer_id\"",
+    "\"subjectId\"": "\"subject_id\"",
+    "\"maxMarks\"": "\"max_marks\"",
+    "\"assessmentDate\"": "\"assessment_date\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "assessment_marks": {
+    "\"assessmentId\"": "\"assessment_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"gradedBy\"": "\"graded_by\""
+  },
+  "teacher_check_ins": {
+    "\"teacherId\"": "\"teacher_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"checkInDate\"": "\"check_in_date\"",
+    "\"morningCheckInTime\"": "\"morning_check_in_time\"",
+    "\"morningCheckInStatus\"": "\"morning_check_in_status\"",
+    "\"morningLocation\"": "\"morning_location\"",
+    "\"morningNotes\"": "\"morning_notes\"",
+    "\"afternoonCheckInTime\"": "\"afternoon_check_in_time\"",
+    "\"afternoonCheckInStatus\"": "\"afternoon_check_in_status\"",
+    "\"afternoonLocation\"": "\"afternoon_location\"",
+    "\"afternoonNotes\"": "\"afternoon_notes\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "leave_requests": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"staffId\"": "\"staff_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"applicantName\"": "\"applicant_name\"",
+    "\"leaveType\"": "\"leave_type\"",
+    "\"startDate\"": "\"start_date\"",
+    "\"endDate\"": "\"end_date\"",
+    "\"approvedBy\"": "\"approved_by\"",
+    "\"approvedAt\"": "\"approved_at\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "leave_out_requests": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"classTeacherId\"": "\"class_teacher_id\"",
+    "\"boardingMasterId\"": "\"boarding_master_id\"",
+    "\"securityId\"": "\"security_id\"",
+    "\"leaveDate\"": "\"leave_date\"",
+    "\"returnDate\"": "\"return_date\"",
+    "\"houseCheckedOutAt\"": "\"house_checked_out_at\"",
+    "\"gateCheckedOutAt\"": "\"gate_checked_out_at\"",
+    "\"homeArrivalAt\"": "\"home_arrival_at\"",
+    "\"homeDepartureAt\"": "\"home_departure_at\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"approvedByRole\"": "\"approved_by_role\"",
+    "\"headteacherApprovedAt\"": "\"headteacher_approved_at\""
+  },
+  "vote_heads": {
+    "\"allocatedAmount\"": "\"allocated_amount\"",
+    "\"amountSpent\"": "\"amount_spent\"",
+    "\"academicYearId\"": "\"academic_year_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "fee_structures": {
+    "\"academicYearId\"": "\"academic_year_id\"",
+    "\"courseId\"": "\"course_id\"",
+    "\"voteHeadId\"": "\"vote_head_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"applicableTo\"": "\"applicable_to\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "invoices": {
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"issueDate\"": "\"issue_date\"",
+    "\"dueDate\"": "\"due_date\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"className\"": "\"class_name\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "receipts": {
+    "\"receiptNumber\"": "\"receipt_number\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"paymentDate\"": "\"payment_date\"",
+    "\"amountPaid\"": "\"amount_paid\"",
+    "\"paidFor\"": "\"paid_for\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"relatedTransactionId\"": "\"related_transaction_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"invoiceId\"": "\"invoice_id\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "platform_expenses": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "requisitions": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"requestedBy\"": "\"requested_by\"",
+    "\"requestedDate\"": "\"requested_date\"",
+    "\"totalEstimatedCost\"": "\"total_estimated_cost\"",
+    "\"supplierId\"": "\"supplier_id\"",
+    "\"lpoNumber\"": "\"lpo_number\"",
+    "\"rejectionReason\"": "\"rejection_reason\"",
+    "\"supplierResponse\"": "\"supplier_response\"",
+    "\"deliveryEta\"": "\"delivery_eta\""
+  },
+  "payroll_records": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"staffId\"": "\"staff_id\"",
+    "\"staffName\"": "\"staff_name\"",
+    "\"basicSalary\"": "\"basic_salary\"",
+    "\"netSalary\"": "\"net_salary\"",
+    "\"recordedBy\"": "\"recorded_by\"",
+    "\"paymentDate\"": "\"payment_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "bank_transactions": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"transactionDate\"": "\"transaction_date\"",
+    "\"senderName\"": "\"sender_name\"",
+    "\"bankName\"": "\"bank_name\"",
+    "\"linkedInvoiceId\"": "\"linked_invoice_id\"",
+    "\"reconciledAt\"": "\"reconciled_at\"",
+    "\"reconciledBy\"": "\"reconciled_by\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "mpesa_transactions": {
+    "\"transactionId\"": "\"transaction_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"payerName\"": "\"payer_name\"",
+    "\"checkoutRequestId\"": "\"checkout_request_id\"",
+    "\"requestId\"": "\"request_id\"",
+    "\"channelCode\"": "\"channel_code\"",
+    "\"customerReference\"": "\"customer_reference\"",
+    "\"customerName\"": "\"customer_name\"",
+    "\"customerMobileNumber\"": "\"customer_mobile_number\"",
+    "\"creditAccountIdentifier\"": "\"credit_account_identifier\"",
+    "\"tillNumber\"": "\"till_number\"",
+    "\"rawPayload\"": "\"raw_payload\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "ncba_transactions": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"referenceNo\"": "\"reference_no\"",
+    "\"accountNumber\"": "\"account_number\"",
+    "\"transactionDate\"": "\"transaction_date\"",
+    "\"rawPayload\"": "\"raw_payload\""
+  },
+  "fee_goods_proposals": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"itemName\"": "\"item_name\"",
+    "\"unitValue\"": "\"unit_value\"",
+    "\"totalValue\"": "\"total_value\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "bursary_disbursements": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"donorName\"": "\"donor_name\"",
+    "\"chequeNumber\"": "\"cheque_number\"",
+    "\"bankName\"": "\"bank_name\"",
+    "\"chequeDate\"": "\"cheque_date\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"allocatedAmount\"": "\"allocated_amount\"",
+    "\"bankAccountId\"": "\"bank_account_id\"",
+    "\"postedBy\"": "\"posted_by\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "books": {
+    "\"addedDate\"": "\"added_date\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"accessionNumber\"": "\"accession_number\""
+  },
+  "library_transactions": {
+    "\"bookId\"": "\"book_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"issueDate\"": "\"issue_date\"",
+    "\"dueDate\"": "\"due_date\"",
+    "\"returnDate\"": "\"return_date\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"fineAmount\"": "\"fine_amount\"",
+    "\"memberSignature\"": "\"member_signature\""
+  },
+  "library_settings": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"overdueFinePerDay\"": "\"overdue_fine_per_day\"",
+    "\"maxBooksPerUser\"": "\"max_books_per_user\"",
+    "\"reservationExpiryDays\"": "\"reservation_expiry_days\"",
+    "\"defaultLendingPeriodDays\"": "\"default_lending_period_days\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "vehicles": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"plateNumber\"": "\"plate_number\"",
+    "\"vehicleType\"": "\"vehicle_type\"",
+    "\"driverId\"": "\"driver_id\"",
+    "\"assistantId\"": "\"assistant_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "buildings": {
+    "\"institutionId\"": "\"institution_id\""
+  },
+  "rooms": {
+    "\"buildingId\"": "\"building_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"shortName\"": "\"short_name\"",
+    "\"isShared\"": "\"is_shared\"",
+    "\"concurrentSessions\"": "\"concurrent_sessions\""
+  },
+  "inventory": {
+    "\"reorderLevel\"": "\"reorder_level\"",
+    "\"lastUpdated\"": "\"last_updated\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"itemType\"": "\"item_type\"",
+    "\"expiryDate\"": "\"expiry_date\""
+  },
+  "visitors": {
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"visitDate\"": "\"visit_date\"",
+    "\"timeIn\"": "\"time_in\"",
+    "\"timeOut\"": "\"time_out\"",
+    "\"hostId\"": "\"host_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"vehiclePlate\"": "\"vehicle_plate\"",
+    "\"vehicleModel\"": "\"vehicle_model\"",
+    "\"visitorSignature\"": "\"visitor_signature\"",
+    "\"hostSignature\"": "\"host_signature\"",
+    "\"securityOfficerName\"": "\"security_officer_name\"",
+    "\"idNumber\"": "\"id_number\""
+  },
+  "store_categories": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"sortOrder\"": "\"sort_order\"",
+    "\"isDefault\"": "\"is_default\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "retail_stores": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"storeType\"": "\"store_type\"",
+    "\"storeManagerId\"": "\"store_manager_id\"",
+    "\"agentId\"": "\"agent_id\"",
+    "\"isActive\"": "\"is_active\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "retail_inventory_items": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"basePrice\"": "\"base_price\"",
+    "\"srpPrice\"": "\"srp_price\"",
+    "\"imageUrl\"": "\"image_url\"",
+    "\"reorderLevel\"": "\"reorder_level\"",
+    "\"marketplaceEnabled\"": "\"marketplace_enabled\"",
+    "\"bufferStock\"": "\"buffer_stock\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "retail_sales": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"storeId\"": "\"store_id\"",
+    "\"agentId\"": "\"agent_id\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"customerName\"": "\"customer_name\"",
+    "\"customerPhone\"": "\"customer_phone\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "retail_expenses": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"storeId\"": "\"store_id\"",
+    "\"recordedById\"": "\"recorded_by_id\""
+  },
+  "cafe_menu_items": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"basePrice\"": "\"base_price\"",
+    "\"imageUrl\"": "\"image_url\"",
+    "\"isAvailable\"": "\"is_available\"",
+    "\"lastUpdated\"": "\"last_updated\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "cafe_orders": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"jobId\"": "\"job_id\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "carwash_packages": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "carwash_vehicles": {
+    "\"customerId\"": "\"customer_id\"",
+    "\"plateNumber\"": "\"plate_number\"",
+    "\"vehicleType\"": "\"vehicle_type\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "carwash_customers": {
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"totalWashes\"": "\"total_washes\"",
+    "\"loyaltyStamps\"": "\"loyalty_stamps\"",
+    "\"lastWashAt\"": "\"last_wash_at\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "carwash_jobs": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"customerId\"": "\"customer_id\"",
+    "\"vehiclePlate\"": "\"vehicle_plate\"",
+    "\"vehicleType\"": "\"vehicle_type\"",
+    "\"packageId\"": "\"package_id\"",
+    "\"packageName\"": "\"package_name\"",
+    "\"addOns\"": "\"add_ons\"",
+    "\"attendantId\"": "\"attendant_id\"",
+    "\"attendantName\"": "\"attendant_name\"",
+    "\"bayNumber\"": "\"bay_number\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"amountCharged\"": "\"amount_charged\"",
+    "\"amountPaid\"": "\"amount_paid\"",
+    "\"isLoyaltyRedemption\"": "\"is_loyalty_redemption\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "carwash_inventory": {
+    "\"currentStock\"": "\"current_stock\"",
+    "\"reorderLevel\"": "\"reorder_level\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "carwash_feedback": {
+    "\"jobId\"": "\"job_id\"",
+    "\"customerId\"": "\"customer_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "ds_settings": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"lessonPricePractical\"": "\"lesson_price_practical\"",
+    "\"lessonPriceTheory\"": "\"lesson_price_theory\"",
+    "\"feeStructures\"": "\"fee_structures\"",
+    "\"cancellationPolicy\"": "\"cancellation_policy\"",
+    "\"workingHours\"": "\"working_hours\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"autoSchedulingEnabled\"": "\"auto_scheduling_enabled\"",
+    "\"schedulingRules\"": "\"scheduling_rules\"",
+    "\"invoicePrefix\"": "\"invoice_prefix\"",
+    "\"receiptPrefix\"": "\"receipt_prefix\"",
+    "\"studentIdPrefix\"": "\"student_id_prefix\"",
+    "\"licenseCategories\"": "\"license_categories\""
+  },
+  "ds_license_categories": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"baseFee\"": "\"base_fee\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"parentCategory\"": "\"parent_category\"",
+    "\"isActive\"": "\"is_active\""
+  },
+  "ds_votes": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"voteName\"": "\"vote_name\"",
+    "\"defaultAmount\"": "\"default_amount\"",
+    "\"isMandatory\"": "\"is_mandatory\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "ds_fee_structures": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"className\"": "\"class_name\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"branchId\"": "\"branch_id\""
+  },
+  "ds_instructors": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"licenseNumber\"": "\"license_number\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "ds_vehicles": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"plateNumber\"": "\"plate_number\"",
+    "\"vehicleType\"": "\"vehicle_type\"",
+    "\"lastServiceDate\"": "\"last_service_date\"",
+    "\"nextServiceDate\"": "\"next_service_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"assignedInstructorId\"": "\"assigned_instructor_id\""
+  },
+  "ds_students": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"fullName\"": "\"full_name\"",
+    "\"passportNumber\"": "\"passport_number\"",
+    "\"licenseTypeInterested\"": "\"license_type_interested\"",
+    "\"theoryProgressPercent\"": "\"theory_progress_percent\"",
+    "\"practicalProgressPercent\"": "\"practical_progress_percent\"",
+    "\"enrollmentDate\"": "\"enrollment_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"admissionNumber\"": "\"admission_number\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"theoryTestScore\"": "\"theory_test_score\"",
+    "\"practicalTestScore\"": "\"practical_test_score\"",
+    "\"ntsaBookingStatus\"": "\"ntsa_booking_status\""
+  },
+  "ds_lessons": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"instructorId\"": "\"instructor_id\"",
+    "\"vehicleId\"": "\"vehicle_id\"",
+    "\"lessonDate\"": "\"lesson_date\"",
+    "\"startTime\"": "\"start_time\"",
+    "\"endTime\"": "\"end_time\"",
+    "\"lessonType\"": "\"lesson_type\"",
+    "\"instructorNotes\"": "\"instructor_notes\"",
+    "\"routeTrackedData\"": "\"route_tracked_data\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"checkInTime\"": "\"check_in_time\"",
+    "\"checkOutTime\"": "\"check_out_time\"",
+    "\"startedAt\"": "\"started_at\"",
+    "\"endedAt\"": "\"ended_at\"",
+    "\"sessionPhase\"": "\"session_phase\"",
+    "\"attendanceLogs\"": "\"attendance_logs\"",
+    "\"reminderSent\"": "\"reminder_sent\"",
+    "\"checkoutReminderSent\"": "\"checkout_reminder_sent\""
+  },
+  "ds_invoices": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"studentName\"": "\"student_name\"",
+    "\"feeStructureId\"": "\"fee_structure_id\"",
+    "\"className\"": "\"class_name\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"paidAmount\"": "\"paid_amount\"",
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"dueDate\"": "\"due_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "ds_payments": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"invoiceId\"": "\"invoice_id\"",
+    "\"studentName\"": "\"student_name\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"transactionReference\"": "\"transaction_reference\"",
+    "\"paymentDate\"": "\"payment_date\"",
+    "\"receiptNumber\"": "\"receipt_number\"",
+    "\"receivedBy\"": "\"received_by\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"branchId\"": "\"branch_id\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "ds_leads": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"fullName\"": "\"full_name\"",
+    "\"licenseTypeInterested\"": "\"license_type_interested\"",
+    "\"quotedAmount\"": "\"quoted_amount\"",
+    "\"feeStructureId\"": "\"fee_structure_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"broadcastId\"": "\"broadcast_id\"",
+    "\"licenseCategory\"": "\"license_category\""
+  },
+  "his_staff": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_patients": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"fullName\"": "\"full_name\"",
+    "\"bloodGroup\"": "\"blood_group\"",
+    "\"chronicConditions\"": "\"chronic_conditions\"",
+    "\"surgicalHistory\"": "\"surgical_history\"",
+    "\"shaNumber\"": "\"sha_number\"",
+    "\"memberVerificationStatus\"": "\"member_verification_status\"",
+    "\"emergencyContactName\"": "\"emergency_contact_name\"",
+    "\"emergencyContactPhone\"": "\"emergency_contact_phone\"",
+    "\"preferredLanguage\"": "\"preferred_language\"",
+    "\"insuranceProvider\"": "\"insurance_provider\"",
+    "\"insurancePolicyNumber\"": "\"insurance_policy_number\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"admissionNumber\"": "\"admission_number\"",
+    "\"patientNumber\"": "\"patient_number\"",
+    "\"customPatientId\"": "\"custom_patient_id\"",
+    "\"gradeLevel\"": "\"grade_level\"",
+    "\"opNumber\"": "\"op_number\""
+  },
+  "his_wards": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"wardType\"": "\"ward_type\"",
+    "\"floorLevel\"": "\"floor_level\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_beds": {
+    "\"wardId\"": "\"ward_id\"",
+    "\"bedNumber\"": "\"bed_number\"",
+    "\"isSmartBed\"": "\"is_smart_bed\"",
+    "\"currentPatientId\"": "\"current_patient_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_appointments": {
+    "\"patientId\"": "\"patient_id\"",
+    "\"doctorId\"": "\"doctor_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_queue_calls": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"patientName\"": "\"patient_name\"",
+    "\"doctorId\"": "\"doctor_id\"",
+    "\"doctorName\"": "\"doctor_name\"",
+    "\"roomNo\"": "\"room_no\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"tokenNo\"": "\"token_no\"",
+    "\"waitMins\"": "\"wait_mins\""
+  },
+  "his_vital_statistics": {
+    "\"patientId\"": "\"patient_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"bloodPressure\"": "\"blood_pressure\"",
+    "\"heartRate\"": "\"heart_rate\"",
+    "\"respiratoryRate\"": "\"respiratory_rate\"",
+    "\"oxygenSaturation\"": "\"oxygen_saturation\"",
+    "\"recordedBy\"": "\"recorded_by\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_clinical_events": {
+    "\"patientId\"": "\"patient_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_medical_notes": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"doctorId\"": "\"doctor_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_prescriptions": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"doctorId\"": "\"doctor_id\"",
+    "\"doctorName\"": "\"doctor_name\"",
+    "\"clinicalNotes\"": "\"clinical_notes\"",
+    "\"attachedFiles\"": "\"attached_files\"",
+    "\"medicationImage\"": "\"medication_image\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_prescription_items": {
+    "\"prescriptionId\"": "\"prescription_id\"",
+    "\"drugId\"": "\"drug_id\"",
+    "\"drugName\"": "\"drug_name\"",
+    "\"unitPrice\"": "\"unit_price\"",
+    "\"totalPrice\"": "\"total_price\""
+  },
+  "his_pharmacy_inventory": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"unitPrice\"": "\"unit_price\"",
+    "\"stockQuantity\"": "\"stock_quantity\"",
+    "\"reorderLevel\"": "\"reorder_level\"",
+    "\"isNarcotic\"": "\"is_narcotic\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "his_pharmacy_sales": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"customerName\"": "\"customer_name\"",
+    "\"customerPhone\"": "\"customer_phone\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"paymentStatus\"": "\"payment_status\"",
+    "\"staffId\"": "\"staff_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_pharmacy_sale_items": {
+    "\"saleId\"": "\"sale_id\"",
+    "\"medicationId\"": "\"medication_id\"",
+    "\"batchId\"": "\"batch_id\"",
+    "\"unitPrice\"": "\"unit_price\"",
+    "\"totalPrice\"": "\"total_price\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_pharmacy_ledger": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"referenceId\"": "\"reference_id\"",
+    "\"recordedBy\"": "\"recorded_by\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_pharmacy_staff": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"fullName\"": "\"full_name\"",
+    "\"licenseNumber\"": "\"license_number\"",
+    "\"hireDate\"": "\"hire_date\"",
+    "\"shiftPreference\"": "\"shift_preference\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_pharmacy_adherence_alerts": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"lastSentAt\"": "\"last_sent_at\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"reminderTime\"": "\"reminder_time\""
+  },
+  "his_billing_items": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"sourceType\"": "\"source_type\"",
+    "\"sourceId\"": "\"source_id\"",
+    "\"itemName\"": "\"item_name\"",
+    "\"unitPrice\"": "\"unit_price\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "his_invoices": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"amountPaid\"": "\"amount_paid\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "his_financial_records": {
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"patientId\"": "\"patient_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"patientName\"": "\"patient_name\"",
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"amountPaid\"": "\"amount_paid\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "his_lab_requests": {
+    "\"patientId\"": "\"patient_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"testType\"": "\"test_type\"",
+    "\"technicianId\"": "\"technician_id\""
+  },
+  "his_staff_attendance": {
+    "\"staffId\"": "\"staff_id\"",
+    "\"checkIn\"": "\"check_in\"",
+    "\"checkOut\"": "\"check_out\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_properties": {
+    "\"propertyType\"": "\"property_type\"",
+    "\"totalUnits\"": "\"total_units\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"commissionRate\"": "\"commission_rate\"",
+    "\"landlordId\"": "\"landlord_id\""
+  },
+  "pm_units": {
+    "\"propertyId\"": "\"property_id\"",
+    "\"unitNumber\"": "\"unit_number\"",
+    "\"unitType\"": "\"unit_type\"",
+    "\"floorNumber\"": "\"floor_number\"",
+    "\"rentAmount\"": "\"rent_amount\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_tenants": {
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"idNumber\"": "\"id_number\"",
+    "\"emergencyContactName\"": "\"emergency_contact_name\"",
+    "\"emergencyContactPhone\"": "\"emergency_contact_phone\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_listings": {
+    "\"propertyId\"": "\"property_id\"",
+    "\"unitId\"": "\"unit_id\"",
+    "\"listingType\"": "\"listing_type\"",
+    "\"isPromoted\"": "\"is_promoted\"",
+    "\"viewCount\"": "\"view_count\"",
+    "\"inquiryCount\"": "\"inquiry_count\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_inquiries": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"listingId\"": "\"listing_id\"",
+    "\"customerName\"": "\"customer_name\"",
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"inquiryDate\"": "\"inquiry_date\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_leases": {
+    "\"unitId\"": "\"unit_id\"",
+    "\"tenantId\"": "\"tenant_id\"",
+    "\"startDate\"": "\"start_date\"",
+    "\"endDate\"": "\"end_date\"",
+    "\"rentAmount\"": "\"rent_amount\"",
+    "\"depositAmount\"": "\"deposit_amount\"",
+    "\"billingCycle\"": "\"billing_cycle\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_invoices": {
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"leaseId\"": "\"lease_id\"",
+    "\"tenantId\"": "\"tenant_id\"",
+    "\"unitId\"": "\"unit_id\"",
+    "\"issueDate\"": "\"issue_date\"",
+    "\"dueDate\"": "\"due_date\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "pm_payments": {
+    "\"leaseId\"": "\"lease_id\"",
+    "\"paymentDate\"": "\"payment_date\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"paymentType\"": "\"payment_type\"",
+    "\"periodMonth\"": "\"period_month\"",
+    "\"periodYear\"": "\"period_year\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "showroom_settings": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"invoiceReminders\"": "\"invoice_reminders\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"invoicePrefix\"": "\"invoice_prefix\"",
+    "\"invoiceStartingNumber\"": "\"invoice_starting_number\"",
+    "\"invoiceFormat\"": "\"invoice_format\""
+  },
+  "car_sales_listings": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"sellerId\"": "\"seller_id\"",
+    "\"fuelType\"": "\"fuel_type\"",
+    "\"bodyType\"": "\"body_type\"",
+    "\"engineSize\"": "\"engine_size\"",
+    "\"mainImageUrl\"": "\"main_image_url\"",
+    "\"galleryUrls\"": "\"gallery_urls\"",
+    "\"videoWalkthroughUrl\"": "\"video_walkthrough_url\"",
+    "\"aiValuationStatus\"": "\"ai_valuation_status\"",
+    "\"estimatedMarketValue\"": "\"estimated_market_value\"",
+    "\"inspectionScore\"": "\"inspection_score\"",
+    "\"vinNumber\"": "\"vin_number\"",
+    "\"verifiedHistory\"": "\"verified_history\"",
+    "\"viewCount\"": "\"view_count\"",
+    "\"inquiryCount\"": "\"inquiry_count\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"registrationNumber\"": "\"registration_number\"",
+    "\"inspectionReportUrl\"": "\"inspection_report_url\"",
+    "\"importStatus\"": "\"import_status\"",
+    "\"importExpenses\"": "\"import_expenses\"",
+    "\"fobPrice\"": "\"fob_price\"",
+    "\"totalLandedCost\"": "\"total_landed_cost\"",
+    "\"targetMargin\"": "\"target_margin\"",
+    "\"floorPrice\"": "\"floor_price\""
+  },
+  "car_sales_invoices": {
+    "\"listingId\"": "\"listing_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"clientName\"": "\"client_name\"",
+    "\"clientEmail\"": "\"client_email\"",
+    "\"clientPhone\"": "\"client_phone\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"paidAmount\"": "\"paid_amount\"",
+    "\"balanceAmount\"": "\"balance_amount\"",
+    "\"dueDate\"": "\"due_date\"",
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"isInstallment\"": "\"is_installment\"",
+    "\"installmentFrequency\"": "\"installment_frequency\"",
+    "\"totalInstallments\"": "\"total_installments\"",
+    "\"installmentAmount\"": "\"installment_amount\"",
+    "\"registrationNumber\"": "\"registration_number\"",
+    "\"soldBy\"": "\"sold_by\""
+  },
+  "car_sales_payments": {
+    "\"invoiceId\"": "\"invoice_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"paymentMethod\"": "\"payment_method\"",
+    "\"transactionReference\"": "\"transaction_reference\"",
+    "\"paymentDate\"": "\"payment_date\"",
+    "\"receiptNumber\"": "\"receipt_number\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "coop_farmers": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"accountNumber\"": "\"account_number\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"kraPin\"": "\"kra_pin\"",
+    "\"nationalId\"": "\"national_id\"",
+    "\"joinedAt\"": "\"joined_at\""
+  },
+  "coop_collections": {
+    "\"farmerId\"": "\"farmer_id\"",
+    "\"riderId\"": "\"rider_id\"",
+    "\"productType\"": "\"product_type\"",
+    "\"qualityScore\"": "\"quality_score\"",
+    "\"collectionDate\"": "\"collection_date\"",
+    "\"recordedBy\"": "\"recorded_by\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "coop_riders": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"vehicleNumber\"": "\"vehicle_number\"",
+    "\"deliveryRatePerKg\"": "\"delivery_rate_per_kg\"",
+    "\"deliveryRatePerLiter\"": "\"delivery_rate_per_liter\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "agrovet_products": {
+    "\"unitType\"": "\"unit_type\"",
+    "\"reorderLevel\"": "\"reorder_level\"",
+    "\"currentStock\"": "\"current_stock\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "bc_courses": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"baseFee\"": "\"base_fee\"",
+    "\"kitFee\"": "\"kit_fee\"",
+    "\"examFee\"": "\"exam_fee\"",
+    "\"practicalHoursRequired\"": "\"practical_hours_required\"",
+    "\"isActive\"": "\"is_active\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"tuitionPriority\"": "\"tuition_priority\"",
+    "\"kitPriority\"": "\"kit_priority\"",
+    "\"examPriority\"": "\"exam_priority\""
+  },
+  "bc_students": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"fullName\"": "\"full_name\"",
+    "\"courseId\"": "\"course_id\"",
+    "\"kitIssuedStatus\"": "\"kit_issued_status\"",
+    "\"practicalHoursCompleted\"": "\"practical_hours_completed\"",
+    "\"enrollmentDate\"": "\"enrollment_date\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "bc_invoices": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"studentName\"": "\"student_name\"",
+    "\"courseId\"": "\"course_id\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"paidAmount\"": "\"paid_amount\"",
+    "\"invoiceNumber\"": "\"invoice_number\"",
+    "\"dueDate\"": "\"due_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "alumnae_members": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"fullName\"": "\"full_name\"",
+    "\"phoneNumber\"": "\"phone_number\"",
+    "\"graduationYear\"": "\"graduation_year\"",
+    "\"currentJob\"": "\"current_job\"",
+    "\"currentCompany\"": "\"current_company\"",
+    "\"linkedinUrl\"": "\"linkedin_url\"",
+    "\"twitterUrl\"": "\"twitter_url\"",
+    "\"admissionNumber\"": "\"admission_number\"",
+    "\"paymentId\"": "\"payment_id\"",
+    "\"registrationFee\"": "\"registration_fee\"",
+    "\"joinedAt\"": "\"joined_at\"",
+    "\"profilePhoto\"": "\"profile_photo\"",
+    "\"isSecured\"": "\"is_secured\"",
+    "\"securedAt\"": "\"secured_at\""
+  },
+  "election_events": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"academicYearId\"": "\"academic_year_id\"",
+    "\"votingSystem\"": "\"voting_system\"",
+    "\"startTime\"": "\"start_time\"",
+    "\"endTime\"": "\"end_time\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "election_candidates": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"electionId\"": "\"election_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"posterUrl\"": "\"poster_url\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "election_checkins": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"electionId\"": "\"election_id\"",
+    "\"studentId\"": "\"student_id\"",
+    "\"checkedInAt\"": "\"checked_in_at\""
+  },
+  "heritage_members": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"birthYear\"": "\"birth_year\"",
+    "\"deathYear\"": "\"death_year\"",
+    "\"profilePhotoUrl\"": "\"profile_photo_url\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "events": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"logoUrl\"": "\"logo_url\"",
+    "\"bannerUrl\"": "\"banner_url\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"customSubdomain\"": "\"custom_subdomain\""
+  },
+  "institution_events": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"eventDate\"": "\"event_date\"",
+    "\"eventTime\"": "\"event_time\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "event_categories": {
+    "\"eventId\"": "\"event_id\"",
+    "\"distanceKm\"": "\"distance_km\"",
+    "\"registrationFee\"": "\"registration_fee\"",
+    "\"ageLimitMin\"": "\"age_limit_min\"",
+    "\"ageLimitMax\"": "\"age_limit_max\"",
+    "\"genderRestriction\"": "\"gender_restriction\"",
+    "\"startTime\"": "\"start_time\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "event_participants": {
+    "\"categoryId\"": "\"category_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"bibNumber\"": "\"bib_number\"",
+    "\"firstName\"": "\"first_name\"",
+    "\"lastName\"": "\"last_name\"",
+    "\"tShirtSize\"": "\"t_shirt_size\"",
+    "\"waiverSigned\"": "\"waiver_signed\"",
+    "\"paymentStatus\"": "\"payment_status\"",
+    "\"mpesaReference\"": "\"mpesa_reference\"",
+    "\"emergencyContactName\"": "\"emergency_contact_name\"",
+    "\"emergencyContactPhone\"": "\"emergency_contact_phone\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "event_pins": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"eventId\"": "\"event_id\"",
+    "\"userId\"": "\"user_id\"",
+    "\"vehicleRegistration\"": "\"vehicle_registration\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "event_pledges": {
+    "\"participantId\"": "\"participant_id\"",
+    "\"sponsorName\"": "\"sponsor_name\"",
+    "\"paymentStatus\"": "\"payment_status\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "broadcaster_messages": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"recipientsCount\"": "\"recipients_count\"",
+    "\"createdAt\"": "\"created_at\""
+  },
+  "app_notifications": {
+    "\"userId\"": "\"user_id\"",
+    "\"institutionId\"": "\"institution_id\"",
+    "\"isRead\"": "\"is_read\"",
+    "\"visitorName\"": "\"visitor_name\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "integration_logs": {
+    "\"createdAt\"": "\"created_at\""
+  },
+  "suppliers": {
+    "\"contactPerson\"": "\"contact_person\"",
+    "\"userId\"": "\"user_id\"",
+    "\"suppliedItems\"": "\"supplied_items\"",
+    "\"institutionId\"": "\"institution_id\""
+  },
+  "procurement_lpos": {
+    "\"institutionId\"": "\"institution_id\"",
+    "\"lpoNumber\"": "\"lpo_number\"",
+    "\"supplierId\"": "\"supplier_id\"",
+    "\"supplierName\"": "\"supplier_name\"",
+    "\"requisitionId\"": "\"requisition_id\"",
+    "\"issuedDate\"": "\"issued_date\"",
+    "\"expectedDeliveryDate\"": "\"expected_delivery_date\"",
+    "\"deliveryAddress\"": "\"delivery_address\"",
+    "\"taxAmount\"": "\"tax_amount\"",
+    "\"totalAmount\"": "\"total_amount\"",
+    "\"approvedBy\"": "\"approved_by\"",
+    "\"createdBy\"": "\"created_by\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\"",
+    "\"voteHead\"": "\"vote_head\"",
+    "\"tenderCategoryNo\"": "\"tender_category_no\"",
+    "\"tenderRef\"": "\"tender_ref\""
+  },
+  "county_stores": {
+    "\"countyId\"": "\"county_id\"",
+    "\"locationName\"": "\"location_name\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "county_inventory_categories": {
+    "\"countyId\"": "\"county_id\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  },
+  "county_inventory": {
+    "\"countyId\"": "\"county_id\"",
+    "\"supplierName\"": "\"supplier_name\"",
+    "\"targetInstitutionId\"": "\"target_institution_id\"",
+    "\"driverName\"": "\"driver_name\"",
+    "\"deliveryMethod\"": "\"delivery_method\"",
+    "\"trackingNumber\"": "\"tracking_number\"",
+    "\"qrCode\"": "\"qr_code\"",
+    "\"atHqDate\"": "\"at_hq_date\"",
+    "\"recipientSignature\"": "\"recipient_signature\"",
+    "\"receivedBy\"": "\"received_by\"",
+    "\"recipientName\"": "\"recipient_name\"",
+    "\"dispatchedDate\"": "\"dispatched_date\"",
+    "\"receivedDate\"": "\"received_date\"",
+    "\"createdAt\"": "\"created_at\"",
+    "\"updatedAt\"": "\"updated_at\""
+  }
+}

@@ -1,0 +1,114 @@
+const fs = require('fs');
+const readline = require('readline');
+
+function camelToSnake(str) {
+    return str.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+}
+
+async function generateUniversalDDLAndMappings() {
+    const rl = readline.createInterface({
+        input: fs.createReadStream('C:\\Users\\hp\\Downloads\\eduai_fixed_for_import.sql', { encoding: 'utf8' }),
+        crlfDelay: Infinity
+    });
+
+    const definedTables = new Map(); // table -> Set(cols)
+    const insertHeaders = new Map(); // table -> rawCols
+
+    let currentTable = null;
+
+    for await (const line of rl) {
+        const createMatch = line.match(/^CREATE TABLE IF NOT EXISTS public\.([a-zA-Z0-9_"]+)\s*\(/i) ||
+                            line.match(/^CREATE TABLE IF NOT EXISTS ([a-zA-Z0-9_"]+)\s*\(/i);
+        if (createMatch) {
+            currentTable = createMatch[1].replace(/"/g, '').toLowerCase();
+            if (!definedTables.has(currentTable)) definedTables.set(currentTable, new Set());
+            continue;
+        }
+
+        if (currentTable) {
+            if (line.startsWith(');')) {
+                currentTable = null;
+            } else {
+                const colMatch = line.trim().match(/^"?([a-zA-Z0-9_]+)"?\s+/);
+                if (colMatch) {
+                    const colName = colMatch[1].replace(/"/g, '');
+                    if (!['CONSTRAINT', 'PRIMARY', 'FOREIGN', 'UNIQUE', 'CHECK'].includes(colName.toUpperCase())) {
+                        definedTables.get(currentTable).add(colName);
+                        definedTables.get(currentTable).add(colName.toLowerCase());
+                    }
+                }
+            }
+        }
+
+        const alterMatch = line.match(/^ALTER TABLE public\.([a-zA-Z0-9_"]+)\s+ADD COLUMN IF NOT EXISTS\s+"?([a-zA-Z0-9_']+)"?/i);
+        if (alterMatch) {
+            const tbl = alterMatch[1].replace(/"/g, '').toLowerCase();
+            const col = alterMatch[2].replace(/"/g, '');
+            if (!definedTables.has(tbl)) definedTables.set(tbl, new Set());
+            definedTables.get(tbl).add(col);
+            definedTables.get(tbl).add(col.toLowerCase());
+        }
+
+        if (line.startsWith('INSERT INTO public.')) {
+            const insertMatch = line.match(/^INSERT INTO public\."?([a-zA-Z0-9_]+)"?\s*\(([^)]+)\)/);
+            if (insertMatch) {
+                const tbl = insertMatch[1].replace(/"/g, '').toLowerCase();
+                if (!insertHeaders.has(tbl)) {
+                    const cols = insertMatch[2].split(',').map(c => c.trim());
+                    insertHeaders.set(tbl, cols);
+                }
+            }
+        }
+    }
+
+    console.log(`Tables in DDL: ${definedTables.size}`);
+    console.log(`Tables in INSERTs: ${insertHeaders.size}`);
+
+    let totalDdlStatements = 0;
+    const ddlStatements = [];
+
+    for (const [tbl, cols] of insertHeaders.entries()) {
+        const existing = definedTables.get(tbl) || new Set();
+        const missingCols = cols.filter(rawCol => {
+            const c = rawCol.replace(/"/g, '');
+            return !existing.has(c);
+        });
+
+        if (!definedTables.has(tbl)) {
+            ddlStatements.push(`CREATE TABLE IF NOT EXISTS public."${tbl}" (id TEXT PRIMARY KEY);`);
+            ddlStatements.push(`ALTER TABLE public."${tbl}" DISABLE ROW LEVEL SECURITY;`);
+        }
+
+        if (missingCols.length > 0) {
+            for (const rawCol of missingCols) {
+                const c = rawCol.replace(/"/g, '');
+                // Heuristic for types:
+                let colType = 'TEXT';
+                if (/^(is[A-Z]|has[A-Z]|can[A-Z]|active|enabled|required)/i.test(c)) {
+                    colType = 'BOOLEAN DEFAULT false';
+                } else if (/(at|date|time)$/i.test(c) || /^(created|updated|deleted)/i.test(c)) {
+                    colType = 'TIMESTAMPTZ';
+                } else if (/(config|data|metadata|payload|items|settings|features|options|nodes|permissions|json)/i.test(c)) {
+                    colType = "JSONB DEFAULT '{}'::jsonb";
+                } else if (/(amount|price|balance|rate|cost|fee|quantity|count|quota|score|lat|lng|latitude|longitude|units)/i.test(c)) {
+                    colType = 'NUMERIC';
+                }
+
+                ddlStatements.push(`ALTER TABLE public."${tbl}" ADD COLUMN IF NOT EXISTS "${c}" ${colType};`);
+                const snake = camelToSnake(c);
+                if (snake !== c) {
+                    ddlStatements.push(`ALTER TABLE public."${tbl}" ADD COLUMN IF NOT EXISTS "${snake}" ${colType};`);
+                }
+                totalDdlStatements++;
+            }
+        }
+
+        // Always drop NOT NULL on foreign keys / critical fields so inserts don't fail
+        ddlStatements.push(`DO $$ BEGIN ALTER TABLE public."${tbl}" ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+    }
+
+    console.log(`Generated ${ddlStatements.length} DDL statements for 100% coverage.`);
+    fs.writeFileSync('scripts/generated_universal_ddl.sql', ddlStatements.join('\n'));
+}
+
+generateUniversalDDLAndMappings();
