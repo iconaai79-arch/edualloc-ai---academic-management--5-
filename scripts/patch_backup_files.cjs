@@ -35,7 +35,24 @@ DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN module_id 
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN status DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_module_id_key;
-ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_fkey;
+-- CONVERT ARRAY COLUMNS TO JSONB TO ACCEPT JSONB INSERT VALUES
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING COALESCE(to_jsonb(expertise), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING COALESCE(to_jsonb(roles), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids TYPE JSONB USING COALESCE(to_jsonb(enrolled_subject_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN parent_ids TYPE JSONB USING COALESCE(to_jsonb(parent_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN student_ids TYPE JSONB USING COALESCE(to_jsonb(student_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+DO $$ BEGIN ALTER TABLE public.rooms ALTER COLUMN equipment TYPE JSONB USING COALESCE(to_jsonb(equipment), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.allocation_requests ALTER COLUMN course_level_ids TYPE JSONB USING COALESCE(to_jsonb(course_level_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.allocation_requests ALTER COLUMN subject_ids TYPE JSONB USING COALESCE(to_jsonb(subject_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.carwash_jobs ALTER COLUMN add_ons TYPE JSONB USING COALESCE(to_jsonb(add_ons), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.pm_listings ALTER COLUMN images TYPE JSONB USING COALESCE(to_jsonb(images), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.pm_listings ALTER COLUMN features TYPE JSONB USING COALESCE(to_jsonb(features), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_patients ALTER COLUMN allergies TYPE JSONB USING COALESCE(to_jsonb(allergies), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_patients ALTER COLUMN chronic_conditions TYPE JSONB USING COALESCE(to_jsonb(chronic_conditions), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_prescriptions ALTER COLUMN attached_files TYPE JSONB USING COALESCE(to_jsonb(attached_files), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.car_sales_listings ALTER COLUMN gallery_urls TYPE JSONB USING COALESCE(to_jsonb(gallery_urls), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.car_appraisals ALTER COLUMN images TYPE JSONB USING COALESCE(to_jsonb(images), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS (100% COVERAGE)
 ${universalDdl}
@@ -219,6 +236,31 @@ async function patchFile(filename) {
     for await (let line of rl) {
         if (line.includes('stream_definitions TEXT[] DEFAULT')) {
             line = line.replace('stream_definitions TEXT[] DEFAULT \'{}\'', 'stream_definitions JSONB DEFAULT \'[]\'::jsonb');
+            replacedDefinitions++;
+        }
+
+        if (line.includes('expertise TEXT[]')) {
+            line = line.replace('expertise TEXT[]', 'expertise JSONB DEFAULT \'[]\'::jsonb');
+            replacedDefinitions++;
+        }
+
+        if (line.includes("roles TEXT[] DEFAULT '{}'")) {
+            line = line.replace("roles TEXT[] DEFAULT '{}'", 'roles JSONB DEFAULT \'[]\'::jsonb');
+            replacedDefinitions++;
+        }
+
+        if (line.includes("enrolled_subject_ids TEXT[] DEFAULT '{}'")) {
+            line = line.replace("enrolled_subject_ids TEXT[] DEFAULT '{}'", 'enrolled_subject_ids JSONB DEFAULT \'[]\'::jsonb');
+            replacedDefinitions++;
+        }
+
+        if (line.includes("parent_ids TEXT[] DEFAULT '{}'")) {
+            line = line.replace("parent_ids TEXT[] DEFAULT '{}'", 'parent_ids JSONB DEFAULT \'[]\'::jsonb');
+            replacedDefinitions++;
+        }
+
+        if (line.includes("student_ids TEXT[] DEFAULT '{}'")) {
+            line = line.replace("student_ids TEXT[] DEFAULT '{}'", 'student_ids JSONB DEFAULT \'[]\'::jsonb');
             replacedDefinitions++;
         }
 
