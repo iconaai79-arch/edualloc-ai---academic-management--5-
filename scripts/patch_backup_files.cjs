@@ -12,8 +12,9 @@ const filesToPatch = [
 ];
 
 const injectionSQL = `
--- FIX RESELLER SELF-REFERENCING FOREIGN KEY FOR DATA RESTORE
+-- FIX INSTITUTION FOREIGN KEYS FOR DATA RESTORE
 ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey;
+ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_county_id_fkey;
 
 -- FIX STREAM DEFINITIONS & EMBEDDED DUMP COLUMNS
 ALTER TABLE public.institutions DROP COLUMN IF EXISTS "streamDefinitions" CASCADE;
@@ -26,9 +27,32 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "usersInstitutionIdFkey
 
 const postRestoreSQL = `
 
--- RE-ENABLE RESELLER FOREIGN KEY CONSTRAINT ONCE ALL DATA IS RESTORED
+-- FIX ORPHANED COUNTY AND RESELLER REFERENCES
+UPDATE public.institutions 
+SET county_id = 'county_1786953923332' 
+WHERE county_id = 'county_1770545434249';
+
+UPDATE public.institutions 
+SET county_id = NULL 
+WHERE county_id IS NOT NULL 
+  AND county_id NOT IN (SELECT id FROM public.counties);
+
+UPDATE public.institutions 
+SET reseller_id = NULL 
+WHERE reseller_id IS NOT NULL 
+  AND reseller_id NOT IN (SELECT id FROM public.institutions);
+
+-- RE-ENABLE INSTITUTION FOREIGN KEY CONSTRAINTS
 DO $$
 BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'institutions_county_id_fkey'
+    ) THEN
+        ALTER TABLE public.institutions 
+        ADD CONSTRAINT institutions_county_id_fkey 
+        FOREIGN KEY (county_id) REFERENCES public.counties(id) ON DELETE SET NULL;
+    END IF;
+
     IF NOT EXISTS (
         SELECT 1 FROM pg_constraint WHERE conname = 'institutions_reseller_id_fkey'
     ) THEN
@@ -66,6 +90,7 @@ async function patchFile(filename) {
     let patchedInsert = false;
     let replacedDefinitions = 0;
     let fixedJsonEmptyStrings = 0;
+    let replacedOrphanCounties = 0;
 
     for await (let line of rl) {
         if (line.includes('stream_definitions TEXT[] DEFAULT')) {
@@ -75,6 +100,15 @@ async function patchFile(filename) {
 
         if (line.includes('reseller_id TEXT REFERENCES institutions(id)')) {
             line = line.replace('reseller_id TEXT REFERENCES institutions(id) ON DELETE SET NULL', 'reseller_id TEXT');
+        }
+
+        if (line.includes('county_id TEXT REFERENCES counties(id)')) {
+            line = line.replace('county_id TEXT REFERENCES counties(id) ON DELETE SET NULL', 'county_id TEXT');
+        }
+
+        if (line.includes('county_1770545434249')) {
+            line = line.replace(/county_1770545434249/g, 'county_1786953923332');
+            replacedOrphanCounties++;
         }
 
         if (!patchedInsert && line.includes('INSERT INTO public."institutions"')) {
@@ -102,7 +136,7 @@ async function patchFile(filename) {
 
     fs.unlinkSync(filePath);
     fs.renameSync(tempPath, filePath);
-    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, empty JSON strings fixed: ${fixedJsonEmptyStrings})`);
+    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
 }
 
 async function run() {
