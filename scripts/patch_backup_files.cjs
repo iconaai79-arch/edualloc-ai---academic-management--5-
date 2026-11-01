@@ -35,24 +35,44 @@ DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN module_id 
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN status DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_module_id_key;
--- CONVERT ARRAY COLUMNS TO JSONB TO ACCEPT JSONB INSERT VALUES
-DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING COALESCE(to_jsonb(expertise), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING COALESCE(to_jsonb(roles), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids TYPE JSONB USING COALESCE(to_jsonb(enrolled_subject_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN parent_ids TYPE JSONB USING COALESCE(to_jsonb(parent_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN student_ids TYPE JSONB USING COALESCE(to_jsonb(student_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+-- DROP AND RECREATE ARRAY COLUMNS AS JSONB TO GUARANTEE 100% TYPE COMPATIBILITY WITH JSONB LITERALS
+ALTER TABLE public.users DROP COLUMN IF EXISTS expertise CASCADE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS expertise JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.users DROP COLUMN IF EXISTS roles CASCADE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS roles JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.users DROP COLUMN IF EXISTS enrolled_subject_ids CASCADE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS enrolled_subject_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.users DROP COLUMN IF EXISTS parent_ids CASCADE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS parent_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.users DROP COLUMN IF EXISTS student_ids CASCADE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS student_ids JSONB DEFAULT '[]'::jsonb;
 
-DO $$ BEGIN ALTER TABLE public.rooms ALTER COLUMN equipment TYPE JSONB USING COALESCE(to_jsonb(equipment), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.allocation_requests ALTER COLUMN course_level_ids TYPE JSONB USING COALESCE(to_jsonb(course_level_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.allocation_requests ALTER COLUMN subject_ids TYPE JSONB USING COALESCE(to_jsonb(subject_ids), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.carwash_jobs ALTER COLUMN add_ons TYPE JSONB USING COALESCE(to_jsonb(add_ons), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.pm_listings ALTER COLUMN images TYPE JSONB USING COALESCE(to_jsonb(images), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.pm_listings ALTER COLUMN features TYPE JSONB USING COALESCE(to_jsonb(features), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.his_patients ALTER COLUMN allergies TYPE JSONB USING COALESCE(to_jsonb(allergies), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.his_patients ALTER COLUMN chronic_conditions TYPE JSONB USING COALESCE(to_jsonb(chronic_conditions), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.his_prescriptions ALTER COLUMN attached_files TYPE JSONB USING COALESCE(to_jsonb(attached_files), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.car_sales_listings ALTER COLUMN gallery_urls TYPE JSONB USING COALESCE(to_jsonb(gallery_urls), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE public.car_appraisals ALTER COLUMN images TYPE JSONB USING COALESCE(to_jsonb(images), '[]'::jsonb); EXCEPTION WHEN OTHERS THEN NULL; END $$;
+ALTER TABLE public.rooms DROP COLUMN IF EXISTS equipment CASCADE;
+ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS equipment JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.allocation_requests DROP COLUMN IF EXISTS course_level_ids CASCADE;
+ALTER TABLE public.allocation_requests ADD COLUMN IF NOT EXISTS course_level_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.allocation_requests DROP COLUMN IF EXISTS subject_ids CASCADE;
+ALTER TABLE public.allocation_requests ADD COLUMN IF NOT EXISTS subject_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.carwash_jobs DROP COLUMN IF EXISTS add_ons CASCADE;
+ALTER TABLE public.carwash_jobs ADD COLUMN IF NOT EXISTS add_ons JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.pm_listings DROP COLUMN IF EXISTS images CASCADE;
+ALTER TABLE public.pm_listings ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.pm_listings DROP COLUMN IF EXISTS features CASCADE;
+ALTER TABLE public.pm_listings ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.his_patients DROP COLUMN IF EXISTS allergies CASCADE;
+ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS allergies JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.his_patients DROP COLUMN IF EXISTS chronic_conditions CASCADE;
+ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS chronic_conditions JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.his_prescriptions DROP COLUMN IF EXISTS attached_files CASCADE;
+ALTER TABLE public.his_prescriptions ADD COLUMN IF NOT EXISTS attached_files JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.car_sales_listings DROP COLUMN IF EXISTS gallery_urls CASCADE;
+ALTER TABLE public.car_sales_listings ADD COLUMN IF NOT EXISTS gallery_urls JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.car_appraisals DROP COLUMN IF EXISTS images CASCADE;
+ALTER TABLE public.car_appraisals ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.synergy_posts DROP COLUMN IF EXISTS likes CASCADE;
+ALTER TABLE public.synergy_posts ADD COLUMN IF NOT EXISTS likes JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.synergy_posts DROP COLUMN IF EXISTS student_ids CASCADE;
+ALTER TABLE public.synergy_posts ADD COLUMN IF NOT EXISTS student_ids JSONB DEFAULT '[]'::jsonb;
 
 -- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS (100% COVERAGE)
 ${universalDdl}
