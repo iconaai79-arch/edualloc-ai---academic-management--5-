@@ -93,6 +93,58 @@ function fixEmptyStringForJson(line) {
     return fixed;
 }
 
+const reverseReplacements = {};
+for (const [tbl, map] of Object.entries(tableReplacements)) {
+    reverseReplacements[tbl] = {};
+    for (const [camelCol, snakeCol] of Object.entries(map)) {
+        if (!reverseReplacements[tbl][snakeCol]) {
+            reverseReplacements[tbl][snakeCol] = [];
+        }
+        reverseReplacements[tbl][snakeCol].push(camelCol);
+    }
+}
+
+function deduplicateHeader(line) {
+    if (!line.startsWith('INSERT INTO public."')) return line;
+    const match = line.match(/^(INSERT INTO public\."([^"]+)"\s*\()([^)]+)(\)\s*VALUES.*)$/);
+    if (!match) return line;
+
+    const [_, prefix, tableName, headerCols, suffix] = match;
+    const tblKey = tableName.toLowerCase();
+    const revMap = reverseReplacements[tblKey] || {};
+
+    const rawCols = headerCols.split(',').map(c => c.trim());
+    const seen = new Set();
+    let modified = false;
+
+    for (let i = 0; i < rawCols.length; i++) {
+        const col = rawCols[i];
+        if (seen.has(col)) {
+            const candidates = revMap[col];
+            if (candidates && candidates.length > 0) {
+                const unused = candidates.find(cand => !seen.has(cand));
+                if (unused) {
+                    rawCols[i] = unused;
+                    seen.add(unused);
+                    modified = true;
+                    continue;
+                }
+            }
+            const alias = `"${col.replace(/"/g, '')}_dup_${i}"`;
+            rawCols[i] = alias;
+            seen.add(alias);
+            modified = true;
+        } else {
+            seen.add(col);
+        }
+    }
+
+    if (modified) {
+        return `${prefix}${rawCols.join(', ')}${suffix}`;
+    }
+    return line;
+}
+
 function replaceInsertHeader(line, tableReplacements) {
     if (!line.startsWith('INSERT INTO public."')) return line;
     const match = line.match(/^(INSERT INTO public\."([^"]+)"\s*\()([^)]+)(\)\s*VALUES.*)$/);
@@ -102,11 +154,23 @@ function replaceInsertHeader(line, tableReplacements) {
     const replacements = tableReplacements[tableName.toLowerCase()];
     if (!replacements) return line;
 
-    let newHeader = headerCols;
-    for (const [oldCol, newCol] of Object.entries(replacements)) {
-        newHeader = newHeader.replaceAll(oldCol, newCol);
-    }
-    return prefix + newHeader + suffix;
+    const rawCols = headerCols.split(',').map(c => c.trim());
+    const existingCols = new Set(rawCols);
+
+    const newCols = rawCols.map(col => {
+        const replacement = replacements[col];
+        if (replacement) {
+            // Only replace if the replacement column is NOT already present in this header!
+            if (!existingCols.has(replacement)) {
+                existingCols.add(replacement);
+                existingCols.delete(col);
+                return replacement;
+            }
+        }
+        return col;
+    });
+
+    return `${prefix}${newCols.join(', ')}${suffix}`;
 }
 
 async function patchFile(filename) {
@@ -159,8 +223,9 @@ async function patchFile(filename) {
 
         if (line.startsWith('INSERT INTO public."')) {
             const replaced = replaceInsertHeader(line, tableReplacements);
-            if (replaced !== line) {
-                line = replaced;
+            const deduped = deduplicateHeader(replaced);
+            if (deduped !== line) {
+                line = deduped;
                 replacedInsertHeaders++;
             }
         }
