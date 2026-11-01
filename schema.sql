@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS institutions (
     ncba_config JSONB,
     coop_config JSONB,
     coop_settings JSONB,
-    stream_definitions TEXT[] DEFAULT '{}',
+    stream_definitions JSONB DEFAULT '[]'::jsonb,
     custom_module_pricing JSONB,
     sms_balance INTEGER DEFAULT 0,
     visitor_auto_finalize_enabled BOOLEAN DEFAULT FALSE,
@@ -244,7 +244,7 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS email_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ncba_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_settings JSONB;
-ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions TEXT[] DEFAULT '{}';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_module_pricing JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance INTEGER DEFAULT 0;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS visitor_auto_finalize_enabled BOOLEAN DEFAULT FALSE;

@@ -92,7 +92,7 @@
         }
       } catch (e) {}
 
-      var isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+      var isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'erp.eduai.co.ke' || hostname === 'app.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
       var isSpeechBuddy = !isPortalHost && (view === 'speechbuddy' || view.includes('speech') || pathname.includes('speechbuddy') || hash.includes('speechbuddy') || isSpeechSession);
       var isAlumnae = !isPortalHost && (hostname.startsWith('alumnae.') || hostname.startsWith('alumni.') || hostname.startsWith('network.') || hostname.startsWith('circle.') || hostname.includes('almamater') || hostname.includes('alma_mater') || view.startsWith('alumnae_'));
       var isDriving = !isPortalHost && !isSpeechBuddy && !isAlumnae && (

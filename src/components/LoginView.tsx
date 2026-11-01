@@ -441,6 +441,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                         {(() => {
                             const isPortalEduAi = typeof window !== 'undefined' && (
                                 window.location.hostname === 'portal.eduai.co.ke' ||
+                                window.location.hostname === 'erp.eduai.co.ke' ||
+                                window.location.hostname === 'app.eduai.co.ke' ||
                                 window.location.hostname === 'eduai.co.ke' ||
                                 window.location.hostname === 'www.eduai.co.ke'
                             );
@@ -459,6 +461,8 @@ export const LoginView: React.FC<LoginViewProps> = ({
                             {(() => {
                                 const isPortalEduAi = typeof window !== 'undefined' && (
                                     window.location.hostname === 'portal.eduai.co.ke' ||
+                                    window.location.hostname === 'erp.eduai.co.ke' ||
+                                    window.location.hostname === 'app.eduai.co.ke' ||
                                     window.location.hostname === 'eduai.co.ke' ||
                                     window.location.hostname === 'www.eduai.co.ke'
                                 );

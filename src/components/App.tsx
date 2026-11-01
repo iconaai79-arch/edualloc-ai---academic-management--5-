@@ -520,11 +520,23 @@ export const App: React.FC = () => {
             if (shop) return shop;
 
             const host = window.location.hostname.toLowerCase();
+            if (host === 'erp.eduai.co.ke' || host === 'portal.eduai.co.ke' || host === 'app.eduai.co.ke' || host === 'eduai.co.ke' || host === 'www.eduai.co.ke' || host.includes('vercel.app') || host.includes('talksasa') || host.includes('netlify.app')) {
+                return null;
+            }
+
             const parts = host.split('.');
             if (parts.length >= 2) {
                 const sub = parts[0];
-                const reserved = ['www', 'app', 'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127', 'alumni', 'alumnae', 'almamater', 'portal', 'drivingschool', 'driving', 'transport', 'shuttle', 'community', 'social', 'showroom', 'carshowroom'];
-                const isReserved = reserved.includes(sub) || sub.includes('portal') || sub.includes('admin') || sub.includes('alma') || sub.includes('driving') || sub.includes('shuttle') || sub.includes('showroom');
+                const reserved = [
+                    'www', 'app', 'erp', 'portal', 'admin', 'system', 'core', 'auth', 'hub', 'main', 'login',
+                    'marketplace', 'showcase', 'marketing', 'api', 'localhost', '127',
+                    'alumni', 'alumnae', 'almamater', 'drivingschool', 'driving', 'transport', 'shuttle',
+                    'community', 'social', 'showroom', 'carshowroom'
+                ];
+                const isReserved = reserved.includes(sub) ||
+                    sub.includes('portal') || sub.includes('admin') || sub.includes('alma') ||
+                    sub.includes('driving') || sub.includes('shuttle') || sub.includes('showroom') ||
+                    sub.includes('erp');
                 
                 if (!isReserved) {
                     return sub; // Return custom subdomain as tenant key
@@ -576,7 +588,7 @@ export const App: React.FC = () => {
             const params = new URLSearchParams(window.location.search);
             const view = params.get('view');
             const hostname = window.location.hostname.toLowerCase();
-            const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+            const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'erp.eduai.co.ke' || hostname === 'app.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
             if (isPortalHost && view !== 'ds' && view !== 'driving') {
                 return false;
             }
@@ -673,7 +685,7 @@ export const App: React.FC = () => {
 
     const isAlumnaeMode = useMemo(() => {
         const hostname = window.location.hostname.toLowerCase();
-        const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+        const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'erp.eduai.co.ke' || hostname === 'app.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
         const params = new URLSearchParams(window.location.search);
         const view = params.get('view');
         if (isPortalHost && !view?.startsWith('alumnae_')) {
@@ -1283,7 +1295,7 @@ export const App: React.FC = () => {
 
     const activeBranding = useMemo(() => {
         const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
-        const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+        const isPortalHost = hostname === 'portal.eduai.co.ke' || hostname === 'erp.eduai.co.ke' || hostname === 'app.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
 
         if (isAlumnaeMode) {
             return {
@@ -6600,6 +6612,8 @@ GRANT EXECUTE ON FUNCTION public.process_teacher_checkin(TEXT, TEXT, VARCHAR, VA
 
     const isPortalMasterHost = typeof window !== 'undefined' && (
         window.location.hostname === 'portal.eduai.co.ke' || 
+        window.location.hostname === 'erp.eduai.co.ke' || 
+        window.location.hostname === 'app.eduai.co.ke' || 
         window.location.hostname === 'eduai.co.ke' || 
         window.location.hostname === 'www.eduai.co.ke'
     );

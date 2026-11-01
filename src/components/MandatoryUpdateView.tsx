@@ -171,7 +171,7 @@ export const MandatoryUpdateView: React.FC<MandatoryUpdateViewProps> = ({ user, 
                     <div className="text-center mb-6">
                         {(() => {
                             const hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '';
-                            const isPortal = hostname === 'portal.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
+                            const isPortal = hostname === 'portal.eduai.co.ke' || hostname === 'erp.eduai.co.ke' || hostname === 'app.eduai.co.ke' || hostname === 'eduai.co.ke' || hostname === 'www.eduai.co.ke';
                             const effectiveLogo = isPortal ? '/eduai_logo_3d.png' : (logoUrl || '/eduai_logo_3d.png');
                             return (
                                 <img 
