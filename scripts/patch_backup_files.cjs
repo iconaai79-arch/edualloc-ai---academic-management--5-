@@ -149,6 +149,22 @@ function fixImsLine(line) {
     });
 }
 
+function fixRolesLine(line) {
+    if (!line.trim().startsWith('(')) return line;
+
+    // 1. Convert PostgreSQL array literal syntax like '{admin}', '{head_teacher}', etc. to JSONB array '["admin"]'::jsonb
+    let fixed = line.replace(/'\{([a-zA-Z0-9_, -]+)\}'/g, (match, inner) => {
+        if (inner === 'systemSmsBalance') return match;
+        const items = inner.split(',').map(x => `"${x.trim()}"`).join(',');
+        return `'[${items}]'::jsonb`;
+    });
+
+    // 2. Handle empty string in roles (row 2478 where roles is '' followed by status '')
+    fixed = fixed.replace(/,\s*'',\s*'',/g, ", '[]'::jsonb, '',");
+
+    return fixed;
+}
+
 const reverseReplacements = {};
 for (const [tbl, map] of Object.entries(tableReplacements)) {
     reverseReplacements[tbl] = {};
@@ -252,6 +268,7 @@ async function patchFile(filename) {
     let replacedOrphanCounties = 0;
     let replacedInsertHeaders = 0;
     let fixedImsRows = 0;
+    let fixedRolesRows = 0;
 
     for await (let line of rl) {
         if (line.includes('stream_definitions TEXT[] DEFAULT')) {
@@ -320,6 +337,14 @@ async function patchFile(filename) {
             }
         }
 
+        if (line.includes("'{") || line.includes("''")) {
+            const fixed = fixRolesLine(line);
+            if (fixed !== line) {
+                line = fixed;
+                fixedRolesRows++;
+            }
+        }
+
         if (line.includes("''")) {
             const fixed = fixEmptyStringForJson(line);
             if (fixed !== line) {
@@ -339,7 +364,7 @@ async function patchFile(filename) {
 
     fs.unlinkSync(filePath);
     fs.renameSync(tempPath, filePath);
-    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, ims rows populated: ${fixedImsRows}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
+    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, ims rows populated: ${fixedImsRows}, roles/arrays converted to JSONB: ${fixedRolesRows}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
 }
 
 async function run() {
