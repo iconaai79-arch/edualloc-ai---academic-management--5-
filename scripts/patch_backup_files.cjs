@@ -18,9 +18,75 @@ const universalDdlPath = path.join(__dirname, 'generated_universal_ddl.sql');
 const universalDdl = fs.existsSync(universalDdlPath) ? fs.readFileSync(universalDdlPath, 'utf8') : '';
 
 const injectionSQL = `
--- FIX INSTITUTION FOREIGN KEYS FOR DATA RESTORE
+-- FIX INSTITUTION AND DEPENDENT FOREIGN KEYS FOR DATA RESTORE
 ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey;
 ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_county_id_fkey;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_institution_id_fkey;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_department_id_fkey;
+ALTER TABLE public.courses DROP CONSTRAINT IF EXISTS courses_department_id_fkey;
+ALTER TABLE public.subjects DROP CONSTRAINT IF EXISTS subjects_department_id_fkey;
+ALTER TABLE public.rooms DROP CONSTRAINT IF EXISTS rooms_building_id_fkey;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- INSERT MISSING / DEMO INSTITUTIONS TO SATISFY FOREIGN KEY CONSTRAINTS ACROSS ALL 27 TABLES
+INSERT INTO public.institutions (id, name, email, status) VALUES
+    ('1779527512643_8nszj', '1779527512643 8nszj', '17795275126438nszj@placeholder.local', 'trial'),
+    ('inst_1791913405331_gy6tl', 'Inst 1791913405331 Gy6tl', 'inst1791913405331gy6tl@placeholder.local', 'trial'),
+    ('default_inst', 'Default Inst', 'defaultinst@placeholder.local', 'trial'),
+    ('inst_1791521572395_ufyl6', 'Inst 1791521572395 Ufyl6', 'inst1791521572395ufyl6@placeholder.local', 'trial'),
+    ('1781602587516_kqmod', '1781602587516 Kqmod', '1781602587516kqmod@placeholder.local', 'trial'),
+    ('demo_autoservice', 'Demo Autoservice', 'demoautoservice@placeholder.local', 'trial'),
+    ('demo_civil', 'Demo Civil', 'democivil@placeholder.local', 'trial'),
+    ('demo_coop', 'Demo Coop', 'democoop@placeholder.local', 'trial'),
+    ('demo_ds', 'Demo Ds', 'demods@placeholder.local', 'trial'),
+    ('demo_fuel', 'Demo Fuel', 'demofuel@placeholder.local', 'trial'),
+    ('demo_property', 'Demo Property', 'demoproperty@placeholder.local', 'trial'),
+    ('demo_retail', 'Demo Retail', 'demoretail@placeholder.local', 'trial'),
+    ('sch_knec_25551244', 'Sch Knec 25551244', 'schknec25551244@placeholder.local', 'trial'),
+    ('sch_knec_26577137', 'Sch Knec 26577137', 'schknec26577137@placeholder.local', 'trial'),
+    ('sch_knec_26578003', 'Sch Knec 26578003', 'schknec26578003@placeholder.local', 'trial'),
+    ('sch_knec_26578005', 'Sch Knec 26578005', 'schknec26578005@placeholder.local', 'trial'),
+    ('sch_knec_33517209', 'Sch Knec 33517209', 'schknec33517209@placeholder.local', 'trial'),
+    ('GLOBAL', 'GLOBAL', 'global@placeholder.local', 'trial'),
+    ('KAPSERET', 'KAPSERET', 'kapseret@placeholder.local', 'trial'),
+    ('inst_1770486388875_r8ist', 'Inst 1770486388875 R8ist', 'inst1770486388875r8ist@placeholder.local', 'trial'),
+    ('inst_1769348188501_rvoxm', 'Inst 1769348188501 Rvoxm', 'inst1769348188501rvoxm@placeholder.local', 'trial'),
+    ('county_1786953923332', 'County 1786953923332', 'county1786953923332@placeholder.local', 'trial'),
+    ('inst_1772523035394_7k9se', 'Inst 1772523035394 7k9se', 'inst17725230353947k9se@placeholder.local', 'trial'),
+    ('inst_1785181082476_eiy0k', 'Inst 1785181082476 Eiy0k', 'inst1785181082476eiy0k@placeholder.local', 'trial'),
+    ('inst_1787071694218_p64ub', 'Inst 1787071694218 P64ub', 'inst1787071694218p64ub@placeholder.local', 'trial'),
+    ('county_1787230534995', 'County 1787230534995', 'county1787230534995@placeholder.local', 'trial'),
+    ('inst_1788944502601_e4li8', 'Inst 1788944502601 E4li8', 'inst1788944502601e4li8@placeholder.local', 'trial'),
+    ('demo_coop_9vr5earpe', 'Demo Coop 9vr5earpe', 'democoop9vr5earpe@placeholder.local', 'trial'),
+    ('demo_coop_t3t6snx7s', 'Demo Coop T3t6snx7s', 'democoopt3t6snx7s@placeholder.local', 'trial'),
+    ('demo_coop_unubxygq1', 'Demo Coop Unubxygq1', 'democoopunubxygq1@placeholder.local', 'trial'),
+    ('demo_edu_7q6le23sv', 'Demo Edu 7q6le23sv', 'demoedu7q6le23sv@placeholder.local', 'trial'),
+    ('demo_edu_f6raq10ne', 'Demo Edu F6raq10ne', 'demoeduf6raq10ne@placeholder.local', 'trial'),
+    ('demo_edu_k77u3mt4o', 'Demo Edu K77u3mt4o', 'demoeduk77u3mt4o@placeholder.local', 'trial'),
+    ('demo_edu_n2zfnzyhz', 'Demo Edu N2zfnzyhz', 'demoedun2zfnzyhz@placeholder.local', 'trial'),
+    ('demo_edu_o55rx5qs0', 'Demo Edu O55rx5qs0', 'demoeduo55rx5qs0@placeholder.local', 'trial'),
+    ('demo_edu_rk8vimyoa', 'Demo Edu Rk8vimyoa', 'demoedurk8vimyoa@placeholder.local', 'trial'),
+    ('demo_edu_s9ngfxdpw', 'Demo Edu S9ngfxdpw', 'demoedus9ngfxdpw@placeholder.local', 'trial'),
+    ('demo_edu_uc2klfhxd', 'Demo Edu Uc2klfhxd', 'demoeduuc2klfhxd@placeholder.local', 'trial'),
+    ('demo_edu_uw1cepdqu', 'Demo Edu Uw1cepdqu', 'demoeduuw1cepdqu@placeholder.local', 'trial'),
+    ('demo_fuel_svz2663b7', 'Demo Fuel Svz2663b7', 'demofuelsvz2663b7@placeholder.local', 'trial'),
+    ('demo_his_2l4rq3tym', 'Demo His 2l4rq3tym', 'demohis2l4rq3tym@placeholder.local', 'trial'),
+    ('demo_his_6dwt61wjq', 'Demo His 6dwt61wjq', 'demohis6dwt61wjq@placeholder.local', 'trial'),
+    ('demo_logistics_ed7eiw62e', 'Demo Logistics Ed7eiw62e', 'demologisticsed7eiw62e@placeholder.local', 'trial'),
+    ('demo_parent_portal_uhxfsh6aj', 'Demo Parent Portal Uhxfsh6aj', 'demoparentportaluhxfsh6aj@placeholder.local', 'trial'),
+    ('demo_property_ehqsnliqg', 'Demo Property Ehqsnliqg', 'demopropertyehqsnliqg@placeholder.local', 'trial'),
+    ('demo_retail_cljivnlkf', 'Demo Retail Cljivnlkf', 'demoretailcljivnlkf@placeholder.local', 'trial'),
+    ('demo_retail_q2hpgiu07', 'Demo Retail Q2hpgiu07', 'demoretailq2hpgiu07@placeholder.local', 'trial'),
+    ('demo_retail_x8570mail', 'Demo Retail X8570mail', 'demoretailx8570mail@placeholder.local', 'trial'),
+    ('inst_1790411490864_b86an', 'Inst 1790411490864 B86an', 'inst1790411490864b86an@placeholder.local', 'trial'),
+    ('CHANGAMWE', 'CHANGAMWE', 'changamwe@placeholder.local', 'trial'),
+    ('inst_1769349351692_pm077', 'Inst 1769349351692 Pm077', 'inst1769349351692pm077@placeholder.local', 'trial'),
+    ('INST001', 'INST001', 'inst001@placeholder.local', 'trial'),
+    ('inst_6ed131dc-3498-437b-9082-76d93b481ffa', 'Inst 6ed131dc-3498-437b-9082-76d93b481ffa', 'inst6ed131dc3498437b908276d93b481ffa@placeholder.local', 'trial'),
+    ('inst_demo_coop_9vr5earpe', 'Inst Demo Coop 9vr5earpe', 'instdemocoop9vr5earpe@placeholder.local', 'trial'),
+    ('inst_demo_coop_unubxygq1', 'Inst Demo Coop Unubxygq1', 'instdemocoopunubxygq1@placeholder.local', 'trial'),
+    ('inst_GLOBAL', 'Inst GLOBAL', 'instglobal@placeholder.local', 'trial')
+ON CONFLICT (id) DO NOTHING;
 
 -- FIX STREAM DEFINITIONS & EMBEDDED DUMP COLUMNS
 ALTER TABLE public.institutions DROP COLUMN IF EXISTS "streamDefinitions" CASCADE;
@@ -132,6 +198,53 @@ BEGIN
         ADD CONSTRAINT institutions_reseller_id_fkey 
         FOREIGN KEY (reseller_id) REFERENCES public.institutions(id) ON DELETE SET NULL;
     END IF;
+END $$;
+
+-- CLEAN UP ORPHANED FOREIGN KEYS BEFORE RE-ENABLING CONSTRAINTS
+UPDATE public.users SET department_id = NULL WHERE department_id IS NOT NULL AND department_id NOT IN (SELECT id FROM public.departments);
+UPDATE public.courses SET department_id = NULL WHERE department_id IS NOT NULL AND department_id NOT IN (SELECT id FROM public.departments);
+UPDATE public.subjects SET department_id = NULL WHERE department_id IS NOT NULL AND department_id NOT IN (SELECT id FROM public.departments);
+UPDATE public.rooms SET building_id = NULL WHERE building_id IS NOT NULL AND building_id NOT IN (SELECT id FROM public.buildings);
+
+-- RE-ENABLE FOREIGN KEY CONSTRAINTS SAFELY
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_institution_id_fkey') THEN
+        ALTER TABLE public.users ADD CONSTRAINT users_institution_id_fkey FOREIGN KEY (institution_id) REFERENCES public.institutions(id) ON DELETE CASCADE;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_department_id_fkey') THEN
+        ALTER TABLE public.users ADD CONSTRAINT users_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'courses_department_id_fkey') THEN
+        ALTER TABLE public.courses ADD CONSTRAINT courses_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'subjects_department_id_fkey') THEN
+        ALTER TABLE public.subjects ADD CONSTRAINT subjects_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'rooms_building_id_fkey') THEN
+        ALTER TABLE public.rooms ADD CONSTRAINT rooms_building_id_fkey FOREIGN KEY (building_id) REFERENCES public.buildings(id) ON DELETE SET NULL;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 `;
 
@@ -307,6 +420,17 @@ async function patchFile(filename) {
 
         if (line.includes('county_id TEXT REFERENCES counties(id)')) {
             line = line.replace('county_id TEXT REFERENCES counties(id) ON DELETE SET NULL', 'county_id TEXT');
+        }
+
+        if (line.includes('institution_id TEXT NOT NULL REFERENCES institutions(id)')) {
+            line = line.replace('institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE', 'institution_id TEXT');
+            line = line.replace('institution_id TEXT NOT NULL REFERENCES institutions(id)', 'institution_id TEXT');
+        }
+
+        if (line.includes('institution_id TEXT REFERENCES institutions(id)')) {
+            line = line.replace('institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE', 'institution_id TEXT');
+            line = line.replace('institution_id TEXT REFERENCES institutions(id) ON DELETE SET NULL', 'institution_id TEXT');
+            line = line.replace('institution_id TEXT REFERENCES institutions(id)', 'institution_id TEXT');
         }
 
         if (line.includes('county_1770545434249')) {
