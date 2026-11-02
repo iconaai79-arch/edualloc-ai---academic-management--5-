@@ -21,6 +21,8 @@ import { CheckIcon } from './icons/CheckIcon';
 import { ClipboardListIcon } from './icons/ClipboardListIcon';
 import { TruckIcon } from './icons/TruckIcon';
 import { CarIcon } from './icons/CarIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { MinusIcon } from './icons/MinusIcon';
 import { CourierSignupModal } from './retail/CourierSignupModal';
 import { VehicleMarketplaceView } from './VehicleMarketplaceView';
 
@@ -58,6 +60,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [showCourierSignup, setShowCourierSignup] = useState(false);
     const [registratorInstId, setRegistratorInstId] = useState<string>('');
 
+    // Quantity & Delivery Location Enhancements
+    const [orderQuantity, setOrderQuantity] = useState<number>(1);
+    const [deliverySearchQuery, setDeliverySearchQuery] = useState<string>('');
+    const [specificAddress, setSpecificAddress] = useState<string>('');
+    const [isCustomDelivery, setIsCustomDelivery] = useState<boolean>(false);
+    const [customDestination, setCustomDestination] = useState<string>('');
+
     useEffect(() => {
         if (inquiryProduct) {
             fetchLogisticsOptions(inquiryProduct.institutionId);
@@ -79,22 +88,41 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
         setMpesaProcessing(true);
         try {
-            const amount = Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0) + Number(selectedRate.rate);
+            const unitPrice = Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0);
+            const deliveryFee = Number(selectedRate.rate || 0);
+            const itemsTotal = unitPrice * orderQuantity;
+            const amount = itemsTotal + deliveryFee;
+            const destinationName = isCustomDelivery ? (customDestination.trim() || 'Custom Destination') : (selectedRate.destination || 'Pickup');
+            const fullAddress = specificAddress.trim() ? `${specificAddress.trim()} (${destinationName})` : destinationName;
             
             // 1. Create the order record in 'Pending' status
             const orderId = crypto.randomUUID();
             await apiService.saveModuleRecord('retail_marketplace_orders', {
                 id: orderId,
                 institutionId: inquiryProduct.institutionId,
+                institution_id: inquiryProduct.institutionId,
                 product_id: inquiryProduct.id,
                 customer_name: inquiryData.name,
                 customer_phone: inquiryData.phone,
                 customer_email: inquiryData.email,
-                destination: selectedRate.destination,
-                delivery_fee: selectedRate.rate,
+                destination: destinationName,
+                delivery_address: fullAddress,
+                destination_id: selectedRate.id !== 'custom' ? selectedRate.id : undefined,
+                items_json: [{
+                    id: inquiryProduct.id,
+                    name: inquiryProduct.name,
+                    unitPrice: unitPrice,
+                    quantity: orderQuantity,
+                    total: itemsTotal
+                }],
+                items_total: itemsTotal,
+                quantity: orderQuantity,
+                unit_price: unitPrice,
+                delivery_fee: deliveryFee,
                 total_amount: amount,
                 payment_status: 'Pending',
-                order_status: 'Received'
+                order_status: 'Received',
+                created_at: new Date().toISOString()
             });
 
             // 2. Trigger M-Pesa STK Push
@@ -102,14 +130,14 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 amount: 1, // Using 1 KES for testing/safety or the real amount
                 phoneNumber: inquiryData.phone.replace(/\+/g, ''),
                 reference: `ORD-${orderId.slice(0, 8)}`,
-                description: `Payment for ${inquiryProduct.name}`,
+                description: `${orderQuantity}x ${inquiryProduct.name}`.slice(0, 30),
                 institutionId: inquiryProduct.institutionId
             });
 
             if (response.CheckoutRequestID) {
                 setPaymentId(response.CheckoutRequestID);
                 // Start polling for payment status
-                pollPaymentStatus(response.CheckoutRequestID, orderId);
+                pollPaymentStatus(response.CheckoutRequestID, orderId, orderQuantity);
             }
         } catch (error) {
             console.error('Checkout failed:', error);
@@ -118,7 +146,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         }
     };
 
-    const pollPaymentStatus = async (checkoutId: string, orderId: string) => {
+    const pollPaymentStatus = async (checkoutId: string, orderId: string, qtyPurchased: number = 1) => {
         let attempts = 0;
         const interval = setInterval(async () => {
             attempts++;
@@ -141,11 +169,11 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         payment_reference: status.MpesaReceiptNumber
                     });
 
-                    // Decrement inventory
+                    // Decrement inventory by quantity purchased
                     if (inquiryProduct) {
                         await apiService.saveModuleRecord('retail_inventory', {
                             id: inquiryProduct.id,
-                            quantity: Math.max(0, (inquiryProduct.quantity || 0) - 1)
+                            quantity: Math.max(0, (inquiryProduct.quantity || 0) - qtyPurchased)
                         });
                     }
 
@@ -197,6 +225,11 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             setInquiryData({ name: '', email: '', phone: '', message: '' });
             setCheckoutStep('details');
             setSelectedRate(null);
+            setOrderQuantity(1);
+            setDeliverySearchQuery('');
+            setSpecificAddress('');
+            setIsCustomDelivery(false);
+            setCustomDestination('');
         }
         setInquirySuccess(false);
         setInquirySubmitting(false);
@@ -474,6 +507,20 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     });
 
     const getSeller = (instId: string) => institutions.find(i => i.id === instId);
+
+    const filteredDeliveryRates = deliveryRates.filter(rate => {
+        if (!deliverySearchQuery.trim()) return true;
+        const q = deliverySearchQuery.toLowerCase();
+        const dest = (rate.destination || '').toLowerCase();
+        const courier = (rate.courier_name || rate.courierName || '').toLowerCase();
+        return dest.includes(q) || courier.includes(q);
+    });
+
+    const activeUnitPrice = Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0);
+    const availableStock = Math.max(1, Number(inquiryProduct?.quantity || 1));
+    const activeItemsSubtotal = activeUnitPrice * orderQuantity;
+    const activeDeliveryFee = Number(selectedRate?.rate || 0);
+    const activeTotalAmount = activeItemsSubtotal + activeDeliveryFee;
 
     if (loading) {
         return (
@@ -1308,19 +1355,24 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
             {/* ── Checkout / Express Interest Modal ── */}
             {(inquiryListing || inquiryProduct) && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
                     <div
                         className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-500"
                         onClick={() => {
                             if (!inquirySubmitting && !mpesaProcessing) {
                                 setInquiryListing(null);
                                 setInquiryProduct(null);
+                                setOrderQuantity(1);
+                                setDeliverySearchQuery('');
+                                setSpecificAddress('');
+                                setIsCustomDelivery(false);
+                                setCustomDestination('');
                             }
                         }}
                     ></div>
-                    <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500">
+                    <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] sm:rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500 border border-slate-100 dark:border-slate-800">
                         {/* Header */}
-                        <div className={`p-10 text-white relative overflow-hidden ${inquiryProduct ? 'bg-indigo-600' : 'bg-orange-600'}`}>
+                        <div className={`p-8 sm:p-10 text-white relative overflow-hidden ${inquiryProduct ? 'bg-indigo-600' : 'bg-orange-600'}`}>
                             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 animate-pulse"></div>
 
                             <div className="relative z-10 flex justify-between items-start">
@@ -1328,7 +1380,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-2">
                                         {inquiryProduct ? 'Express Fulfillment' : 'Intelligence Protocol'}
                                     </p>
-                                    <h3 className="text-3xl font-black uppercase tracking-tighter italic leading-none truncate max-w-md">
+                                    <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter italic leading-none truncate max-w-xs sm:max-w-md">
                                         {inquiryListing?.title || inquiryProduct?.name}
                                     </h3>
                                     
@@ -1348,7 +1400,15 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 </div>
                                 <button
                                     disabled={inquirySubmitting || mpesaProcessing}
-                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
+                                    onClick={() => { 
+                                        setInquiryListing(null); 
+                                        setInquiryProduct(null); 
+                                        setOrderQuantity(1);
+                                        setDeliverySearchQuery('');
+                                        setSpecificAddress('');
+                                        setIsCustomDelivery(false);
+                                        setCustomDestination('');
+                                    }}
                                     className="p-3 bg-white/10 hover:bg-white text-white hover:text-slate-900 rounded-2xl transition-all"
                                 >
                                     <XIcon className="w-5 h-5" />
@@ -1357,105 +1417,330 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         </div>
 
                         {inquirySuccess ? (
-                            <div className="p-12 text-center space-y-8 animate-in zoom-in-95 duration-500">
+                            <div className="p-10 sm:p-12 text-center space-y-8 animate-in zoom-in-95 duration-500">
                                 <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto relative">
                                     <div className="absolute inset-0 bg-emerald-500/20 rounded-[2.5rem] animate-ping opacity-20"></div>
                                     <CheckCircleIcon className="w-12 h-12 text-emerald-500" />
                                 </div>
                                 <div className="space-y-4">
                                     <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Order Authenticated</h4>
-                                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-loose max-w-xs mx-auto">
+                                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-loose max-w-sm mx-auto">
                                         {inquiryProduct 
-                                            ? `Retail logistics initialized. Your items will be dispatched to ${selectedRate?.destination} within ${selectedRate?.estimated_days || selectedRate?.estimatedDays || 1} work days.` 
+                                            ? `Retail logistics initialized for ${orderQuantity}x ${inquiryProduct.name}. Your items will be dispatched to ${isCustomDelivery ? customDestination : selectedRate?.destination}${specificAddress ? ` (${specificAddress})` : ''} within ${selectedRate?.estimated_days || selectedRate?.estimatedDays || 1} work days.` 
                                             : `Transmission successful. Our field agents will contact you at ${inquiryPhone} for further intelligence.`}
                                     </p>
                                 </div>
                                 <button
-                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
+                                    onClick={() => { 
+                                        setInquiryListing(null); 
+                                        setInquiryProduct(null); 
+                                        setOrderQuantity(1);
+                                        setDeliverySearchQuery('');
+                                        setSpecificAddress('');
+                                        setIsCustomDelivery(false);
+                                        setCustomDestination('');
+                                    }}
                                     className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-6 rounded-3xl font-black text-[10px] uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
                                 >
-                                    Terminate Protocol
+                                    Done
                                 </button>
                             </div>
                         ) : (
-                            <div className="p-10">
+                            <div className="p-8 sm:p-10 max-h-[75vh] overflow-y-auto no-scrollbar">
                                 {checkoutStep === 'details' && (
-                                    <div className="space-y-8 animate-in slide-in-from-right duration-500">
+                                    <div className="space-y-6 animate-in slide-in-from-right duration-500">
+                                        {/* Retail Product Order Card & Quantity Selector */}
+                                        {inquiryProduct && (
+                                            <div className="p-5 glass-card rounded-[2rem] border border-indigo-500/15 space-y-4">
+                                                <div className="flex items-center gap-4">
+                                                    {inquiryProduct.imageUrl ? (
+                                                        <img
+                                                            src={inquiryProduct.imageUrl}
+                                                            alt={inquiryProduct.name}
+                                                            className="w-16 h-16 rounded-2xl object-cover bg-slate-100 dark:bg-slate-800 flex-shrink-0"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center flex-shrink-0 text-indigo-500">
+                                                            <ShoppingCartIcon className="w-8 h-8" />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500 px-2 py-0.5 rounded-md bg-indigo-500/10">
+                                                                {inquiryProduct.category || 'Retail Item'}
+                                                            </span>
+                                                            <span className={`text-[9px] font-black uppercase tracking-widest ${availableStock > 5 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                                                {availableStock} in stock
+                                                            </span>
+                                                        </div>
+                                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic truncate">
+                                                            {inquiryProduct.name}
+                                                        </h4>
+                                                        <p className="text-xs font-black text-slate-900 dark:text-white">
+                                                            KES {activeUnitPrice.toLocaleString()} <span className="text-[9px] font-medium text-slate-400">/ unit</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                {/* Quantity Controls */}
+                                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                                                    <div>
+                                                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 block">Quantity (Qty)</span>
+                                                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
+                                                            Subtotal: KES {activeItemsSubtotal.toLocaleString()}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-2xl">
+                                                        <button
+                                                            type="button"
+                                                            disabled={orderQuantity <= 1}
+                                                            onClick={() => setOrderQuantity(prev => Math.max(1, prev - 1))}
+                                                            className="w-8 h-8 rounded-xl bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                                                            title="Decrease Quantity"
+                                                        >
+                                                            <MinusIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            max={availableStock}
+                                                            value={orderQuantity}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value, 10);
+                                                                if (!isNaN(val)) {
+                                                                    setOrderQuantity(Math.min(Math.max(1, val), availableStock));
+                                                                }
+                                                            }}
+                                                            className="w-10 text-center bg-transparent font-black text-sm text-slate-900 dark:text-white outline-none"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            disabled={orderQuantity >= availableStock}
+                                                            onClick={() => setOrderQuantity(prev => Math.min(availableStock, prev + 1))}
+                                                            className="w-8 h-8 rounded-xl bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
+                                                            title="Increase Quantity"
+                                                        >
+                                                            <PlusIcon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="space-y-4">
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Full Identity</label>
+                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Full Identity / Name</label>
                                                 <input
                                                     type="text"
                                                     value={inquiryProduct ? inquiryData.name : inquiryName}
                                                     onChange={e => inquiryProduct ? setInquiryData({...inquiryData, name: e.target.value}) : setInquiryName(e.target.value)}
-                                                    placeholder="Quantum Alias or Name"
-                                                    className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border-none"
+                                                    placeholder="Full Name / Buyer Name"
+                                                    className="w-full p-5 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Communication Line</label>
+                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Communication Line / Phone</label>
                                                 <input
                                                     type="tel"
                                                     value={inquiryProduct ? inquiryData.phone : inquiryPhone}
                                                     onChange={e => inquiryProduct ? setInquiryData({...inquiryData, phone: e.target.value}) : setInquiryPhone(e.target.value)}
-                                                    placeholder="+254..."
-                                                    className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border-none"
+                                                    placeholder="+254 7..."
+                                                    className="w-full p-5 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
                                                 />
                                             </div>
                                             {inquiryProduct && (
-                                                 <div className="space-y-2">
-                                                 <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Email Channel</label>
-                                                 <input
-                                                     type="email"
-                                                     value={inquiryData.email}
-                                                     onChange={e => setInquiryData({...inquiryData, email: e.target.value})}
-                                                     placeholder="secure@mail.io"
-                                                     className="w-full p-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border-none"
-                                                 />
-                                             </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Email Address</label>
+                                                    <input
+                                                        type="email"
+                                                        value={inquiryData.email}
+                                                        onChange={e => setInquiryData({...inquiryData, email: e.target.value})}
+                                                        placeholder="customer@email.com"
+                                                        className="w-full p-5 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
+                                                    />
+                                                </div>
                                             )}
                                         </div>
                                         <button
                                             onClick={() => inquiryProduct ? setCheckoutStep('delivery') : handleSubmitInquiry(new Event('submit') as any)}
-                                            disabled={inquirySubmitting}
-                                            className="w-full py-7 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-slate-900 dark:bg-indigo-600 shadow-indigo-600/30"
+                                            disabled={inquirySubmitting || (inquiryProduct ? (!inquiryData.name || !inquiryData.phone) : (!inquiryName || !inquiryPhone))}
+                                            className="w-full py-6 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-slate-900 dark:bg-indigo-600 shadow-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            {inquirySubmitting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : (inquiryProduct ? 'Configure Logistics' : 'Initialize Request')}
+                                            {inquirySubmitting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : (inquiryProduct ? `Configure Logistics (KES ${activeItemsSubtotal.toLocaleString()})` : 'Initialize Request')}
                                         </button>
                                     </div>
                                 )}
 
                                 {checkoutStep === 'delivery' && (
-                                    <div className="space-y-8 animate-in slide-in-from-right duration-500">
-                                        <div className="space-y-6">
-                                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em] ml-4">Select Target Destination</h4>
-                                            <div className="space-y-3 max-h-64 overflow-y-auto no-scrollbar pr-2">
-                                                {deliveryRates.map(rate => (
+                                    <div className="space-y-6 animate-in slide-in-from-right duration-500">
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between px-2">
+                                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">
+                                                    Select Target Destination
+                                                </h4>
+                                                {deliveryRates.length > 0 && (
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        {filteredDeliveryRates.length} destination{filteredDeliveryRates.length === 1 ? '' : 's'}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Search Delivery Location Bar */}
+                                            <div className="relative">
+                                                <SearchIcon className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    type="text"
+                                                    value={deliverySearchQuery}
+                                                    onChange={e => setDeliverySearchQuery(e.target.value)}
+                                                    placeholder="Search delivery location, city, or town..."
+                                                    className="w-full pl-13 pr-10 py-4 glass-card rounded-[1.75rem] font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
+                                                />
+                                                {deliverySearchQuery && (
                                                     <button
-                                                        key={rate.id}
-                                                        onClick={() => setSelectedRate(rate)}
-                                                        className={`w-full p-6 rounded-[2rem] border-2 transition-all flex justify-between items-center ${selectedRate?.id === rate.id ? 'border-indigo-500 bg-indigo-500/5 shadow-lg' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                                        type="button"
+                                                        onClick={() => setDeliverySearchQuery('')}
+                                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                                                     >
-                                                        <div className="flex flex-col items-start gap-1">
-                                                            <span className="font-black text-slate-900 dark:text-white uppercase italic">{rate.destination}</span>
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{rate.estimated_days || rate.estimatedDays || 1} Day Delivery</span>
-                                                        </div>
-                                                        <span className="text-lg font-black text-indigo-600">KES {rate.rate}</span>
+                                                        <XIcon className="w-4 h-4" />
                                                     </button>
-                                                ))}
+                                                )}
+                                            </div>
+
+                                            {/* Destinations List */}
+                                            <div className="space-y-2.5 max-h-56 overflow-y-auto no-scrollbar pr-1">
+                                                {filteredDeliveryRates.map(rate => {
+                                                    const isSelected = selectedRate?.id === rate.id && !isCustomDelivery;
+                                                    return (
+                                                        <button
+                                                            key={rate.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedRate(rate);
+                                                                setIsCustomDelivery(false);
+                                                            }}
+                                                            className={`w-full p-4 rounded-[1.75rem] border-2 transition-all flex justify-between items-center text-left ${isSelected ? 'border-indigo-500 bg-indigo-500/10 shadow-md ring-1 ring-indigo-500' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                                                    <MapPinIcon className="w-4 h-4" />
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-black text-slate-900 dark:text-white uppercase italic text-xs">{rate.destination}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                        {rate.courier_name || rate.courierName ? `${rate.courier_name || rate.courierName} • ` : ''}
+                                                                        {rate.estimated_days || rate.estimatedDays || 1} Day Delivery
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <span className="text-sm font-black text-indigo-600 dark:text-indigo-400">
+                                                                KES {Number(rate.rate).toLocaleString()}
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+
+                                                {/* Custom / Other Delivery Location Button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsCustomDelivery(true);
+                                                        setSelectedRate({
+                                                            id: 'custom',
+                                                            destination: customDestination || 'Custom Destination',
+                                                            rate: 0,
+                                                            estimated_days: 2
+                                                        });
+                                                    }}
+                                                    className={`w-full p-4 rounded-[1.75rem] border-2 transition-all flex justify-between items-center text-left ${isCustomDelivery ? 'border-indigo-500 bg-indigo-500/10 shadow-md ring-1 ring-indigo-500' : 'border-dashed border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isCustomDelivery ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                                            <TruckIcon className="w-4 h-4" />
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-black text-slate-900 dark:text-white uppercase italic text-xs">
+                                                                Other / Custom Destination
+                                                            </span>
+                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                                                Enter your specific town, county, or area
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                                                        Manual Location
+                                                    </span>
+                                                </button>
+
+                                                {filteredDeliveryRates.length === 0 && deliveryRates.length > 0 && (
+                                                    <div className="p-4 text-center glass-card rounded-2xl">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">
+                                                            No preset destinations matching "{deliverySearchQuery}". Choose "Other / Custom Destination" above.
+                                                        </p>
+                                                    </div>
+                                                )}
+
                                                 {deliveryRates.length === 0 && (
-                                                    <div className="p-8 text-center glass-card rounded-[2rem]">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">No logistics routes discovered for this zone yet.</p>
+                                                    <div className="p-4 text-center glass-card rounded-2xl">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">
+                                                            No preset routes configured. Please enter your custom location below.
+                                                        </p>
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* Custom Location Town Input */}
+                                            {isCustomDelivery && (
+                                                <div className="p-4 glass-card rounded-[1.75rem] border border-indigo-500/20 space-y-2 animate-in fade-in slide-in-from-top-2">
+                                                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">
+                                                        Your Destination Town / City / County *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={customDestination}
+                                                        onChange={e => {
+                                                            setCustomDestination(e.target.value);
+                                                            setSelectedRate({
+                                                                id: 'custom',
+                                                                destination: e.target.value || 'Custom Destination',
+                                                                rate: 0,
+                                                                estimated_days: 2
+                                                            });
+                                                        }}
+                                                        placeholder="e.g. Kitale, Naivasha, Kericho, Malindi..."
+                                                        className="w-full p-4 glass-card rounded-2xl font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200 dark:border-slate-700"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {/* Specific Delivery Address / Landmark */}
+                                            <div className="space-y-1.5 pt-2">
+                                                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">
+                                                    Specific Street Address / Building / Landmark <span className="text-indigo-500 font-bold">(Recommended)</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={specificAddress}
+                                                    onChange={e => setSpecificAddress(e.target.value)}
+                                                    placeholder="e.g. Kimathi Street, Pioneer Plaza 3rd Floor, Door 304 / Near Post Office"
+                                                    className="w-full p-4 glass-card rounded-2xl font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200 dark:border-slate-700"
+                                                />
+                                            </div>
                                         </div>
+
                                         <div className="flex gap-4">
-                                            <button onClick={() => setCheckoutStep('details')} className="px-8 py-7 glass-card rounded-[2rem] font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-800 transition-all">Back</button>
                                             <button
-                                                disabled={!selectedRate}
+                                                type="button"
+                                                onClick={() => setCheckoutStep('details')}
+                                                className="px-8 py-5.5 glass-card rounded-[2rem] font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                                            >
+                                                Back
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={!selectedRate || (isCustomDelivery && !customDestination.trim())}
                                                 onClick={() => setCheckoutStep('payment')}
-                                                className="flex-1 py-7 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-indigo-600 shadow-indigo-600/30 disabled:opacity-50"
+                                                className="flex-1 py-5.5 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-indigo-600 shadow-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 Next Protocol
                                             </button>
@@ -1464,45 +1749,114 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                 )}
 
                                 {checkoutStep === 'payment' && inquiryProduct && (
-                                    <div className="space-y-8 animate-in slide-in-from-right duration-500">
-                                        <div className="glass-card p-10 rounded-[3rem] border border-indigo-500/10">
-                                            <div className="space-y-6">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Base Item</span>
-                                                    <span className="font-bold text-slate-900 dark:text-white italic">KES {Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0)?.toLocaleString()}</span>
+                                    <div className="space-y-6 animate-in slide-in-from-right duration-500">
+                                        <div className="glass-card p-8 rounded-[2.5rem] border border-indigo-500/10 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Product
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white italic text-right truncate max-w-[200px]">
+                                                    {inquiryProduct.name}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Unit Price
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white italic">
+                                                    KES {activeUnitPrice.toLocaleString()}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Quantity
+                                                </span>
+                                                <span className="font-black text-indigo-600 dark:text-indigo-400 italic">
+                                                    × {orderQuantity} {orderQuantity === 1 ? 'unit' : 'units'}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                    Items Subtotal
+                                                </span>
+                                                <span className="font-bold text-slate-900 dark:text-white italic">
+                                                    KES {activeItemsSubtotal.toLocaleString()}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic truncate max-w-[200px]">
+                                                    {isCustomDelivery ? customDestination : selectedRate?.destination} Transit
+                                                </span>
+                                                <span className="font-bold text-indigo-600 italic">
+                                                    {activeDeliveryFee > 0 ? `KES ${activeDeliveryFee.toLocaleString()}` : 'Coordinated at delivery'}
+                                                </span>
+                                            </div>
+
+                                            {specificAddress.trim() && (
+                                                <div className="flex justify-between items-start pt-1">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                        Address
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 text-right truncate max-w-[240px]">
+                                                        {specificAddress}
+                                                    </span>
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{selectedRate?.destination} Transit</span>
-                                                    <span className="font-bold text-indigo-600 italic">KES {selectedRate?.rate?.toLocaleString()}</span>
-                                                </div>
-                                                <div className="h-px bg-slate-100 dark:bg-slate-800"></div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">Total Intelligence</span>
-                                                    <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">KES {(Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0) + Number(selectedRate?.rate || 0))?.toLocaleString()}</span>
-                                                </div>
+                                            )}
+
+                                            <div className="h-px bg-slate-100 dark:bg-slate-800"></div>
+
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">
+                                                    Total Payable
+                                                </span>
+                                                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">
+                                                    KES {activeTotalAmount.toLocaleString()}
+                                                </span>
                                             </div>
                                         </div>
 
                                         <button
                                             onClick={handleProcessPayment}
                                             disabled={mpesaProcessing}
-                                            className="w-full bg-emerald-600 text-white py-8 rounded-[3rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-emerald-600/30 hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-6"
+                                            className="w-full bg-emerald-600 text-white py-7 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-emerald-600/30 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4"
                                         >
                                             {mpesaProcessing ? (
                                                 <>
                                                     <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                                                    <span className="animate-pulse">Check Phone for STK</span>
+                                                    <span className="animate-pulse">Check Phone for STK Push</span>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <div className="flex -space-x-2">
-                                                        <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-emerald-600 font-bold text-[8px] border-2 border-emerald-600">MPESA</div>
+                                                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-emerald-600 font-bold text-[8px] border-2 border-emerald-600">
+                                                        MPESA
                                                     </div>
-                                                    STK Push Payment
+                                                    STK Push Payment (KES {activeTotalAmount.toLocaleString()})
                                                 </>
                                             )}
                                         </button>
-                                        <button onClick={() => setCheckoutStep('delivery')} disabled={mpesaProcessing} className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900">Change Logistics Destination</button>
+
+                                        <div className="flex justify-between items-center px-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setCheckoutStep('delivery')}
+                                                disabled={mpesaProcessing}
+                                                className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors"
+                                            >
+                                                ← Change Delivery Location
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCheckoutStep('details')}
+                                                disabled={mpesaProcessing}
+                                                className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors"
+                                            >
+                                                Adjust Quantity ({orderQuantity})
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
