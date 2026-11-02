@@ -203,9 +203,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 created_at: new Date().toISOString()
             });
 
-            // 2. Trigger M-Pesa STK Push
+            // 2. Trigger M-Pesa STK Push with real payable total amount
+            const payableAmount = Math.max(1, Math.round(amount));
             const response = await apiService.triggerMpesaStkPush({
-                amount: 1, // Using 1 KES for testing/safety
+                amount: payableAmount,
                 phoneNumber: inquiryData.phone.replace(/\+/g, ''),
                 reference: `ORD-${orderId.slice(0, 8)}`,
                 description: `${orderQuantity}x ${inquiryProduct.name}`.slice(0, 30),
@@ -1828,7 +1829,21 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                         >
                                                             <MinusIcon className="w-3.5 h-3.5" />
                                                         </button>
-                                                        <span className="w-8 text-center font-black text-xs">{orderQuantity}</span>
+                                                        <input
+                                                            type="number"
+                                                            min={1}
+                                                            max={availableStock}
+                                                            value={orderQuantity}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value, 10);
+                                                                if (!isNaN(val)) {
+                                                                    setOrderQuantity(Math.max(1, Math.min(availableStock, val)));
+                                                                } else if (e.target.value === '') {
+                                                                    setOrderQuantity(1);
+                                                                }
+                                                            }}
+                                                            className="w-12 text-center font-black text-xs bg-transparent border-0 outline-none p-0 text-slate-900 dark:text-white"
+                                                        />
                                                         <button
                                                             type="button"
                                                             disabled={orderQuantity >= availableStock}
