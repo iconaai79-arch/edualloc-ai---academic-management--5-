@@ -407,6 +407,10 @@ DECLARE
 BEGIN
     -- 1. Ensure institution_id PK for library_settings and ds_settings
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+        BEGIN
+            UPDATE public.library_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.library_settings'::regclass AND contype = 'p') THEN
             BEGIN
                 ALTER TABLE public.library_settings ADD PRIMARY KEY (institution_id);
@@ -415,6 +419,10 @@ BEGIN
         END IF;
     END IF;
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+        BEGIN
+            UPDATE public.ds_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ds_settings'::regclass AND contype = 'p') THEN
             BEGIN
                 ALTER TABLE public.ds_settings ADD PRIMARY KEY (institution_id);
@@ -755,6 +763,10 @@ DECLARE
 BEGIN
     -- 1. Ensure institution_id PK for library_settings and ds_settings
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+        BEGIN
+            UPDATE public.library_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.library_settings'::regclass AND contype = 'p') THEN
             BEGIN
                 ALTER TABLE public.library_settings ADD PRIMARY KEY (institution_id);
@@ -763,6 +775,10 @@ BEGIN
         END IF;
     END IF;
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+        BEGIN
+            UPDATE public.ds_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ds_settings'::regclass AND contype = 'p') THEN
             BEGIN
                 ALTER TABLE public.ds_settings ADD PRIMARY KEY (institution_id);

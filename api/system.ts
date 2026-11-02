@@ -543,6 +543,111 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const executionErrors: any[] = [];
                 let successCount = 0;
 
+                // Pre-import schema resilience for critical tables (library_settings, ds_settings, etc.)
+                // Ensures all compatibility columns and column-sync triggers are installed before batch execution.
+                const touchesSettings = statementsToRun.some((st: string) => /library_settings|ds_settings/i.test(st));
+                if (touchesSettings) {
+                    try {
+                        const initClient = await pool.connect();
+                        await initClient.query(`
+                            DO $$
+                            BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "overdueFinePerDay" TEXT;
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "maxBooksPerUser" BIGINT;
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "reservationExpiryDays" BIGINT;
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "defaultLendingPeriodDays" BIGINT;
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "id" TEXT;
+                                END IF;
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "schedulingRules" JSONB;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "autoSchedulingEnabled" BOOLEAN;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "invoicePrefix" TEXT;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "receiptPrefix" TEXT;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "studentIdPrefix" TEXT;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "licenseCategories" JSONB;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "licenseGroups" JSONB;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "cancellationPolicy" TEXT;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+                                END IF;
+                                BEGIN
+                                    UPDATE public.library_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+                                EXCEPTION WHEN OTHERS THEN NULL;
+                                END;
+                                BEGIN
+                                    UPDATE public.ds_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
+                                EXCEPTION WHEN OTHERS THEN NULL;
+                                END;
+                            END $$;
+
+                            CREATE OR REPLACE FUNCTION public.sync_library_settings_columns() RETURNS TRIGGER AS $$
+                            BEGIN
+                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
+                                    NEW.institution_id := NEW."institutionId";
+                                END IF;
+                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                    NEW."institutionId" := NEW.institution_id;
+                                END IF;
+                                IF NEW.overdue_fine_per_day IS NULL AND NEW."overdueFinePerDay" IS NOT NULL THEN
+                                    BEGIN NEW.overdue_fine_per_day := NEW."overdueFinePerDay"::NUMERIC; EXCEPTION WHEN OTHERS THEN NULL; END;
+                                END IF;
+                                IF NEW.max_books_per_user IS NULL AND NEW."maxBooksPerUser" IS NOT NULL THEN
+                                    NEW.max_books_per_user := NEW."maxBooksPerUser";
+                                END IF;
+                                IF NEW.reservation_expiry_days IS NULL AND NEW."reservationExpiryDays" IS NOT NULL THEN
+                                    NEW.reservation_expiry_days := NEW."reservationExpiryDays";
+                                END IF;
+                                IF NEW.default_lending_period_days IS NULL AND NEW."defaultLendingPeriodDays" IS NOT NULL THEN
+                                    NEW.default_lending_period_days := NEW."defaultLendingPeriodDays";
+                                END IF;
+                                RETURN NEW;
+                            END;
+                            $$ LANGUAGE plpgsql;
+
+                            DO $$
+                            BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+                                    DROP TRIGGER IF EXISTS trg_sync_library_settings_columns ON public.library_settings;
+                                    CREATE TRIGGER trg_sync_library_settings_columns
+                                    BEFORE INSERT OR UPDATE ON public.library_settings
+                                    FOR EACH ROW EXECUTE FUNCTION public.sync_library_settings_columns();
+                                END IF;
+                            END $$;
+
+                            CREATE OR REPLACE FUNCTION public.sync_ds_settings_columns() RETURNS TRIGGER AS $$
+                            BEGIN
+                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
+                                    NEW.institution_id := NEW."institutionId";
+                                END IF;
+                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                    NEW."institutionId" := NEW.institution_id;
+                                END IF;
+                                RETURN NEW;
+                            END;
+                            $$ LANGUAGE plpgsql;
+
+                            DO $$
+                            BEGIN
+                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+                                    DROP TRIGGER IF EXISTS trg_sync_ds_settings_columns ON public.ds_settings;
+                                    CREATE TRIGGER trg_sync_ds_settings_columns
+                                    BEFORE INSERT OR UPDATE ON public.ds_settings
+                                    FOR EACH ROW EXECUTE FUNCTION public.sync_ds_settings_columns();
+                                END IF;
+                            END $$;
+                        `).catch((err) => {
+                            console.warn("[SQL Engine Pre-Import Resilience] Trigger setup query warning:", err);
+                        });
+                        initClient.release();
+                    } catch (e) {
+                        console.warn("[SQL Engine Pre-Import Resilience] Trigger initialization non-fatal error:", e);
+                    }
+                }
+
                 const sanitizeSqlStatement = (statement: string): string => {
                     if (!statement || typeof statement !== 'string') return statement;
                     let s = statement;
@@ -557,33 +662,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
                     // Explicit column remapping for library_settings:
                     if (/library_settings/i.test(s)) {
-                        s = s.replace(/(["'`])institutionId\1/g, '"institution_id"');
-                        s = s.replace(/(["'`])overdueFinePerDay\1/g, '"overdue_fine_per_day"');
-                        s = s.replace(/(["'`])maxBooksPerUser\1/g, '"max_books_per_user"');
-                        s = s.replace(/(["'`])reservationExpiryDays\1/g, '"reservation_expiry_days"');
-                        s = s.replace(/(["'`])defaultLendingPeriodDays\1/g, '"default_lending_period_days"');
-                        s = s.replace(/(["'`])updatedAt\1/g, '"updated_at"');
+                        s = s.replace(/(["'`]?)institutionId\1/g, '"institution_id"');
+                        s = s.replace(/(["'`]?)overdueFinePerDay\1/g, '"overdue_fine_per_day"');
+                        s = s.replace(/(["'`]?)maxBooksPerUser\1/g, '"max_books_per_user"');
+                        s = s.replace(/(["'`]?)reservationExpiryDays\1/g, '"reservation_expiry_days"');
+                        s = s.replace(/(["'`]?)defaultLendingPeriodDays\1/g, '"default_lending_period_days"');
+                        s = s.replace(/(["'`]?)updatedAt\1/g, '"updated_at"');
                     }
 
                     // Explicit column remapping for ds_settings:
                     if (/ds_settings/i.test(s)) {
-                        s = s.replace(/(["'`])institutionId\1/g, '"institution_id"');
-                        s = s.replace(/(["'`])schedulingRules\1/g, '"scheduling_rules"');
-                        s = s.replace(/(["'`])autoSchedulingEnabled\1/g, '"auto_scheduling_enabled"');
-                        s = s.replace(/(["'`])invoicePrefix\1/g, '"invoice_prefix"');
-                        s = s.replace(/(["'`])receiptPrefix\1/g, '"receipt_prefix"');
-                        s = s.replace(/(["'`])studentIdPrefix\1/g, '"student_id_prefix"');
-                        s = s.replace(/(["'`])licenseCategories\1/g, '"license_categories"');
-                        s = s.replace(/(["'`])licenseGroups\1/g, '"license_groups"');
-                        s = s.replace(/(["'`])cancellationPolicy\1/g, '"cancellation_policy"');
-                        s = s.replace(/(["'`])createdAt\1/g, '"created_at"');
-                        s = s.replace(/(["'`])updatedAt\1/g, '"updated_at"');
+                        s = s.replace(/(["'`]?)institutionId\1/g, '"institution_id"');
+                        s = s.replace(/(["'`]?)schedulingRules\1/g, '"scheduling_rules"');
+                        s = s.replace(/(["'`]?)autoSchedulingEnabled\1/g, '"auto_scheduling_enabled"');
+                        s = s.replace(/(["'`]?)invoicePrefix\1/g, '"invoice_prefix"');
+                        s = s.replace(/(["'`]?)receiptPrefix\1/g, '"receipt_prefix"');
+                        s = s.replace(/(["'`]?)studentIdPrefix\1/g, '"student_id_prefix"');
+                        s = s.replace(/(["'`]?)licenseCategories\1/g, '"license_categories"');
+                        s = s.replace(/(["'`]?)licenseGroups\1/g, '"license_groups"');
+                        s = s.replace(/(["'`]?)cancellationPolicy\1/g, '"cancellation_policy"');
+                        s = s.replace(/(["'`]?)createdAt\1/g, '"created_at"');
+                        s = s.replace(/(["'`]?)updatedAt\1/g, '"updated_at"');
                     }
 
                     // Universal normalization of INSERT headers:
-                    const insertMatch = s.match(/^(INSERT\s+INTO\s+(?:public\.)?["`]?([a-zA-Z0-9_]+)["`]?\s*\()([^)]+)(\)\s*VALUES[\s\S]*)$/i);
-                    if (insertMatch) {
-                        const [_, prefix, _tableName, headerCols, rest] = insertMatch;
+                    const insertMatch = s.match(/(INSERT\s+INTO\s+(?:public\.)?["`]?([a-zA-Z0-9_]+)["`]?\s*\()([^)]+)(\)\s*VALUES[\s\S]*)$/i);
+                    if (insertMatch && insertMatch.index !== undefined) {
+                        const [fullMatch, prefix, _tableName, headerCols, rest] = insertMatch;
                         const rawCols = headerCols.split(',').map(c => c.trim());
                         const existingSet = new Set(rawCols);
                         let modified = false;
@@ -610,7 +715,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         });
 
                         if (modified) {
-                            s = `${prefix}${remappedCols.join(', ')}${rest}`;
+                            s = s.substring(0, insertMatch.index) + `${prefix}${remappedCols.join(', ')}${rest}`;
                         }
                     }
 
@@ -720,6 +825,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     } catch (healErr) {
                                         console.warn(`[SQL Engine Self-Healing] Auto-add column ${missingCol} on ${missingTable} failed:`, healErr);
                                     }
+                                }
+                            }
+
+                            // Self-healing attempt 3: not-null constraint violation (code 23502), e.g. null value in column "institution_id" of relation "library_settings"
+                            if (attempt === 1 && (err?.code === '23502' || /null value in column "([^"]+)" of relation "([^"]+)" violates not-null constraint/i.test(err?.message || ''))) {
+                                const notNullMatch = (err?.message || '').match(/null value in column "([^"]+)" of relation "([^"]+)" violates not-null constraint/i);
+                                const violatingCol = notNullMatch ? notNullMatch[1] : '';
+                                const violatingTable = notNullMatch ? notNullMatch[2] : '';
+
+                                try {
+                                    const healClient = await pool.connect();
+
+                                    // Ensure sync trigger exists on library_settings / ds_settings
+                                    if (violatingTable === 'library_settings' || violatingTable === 'ds_settings' || violatingCol === 'institution_id') {
+                                        await healClient.query(`
+                                            DO $$
+                                            BEGIN
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+                                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                                END IF;
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+                                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                                END IF;
+                                            END $$;
+
+                                            CREATE OR REPLACE FUNCTION public.sync_library_settings_columns() RETURNS TRIGGER AS $$
+                                            BEGIN
+                                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
+                                                    NEW.institution_id := NEW."institutionId";
+                                                END IF;
+                                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                                    NEW."institutionId" := NEW.institution_id;
+                                                END IF;
+                                                RETURN NEW;
+                                            END;
+                                            $$ LANGUAGE plpgsql;
+
+                                            DO $$
+                                            BEGIN
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+                                                    DROP TRIGGER IF EXISTS trg_sync_library_settings_columns ON public.library_settings;
+                                                    CREATE TRIGGER trg_sync_library_settings_columns
+                                                    BEFORE INSERT OR UPDATE ON public.library_settings
+                                                    FOR EACH ROW EXECUTE FUNCTION public.sync_library_settings_columns();
+                                                END IF;
+                                            END $$;
+
+                                            CREATE OR REPLACE FUNCTION public.sync_ds_settings_columns() RETURNS TRIGGER AS $$
+                                            BEGIN
+                                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
+                                                    NEW.institution_id := NEW."institutionId";
+                                                END IF;
+                                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                                    NEW."institutionId" := NEW.institution_id;
+                                                END IF;
+                                                RETURN NEW;
+                                            END;
+                                            $$ LANGUAGE plpgsql;
+
+                                            DO $$
+                                            BEGIN
+                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+                                                    DROP TRIGGER IF EXISTS trg_sync_ds_settings_columns ON public.ds_settings;
+                                                    CREATE TRIGGER trg_sync_ds_settings_columns
+                                                    BEFORE INSERT OR UPDATE ON public.ds_settings
+                                                    FOR EACH ROW EXECUTE FUNCTION public.sync_ds_settings_columns();
+                                                END IF;
+                                            END $$;
+                                        `).catch(() => {});
+                                    }
+
+                                    // Rewrite statement replacing camelCase column with snake_case
+                                    let retryStmt = singleStmt;
+                                    if (violatingCol === 'institution_id') {
+                                        retryStmt = retryStmt.replace(/(["'`]?)institutionId\1/gi, '"institution_id"');
+                                    }
+
+                                    lastResult = await healClient.query(retryStmt);
+                                    if (lastResult?.rows && Array.isArray(lastResult.rows)) {
+                                        accumulatedRows.push(...lastResult.rows);
+                                    }
+                                    lastError = null;
+                                    stmtSuccess = true;
+                                    healClient.release();
+                                    break;
+                                } catch (healErr) {
+                                    console.warn(`[SQL Engine Self-Healing] Not-null recovery for ${violatingCol} on ${violatingTable} failed:`, healErr);
                                 }
                             }
 

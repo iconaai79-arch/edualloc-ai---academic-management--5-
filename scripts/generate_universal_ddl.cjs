@@ -111,6 +111,50 @@ async function generateUniversalDDLAndMappings() {
         ddlStatements.push(`DO $$ BEGIN ALTER TABLE public."${tbl}" ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
     }
 
+    // Append column sync triggers for library_settings and ds_settings
+    ddlStatements.push(`
+CREATE OR REPLACE FUNCTION public.sync_library_settings_columns() RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
+        NEW.institution_id := NEW."institutionId";
+    END IF;
+    IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
+        NEW."institutionId" := NEW.institution_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+        DROP TRIGGER IF EXISTS trg_sync_library_settings_columns ON public.library_settings;
+        CREATE TRIGGER trg_sync_library_settings_columns
+        BEFORE INSERT OR UPDATE ON public.library_settings
+        FOR EACH ROW EXECUTE FUNCTION public.sync_library_settings_columns();
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.sync_ds_settings_columns() RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
+        NEW.institution_id := NEW."institutionId";
+    END IF;
+    IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
+        NEW."institutionId" := NEW.institution_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+        DROP TRIGGER IF EXISTS trg_sync_ds_settings_columns ON public.ds_settings;
+        CREATE TRIGGER trg_sync_ds_settings_columns
+        BEFORE INSERT OR UPDATE ON public.ds_settings
+        FOR EACH ROW EXECUTE FUNCTION public.sync_ds_settings_columns();
+    END IF;
+END $$;`);
+
     console.log(`Generated ${ddlStatements.length} DDL statements for 100% coverage.`);
     fs.writeFileSync('scripts/generated_universal_ddl.sql', ddlStatements.join('\n'));
 }
