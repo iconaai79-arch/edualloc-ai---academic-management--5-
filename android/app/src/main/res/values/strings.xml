@@ -8,6 +8,8 @@
     <string name="shortcut_timetable_long">View Automation Timetable</string>
     <string name="shortcut_scan">Scan Doc</string>
     <string name="shortcut_scan_long">Scan Automation Document</string>
+    <string name="shortcut_marketplace">Marketplace</string>
+    <string name="shortcut_marketplace_long">EduAI B2B Wholesale Marketplace</string>
     <string name="channel_academic_updates_name">Automation Updates</string>
     <string name="channel_academic_updates_description">Notifications about automation updates and system changes.</string>
     <string name="channel_system_alerts_name">System Alerts</string>

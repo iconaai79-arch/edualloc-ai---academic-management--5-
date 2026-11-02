@@ -29,17 +29,34 @@ import { VehicleMarketplaceView } from './VehicleMarketplaceView';
 interface PropertyMarketplaceViewProps {
     onInquire?: (listing: PMListing) => void;
     carListings?: CarListing[];
+    onBackToPortal?: () => void;
 }
 
-export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = ({ onInquire, carListings }) => {
+// Category list for Alibaba-style megamenu & quick tabs
+const ALIBABA_CATEGORIES = [
+    { id: 'all', name: 'All Categories', icon: '🌐' },
+    { id: 'furniture', name: 'Desks & Furniture', icon: '🪑', query: 'furniture' },
+    { id: 'lab', name: 'Lab & Science Kits', icon: '🧪', query: 'lab' },
+    { id: 'electronics', name: 'IT & Electronics', icon: '💻', query: 'computer' },
+    { id: 'stationery', name: 'Books & Stationery', icon: '📚', query: 'book' },
+    { id: 'vehicles', name: 'School Buses & Fleet', icon: '🚌', section: 'vehicles' },
+    { id: 'properties', name: 'Campuses & Real Estate', icon: '🏫', section: 'properties' },
+    { id: 'uniforms', name: 'Uniforms & Apparel', icon: '👔', query: 'uniform' },
+    { id: 'sports', name: 'Sports & Games Gear', icon: '⚽', query: 'sport' },
+    { id: 'solar', name: 'Solar & Utilities', icon: '⚡', query: 'solar' },
+];
+
+export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = ({ onInquire, carListings, onBackToPortal }) => {
     const [listings, setListings] = useState<PMListing[]>([]);
     const [retailProducts, setRetailProducts] = useState<RetailInventoryItem[]>([]);
     const [vehicleListings, setVehicleListings] = useState<CarListing[]>([]);
     const [institutions, setInstitutions] = useState<Institution[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchCategory, setSearchCategory] = useState<'all' | 'retail' | 'properties' | 'vehicles'>('all');
     const [filterType, setFilterType] = useState<PMListingType | 'All'>('All');
-    const [activeSection, setActiveSection] = useState<'properties' | 'retail' | 'vehicles'>('properties');
+    const [activeSection, setActiveSection] = useState<'all' | 'retail' | 'properties' | 'vehicles'>('all');
+    const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
     const [selectedListing, setSelectedListing] = useState<PMListing | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<RetailInventoryItem | null>(null);
     const [inquiryListing, setInquiryListing] = useState<PMListing | null>(null);
@@ -48,7 +65,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [inquirySubmitting, setInquirySubmitting] = useState(false);
     const [inquirySuccess, setInquirySuccess] = useState(false);
     const [propertyLimit, setPropertyLimit] = useState(12);
-    const [retailLimit, setRetailLimit] = useState(12);
+    const [retailLimit, setRetailLimit] = useState(16);
     const [vehicleLimit, setVehicleLimit] = useState(12);
 
     // Logistics & Checkout State
@@ -66,6 +83,65 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [specificAddress, setSpecificAddress] = useState<string>('');
     const [isCustomDelivery, setIsCustomDelivery] = useState<boolean>(false);
     const [customDestination, setCustomDestination] = useState<string>('');
+
+    // Inquiries & Slideshow State
+    const [inquiryName, setInquiryName] = useState('');
+    const [inquiryPhone, setInquiryPhone] = useState('');
+    const [inquiryDate, setInquiryDate] = useState('');
+    const [currentSlide, setCurrentSlide] = useState(0);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [sharingItem, setSharingItem] = useState<{ id: string; title: string; type: 'property' | 'retail' } | null>(null);
+    const [copySuccess, setCopySuccess] = useState(false);
+
+    // Alibaba RFQ (Request for Quotation) Modal State
+    const [showRfqModal, setShowRfqModal] = useState(false);
+    const [rfqProductQuery, setRfqProductQuery] = useState('');
+    const [rfqQuantity, setRfqQuantity] = useState<number>(50);
+    const [rfqTargetPrice, setRfqTargetPrice] = useState('');
+    const [rfqDestination, setRfqDestination] = useState('');
+    const [rfqBuyerName, setRfqBuyerName] = useState('');
+    const [rfqBuyerPhone, setRfqBuyerPhone] = useState('');
+    const [rfqBuyerEmail, setRfqBuyerEmail] = useState('');
+    const [rfqNotes, setRfqNotes] = useState('');
+    const [rfqSubmitting, setRfqSubmitting] = useState(false);
+    const [rfqSuccess, setRfqSuccess] = useState(false);
+
+    // Android PWA 1-Tap App Install State
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+    const [isAppInstalled, setIsAppInstalled] = useState(false);
+    const [showInstallModal, setShowInstallModal] = useState(false);
+    const [showInstallBanner, setShowInstallBanner] = useState(true);
+
+    // Listen for Android beforeinstallprompt
+    useEffect(() => {
+        const handleBeforeInstall = (e: any) => {
+            e.preventDefault();
+            setDeferredPrompt(e);
+            setShowInstallBanner(true);
+        };
+        window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+
+        if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+            setIsAppInstalled(true);
+            setShowInstallBanner(false);
+        }
+
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    }, []);
+
+    const handleInstallApp = async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                setIsAppInstalled(true);
+                setShowInstallBanner(false);
+            }
+            setDeferredPrompt(null);
+        } else {
+            setShowInstallModal(true);
+        }
+    };
 
     useEffect(() => {
         if (inquiryProduct) {
@@ -88,14 +164,16 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
         setMpesaProcessing(true);
         try {
-            const unitPrice = Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0);
+            // Apply wholesale tiered pricing if applicable
+            const baseUnitPrice = Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0);
+            const unitPrice = getWholesaleUnitPrice(baseUnitPrice, orderQuantity);
             const deliveryFee = Number(selectedRate.rate || 0);
             const itemsTotal = unitPrice * orderQuantity;
             const amount = itemsTotal + deliveryFee;
             const destinationName = isCustomDelivery ? (customDestination.trim() || 'Custom Destination') : (selectedRate.destination || 'Pickup');
             const fullAddress = specificAddress.trim() ? `${specificAddress.trim()} (${destinationName})` : destinationName;
             
-            // 1. Create the order record in 'Pending' status
+            // 1. Create order record
             const orderId = crypto.randomUUID();
             await apiService.saveModuleRecord('retail_marketplace_orders', {
                 id: orderId,
@@ -127,7 +205,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
             // 2. Trigger M-Pesa STK Push
             const response = await apiService.triggerMpesaStkPush({
-                amount: 1, // Using 1 KES for testing/safety or the real amount
+                amount: 1, // Using 1 KES for testing/safety
                 phoneNumber: inquiryData.phone.replace(/\+/g, ''),
                 reference: `ORD-${orderId.slice(0, 8)}`,
                 description: `${orderQuantity}x ${inquiryProduct.name}`.slice(0, 30),
@@ -136,7 +214,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
             if (response.CheckoutRequestID) {
                 setPaymentId(response.CheckoutRequestID);
-                // Start polling for payment status
                 pollPaymentStatus(response.CheckoutRequestID, orderId, orderQuantity);
             }
         } catch (error) {
@@ -150,7 +227,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         let attempts = 0;
         const interval = setInterval(async () => {
             attempts++;
-            if (attempts > 30) { // 2 minutes timeout
+            if (attempts > 30) {
                 clearInterval(interval);
                 setMpesaProcessing(false);
                 alert('Payment timeout. Please check your phone or try again.');
@@ -162,14 +239,12 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 if (status.ResultCode === '0') {
                     clearInterval(interval);
                     
-                    // Finalize order
                     await apiService.saveModuleRecord('retail_marketplace_orders', {
                         id: orderId,
                         payment_status: 'Paid',
                         payment_reference: status.MpesaReceiptNumber
                     });
 
-                    // Decrement inventory by quantity purchased
                     if (inquiryProduct) {
                         await apiService.saveModuleRecord('retail_inventory', {
                             id: inquiryProduct.id,
@@ -180,7 +255,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     setInquirySuccess(true);
                     setMpesaProcessing(false);
                 } else if (status.ResultCode) {
-                    // Payment failed
                     clearInterval(interval);
                     setMpesaProcessing(false);
                     alert(`Payment failed: ${status.ResultDesc}`);
@@ -191,24 +265,24 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         }, 4000);
     };
 
-    const [inquiryName, setInquiryName] = useState('');
-    const [inquiryPhone, setInquiryPhone] = useState('');
-    const [inquiryDate, setInquiryDate] = useState('');
-    const [currentSlide, setCurrentSlide] = useState(0);
-    const [showShareModal, setShowShareModal] = useState(false);
-    const [sharingItem, setSharingItem] = useState<{ id: string; title: string; type: 'property' | 'retail' } | null>(null);
-    const [copySuccess, setCopySuccess] = useState(false);
+    // Calculate Alibaba-style Wholesale Tiered Pricing
+    const getWholesaleUnitPrice = (basePrice: number, qty: number): number => {
+        if (!basePrice) return 0;
+        if (qty >= 50) return Math.round(basePrice * 0.80); // 20% bulk wholesale discount
+        if (qty >= 10) return Math.round(basePrice * 0.90); // 10% volume discount
+        return basePrice;
+    };
 
     const promotedItems = [
-        ...listings.filter(l => l.isPromoted).map(l => ({ ...l, type: 'property' })),
-        ...retailProducts.filter(p => Number(p.quantity) > 0).slice(0, 5).map(p => ({ ...p, type: 'retail' }))
+        ...retailProducts.filter(p => Number(p.quantity) > 0).slice(0, 4).map(p => ({ ...p, type: 'retail' })),
+        ...listings.filter(l => l.isPromoted).map(l => ({ ...l, type: 'property' }))
     ] as any[];
 
     useEffect(() => {
         if (promotedItems.length <= 1) return;
         const timer = setInterval(() => {
             setCurrentSlide(prev => (prev + 1) % promotedItems.length);
-        }, 6000);
+        }, 5500);
         return () => clearInterval(timer);
     }, [promotedItems.length]);
 
@@ -237,7 +311,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
     const createMarketplaceNotification = async (institutionId: string, message: string, type: string, link?: string) => {
         try {
-            // Fetch all users for this institution to notify them
             const users = await apiService.fetchUsers(institutionId);
             const notifications = users.map(user => ({
                 userId: user.id,
@@ -248,8 +321,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 isRead: false,
                 timestamp: new Date().toISOString()
             }));
-
-            // Save notifications for all users
             await Promise.all(notifications.map(n => apiService.saveModuleRecord('app_notifications', n)));
         } catch (err) {
             console.error('Failed to create marketplace notifications:', err);
@@ -266,26 +337,25 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 apiService.incrementCount('pm_listings', inquiryListing.id, 'inquiry_count');
                 const seller = getSeller(inquiryListing.institutionId);
                 const isViewingRequired = inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease';
-                const subject = `Marketplace Inquiry: ${inquiryListing.title}`;
+                const subject = `[Alibaba Marketplace Inquiry]: ${inquiryListing.title}`;
                 const body = [
-                    `Hello ${seller?.name || 'Team'},`,
+                    `Hello ${seller?.name || 'Institutional Vendor'},`,
                     ``,
-                    `A potential ${inquiryListing.listingType === 'Sale' ? 'buyer' : 'tenant'} has expressed interest in your listing:`,
-                    `Title: ${inquiryListing.title}`,
+                    `A potential wholesale buyer has submitted an inquiry on the EduAI B2B Marketplace:`,
+                    `Listing: ${inquiryListing.title}`,
                     `Price: KES ${inquiryListing.price?.toLocaleString()}`,
                     `Location: ${inquiryListing.location || 'N/A'}`,
                     ``,
-                    `Interested Party Details:`,
+                    `Buyer Details:`,
                     `Name: ${inquiryName}`,
                     `Phone: ${inquiryPhone}`,
-                    isViewingRequired && inquiryDate ? `Preferred Viewing Date: ${inquiryDate}` : '',
+                    isViewingRequired && inquiryDate ? `Preferred Site Inspection Date: ${inquiryDate}` : '',
                 ].filter(Boolean).join('\n');
 
                 if (seller?.email) {
                     await apiService.sendEmail(seller.email, subject, body, getInstitutionEmailConfig(seller, seller.emailConfig));
                 }
 
-                // Save inquiry to database for portal management
                 const pmInquiry = {
                     id: `inq_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId: inquiryListing.institutionId,
@@ -293,17 +363,15 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     customerName: inquiryName,
                     phoneNumber: inquiryPhone,
                     inquiryDate: inquiryDate || null,
-                    message: `Interested in ${inquiryListing.listingType === 'Sale' ? 'buying' : 'renting'} ${inquiryListing.title}`,
+                    message: `Wholesale inquiry for ${inquiryListing.listingType} on ${inquiryListing.title}`,
                     status: 'New',
                     createdAt: new Date().toISOString()
                 };
 
                 await apiService.saveModuleRecord('pm_inquiries', pmInquiry);
-
-                // Send bell notifications to institutional staff
                 await createMarketplaceNotification(
                     inquiryListing.institutionId,
-                    `New inquiry from ${inquiryName} for property: ${inquiryListing.title}`,
+                    `New B2B inquiry from ${inquiryName} for: ${inquiryListing.title}`,
                     'property_inquiry'
                 );
             } else if (inquiryProduct) {
@@ -312,10 +380,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 const lead = {
                     id: `wish_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                     institutionId: inquiryProduct.institutionId,
-                    customerName: inquiryName,
-                    phoneNumber: inquiryPhone,
+                    customerName: inquiryName || inquiryData.name,
+                    phoneNumber: inquiryPhone || inquiryData.phone,
                     productQuery: inquiryProduct.name,
-                    capturedById: null, // Marketplace captured
+                    capturedById: null,
                     urgency: 'urgent',
                     status: 'Open',
                     createdAt: new Date().toISOString()
@@ -325,19 +393,19 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
                 if (seller?.email) {
                     try {
-                        const subject = `New Product Enquiry: ${inquiryProduct.name}`;
+                        const subject = `[B2B Wholesale Inquiry]: ${inquiryProduct.name}`;
                         const body = `
                             Hello ${seller.name},
                             
-                            A customer has enquired about ${inquiryProduct.name} on the marketplace.
+                            A buyer has submitted a wholesale enquiry for ${inquiryProduct.name} on EduAI Marketplace.
                             
                             Details:
-                            Name: ${inquiryName}
-                            Phone: ${inquiryPhone}
+                            Buyer: ${inquiryName || inquiryData.name}
+                            Phone: ${inquiryPhone || inquiryData.phone}
                             Product: ${inquiryProduct.name}
                             Price: KES ${Number(inquiryProduct.srpPrice || inquiryProduct.costPrice || 0)?.toLocaleString()}
                             
-                            Please follow up with the lead.
+                            Please contact this buyer promptly to close the deal.
                         `.trim();
                         await apiService.sendEmail(seller.email, subject, body, getInstitutionEmailConfig(seller, seller.emailConfig));
                     } catch (emailErr) {
@@ -345,10 +413,9 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     }
                 }
 
-                // Send bell notifications to institutional staff
                 await createMarketplaceNotification(
                     inquiryProduct.institutionId,
-                    `New lead from ${inquiryName} for product: ${inquiryProduct.name}`,
+                    `New B2B wholesale enquiry from ${inquiryName || inquiryData.name} for: ${inquiryProduct.name}`,
                     'retail_lead'
                 );
             }
@@ -356,9 +423,43 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             setInquirySuccess(true);
         } catch (err: any) {
             console.error('Inquiry submission failed:', err);
-            alert(`Enquiry submission failed: ${err.message || 'Unknown protocol error'}. Please try again or contact us directly.`);
+            alert(`Enquiry submission failed: ${err.message || 'Error'}. Please try again.`);
         } finally {
             setInquirySubmitting(false);
+        }
+    };
+
+    // Handle RFQ (Request for Quotation) submission
+    const handleRfqSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!rfqProductQuery || !rfqBuyerPhone) {
+            alert('Please specify what item you are sourcing and your contact phone number.');
+            return;
+        }
+
+        setRfqSubmitting(true);
+        try {
+            const firstInstId = retailProducts[0]?.institutionId || institutions[0]?.id || 'GLOBAL';
+            const rfqLead = {
+                id: `rfq_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                institutionId: firstInstId,
+                customerName: rfqBuyerName || 'B2B Sourcing Buyer',
+                phoneNumber: rfqBuyerPhone,
+                email: rfqBuyerEmail,
+                productQuery: `${rfqQuantity}x ${rfqProductQuery}${rfqTargetPrice ? ` (Target: KES ${rfqTargetPrice})` : ''}`,
+                details: `${rfqNotes ? `Specs: ${rfqNotes}. ` : ''}${rfqDestination ? `Destination: ${rfqDestination}` : ''}`,
+                status: 'Open_RFQ',
+                capturedById: 'Marketplace_RFQ',
+                createdAt: new Date().toISOString()
+            };
+
+            await apiService.saveModuleRecord('retail_wishlist', rfqLead);
+            setRfqSuccess(true);
+        } catch (err) {
+            console.error('RFQ submission error:', err);
+            alert('Could not submit RFQ at this moment. Please try again.');
+        } finally {
+            setRfqSubmitting(false);
         }
     };
 
@@ -366,22 +467,13 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         const loadMarketplace = async () => {
             setLoading(true);
             try {
-                // Fetch all active/published property listings across all institutions
-                const allListings = await apiService.fetchModuleRecords<PMListing>('pm_listings', 'ALL', undefined, {
-                    limit: propertyLimit
-                });
+                const allListings = await apiService.fetchModuleRecords<PMListing>('pm_listings', 'ALL', undefined, { limit: propertyLimit });
                 const activeListings = allListings.filter(l => l.status === 'Active' || l.status === 'Published');
 
-                // Fetch all retail inventory items that are marked as live on market
-                const allRetailItems = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', 'ALL', undefined, {
-                    limit: retailLimit
-                });
+                const allRetailItems = await apiService.fetchModuleRecords<RetailInventoryItem>('retail_inventory_items', 'ALL', undefined, { limit: retailLimit });
                 const liveRetailItems = allRetailItems.filter(item => item.marketplaceEnabled === true);
 
-                // Fetch vehicle listings - Always fetch global for the unified marketplace
                 const globalCars = await apiService.fetchCarListings('ALL', 'all', { limit: vehicleLimit });
-                
-                // Merge with institutional listings if provided, ensuring no duplicates
                 let cars = globalCars;
                 if (carListings && carListings.length > 0) {
                     const globalIds = new Set(globalCars.map(c => c.id));
@@ -389,7 +481,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     cars = [...uniqueInstitutional, ...globalCars];
                 }
 
-                // Fetch institution details to show seller info
                 const instList = await apiService.fetchModuleRecords<Institution>('institutions', 'ALL');
 
                 setListings(activeListings);
@@ -397,11 +488,10 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 setVehicleListings(cars);
                 setInstitutions(instList);
 
-                // SEO: Update page title and description
-                document.title = "Unified Marketplace | Properties, Vehicles & Retail | Eduai Automation";
+                document.title = "EduAI Global Marketplace | B2B Wholesale, Bulk Equipment & RFQ Sourcing";
                 const metaDesc = document.querySelector('meta[name="description"]');
                 if (metaDesc) {
-                    metaDesc.setAttribute("content", `Explore our premium unified marketplace featuring ${activeListings.length} properties, ${cars.length} vehicles, and ${liveRetailItems.length} retail products.`);
+                    metaDesc.setAttribute("content", "Alibaba-style B2B wholesale marketplace for institutions, schools, enterprises, equipment, vehicles, and campuses with Trade Assurance.");
                 }
             } catch (e) {
                 console.error("Marketplace Load Error:", e);
@@ -414,7 +504,6 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     // Handle deep linking to specific items
     useEffect(() => {
         if (loading || (listings.length === 0 && retailProducts.length === 0)) return;
-        
         const params = new URLSearchParams(window.location.search);
         const itemId = params.get('item');
         if (itemId) {
@@ -430,75 +519,35 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         }
     }, [loading, listings, retailProducts]);
 
-    // SEO: Dynamic Structured Data (JSON-LD)
-    useEffect(() => {
-        if (listings.length === 0 && retailProducts.length === 0) return;
-
-        const structuredData = {
-            "@context": "https://schema.org",
-            "@type": "ItemList",
-            "numberOfItems": listings.length + retailProducts.length,
-            "itemListElement": [
-                ...listings.slice(0, 10).map((l, index) => ({
-                    "@type": "ListItem",
-                    "position": index + 1,
-                    "item": {
-                        "@type": "RealEstateListing",
-                        "name": l.title,
-                        "description": l.description,
-                        "url": window.location.href,
-                        "price": l.price,
-                        "priceCurrency": "KES"
-                    }
-                })),
-                ...retailProducts.slice(0, 10).map((p, index) => ({
-                    "@type": "ListItem",
-                    "position": listings.length + index + 1,
-                    "item": {
-                        "@type": "Product",
-                        "name": p.name,
-                        "description": p.description,
-                        "offers": {
-                            "@type": "Offer",
-                            "price": p.srpPrice || p.costPrice,
-                            "priceCurrency": "KES"
-                        }
-                    }
-                }))
-            ]
-        };
-
-        const script = document.createElement('script');
-        script.type = 'application/ld+json';
-        script.id = 'marketplace-json-ld';
-        script.text = JSON.stringify(structuredData);
-        document.head.appendChild(script);
-
-        return () => {
-            const existing = document.getElementById('marketplace-json-ld');
-            if (existing) existing.remove();
-        };
-    }, [listings, retailProducts]);
-
     const handleCopyLink = (text: string) => {
         navigator.clipboard.writeText(text);
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 2000);
     };
 
+    // Filter Logic
     const filteredListings = listings.filter(l => {
         const matchesSearch = l.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             l.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            l.location?.toLowerCase().includes(searchQuery.toLowerCase());
+            (l.location || '').toLowerCase().includes(searchQuery.toLowerCase());
         const matchesType = filterType === 'All' || l.listingType === filterType;
         return matchesSearch && matchesType;
     });
 
     const filteredRetailProducts = retailProducts.filter(p => {
         const q = searchQuery.toLowerCase();
-        return p.name.toLowerCase().includes(q) ||
+        const matchesSearch = p.name.toLowerCase().includes(q) ||
             (p.category || '').toLowerCase().includes(q) ||
             (p.description || '').toLowerCase().includes(q);
+        
+        if (selectedCategoryTab === 'all') return matchesSearch;
+        const catObj = ALIBABA_CATEGORIES.find(c => c.id === selectedCategoryTab);
+        if (catObj && catObj.query) {
+            const matchesCat = (p.category || '').toLowerCase().includes(catObj.query) ||
+                               p.name.toLowerCase().includes(catObj.query);
+            return matchesSearch && matchesCat;
+        }
+        return matchesSearch;
     });
 
     const filteredVehicles = vehicleListings.filter(v => {
@@ -516,7 +565,8 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         return dest.includes(q) || courier.includes(q);
     });
 
-    const activeUnitPrice = Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0);
+    const baseUnitPrice = Number(inquiryProduct?.srpPrice || inquiryProduct?.costPrice || 0);
+    const activeUnitPrice = getWholesaleUnitPrice(baseUnitPrice, orderQuantity);
     const availableStock = Math.max(1, Number(inquiryProduct?.quantity || 1));
     const activeItemsSubtotal = activeUnitPrice * orderQuantity;
     const activeDeliveryFee = Number(selectedRate?.rate || 0);
@@ -524,1339 +574,1432 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-8 overflow-hidden relative">
-                <div className="absolute inset-0 animate-mesh opacity-30"></div>
-                <div className="relative z-10">
-                    <div className="w-24 h-24 relative mb-8">
-                        <div className="absolute inset-0 border-4 border-indigo-500/20 rounded-full"></div>
-                        <div className="absolute inset-0 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                        <SparklesIcon className="absolute inset-0 m-auto w-8 h-8 text-indigo-500 animate-pulse" />
+            <div className="min-h-screen bg-[#FFF9F5] dark:bg-slate-950 flex flex-col items-center justify-center p-8 relative">
+                <div className="relative z-10 flex flex-col items-center">
+                    <div className="w-24 h-24 relative mb-6">
+                        <div className="absolute inset-0 border-4 border-[#FF6000]/20 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-[#FF6000] border-t-transparent rounded-full animate-spin"></div>
+                        <img src="/marketplace_logo_3d.png" alt="Marketplace" className="w-12 h-12 absolute inset-0 m-auto object-contain rounded-xl shadow-lg" />
                     </div>
-                    <div className="text-center space-y-2">
-                        <p className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-[0.4em] italic">Synthesizing</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-shimmer bg-clip-text">Building your futuristic marketplace...</p>
-                    </div>
+                    <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-wider">EduAI Global Marketplace</h2>
+                    <p className="text-xs font-bold text-[#FF6000] mt-1 uppercase tracking-widest animate-pulse">Loading B2B Wholesale & RFQ Network...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 pb-24 md:pb-0">
-            {/* ── Marketplace Hero Section with Dynamic Slideshow ── */}
-            <div className="relative h-[70vh] md:h-[75vh] flex items-center justify-center overflow-hidden bg-slate-950">
-                {/* Background Cosmic Effects */}
-                <div className="absolute inset-0 animate-mesh opacity-50"></div>
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-slate-950/50 to-slate-950 z-[1]"></div>
-                
-                {/* Dynamic Content Slides */}
-                <div className="absolute inset-0 z-0">
-                    {promotedItems.length > 0 ? (
-                        promotedItems.map((item, idx) => (
-                            <div 
-                                key={item.id}
-                                className={`absolute inset-0 transition-all duration-[1500ms] ease-out-expo ${idx === currentSlide ? 'opacity-100 scale-100' : 'opacity-0 scale-110 pointer-events-none'}`}
-                            >
-                                <div className="absolute inset-0 bg-black/40 z-[2]"></div>
-                                {item.images?.[0] || item.imageUrl ? (
-                                    <img loading="lazy" 
-                                        src={item.images?.[0] || item.imageUrl} 
-                                        alt={item.title || item.name}
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full bg-gradient-to-br from-indigo-900 to-slate-900 flex items-center justify-center">
-                                        <BuildingOfficeIcon className="w-32 h-32 text-indigo-500/20" />
-                                    </div>
-                                )}
-                                
-                                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 z-[3] pb-32">
-                                    <div className="inline-flex items-center gap-3 glass-morphism px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.4em] text-white mb-10 animate-fade-in-up">
-                                        <SparklesIcon className="w-4 h-4 text-amber-400 animate-pulse" />
-                                        Featured {item.type === 'property' ? 'Property' : 'Product'}
-                                    </div>
-                                    <h1 className="text-6xl md:text-9xl font-black text-white tracking-tighter uppercase italic leading-[0.8] mb-8 drop-shadow-[0_20px_50px_rgba(0,0,0,0.8)] animate-fade-in-up delay-100">
-                                        {item.title || item.name}
-                                    </h1>
-                                    <p className="text-white/80 text-lg md:text-2xl font-bold max-w-3xl mx-auto leading-tight italic tracking-tight animate-fade-in-up delay-200">
-                                        {item.description?.substring(0, 120)}...
-                                    </p>
-                                    <div className="mt-12 flex items-center gap-8 animate-fade-in-up delay-300">
-                                        <p className="text-4xl md:text-6xl font-black text-white italic tracking-tighter shadow-indigo-500/50">
-                                            <span className="text-xl font-medium not-italic mr-2 text-white/50">KES</span>
-                                            {Number(item.price || item.srpPrice || item.costPrice || 0)?.toLocaleString()}
-                                        </p>
-                                        <button 
-                                            onClick={() => item.type === 'property' ? setSelectedListing(item) : setSelectedProduct(item)}
-                                            className="px-12 py-5 bg-white text-slate-900 rounded-full font-black text-sm uppercase tracking-widest hover:bg-indigo-500 hover:text-white transition-all transform hover:scale-110 active:scale-95 shadow-2xl"
-                                        >
-                                            View Details
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-                             <div className="inline-flex items-center gap-3 glass-morphism px-6 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.3em] text-white mb-8">
-                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-ping"></div>
-                                Quantum Marketplace v2.0
-                            </div>
-                            <h1 className="text-7xl md:text-9xl font-black text-white tracking-tighter uppercase italic leading-[0.85] mb-8 drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                                Explore the <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-white to-indigo-300">Next Frontier</span>
-                            </h1>
-                        </div>
-                    )}
-                </div>
-
-                {/* Slider Controls */}
-                {promotedItems.length > 1 && (
-                    <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-20 flex gap-3">
-                        {promotedItems.map((_, idx) => (
-                            <button
-                                key={idx}
-                                onClick={() => setCurrentSlide(idx)}
-                                className={`h-1.5 transition-all duration-500 rounded-full ${idx === currentSlide ? 'w-12 bg-white' : 'w-3 bg-white/30 hover:bg-white/50'}`}
-                            />
-                        ))}
+        <div className="min-h-screen bg-[#F5F5F7] dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-300 pb-20 md:pb-12">
+            
+            {/* ── 1. Alibaba Top Announcement & Utility Bar ── */}
+            <div className="bg-[#222222] text-[#C4C4C4] text-[11px] font-medium border-b border-neutral-800 px-4 sm:px-8 py-2">
+                <div className="max-w-[1500px] mx-auto flex flex-wrap justify-between items-center gap-3">
+                    <div className="flex items-center gap-4 flex-wrap">
+                        <span className="text-[#FF6000] font-black flex items-center gap-1.5 uppercase tracking-wider">
+                            <span className="w-2 h-2 rounded-full bg-[#FF6000] animate-ping"></span>
+                            B2B Wholesale Hub
+                        </span>
+                        <span className="hidden sm:inline text-neutral-400">|</span>
+                        <span className="hidden md:inline text-neutral-300">
+                            Verified Institutional Equipment, School Buses, Furniture & Properties with Trade Assurance
+                        </span>
                     </div>
-                )}
 
-                {/* Futuristic Search Container */}
-                <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-full max-w-6xl px-6 z-30">
-                    <div className="glass-morphism p-3 md:p-5 rounded-[4rem] flex flex-col md:flex-row gap-4 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.5)] border border-white/10">
-                        <div className="flex-1 relative group">
-                            <SearchIcon className="absolute left-8 top-1/2 -translate-y-1/2 w-6 h-6 text-indigo-300 group-focus-within:text-white transition-colors" />
-                            <input
-                                type="text"
-                                placeholder="Search the galaxy..."
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-20 pr-10 py-7 bg-white/5 hover:bg-white/10 focus:bg-white/10 rounded-[3rem] font-black text-xl text-white placeholder:text-white/30 outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-white/40 transition-all border-none"
-                            />
-                        </div>
-
-                        {activeSection === 'properties' && (
-                            <div className="hidden lg:flex gap-2 p-1.5 bg-black/40 rounded-[3.5rem] border border-white/5">
-                                {(['All', 'Rent', 'Sale', 'Lease'] as const).map(type => (
-                                    <button
-                                        key={type}
-                                        onClick={() => setFilterType(type)}
-                                        className={`px-10 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all ${filterType === type
-                                            ? 'bg-white text-slate-900 shadow-xl'
-                                            : 'text-white/40 hover:text-white hover:bg-white/5'}`}
-                                    >
-                                        {type}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                    <div className="flex items-center gap-4 ml-auto">
+                        {/* 1-Tap Mobile App Install Button in Top Bar */}
+                        <button
+                            onClick={handleInstallApp}
+                            className="bg-gradient-to-r from-[#FF6000] to-[#FF7A00] text-white px-3 py-1 rounded-full font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-sm hover:scale-105 active:scale-95 transition-all"
+                            title="Install EduAI Marketplace Android App"
+                        >
+                            <span>📱</span>
+                            <span>{isAppInstalled ? 'App Installed' : 'Install Android App'}</span>
+                        </button>
 
                         <button 
-                            onClick={() => {
-                                // Just a visual trigger for now
-                            }}
-                            className="md:w-24 h-20 md:h-auto bg-gradient-to-br from-indigo-500 via-purple-600 to-rose-500 rounded-[3rem] flex items-center justify-center text-white shadow-[0_15px_35px_rgba(99,102,241,0.4)] hover:shadow-indigo-500/70 hover:scale-105 active:scale-95 transition-all"
+                            onClick={() => setShowRfqModal(true)}
+                            className="hover:text-white transition-colors flex items-center gap-1 text-[11px] font-semibold"
                         >
-                            <ArrowRightIcon className="w-8 h-8" />
+                            <span>📝</span> Submit RFQ
                         </button>
+
+                        <span className="text-neutral-400">|</span>
+
+                        <div className="flex items-center gap-1 text-white font-semibold">
+                            <span>🇰🇪</span>
+                            <span>KES (Kenya)</span>
+                        </div>
+
+                        {onBackToPortal && (
+                            <>
+                                <span className="text-neutral-400">|</span>
+                                <button 
+                                    onClick={onBackToPortal}
+                                    className="text-amber-400 hover:text-amber-300 font-bold underline"
+                                >
+                                    Portal Sign In
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Share Modal Component */}
-            {showShareModal && sharingItem && (
-                <div className="fixed inset-0 z-[300] flex items-center justify-center p-6">
-                    <div 
-                        className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl animate-in fade-in duration-500"
-                        onClick={() => setShowShareModal(false)}
-                    ></div>
-                    <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500 border border-white/10">
-                        <div className="p-12 space-y-10">
-                            <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Share Intelligence</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.35em]">{sharingItem.title}</p>
-                                </div>
-                                <button 
-                                    onClick={() => setShowShareModal(false)}
-                                    className="p-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl hover:text-slate-900 transition-all"
-                                >
-                                    <XIcon className="w-6 h-6" />
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-6">
-                                <button 
-                                    onClick={async () => {
-                                        const shareData = {
-                                            title: sharingItem.title,
-                                            text: `Check out this ${sharingItem.type} on the EduAI Marketplace!`,
-                                            url: `${window.location.origin}/?view=marketplace&item=${sharingItem.id}`
-                                        };
-                                        if (navigator.share) {
-                                            try { await navigator.share(shareData); } catch (err) { console.error(err); }
-                                        } else {
-                                            handleCopyLink(shareData.url);
-                                        }
-                                    }}
-                                    className="flex flex-col items-center gap-4 p-8 glass-card rounded-[2.5rem] hover:scale-105 active:scale-95 transition-all group"
-                                >
-                                    <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all text-indigo-500">
-                                        <ShareIcon className="w-8 h-8" />
+            {/* ── 2. Alibaba Signature Orange Header & Omnibar ── */}
+            <header className="bg-gradient-to-r from-[#FF6000] via-[#FF5400] to-[#FF4500] text-white shadow-lg sticky top-0 z-40">
+                <div className="max-w-[1500px] mx-auto px-4 sm:px-8 py-3.5">
+                    <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
+                        
+                        {/* Left: Alibaba-Themed Logo & Slogan */}
+                        <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setActiveSection('all'); setSelectedCategoryTab('all'); }}>
+                                <img 
+                                    src="/marketplace_logo_3d.png" 
+                                    alt="EduAI Marketplace" 
+                                    className="w-11 h-11 rounded-2xl shadow-md border-2 border-white/30 object-contain bg-white"
+                                />
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl font-black tracking-tight leading-none text-white drop-shadow-sm font-sans">
+                                            EduAI<span className="text-amber-200 font-light">.trade</span>
+                                        </span>
+                                        <span className="bg-white text-[#FF6000] text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">
+                                            B2B Wholesale
+                                        </span>
                                     </div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 group-hover:text-slate-900">Native Share</span>
-                                </button>
-
-                                <div className="flex flex-col items-center gap-4 p-8 glass-card rounded-[2.5rem] group">
-                                    <div className="w-16 h-16 rounded-[1.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-500 overflow-hidden relative">
-                                        <img loading="lazy" 
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`)}`} 
-                                            alt="QR Code"
-                                            className="w-full h-full object-cover scale-110"
-                                        />
-                                    </div>
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Scan Signal</span>
+                                    <p className="text-[10px] text-white/80 font-medium tracking-wide">
+                                        Global Institutional Procurement & RFQ
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <label className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Universal Link</label>
-                                <div className="relative">
-                                    <input 
-                                        readOnly
-                                        type="text" 
-                                        value={`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`}
-                                        className="w-full pl-6 pr-20 py-6 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white text-[10px] truncate border-none outline-none"
-                                    />
-                                    <button 
-                                        onClick={() => handleCopyLink(`${window.location.origin}/?view=marketplace&item=${sharingItem.id}`)}
-                                        className={`absolute right-3 top-3 h-10 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all ${copySuccess ? 'bg-emerald-500 text-white' : 'bg-slate-900 text-white hover:scale-105 active:scale-95'}`}
+                            {/* Mobile Action for RFQ */}
+                            <button
+                                onClick={() => setShowRfqModal(true)}
+                                className="md:hidden bg-white/20 hover:bg-white/30 text-white text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-white/30"
+                            >
+                                + Post RFQ
+                            </button>
+                        </div>
+
+                        {/* Center: Alibaba Universal Wholesale Omnibar Search */}
+                        <div className="w-full md:max-w-3xl flex-1">
+                            <div className="flex bg-white rounded-full p-1 shadow-2xl border-2 border-white/40 focus-within:ring-4 focus-within:ring-amber-300 transition-all">
+                                
+                                {/* Search Category Dropdown */}
+                                <div className="hidden sm:flex items-center border-r border-slate-200 px-3 py-1.5 text-slate-700 text-xs font-bold">
+                                    <select 
+                                        value={searchCategory}
+                                        onChange={(e: any) => setSearchCategory(e.target.value)}
+                                        className="bg-transparent outline-none cursor-pointer pr-2 font-bold text-slate-700"
                                     >
-                                        <span className="text-[8px] font-black uppercase tracking-widest">{copySuccess ? 'Copied' : 'Copy'}</span>
-                                    </button>
+                                        <option value="all">All Products</option>
+                                        <option value="retail">Equipment & Stock</option>
+                                        <option value="properties">Campuses & Land</option>
+                                        <option value="vehicles">School Buses & Cars</option>
+                                    </select>
                                 </div>
+
+                                {/* Main Search Text Input */}
+                                <div className="flex-1 flex items-center px-4">
+                                    <SearchIcon className="w-5 h-5 text-slate-400 mr-2 flex-shrink-0" />
+                                    <input 
+                                        type="text" 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        placeholder="What bulk equipment, school supplies, or vehicles are you sourcing?"
+                                        className="w-full bg-transparent text-slate-900 font-semibold text-sm outline-none placeholder:text-slate-400"
+                                    />
+                                    {searchQuery && (
+                                        <button onClick={() => setSearchQuery('')} className="p-1 text-slate-400 hover:text-slate-600">
+                                            <XIcon className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Alibaba Orange Search Button */}
+                                <button 
+                                    className="bg-gradient-to-r from-[#FF6000] to-[#E55000] hover:from-[#E55000] hover:to-[#CC4500] text-white px-7 py-2.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                                >
+                                    <span>Search</span>
+                                </button>
                             </div>
+                        </div>
+
+                        {/* Right: Quick RFQ & Trade Assurance Badges */}
+                        <div className="hidden lg:flex items-center gap-4">
+                            <button
+                                onClick={() => setShowRfqModal(true)}
+                                className="bg-amber-300 hover:bg-amber-200 text-slate-950 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md hover:scale-105 active:scale-95 transition-all"
+                            >
+                                <ClipboardListIcon className="w-4 h-4 text-[#FF6000]" />
+                                <span>Request For Quote</span>
+                            </button>
+
+                            <div className="flex flex-col text-right">
+                                <div className="flex items-center gap-1.5 justify-end text-xs font-bold text-white">
+                                    <span className="text-amber-300">🛡️</span>
+                                    <span>Trade Assurance</span>
+                                </div>
+                                <span className="text-[10px] text-white/80">100% Refund & Delivery</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* ── 3. Quick Subheader Category Strip ── */}
+                <div className="bg-[#E65300] text-white px-4 sm:px-8 border-t border-white/10 overflow-x-auto no-scrollbar">
+                    <div className="max-w-[1500px] mx-auto flex items-center gap-2 py-1.5 whitespace-nowrap text-xs font-bold">
+                        <button
+                            onClick={() => { setActiveSection('all'); setSelectedCategoryTab('all'); }}
+                            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${activeSection === 'all' && selectedCategoryTab === 'all' ? 'bg-white text-[#FF6000] font-black shadow-sm' : 'text-white/90 hover:bg-white/10'}`}
+                        >
+                            <span>☰</span> All Categories
+                        </button>
+
+                        <button
+                            onClick={() => { setActiveSection('retail'); setSelectedCategoryTab('all'); }}
+                            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${activeSection === 'retail' ? 'bg-white text-[#FF6000] font-black shadow-sm' : 'text-white/90 hover:bg-white/10'}`}
+                        >
+                            <ShoppingCartIcon className="w-4 h-4" /> Bulk Equipment & Supplies ({retailProducts.length})
+                        </button>
+
+                        <button
+                            onClick={() => { setActiveSection('properties'); }}
+                            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${activeSection === 'properties' ? 'bg-white text-[#FF6000] font-black shadow-sm' : 'text-white/90 hover:bg-white/10'}`}
+                        >
+                            <BuildingOfficeIcon className="w-4 h-4" /> Campuses & Real Estate ({listings.length})
+                        </button>
+
+                        <button
+                            onClick={() => { setActiveSection('vehicles'); }}
+                            className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${activeSection === 'vehicles' ? 'bg-white text-[#FF6000] font-black shadow-sm' : 'text-white/90 hover:bg-white/10'}`}
+                        >
+                            <CarIcon className="w-4 h-4" /> School Buses & Vehicles ({vehicleListings.length})
+                        </button>
+
+                        <div className="h-4 w-px bg-white/20 mx-2"></div>
+
+                        <span className="text-amber-200 text-[11px] font-black flex items-center gap-1">
+                            <span>🔥</span> Ready To Ship
+                        </span>
+
+                        <span className="text-white/80 text-[11px] font-medium flex items-center gap-1 ml-auto">
+                            <span>🚚</span> Countrywide Delivery via M-Pesa
+                        </span>
+                    </div>
+                </div>
+            </header>
+
+            {/* ── 4. Android 1-Tap App Install Banner ── */}
+            {showInstallBanner && !isAppInstalled && (
+                <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-[#FF6000] text-white px-4 py-3 shadow-md">
+                    <div className="max-w-[1500px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <img src="/marketplace_logo_3d.png" alt="App Icon" className="w-10 h-10 rounded-xl shadow-md bg-white p-0.5 object-contain" />
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-black text-sm uppercase tracking-wide">Install EduAI Marketplace Android App</span>
+                                    <span className="bg-white text-orange-600 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">Fast Mobile APK</span>
+                                </div>
+                                <p className="text-xs text-white/90">
+                                    Instant wholesale purchasing, direct supplier inquiries, RFQ notifications & offline tracking.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+                            <button
+                                onClick={handleInstallApp}
+                                className="bg-white text-[#FF6000] hover:bg-amber-100 font-black text-xs uppercase px-5 py-2 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95"
+                            >
+                                📲 1-Tap Install
+                            </button>
+                            <button
+                                onClick={() => setShowInstallBanner(false)}
+                                className="text-white/70 hover:text-white p-1"
+                                title="Dismiss"
+                            >
+                                <XIcon className="w-5 h-5" />
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ── Section Navigation (Desktop Only) ── */}
-            <div className="hidden md:block max-w-[1600px] mx-auto px-8 pt-32 pb-8">
-                <div className="flex gap-6 items-center">
-                    <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-[2rem] border border-slate-200 dark:border-slate-700 backdrop-blur-xl">
+            {/* ── 5. Alibaba 3-Column Hero Section ── */}
+            <div className="max-w-[1500px] mx-auto px-4 sm:px-8 pt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    
+                    {/* Left Column: Megamenu Category Navigation (4 Cols on desktop) */}
+                    <div className="hidden lg:block lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-4">
+                        <div className="flex items-center gap-2 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+                            <span className="text-[#FF6000] text-lg">☰</span>
+                            <h3 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white">Wholesale Categories</h3>
+                        </div>
+
+                        <ul className="space-y-1">
+                            {ALIBABA_CATEGORIES.map(cat => {
+                                const isSelected = selectedCategoryTab === cat.id;
+                                return (
+                                    <li key={cat.id}>
+                                        <button
+                                            onClick={() => {
+                                                if (cat.section) {
+                                                    setActiveSection(cat.section as any);
+                                                } else {
+                                                    setActiveSection('retail');
+                                                    setSelectedCategoryTab(cat.id);
+                                                }
+                                            }}
+                                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left ${isSelected ? 'bg-[#FFF3EB] dark:bg-orange-950/40 text-[#FF6000] font-black' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                        >
+                                            <span className="flex items-center gap-2.5 truncate">
+                                                <span className="text-base">{cat.icon}</span>
+                                                <span className="truncate">{cat.name}</span>
+                                            </span>
+                                            <span className="text-slate-400 text-[10px]">›</span>
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+
+                        {/* Trade Assurance Assurance Box */}
+                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <div className="bg-[#FFF8F2] dark:bg-orange-950/20 p-3.5 rounded-xl border border-orange-200/60 dark:border-orange-900/50">
+                                <div className="flex items-center gap-2 text-xs font-black text-[#FF6000] mb-1">
+                                    <span>🛡️</span> Trade Assurance
+                                </div>
+                                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-tight">
+                                    Full M-Pesa escrow protection, quality inspection & on-time delivery guarantees on every order.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Center Column: Alibaba Dynamic Deal Carousel (6 Cols) */}
+                    <div className="lg:col-span-6 flex flex-col">
+                        <div className="relative h-80 sm:h-96 rounded-2xl overflow-hidden shadow-md bg-gradient-to-br from-slate-900 via-orange-950 to-slate-900 border border-slate-200/50 dark:border-slate-800">
+                            
+                            {promotedItems.length > 0 ? (
+                                promotedItems.map((item, idx) => (
+                                    <div 
+                                        key={item.id}
+                                        className={`absolute inset-0 transition-opacity duration-1000 ${idx === currentSlide ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                                    >
+                                        {/* Background Banner Image */}
+                                        <div className="absolute inset-0 z-0">
+                                            {item.images?.[0] || item.imageUrl ? (
+                                                <img 
+                                                    src={item.images?.[0] || item.imageUrl} 
+                                                    alt={item.title || item.name} 
+                                                    className="w-full h-full object-cover opacity-45 transform scale-105 hover:scale-110 transition-transform duration-7000"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-r from-orange-900 to-slate-900" />
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/60 to-transparent"></div>
+                                        </div>
+
+                                        {/* Content Overlay */}
+                                        <div className="relative z-10 p-6 sm:p-10 flex flex-col justify-between h-full">
+                                            <div>
+                                                <div className="inline-flex items-center gap-2 bg-[#FF6000] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-md mb-4">
+                                                    <span>⚡</span> Flash Wholesale Deal
+                                                </div>
+                                                <h2 className="text-2xl sm:text-4xl font-black text-white uppercase italic tracking-tight line-clamp-2 drop-shadow-md mb-3">
+                                                    {item.title || item.name}
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-slate-200 font-medium line-clamp-2 max-w-md">
+                                                    {item.description || 'Verified manufacturer inventory ready for institutional procurement.'}
+                                                </p>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-end justify-between gap-4 pt-4 border-t border-white/20">
+                                                <div>
+                                                    <span className="text-[10px] uppercase font-bold text-amber-300 block">Wholesale Unit Price</span>
+                                                    <div className="text-2xl sm:text-3xl font-black text-white italic">
+                                                        <span className="text-sm font-normal text-amber-300 mr-1">KES</span>
+                                                        {Number(item.price || item.srpPrice || item.costPrice || 0)?.toLocaleString()}
+                                                        <span className="text-xs font-normal text-slate-300 ml-1">/ piece</span>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => item.type === 'property' ? setSelectedListing(item) : setSelectedProduct(item)}
+                                                    className="bg-gradient-to-r from-[#FF6000] to-[#E55000] text-white hover:from-[#E55000] hover:to-[#CC4500] px-6 py-3 rounded-full font-black text-xs uppercase tracking-wider shadow-lg hover:scale-105 active:scale-95 transition-all"
+                                                >
+                                                    Source Now ›
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="p-8 flex flex-col justify-center h-full text-white">
+                                    <span className="bg-[#FF6000] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full w-max mb-3">
+                                        EduAI Global Wholesale
+                                    </span>
+                                    <h2 className="text-3xl font-black uppercase tracking-tight">Direct Factory & Institutional Procurement</h2>
+                                    <p className="text-sm text-slate-300 mt-2">Connecting verified schools, colleges, hospitals, and suppliers countrywide.</p>
+                                </div>
+                            )}
+
+                            {/* Carousel Indicators */}
+                            {promotedItems.length > 1 && (
+                                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+                                    {promotedItems.map((_, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setCurrentSlide(i)}
+                                            className={`h-2 rounded-full transition-all ${i === currentSlide ? 'w-6 bg-[#FF6000]' : 'w-2 bg-white/40'}`}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Quick Perks Ribbon below Banner */}
+                        <div className="grid grid-cols-3 gap-3 mt-3">
+                            <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                                <span className="text-base block mb-0.5">📦</span>
+                                <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 block">Tiered Discounts</span>
+                                <span className="text-[9px] text-slate-400">Up to 20% on bulk</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                                <span className="text-base block mb-0.5">🚚</span>
+                                <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 block">Courier Delivery</span>
+                                <span className="text-[9px] text-slate-400">Doorstep & Pickup</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-center">
+                                <span className="text-base block mb-0.5">🛡️</span>
+                                <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 block">M-Pesa STK</span>
+                                <span className="text-[9px] text-slate-400">Secure Instant Pay</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Alibaba Buyer RFQ Sourcing Card (3 Cols) */}
+                    <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-8 h-8 rounded-lg bg-orange-100 dark:bg-orange-950/60 flex items-center justify-center text-[#FF6000]">
+                                    <ClipboardListIcon className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h4 className="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-white">Quick RFQ</h4>
+                                    <span className="text-[10px] text-slate-400">One request, multiple quotes</span>
+                                </div>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mb-4 leading-relaxed">
+                                Tell verified suppliers what you need. Receive wholesale quotes directly to your phone.
+                            </p>
+
+                            <form onSubmit={(e) => { e.preventDefault(); setShowRfqModal(true); }} className="space-y-3">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">What are you sourcing?</label>
+                                    <input 
+                                        type="text" 
+                                        value={rfqProductQuery}
+                                        onChange={(e) => setRfqProductQuery(e.target.value)}
+                                        placeholder="e.g. 50 Student Desks, 10 Microscopes..."
+                                        className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-medium outline-none focus:ring-2 focus:ring-[#FF6000]"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Quantity</label>
+                                        <input 
+                                            type="number" 
+                                            min={1}
+                                            value={rfqQuantity}
+                                            onChange={(e) => setRfqQuantity(parseInt(e.target.value) || 1)}
+                                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-medium outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Phone</label>
+                                        <input 
+                                            type="tel" 
+                                            value={rfqBuyerPhone}
+                                            onChange={(e) => setRfqBuyerPhone(e.target.value)}
+                                            placeholder="+254 7..."
+                                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white font-medium outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    className="w-full bg-[#FF6000] hover:bg-[#E55000] text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all"
+                                >
+                                    Request Quotations Now
+                                </button>
+                            </form>
+                        </div>
+
+                        {/* Verified Supplier Trust Badge */}
+                        <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 space-y-1.5">
+                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                                <span>✓</span> 100% Pre-vetted Institutional Suppliers
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-500">
+                                <span>⚡</span> Average response time: ~2 hours
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            {/* ── 6. Category Quick Navigation Chips (Mobile & Tablet) ── */}
+            <div className="lg:hidden max-w-[1500px] mx-auto px-4 sm:px-8 mt-5 overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-2 py-1">
+                    {ALIBABA_CATEGORIES.map(cat => (
                         <button
-                            onClick={() => setActiveSection('properties')}
-                            className={`flex items-center gap-3 px-10 py-5 rounded-[1.75rem] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeSection === 'properties'
-                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xl scale-105'
-                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                            key={cat.id}
+                            onClick={() => {
+                                if (cat.section) {
+                                    setActiveSection(cat.section as any);
+                                } else {
+                                    setActiveSection('retail');
+                                    setSelectedCategoryTab(cat.id);
+                                }
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all flex items-center gap-1.5 ${selectedCategoryTab === cat.id ? 'bg-[#FF6000] text-white border-[#FF6000] shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'}`}
                         >
-                            <BuildingOfficeIcon className={`w-5 h-5 ${activeSection === 'properties' ? 'text-orange-500' : ''}`} />
-                            Properties
+                            <span>{cat.icon}</span>
+                            <span>{cat.name}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* ── 7. Main Wholesale Listings Section ── */}
+            <div className="max-w-[1500px] mx-auto px-4 sm:px-8 pt-10">
+
+                {/* Section Header with Tabs */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-800">
+                    <div>
+                        <div className="flex items-center gap-2 text-[#FF6000] text-xs font-black uppercase tracking-wider mb-1">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#FF6000]"></span>
+                            Direct Sourcing Channels
+                        </div>
+                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                            {activeSection === 'properties' ? 'Campuses, Land & Commercial Properties' : activeSection === 'vehicles' ? 'School Buses, Fleet & Transport' : 'Wholesale Equipment & Institutional Inventory'}
+                        </h2>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-200/70 dark:bg-slate-800/80 p-1 rounded-xl text-xs font-black">
+                        <button
+                            onClick={() => setActiveSection('all')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${activeSection === 'all' ? 'bg-white dark:bg-slate-900 text-[#FF6000] shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
+                        >
+                            All ({retailProducts.length + listings.length + vehicleListings.length})
                         </button>
                         <button
                             onClick={() => setActiveSection('retail')}
-                            className={`flex items-center gap-3 px-10 py-5 rounded-[1.75rem] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeSection === 'retail'
-                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xl scale-105'
-                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${activeSection === 'retail' ? 'bg-white dark:bg-slate-900 text-[#FF6000] shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
                         >
-                            <ShoppingCartIcon className={`w-5 h-5 ${activeSection === 'retail' ? 'text-indigo-500' : ''}`} />
-                            Retail
+                            Equipment ({retailProducts.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveSection('properties')}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${activeSection === 'properties' ? 'bg-white dark:bg-slate-900 text-[#FF6000] shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
+                        >
+                            Real Estate ({listings.length})
                         </button>
                         <button
                             onClick={() => setActiveSection('vehicles')}
-                            className={`flex items-center gap-3 px-10 py-5 rounded-[1.75rem] text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeSection === 'vehicles'
-                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xl scale-105'
-                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+                            className={`px-3 py-1.5 rounded-lg transition-all ${activeSection === 'vehicles' ? 'bg-white dark:bg-slate-900 text-[#FF6000] shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
                         >
-                            <CarIcon className={`w-5 h-5 ${activeSection === 'vehicles' ? 'text-emerald-500' : ''}`} />
-                            Vehicles
+                            Vehicles ({vehicleListings.length})
                         </button>
                     </div>
-
-                    <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-slate-800 to-transparent"></div>
                 </div>
-            </div>
 
-            {/* ── Mobile Floating Navigation ── */}
-            <div className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-sm z-[150] animate-in slide-in-from-bottom-20 duration-1000">
-                <div className="glass-morphism p-2 rounded-[2.5rem] flex items-center justify-between shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
-                    <button
-                        onClick={() => setActiveSection('properties')}
-                        className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-[2rem] transition-all ${activeSection === 'properties' ? 'bg-white text-slate-900' : 'text-white/60'}`}
-                    >
-                        <BuildingOfficeIcon className="w-5 h-5" />
-                        <span className="text-[10px] font-black uppercase tracking-tighter">Properties</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveSection('retail')}
-                        className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-[2rem] transition-all ${activeSection === 'retail' ? 'bg-white text-slate-900' : 'text-white/60'}`}
-                    >
-                        <ShoppingCartIcon className="w-5 h-5" />
-                        <span className="text-[10px] font-black uppercase tracking-tighter">Retail</span>
-                    </button>
-                    <button
-                        onClick={() => setActiveSection('vehicles')}
-                        className={`flex-1 flex flex-col items-center gap-1 py-3 rounded-[2rem] transition-all ${activeSection === 'vehicles' ? 'bg-white text-slate-900' : 'text-white/60'}`}
-                    >
-                        <CarIcon className="w-5 h-5" />
-                        <span className="text-[10px] font-black uppercase tracking-tighter">Vehicles</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* ── Property Listings Grid ── */}
-            {activeSection === 'properties' && (
-                <div className="max-w-[1600px] mx-auto px-8 pb-32">
-                    <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-16 space-y-4 md:space-y-0">
-                        <div>
-                            <div className="inline-flex items-center gap-2 text-orange-500 font-black text-[10px] uppercase tracking-[0.4em] mb-4">
-                                <div className="w-8 h-[2px] bg-orange-500"></div>
-                                Premier Spaces
-                            </div>
-                            <h2 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic leading-none">Market <br className="md:hidden" /> Insights</h2>
-                        </div>
-                        <div className="flex gap-4 p-2 bg-slate-200/50 dark:bg-slate-800/50 rounded-2xl backdrop-blur-lg">
-                            <div className="px-6 py-3 bg-white dark:bg-slate-900 rounded-xl shadow-lg flex items-center gap-3">
-                                <MapPinIcon className="w-4 h-4 text-orange-500" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Live Global View</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
-                        {filteredListings.map(listing => {
-                            const seller = getSeller(listing.institutionId);
-                            return (
-                                <div
-                                    key={listing.id}
-                                    onClick={() => {
-                                        setSelectedListing(listing);
-                                        apiService.incrementCount('pm_listings', listing.id, 'view_count');
-                                    }}
-                                    className="group relative flex flex-col cursor-pointer"
-                                >
-                                    {/* Glass Glow effect */}
-                                    <div className="absolute -inset-4 bg-gradient-to-br from-orange-500/0 via-orange-500/0 to-orange-500/20 rounded-[4rem] scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-700 blur-2xl"></div>
-
-                                    <div className="relative glass-card rounded-[3.5rem] overflow-hidden transition-all duration-700 group-hover:-translate-y-4 group-hover:shadow-[0_40px_80px_-20px_rgba(249,115,22,0.2)]">
-                                        <div className="h-72 relative overflow-hidden">
-                                            <div className="absolute inset-0 bg-slate-200 dark:bg-slate-800 animate-pulse"></div>
-                                            {listing.images && listing.images[0] ? (
-                                                <img loading="lazy"
-                                                    src={listing.images[0]}
-                                                    alt={listing.title}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-300">
-                                                    <BuildingOfficeIcon className="w-16 h-16 opacity-20" />
-                                                </div>
-                                            )}
-
-                                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent"></div>
-
-                                            <div className="absolute top-6 left-6 flex flex-col gap-2">
-                                                <span className="glass-morphism px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-white">
-                                                    {listing.listingType}
-                                                </span>
-                                            </div>
-
-                                            <div className="absolute bottom-6 left-8 right-8 flex justify-between items-end">
-                                                <div>
-                                                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] text-orange-400 mb-1">
-                                                        <MapPinIcon className="w-3 h-3" />
-                                                        {listing.location || 'Cyber District'}
-                                                    </div>
-                                                    <h3 className="text-xl font-black text-white italic tracking-tighter uppercase leading-none">{listing.title}</h3>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="p-8 pb-10">
-                                            <div className="flex items-center gap-6 mb-8">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Available</span>
-                                                </div>
-                                                {listing.isPromoted && (
-                                                    <div className="flex items-center gap-2">
-                                                        <SparklesIcon className="w-3 h-3 text-amber-500" />
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-500/80">Prime</span>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="flex justify-between items-end">
-                                                <div className="space-y-1">
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Market Valuation</p>
-                                                    <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">
-                                                        <span className="text-sm font-medium not-italic mr-1 text-slate-400 uppercase tracking-normal">KES</span>
-                                                        {listing.price?.toLocaleString()}
-                                                    </p>
-                                                </div>
-
-                                                <div className="w-14 h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-[1.5rem] flex items-center justify-center group-hover:bg-orange-600 group-hover:text-white transition-all duration-500">
-                                                    <ArrowRightIcon className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-
-                        {filteredListings.length === 0 && (
-                            <div className="col-span-full py-40 flex flex-col items-center text-center">
-                                <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-8 shadow-inner">
-                                    <SearchIcon className="w-10 h-10 text-slate-300" />
-                                </div>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic mb-2">No Matching Spaces</h3>
-                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Try adjusting your filters or search keywords</p>
+                {/* ── Wholesale Retail Products Grid (Alibaba Style) ── */}
+                {(activeSection === 'all' || activeSection === 'retail') && (
+                    <div className="mb-14">
+                        {activeSection === 'all' && (
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-black uppercase text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                    <span>📦</span> Institutional Wholesale Stock & Equipment
+                                </h3>
+                                <button onClick={() => setActiveSection('retail')} className="text-xs font-bold text-[#FF6000] hover:underline">
+                                    View All ({retailProducts.length}) ›
+                                </button>
                             </div>
                         )}
-                    </div>
 
-                    {filteredListings.length >= propertyLimit && (
-                        <div className="flex justify-center mt-20">
-                            <button 
-                                onClick={() => setPropertyLimit(prev => prev + 12)}
-                                className="px-12 py-5 glass-card rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-orange-500 transition-all active:scale-95 border border-white/5"
-                            >
-                                Sync More Properties
-                            </button>
-                        </div>
-                    )}
-                </div>
-            )}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6">
+                            {filteredRetailProducts.slice(0, activeSection === 'all' ? 8 : retailLimit).map(product => {
+                                const seller = getSeller(product.institutionId);
+                                const unitPrice = Number(product.srpPrice || product.costPrice || 0);
+                                const tier10 = Math.round(unitPrice * 0.90);
+                                const tier50 = Math.round(unitPrice * 0.80);
 
-            {/* ── Retail Products Grid ── */}
-            {activeSection === 'retail' && (
-                <div className="max-w-[1600px] mx-auto px-8 pb-32">
-                    <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-16 space-y-4 md:space-y-0">
-                        <div>
-                            <div className="inline-flex items-center gap-2 text-indigo-500 font-black text-[10px] uppercase tracking-[0.4em] mb-4">
-                                <div className="w-8 h-[2px] bg-indigo-500"></div>
-                                Curated Retail
-                            </div>
-                            <h2 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic leading-none">Prime <br className="md:hidden" /> Inventory</h2>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-12">
-                        {filteredRetailProducts.map(product => {
-                            const seller = getSeller(product.institutionId);
-                            return (
-                                <div
-                                    key={product.id}
-                                    onClick={() => {
-                                        setSelectedProduct(product);
-                                        apiService.incrementCount('retail_inventory_items', product.id, 'view_count');
-                                    }}
-                                    className="group relative flex flex-col cursor-pointer"
-                                >
-                                    {/* Glass Glow effect */}
-                                    <div className="absolute -inset-4 bg-gradient-to-br from-indigo-500/0 via-indigo-500/0 to-indigo-500/20 rounded-[4rem] scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-700 blur-2xl"></div>
-
-                                    <div className="relative glass-card rounded-[3rem] overflow-hidden transition-all duration-700 group-hover:-translate-y-3 group-hover:shadow-[0_40px_80px_-20px_rgba(79,70,229,0.15)]">
-                                        <div className="h-60 relative overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                return (
+                                    <div
+                                        key={product.id}
+                                        onClick={() => {
+                                            setSelectedProduct(product);
+                                            apiService.incrementCount('retail_inventory_items', product.id, 'view_count');
+                                        }}
+                                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-xl hover:border-[#FF6000] transition-all flex flex-col group cursor-pointer transform hover:-translate-y-1"
+                                    >
+                                        {/* Product Photo */}
+                                        <div className="relative h-44 sm:h-52 bg-slate-100 dark:bg-slate-800 overflow-hidden">
                                             {product.imageUrl ? (
-                                                <img loading="lazy"
-                                                    src={product.imageUrl}
-                                                    alt={product.name}
-                                                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
+                                                <img 
+                                                    src={product.imageUrl} 
+                                                    alt={product.name} 
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                 />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                                    <ShoppingCartIcon className="w-16 h-16 opacity-20" />
+                                                    <ShoppingCartIcon className="w-12 h-12 opacity-30 text-[#FF6000]" />
                                                 </div>
                                             )}
 
-                                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
-                                            <div className="absolute top-4 left-4">
-                                                <span className="glass-morphism px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-white">
-                                                    {product.category || 'General'}
+                                            {/* Alibaba Badges */}
+                                            <div className="absolute top-2 left-2 flex flex-col gap-1">
+                                                <span className="bg-[#FF6000] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded shadow">
+                                                    Wholesale
                                                 </span>
+                                                {product.category && (
+                                                    <span className="bg-black/60 backdrop-blur-md text-white text-[8px] font-bold uppercase px-2 py-0.5 rounded">
+                                                        {product.category}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {Number(product.quantity) <= 5 && Number(product.quantity) > 0 && (
-                                                <div className="absolute top-4 right-4 flex items-center gap-2 bg-amber-500/90 text-white px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg animate-pulse">
-                                                    Limited
+                                                <div className="absolute top-2 right-2 bg-amber-500 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow">
+                                                    Low Stock
                                                 </div>
                                             )}
+
+                                            <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white px-2 py-0.5 rounded text-[9px] font-black shadow-sm">
+                                                <span className="text-[#FF6000]">🛡️</span> Trade Assurance
+                                            </div>
                                         </div>
 
-                                        <div className="p-7">
-                                            <h3 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tighter italic group-hover:text-indigo-500 transition-colors mb-4 truncate">{product.name}</h3>
+                                        {/* Product Details & Tiered Pricing */}
+                                        <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white line-clamp-2 group-hover:text-[#FF6000] transition-colors mb-2">
+                                                    {product.name}
+                                                </h4>
 
-                                            {seller && (
-                                                <div className="flex items-center gap-2 mb-6">
-                                                    <div className="w-5 h-5 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                                                        <BuildingOfficeIcon className="w-3 h-3 text-indigo-500" />
+                                                {/* Alibaba Volume Tiered Pricing */}
+                                                <div className="bg-[#FFF8F2] dark:bg-orange-950/20 p-2 rounded-xl mb-2.5 border border-orange-200/50 dark:border-orange-900/40">
+                                                    <div className="flex justify-between items-baseline">
+                                                        <span className="text-[10px] font-bold text-slate-500">1-9 pcs:</span>
+                                                        <span className="text-xs font-black text-slate-900 dark:text-white">KES {unitPrice.toLocaleString()}</span>
                                                     </div>
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate">{seller.name}</span>
+                                                    <div className="flex justify-between items-baseline text-[#FF6000]">
+                                                        <span className="text-[10px] font-bold">10-49 pcs (-10%):</span>
+                                                        <span className="text-xs font-black">KES {tier10.toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-baseline text-emerald-600 dark:text-emerald-400">
+                                                        <span className="text-[10px] font-bold">50+ pcs (-20%):</span>
+                                                        <span className="text-xs font-black">KES {tier50.toLocaleString()}</span>
+                                                    </div>
                                                 </div>
-                                            )}
 
-                                            <div className="flex justify-between items-center pt-5 border-t border-slate-100 dark:border-slate-800/50">
-                                                <div>
-                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Price Unit</p>
-                                                    <p className="text-2xl font-black text-slate-900 dark:text-white italic mt-0.5">
-                                                        <span className="text-xs font-medium not-italic mr-1 text-slate-400">KES</span>
-                                                        {Number(product.srpPrice || product.costPrice || 0)?.toLocaleString()}
-                                                    </p>
+                                                <div className="flex items-center justify-between text-[10px] text-slate-500 mb-2">
+                                                    <span>MOQ: <strong>1 pc</strong></span>
+                                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">In Stock: {product.quantity || 1}</span>
                                                 </div>
-                                                <div className="w-11 h-11 bg-indigo-600 text-white rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all shadow-lg shadow-indigo-600/20">
-                                                    <ArrowRightIcon className="w-5 h-5" />
+
+                                                {/* Seller / Verified Supplier */}
+                                                <div className="flex items-center gap-1.5 text-[10px] text-slate-500 truncate pt-2 border-t border-slate-100 dark:border-slate-800">
+                                                    <span className="text-amber-500">⭐</span>
+                                                    <span className="truncate font-semibold">{seller?.name || 'Verified Institutional Supplier'}</span>
                                                 </div>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="pt-3 mt-2 flex gap-2">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openInquiry(product);
+                                                    }}
+                                                    className="w-full bg-[#FF6000] hover:bg-[#E55000] text-white py-2 rounded-xl font-black text-[11px] uppercase tracking-wider shadow-sm transition-all text-center"
+                                                >
+                                                    Start Order
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
 
                         {filteredRetailProducts.length === 0 && (
-                            <div className="col-span-full py-40 flex flex-col items-center text-center">
-                                <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-8 shadow-inner">
-                                    <ShoppingCartIcon className="w-10 h-10 text-slate-300" />
-                                </div>
-                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic mb-2">No Retail Products</h3>
-                                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">
-                                    {searchQuery ? 'Try adjusting your search keywords' : 'No products are currently live on the marketplace'}
-                                </p>
+                            <div className="py-20 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+                                <span className="text-4xl block mb-2">📦</span>
+                                <h4 className="text-base font-black text-slate-800 dark:text-white uppercase">No Products Found</h4>
+                                <p className="text-xs text-slate-500 mt-1">Try adjusting your search query or category filter.</p>
+                            </div>
+                        )}
+
+                        {activeSection === 'retail' && filteredRetailProducts.length >= retailLimit && (
+                            <div className="flex justify-center mt-10">
+                                <button
+                                    onClick={() => setRetailLimit(prev => prev + 16)}
+                                    className="px-8 py-3 bg-white dark:bg-slate-900 text-[#FF6000] border-2 border-[#FF6000] rounded-full font-black text-xs uppercase tracking-wider hover:bg-[#FF6000] hover:text-white transition-all shadow-sm"
+                                >
+                                    Load More Wholesale Stock ({retailProducts.length - retailLimit} remaining)
+                                </button>
                             </div>
                         )}
                     </div>
+                )}
 
-                    {filteredRetailProducts.length >= retailLimit && (
-                        <div className="flex justify-center mt-20">
-                            <button 
-                                onClick={() => setRetailLimit(prev => prev + 12)}
-                                className="px-12 py-5 glass-card rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-indigo-500 transition-all active:scale-95 border border-white/5"
+                {/* ── Real Estate & Campuses Grid ── */}
+                {(activeSection === 'all' || activeSection === 'properties') && (
+                    <div className="mb-14">
+                        {activeSection === 'all' && (
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-black uppercase text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                    <span>🏫</span> Verified School Campuses & Real Estate
+                                </h3>
+                                <button onClick={() => setActiveSection('properties')} className="text-xs font-bold text-[#FF6000] hover:underline">
+                                    View All ({listings.length}) ›
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {filteredListings.slice(0, activeSection === 'all' ? 6 : propertyLimit).map(listing => {
+                                const seller = getSeller(listing.institutionId);
+                                return (
+                                    <div
+                                        key={listing.id}
+                                        onClick={() => {
+                                            setSelectedListing(listing);
+                                            apiService.incrementCount('pm_listings', listing.id, 'view_count');
+                                        }}
+                                        className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-xl hover:border-orange-500 transition-all flex flex-col cursor-pointer group"
+                                    >
+                                        <div className="relative h-56 bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                            {listing.images && listing.images[0] ? (
+                                                <img 
+                                                    src={listing.images[0]} 
+                                                    alt={listing.title} 
+                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                    <BuildingOfficeIcon className="w-16 h-16 opacity-30 text-orange-500" />
+                                                </div>
+                                            )}
+                                            <div className="absolute top-3 left-3 bg-[#FF6000] text-white text-[9px] font-black uppercase px-2.5 py-1 rounded shadow">
+                                                For {listing.listingType}
+                                            </div>
+                                            <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded flex items-center gap-1">
+                                                <MapPinIcon className="w-3.5 h-3.5 text-amber-400" />
+                                                <span>{listing.location || 'Kenya'}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-5 flex-1 flex flex-col justify-between">
+                                            <div>
+                                                <h4 className="font-black text-base text-slate-900 dark:text-white uppercase italic tracking-tight mb-2 group-hover:text-orange-600 transition-colors">
+                                                    {listing.title}
+                                                </h4>
+                                                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mb-4">
+                                                    {listing.description}
+                                                </p>
+                                            </div>
+
+                                            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                                <div>
+                                                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Valuation</span>
+                                                    <span className="text-xl font-black text-slate-900 dark:text-white italic">
+                                                        <span className="text-xs font-normal text-slate-400 mr-1">KES</span>
+                                                        {listing.price?.toLocaleString()}
+                                                    </span>
+                                                </div>
+
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openInquiry(listing);
+                                                    }}
+                                                    className="bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#FF6000] dark:hover:bg-[#FF6000] dark:hover:text-white px-5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all"
+                                                >
+                                                    Inquire
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Vehicle Marketplace Grid ── */}
+                {(activeSection === 'all' || activeSection === 'vehicles') && (
+                    <div className="mb-14">
+                        <VehicleMarketplaceView 
+                            listings={filteredVehicles}
+                            onBookTestDrive={(v) => {
+                                alert(`Booking test drive for ${v.make} ${v.model}. Out of scope for this demo.`);
+                            }}
+                            onInquiry={(v) => {
+                                alert(`Enquiring about ${v.make} ${v.model}. Out of scope for this demo.`);
+                            }}
+                            currentInstitution={null}
+                        />
+                    </div>
+                )}
+
+            </div>
+
+            {/* ── 8. Alibaba Logistics Partner CTA ── */}
+            <div className="max-w-[1500px] mx-auto px-4 sm:px-8 mt-12 mb-16">
+                <div className="bg-gradient-to-r from-neutral-900 via-slate-900 to-[#E55000] rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl">
+                    <div className="max-w-2xl relative z-10 space-y-4">
+                        <div className="inline-flex items-center gap-2 bg-[#FF6000] px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                            <TruckIcon className="w-4 h-4" /> Countrywide Logistics Network
+                        </div>
+                        <h2 className="text-3xl sm:text-5xl font-black uppercase tracking-tight italic">
+                            Are you a Courier or Transport Provider?
+                        </h2>
+                        <p className="text-slate-200 text-sm leading-relaxed">
+                            Join our nationwide B2B fulfillment network. Deliver wholesale school desks, lab supplies, books, and equipment with guaranteed automated M-Pesa payouts.
+                        </p>
+                        <div className="flex flex-wrap gap-3 pt-2">
+                            <button
+                                onClick={() => {
+                                    setRegistratorInstId(retailProducts[0]?.institutionId || '');
+                                    setShowCourierSignup(true);
+                                }}
+                                className="bg-white text-slate-900 hover:bg-amber-100 px-6 py-3 rounded-full font-black text-xs uppercase tracking-wider shadow-lg hover:scale-105 transition-all"
                             >
-                                Sync More Products
+                                Register As Courier Partner
+                            </button>
+                            <button
+                                onClick={() => setShowRfqModal(true)}
+                                className="bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-full font-black text-xs uppercase tracking-wider border border-white/30 transition-all"
+                            >
+                                Post Bulk Shipping Need
                             </button>
                         </div>
-                    )}
+                    </div>
+                </div>
+            </div>
 
-                    <div className="mt-40 relative group overflow-hidden rounded-[4rem] bg-indigo-900 min-h-[400px] flex items-center p-12 md:p-20">
-                        {/* Background Decoration */}
-                        <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-800/30 -skew-x-12 translate-x-1/4"></div>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-500/10 rounded-full blur-[120px]"></div>
-
-                        <div className="relative z-10 max-w-2xl space-y-8">
-                            <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-xl px-5 py-2 rounded-full border border-white/10">
-                                <TruckIcon className="w-5 h-5 text-white" />
-                                <span className="text-[10px] font-black uppercase tracking-widest text-white italic">Logistics Network</span>
+            {/* ── 9. Alibaba Request for Quotation (RFQ) Modal ── */}
+            {showRfqModal && (
+                <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowRfqModal(false)}></div>
+                    <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95">
+                        <div className="bg-gradient-to-r from-[#FF6000] to-[#E55000] text-white p-6 flex justify-between items-center">
+                            <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-200 block">Sourcing Service</span>
+                                <h3 className="text-xl font-black uppercase tracking-tight">Post Request For Quotation (RFQ)</h3>
                             </div>
-                            <h2 className="text-4xl md:text-7xl font-black text-white uppercase tracking-tighter italic leading-[0.9]">Partner <br />With Us Today</h2>
-                            <p className="text-indigo-200 text-lg font-bold">Are you a logistics provider? Join our growing delivery network and fulfill thousands of marketplace orders across the country.</p>
-                            
-                            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                            <button onClick={() => setShowRfqModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {rfqSuccess ? (
+                            <div className="p-8 text-center space-y-4">
+                                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-2xl">
+                                    ✓
+                                </div>
+                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase">RFQ Broadcasted!</h4>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                                    Your sourcing request for <strong>{rfqQuantity}x {rfqProductQuery}</strong> has been shared with verified institutional manufacturers and vendors. Suppliers will call/SMS you at <strong>{rfqBuyerPhone}</strong>.
+                                </p>
                                 <button
-                                    onClick={() => {
-                                        setRegistratorInstId(retailProducts[0]?.institutionId || '');
-                                        setShowCourierSignup(true);
-                                    }}
-                                    className="px-10 py-5 bg-white text-indigo-900 rounded-[1.5rem] font-black uppercase tracking-widest text-[11px] shadow-2xl hover:scale-105 active:scale-95 transition-all"
+                                    onClick={() => { setShowRfqModal(false); setRfqSuccess(false); }}
+                                    className="bg-[#FF6000] text-white px-8 py-3 rounded-full font-black text-xs uppercase tracking-wider"
                                 >
-                                    Apply as Courier
-                                </button>
-                                <button className="px-10 py-5 bg-indigo-800/50 backdrop-blur-xl text-white border border-white/10 rounded-[1.5rem] font-black uppercase tracking-widest text-[11px] hover:bg-indigo-700 transition-all">
-                                    Learn More
+                                    Close Window
                                 </button>
                             </div>
-                        </div>
+                        ) : (
+                            <form onSubmit={handleRfqSubmit} className="p-6 space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Product / Equipment Name *</label>
+                                    <input 
+                                        type="text" 
+                                        required
+                                        value={rfqProductQuery}
+                                        onChange={(e) => setRfqProductQuery(e.target.value)}
+                                        placeholder="e.g. 100 Double Student Desks, 5 Microscope Sets, 1 51-Seater Bus..."
+                                        className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none focus:ring-2 focus:ring-[#FF6000]"
+                                    />
+                                </div>
 
-                        {/* Floating Icon Decoration */}
-                        <div className="hidden lg:block absolute right-20 top-1/2 -translate-y-1/2 animate-bounce-slow">
-                            <div className="w-32 h-32 bg-white/5 rounded-[2rem] border border-white/10 flex items-center justify-center backdrop-blur-3xl rotate-12">
-                                <TruckIcon className="w-16 h-16 text-white/20" />
-                            </div>
-                        </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Quantity Needed *</label>
+                                        <input 
+                                            type="number" 
+                                            required
+                                            min={1}
+                                            value={rfqQuantity}
+                                            onChange={(e) => setRfqQuantity(parseInt(e.target.value) || 1)}
+                                            className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Target Budget (Optional KES)</label>
+                                        <input 
+                                            type="text" 
+                                            value={rfqTargetPrice}
+                                            onChange={(e) => setRfqTargetPrice(e.target.value)}
+                                            placeholder="e.g. 250,000"
+                                            className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Your Full Name *</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            value={rfqBuyerName}
+                                            onChange={(e) => setRfqBuyerName(e.target.value)}
+                                            placeholder="Buyer / School Admin"
+                                            className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Contact Phone Number *</label>
+                                        <input 
+                                            type="tel" 
+                                            required
+                                            value={rfqBuyerPhone}
+                                            onChange={(e) => setRfqBuyerPhone(e.target.value)}
+                                            placeholder="+254 7..."
+                                            className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Delivery Destination / County</label>
+                                    <input 
+                                        type="text" 
+                                        value={rfqDestination}
+                                        onChange={(e) => setRfqDestination(e.target.value)}
+                                        placeholder="e.g. Eldoret, Nakuru, Nairobi, Kisumu..."
+                                        className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="text-[10px] font-black uppercase text-slate-500 block mb-1">Specifications / Notes</label>
+                                    <textarea 
+                                        rows={2}
+                                        value={rfqNotes}
+                                        onChange={(e) => setRfqNotes(e.target.value)}
+                                        placeholder="Add required brands, materials, dimensions, or inspection requirements..."
+                                        className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium outline-none"
+                                    />
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={rfqSubmitting}
+                                    className="w-full bg-gradient-to-r from-[#FF6000] to-[#E55000] text-white py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-lg hover:shadow-xl transition-all"
+                                >
+                                    {rfqSubmitting ? 'Submitting RFQ...' : 'Submit Sourcing RFQ to Verified Suppliers'}
+                                </button>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* ── Vehicle Listings Grid ── */}
-            {activeSection === 'vehicles' && (
-                <div className="max-w-[1600px] mx-auto px-8 pb-32 pt-20">
-                    <VehicleMarketplaceView 
-                        listings={filteredVehicles}
-                        onBookTestDrive={(v) => {
-                             // Implement book test drive flow if needed
-                             alert(`Booking test drive for ${v.make} ${v.model}. Out of scope for this demo.`);
-                        }}
-                        onInquiry={(v) => {
-                             // Link to inquiry flow
-                             alert(`Enquiring about ${v.make} ${v.model}. Out of scope for this demo.`);
-                        }}
-                        currentInstitution={null}
-                    />
+            {/* ── 10. Android App Install Helper Modal (with QR Code) ── */}
+            {showInstallModal && (
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowInstallModal(false)}></div>
+                    <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 text-center animate-in zoom-in-95">
+                        <button onClick={() => setShowInstallModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                            <XIcon className="w-5 h-5" />
+                        </button>
 
-                    {vehicleListings.length >= vehicleLimit && (
-                        <div className="flex justify-center mt-12 pb-20">
-                            <button 
-                                onClick={() => setVehicleLimit(prev => prev + 12)}
-                                className="px-12 py-5 glass-card rounded-[2.5rem] text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white hover:border-emerald-500 transition-all active:scale-95 border border-white/5"
-                            >
-                                Sync More Vehicles
-                            </button>
+                        <img src="/marketplace_logo_3d.png" alt="App Icon" className="w-20 h-20 rounded-2xl mx-auto shadow-xl border-2 border-orange-500 object-contain mb-4 bg-white" />
+                        <h3 className="text-xl font-black uppercase text-slate-900 dark:text-white">Install Marketplace Android App</h3>
+                        <p className="text-xs text-slate-500 mt-2 mb-6">
+                            Experience 1-click wholesale sourcing on your Android device with instant M-Pesa order tracking.
+                        </p>
+
+                        <div className="bg-[#FFF3EB] dark:bg-orange-950/30 p-4 rounded-2xl border border-orange-200 dark:border-orange-900 text-left space-y-3 mb-6">
+                            <div className="flex items-start gap-3">
+                                <span className="w-6 h-6 rounded-full bg-[#FF6000] text-white flex items-center justify-center text-xs font-black flex-shrink-0">1</span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                    Open this website on <strong>Google Chrome</strong> on your Android phone.
+                                </p>
+                            </div>
+                            <div className="flex items-start gap-3">
+                                <span className="w-6 h-6 rounded-full bg-[#FF6000] text-white flex items-center justify-center text-xs font-black flex-shrink-0">2</span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                    Tap the <strong>Chrome menu (⋮)</strong> at top right and tap <strong>"Add to Home screen"</strong> or <strong>"Install App"</strong>.
+                                </p>
+                            </div>
+                            <div className="flex items-start gap-3">
+                                <span className="w-6 h-6 rounded-full bg-[#FF6000] text-white flex items-center justify-center text-xs font-black flex-shrink-0">3</span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                    The <strong>EduAI Marketplace</strong> icon will appear on your Android home screen!
+                                </p>
+                            </div>
                         </div>
-                    )}
+
+                        {/* QR Code for Mobile Scanning */}
+                        <div className="p-3 bg-white rounded-2xl shadow-inner inline-block border border-slate-200 mb-4">
+                            <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent('https://portal.eduai.co.ke/?view=marketplace')}`} 
+                                alt="Scan QR Code" 
+                                className="w-32 h-32 mx-auto"
+                            />
+                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider block mt-1">Scan with phone camera</span>
+                        </div>
+
+                        <button
+                            onClick={() => setShowInstallModal(false)}
+                            className="w-full bg-[#FF6000] text-white py-3 rounded-full font-black text-xs uppercase tracking-wider"
+                        >
+                            Got It
+                        </button>
+                    </div>
                 </div>
             )}
 
-            {/* ── Property Listing Detail Panel ── */}
+            {/* ── 11. Property Detail Panel ── */}
             {selectedListing && (
                 <div className="fixed inset-0 z-[100] flex justify-end">
-                    <div
-                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-700"
-                        onClick={() => setSelectedListing(null)}
-                    ></div>
-                    <div className="relative w-full max-w-5xl bg-slate-50 dark:bg-slate-950 shadow-[0_0_100px_rgba(0,0,0,0.5)] animate-in slide-in-from-right duration-700 h-full overflow-y-auto">
-                        <div className="absolute top-8 left-8 z-30 flex gap-4">
-                            <button
-                                onClick={() => setSelectedListing(null)}
-                                className="p-5 bg-white/10 hover:bg-white text-white hover:text-slate-900 rounded-[1.5rem] backdrop-blur-xl transition-all shadow-2xl border border-white/10 group"
-                            >
-                                <XIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                    <div className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={() => setSelectedListing(null)}></div>
+                    <div className="relative w-full max-w-3xl bg-white dark:bg-slate-900 shadow-2xl h-full overflow-y-auto border-l border-slate-200 dark:border-slate-800">
+                        <div className="absolute top-6 right-6 z-20">
+                            <button onClick={() => setSelectedListing(null)} className="p-3 bg-black/50 text-white rounded-full hover:bg-black/70">
+                                <XIcon className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="h-[55vh] relative group overflow-hidden">
+                        <div className="h-80 relative bg-slate-900">
                             {selectedListing.images && selectedListing.images[0] ? (
-                                <img loading="lazy" src={selectedListing.images[0]} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                                <img src={selectedListing.images[0]} alt={selectedListing.title} className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full bg-slate-900 flex items-center justify-center">
-                                    <BuildingOfficeIcon className="w-32 h-32 text-slate-800 animate-pulse" />
+                                <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                    <BuildingOfficeIcon className="w-20 h-20" />
                                 </div>
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-50 dark:from-slate-950 via-slate-950/40 to-transparent"></div>
-
-                            <div className="absolute bottom-16 left-12 right-12">
-                                <span className="inline-flex items-center gap-2 glass-morphism px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-xl mb-8">
-                                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                                    Premier {selectedListing.listingType}
+                            <div className="absolute bottom-6 left-6 right-6 text-white">
+                                <span className="bg-[#FF6000] text-white text-[9px] font-black uppercase px-2.5 py-1 rounded shadow">
+                                    For {selectedListing.listingType}
                                 </span>
-                                <h2 className="text-5xl md:text-8xl font-black text-white uppercase tracking-tighter italic leading-none drop-shadow-2xl">
+                                <h2 className="text-2xl sm:text-3xl font-black uppercase italic tracking-tight mt-2 drop-shadow">
                                     {selectedListing.title}
                                 </h2>
                             </div>
                         </div>
 
-                        <div className="p-12 lg:p-20 grid grid-cols-1 lg:grid-cols-3 gap-16 relative">
-                            {/* Decorative Background numbers/shapes */}
-                            <div className="absolute top-20 right-20 text-[20rem] font-black text-slate-500/5 select-none pointer-events-none italic italic leading-none uppercase tracking-tighter">01</div>
-
-                            <div className="lg:col-span-2 space-y-16">
-                                <div className="space-y-6">
-                                    <h4 className="inline-block px-4 py-1.5 bg-orange-500/10 text-orange-500 text-[10px] font-black uppercase tracking-[0.4em] rounded-lg">Property Architecture</h4>
-                                    <p className="text-slate-600 dark:text-slate-400 text-xl md:text-2xl leading-relaxed font-black uppercase tracking-tight italic">
-                                        {selectedListing.description}
-                                    </p>
-                                </div>
-
-                                {selectedListing.features && selectedListing.features.length > 0 && (
-                                    <div className="space-y-10">
-                                        <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.4em]">Core Features</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {selectedListing.features.map(feat => (
-                                                <div key={feat} className="group relative glass-card p-8 rounded-[2.5rem] overflow-hidden hover:border-orange-500 transition-all">
-                                                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 via-orange-500/0 to-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                                    <div className="relative flex items-center gap-6">
-                                                        <div className="w-12 h-12 rounded-[1.25rem] bg-orange-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                            <SparklesIcon className="w-6 h-6 text-orange-500" />
-                                                        </div>
-                                                        <span className="text-base font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">{feat}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="p-10 glass-card rounded-[3rem] space-y-8">
-                                    <div className="flex items-start gap-6">
-                                        <div className="w-16 h-16 rounded-[2rem] bg-slate-900 dark:bg-white flex items-center justify-center flex-shrink-0 text-white dark:text-slate-900">
-                                            <MapPinIcon className="w-8 h-8" />
-                                        </div>
-                                        <div>
-                                            <h5 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-2">Geolocation</h5>
-                                            <p className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter truncate">
-                                                {selectedListing.location || 'Co-ordinates encrypted'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div className="p-6 sm:p-8 space-y-6">
+                            <div>
+                                <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-2">Description & Architecture</h4>
+                                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                    {selectedListing.description}
+                                </p>
                             </div>
 
-                            <div className="space-y-8">
-                                <div className="glass-morphism p-12 rounded-[4rem] sticky top-12 shadow-[0_45px_100px_rgba(0,0,0,0.2)] flex flex-col items-center">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Unit Valuation</p>
-                                    <div className="flex items-baseline gap-2 mb-12">
-                                        <span className="text-2xl font-medium text-slate-400">KES</span>
-                                        <p className="text-7xl font-black text-slate-900 dark:text-white italic tracking-tighter">
-                                            {selectedListing.price?.toLocaleString()}
-                                        </p>
+                            {selectedListing.features && selectedListing.features.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-3">Facility Features</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedListing.features.map(feat => (
+                                            <span key={feat} className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                ✓ {feat}
+                                            </span>
+                                        ))}
                                     </div>
-
-                                    <div className="w-full space-y-4 mb-12">
-                                        <div className="flex items-center gap-4 p-5 glass-card rounded-[2rem]">
-                                            <div className="w-12 h-12 rounded-[1.25rem] bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                                                <BuildingOfficeIcon className="w-6 h-6 text-indigo-500" />
-                                            </div>
-                                            <div className="truncate">
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Authorized By</p>
-                                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic truncate">
-                                                    {getSeller(selectedListing.institutionId)?.name || 'Central Agency'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button
-                                        onClick={() => {
-                                            setSelectedListing(null);
-                                            openInquiry(selectedListing);
-                                        }}
-                                        className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-8 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4"
-                                    >
-                                        <ShoppingCartIcon className="w-6 h-6" /> Express Interest
-                                    </button>
-
-                                    <button 
-                                        onClick={() => {
-                                            setSharingItem({ id: selectedListing.id, title: selectedListing.title, type: 'property' });
-                                            setShowShareModal(true);
-                                        }}
-                                        className="w-full mt-4 glass-card py-6 rounded-[2.5rem] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
-                                    >
-                                        <ShareIcon className="w-4 h-4 text-indigo-500" /> Spread the Word
-                                    </button>
                                 </div>
+                            )}
+
+                            <div className="p-4 bg-[#FFF8F2] dark:bg-orange-950/20 rounded-2xl border border-orange-200 dark:border-orange-900/40 flex items-center justify-between">
+                                <div>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Asking Valuation</span>
+                                    <span className="text-2xl font-black text-[#FF6000] italic">
+                                        KES {selectedListing.price?.toLocaleString()}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => { setSelectedListing(null); openInquiry(selectedListing); }}
+                                    className="bg-[#FF6000] hover:bg-[#E55000] text-white px-6 py-2.5 rounded-full font-black text-xs uppercase tracking-wider shadow"
+                                >
+                                    Inquire Now
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ── Retail Product Detail Panel ── */}
+            {/* ── 12. Retail Product Detail Panel (Alibaba Wholesale) ── */}
             {selectedProduct && (
                 <div className="fixed inset-0 z-[100] flex justify-end">
-                    <div
-                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-700"
-                        onClick={() => setSelectedProduct(null)}
-                    ></div>
-                    <div className="relative w-full max-w-2xl bg-white dark:bg-slate-950 shadow-2xl animate-in slide-in-from-right duration-700 h-full overflow-y-auto">
-                        <div className="absolute top-8 right-8 z-30 flex gap-4">
-                            <button
-                                onClick={() => setSelectedProduct(null)}
-                                className="p-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-full transition-all shadow-md group"
-                            >
-                                <XIcon className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+                    <div className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={() => setSelectedProduct(null)}></div>
+                    <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 shadow-2xl h-full overflow-y-auto border-l border-slate-200 dark:border-slate-800">
+                        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center z-20">
+                            <span className="text-xs font-black text-[#FF6000] uppercase tracking-wider flex items-center gap-1">
+                                <span>🛡️</span> Verified Wholesale Sourcing
+                            </span>
+                            <button onClick={() => setSelectedProduct(null)} className="p-2 text-slate-400 hover:text-slate-600">
+                                <XIcon className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="h-80 relative group overflow-hidden bg-slate-100 dark:bg-slate-900">
+                        <div className="h-80 bg-slate-100 dark:bg-slate-800 relative">
                             {selectedProduct.imageUrl ? (
-                                <img loading="lazy" src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+                                <img src={selectedProduct.imageUrl} alt={selectedProduct.name} className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full bg-indigo-900/10 flex items-center justify-center">
-                                    <ShoppingCartIcon className="w-24 h-24 text-indigo-500 animate-pulse" />
+                                <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                    <ShoppingCartIcon className="w-20 h-20 text-[#FF6000] opacity-40" />
                                 </div>
                             )}
-                            <div className="absolute inset-0 bg-gradient-to-t from-white dark:from-slate-950 via-transparent to-transparent"></div>
-
-                            <div className="absolute bottom-8 left-10">
-                                <span className="inline-flex items-center gap-2 glass-morphism px-5 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-white shadow-lg mb-4">
-                                    <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                                    {selectedProduct.category || 'Retail'}
-                                </span>
-                                <h2 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic leading-none truncate max-w-lg drop-shadow-sm">
-                                    {selectedProduct.name}
-                                </h2>
-                            </div>
                         </div>
 
-                        <div className="p-10 space-y-10 relative">
-                            {selectedProduct.description && (
-                                <div className="space-y-4">
-                                    <h4 className="inline-block px-3 py-1 bg-indigo-500/10 text-indigo-500 text-[9px] font-black uppercase tracking-[0.4em] rounded-lg">Specifications</h4>
-                                    <p className="text-slate-600 dark:text-slate-400 text-lg leading-relaxed font-bold uppercase italic tracking-tight">
-                                        {selectedProduct.description}
-                                    </p>
-                                </div>
-                            )}
+                        <div className="p-6 sm:p-8 space-y-6">
+                            <div>
+                                <span className="bg-[#FFF3EB] text-[#FF6000] text-[10px] font-black uppercase px-2.5 py-1 rounded-md">
+                                    {selectedProduct.category || 'General Wholesale'}
+                                </span>
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tight mt-2">
+                                    {selectedProduct.name}
+                                </h3>
+                                <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
+                                    {selectedProduct.description || 'Pre-vetted institutional supplies with direct delivery.'}
+                                </p>
+                            </div>
 
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="glass-card p-8 rounded-[2.5rem] border-indigo-500/20 shadow-indigo-500/5">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Retail Value</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-sm font-medium text-slate-400 uppercase">KES</span>
-                                        <p className="text-3xl font-black text-slate-900 dark:text-white italic tracking-tighter">
-                                            {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0)?.toLocaleString()}
-                                        </p>
+                            {/* Wholesale Tiered Pricing Table */}
+                            <div className="bg-[#FFF8F2] dark:bg-orange-950/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-900/50">
+                                <span className="text-[10px] font-black uppercase text-slate-400 block mb-2">Wholesale Tiered Pricing</span>
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                                        <span className="text-[10px] text-slate-400 font-bold block">1 - 9 pcs</span>
+                                        <span className="text-sm font-black text-slate-900 dark:text-white">KES {Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0).toLocaleString()}</span>
                                     </div>
-                                </div>
-                                <div className="glass-card p-8 rounded-[2.5rem]">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Availability</p>
-                                    <div className="flex items-baseline gap-2">
-                                        <p className={`text-3xl font-black italic tracking-tighter ${Number(selectedProduct.quantity) > 5 ? 'text-emerald-500' : Number(selectedProduct.quantity) > 0 ? 'text-amber-500' : 'text-rose-500'}`}>
-                                            {selectedProduct.quantity}
-                                        </p>
-                                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Units</span>
+                                    <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-orange-300 text-[#FF6000]">
+                                        <span className="text-[10px] font-bold block">10 - 49 pcs</span>
+                                        <span className="text-sm font-black">KES {Math.round(Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0) * 0.90).toLocaleString()}</span>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-emerald-400 text-emerald-600 dark:text-emerald-400">
+                                        <span className="text-[10px] font-bold block">50+ pcs</span>
+                                        <span className="text-sm font-black">KES {Math.round(Number(selectedProduct.srpPrice || selectedProduct.costPrice || 0) * 0.80).toLocaleString()}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="glass-card p-6 rounded-[2rem] flex items-center gap-6">
-                                <div className="w-12 h-12 rounded-[1.25rem] bg-slate-900 dark:bg-white flex items-center justify-center flex-shrink-0 text-white dark:text-slate-900">
-                                    <BuildingOfficeIcon className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Authenticated Retailer</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white uppercase italic truncate">
-                                        {getSeller(selectedProduct.institutionId)?.name || 'Retail Agency'}
-                                    </p>
-                                </div>
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400 py-3 border-y border-slate-100 dark:border-slate-800">
+                                <span>Availability: <strong className="text-emerald-600 dark:text-emerald-400">{selectedProduct.quantity || 1} units</strong></span>
+                                <span>Supplier: <strong>{getSeller(selectedProduct.institutionId)?.name || 'Direct Vendor'}</strong></span>
                             </div>
 
-                            <div className="pt-4">
+                            <div className="flex gap-3">
                                 <button
                                     onClick={() => {
                                         setSelectedProduct(null);
                                         openInquiry(selectedProduct);
                                     }}
-                                    className="w-full bg-indigo-600 text-white py-8 rounded-[3rem] font-black text-sm uppercase tracking-[0.3em] shadow-[0_25px_60px_-15px_rgba(79,70,229,0.5)] hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-4"
+                                    className="flex-1 bg-gradient-to-r from-[#FF6000] to-[#E55000] text-white py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-lg hover:shadow-xl transition-all"
                                 >
-                                    <ShoppingCartIcon className="w-6 h-6" /> Buy it Now
+                                    Start Order / Inquire
                                 </button>
-
-                                <button 
+                                <button
                                     onClick={() => {
                                         setSharingItem({ id: selectedProduct.id, title: selectedProduct.name, type: 'retail' });
                                         setShowShareModal(true);
                                     }}
-                                    className="w-full mt-4 glass-card py-6 rounded-[2.5rem] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
+                                    className="p-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-200 transition-colors"
+                                    title="Share Listing"
                                 >
-                                    <ShareIcon className="w-4 h-4 text-indigo-500" /> Spread the Word
+                                    <ShareIcon className="w-5 h-5" />
                                 </button>
-                                <p className="text-[9px] text-center font-black text-slate-400 uppercase tracking-widest mt-8">Secure encrypted transaction via EduAI Quantum</p>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ── Checkout / Express Interest Modal ── */}
+            {/* ── 13. M-Pesa Checkout & Logistics Modal ── */}
             {(inquiryListing || inquiryProduct) && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6">
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
                     <div
-                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-500"
+                        className="absolute inset-0 bg-black/75 backdrop-blur-sm"
                         onClick={() => {
                             if (!inquirySubmitting && !mpesaProcessing) {
                                 setInquiryListing(null);
                                 setInquiryProduct(null);
-                                setOrderQuantity(1);
-                                setDeliverySearchQuery('');
-                                setSpecificAddress('');
-                                setIsCustomDelivery(false);
-                                setCustomDestination('');
                             }
                         }}
                     ></div>
-                    <div className="relative w-full max-w-xl bg-white dark:bg-slate-900 rounded-[3rem] sm:rounded-[4rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-95 duration-500 border border-slate-100 dark:border-slate-800">
-                        {/* Header */}
-                        <div className={`p-8 sm:p-10 text-white relative overflow-hidden ${inquiryProduct ? 'bg-indigo-600' : 'bg-orange-600'}`}>
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 animate-pulse"></div>
-
-                            <div className="relative z-10 flex justify-between items-start">
+                    <div className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                        {/* Modal Header */}
+                        <div className="bg-gradient-to-r from-[#FF6000] to-[#E55000] text-white p-6">
+                            <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60 mb-2">
-                                        {inquiryProduct ? 'Express Fulfillment' : 'Intelligence Protocol'}
-                                    </p>
-                                    <h3 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter italic leading-none truncate max-w-xs sm:max-w-md">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-200 block">
+                                        {inquiryProduct ? 'Wholesale Order & M-Pesa' : 'Property Inquiry'}
+                                    </span>
+                                    <h3 className="text-xl font-black uppercase tracking-tight line-clamp-1">
                                         {inquiryListing?.title || inquiryProduct?.name}
                                     </h3>
-                                    
-                                    {/* Progress Stepper for Retail */}
-                                    {inquiryProduct && !inquirySuccess && (
-                                        <div className="flex gap-2 mt-6">
-                                            {(['details', 'delivery', 'payment'] as const).map((step, idx) => (
-                                                <div key={step} className="flex items-center gap-2">
-                                                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black border ${checkoutStep === step ? 'bg-white text-indigo-600 border-white' : 'border-white/30 text-white/50'}`}>
-                                                        {idx + 1}
-                                                    </div>
-                                                    {idx < 2 && <div className="w-4 h-px bg-white/20"></div>}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
-                                <button
-                                    disabled={inquirySubmitting || mpesaProcessing}
-                                    onClick={() => { 
-                                        setInquiryListing(null); 
-                                        setInquiryProduct(null); 
-                                        setOrderQuantity(1);
-                                        setDeliverySearchQuery('');
-                                        setSpecificAddress('');
-                                        setIsCustomDelivery(false);
-                                        setCustomDestination('');
-                                    }}
-                                    className="p-3 bg-white/10 hover:bg-white text-white hover:text-slate-900 rounded-2xl transition-all"
+                                <button 
+                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
+                                    className="p-1 hover:bg-white/20 rounded-full"
                                 >
                                     <XIcon className="w-5 h-5" />
                                 </button>
                             </div>
+
+                            {/* Stepper for Retail */}
+                            {inquiryProduct && !inquirySuccess && (
+                                <div className="flex gap-2 mt-4 pt-4 border-t border-white/20">
+                                    {(['details', 'delivery', 'payment'] as const).map((step, idx) => (
+                                        <div key={step} className="flex items-center gap-2">
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black ${checkoutStep === step ? 'bg-white text-[#FF6000]' : 'border border-white/40 text-white/60'}`}>
+                                                {idx + 1}
+                                            </div>
+                                            <span className={`text-[10px] font-bold capitalize ${checkoutStep === step ? 'text-white' : 'text-white/60'}`}>{step}</span>
+                                            {idx < 2 && <span className="text-white/40">›</span>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {inquirySuccess ? (
-                            <div className="p-10 sm:p-12 text-center space-y-8 animate-in zoom-in-95 duration-500">
-                                <div className="w-24 h-24 bg-emerald-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto relative">
-                                    <div className="absolute inset-0 bg-emerald-500/20 rounded-[2.5rem] animate-ping opacity-20"></div>
-                                    <CheckCircleIcon className="w-12 h-12 text-emerald-500" />
+                            <div className="p-8 text-center space-y-4">
+                                <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-2xl font-black">
+                                    ✓
                                 </div>
-                                <div className="space-y-4">
-                                    <h4 className="text-2xl font-black text-slate-900 dark:text-white uppercase italic tracking-tighter">Order Authenticated</h4>
-                                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-loose max-w-sm mx-auto">
-                                        {inquiryProduct 
-                                            ? `Retail logistics initialized for ${orderQuantity}x ${inquiryProduct.name}. Your items will be dispatched to ${isCustomDelivery ? customDestination : selectedRate?.destination}${specificAddress ? ` (${specificAddress})` : ''} within ${selectedRate?.estimated_days || selectedRate?.estimatedDays || 1} work days.` 
-                                            : `Transmission successful. Our field agents will contact you at ${inquiryPhone} for further intelligence.`}
-                                    </p>
-                                </div>
+                                <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase">Order Received!</h4>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    {inquiryProduct 
+                                        ? `Wholesale delivery organized for ${orderQuantity}x ${inquiryProduct.name}. Courier dispatch is underway.`
+                                        : `Your inquiry has been relayed to the vendor. They will call you at ${inquiryPhone}.`}
+                                </p>
                                 <button
-                                    onClick={() => { 
-                                        setInquiryListing(null); 
-                                        setInquiryProduct(null); 
-                                        setOrderQuantity(1);
-                                        setDeliverySearchQuery('');
-                                        setSpecificAddress('');
-                                        setIsCustomDelivery(false);
-                                        setCustomDestination('');
-                                    }}
-                                    className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-6 rounded-3xl font-black text-[10px] uppercase tracking-[0.4em] shadow-xl hover:scale-105 transition-all"
+                                    onClick={() => { setInquiryListing(null); setInquiryProduct(null); }}
+                                    className="bg-[#FF6000] text-white px-8 py-3 rounded-full font-black text-xs uppercase"
                                 >
                                     Done
                                 </button>
                             </div>
                         ) : (
-                            <div className="p-8 sm:p-10 max-h-[75vh] overflow-y-auto no-scrollbar">
+                            <div className="p-6 max-h-[75vh] overflow-y-auto">
                                 {checkoutStep === 'details' && (
-                                    <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                                        {/* Retail Product Order Card & Quantity Selector */}
+                                    <div className="space-y-4">
                                         {inquiryProduct && (
-                                            <div className="p-5 glass-card rounded-[2rem] border border-indigo-500/15 space-y-4">
-                                                <div className="flex items-center gap-4">
-                                                    {inquiryProduct.imageUrl ? (
-                                                        <img
-                                                            src={inquiryProduct.imageUrl}
-                                                            alt={inquiryProduct.name}
-                                                            className="w-16 h-16 rounded-2xl object-cover bg-slate-100 dark:bg-slate-800 flex-shrink-0"
-                                                        />
-                                                    ) : (
-                                                        <div className="w-16 h-16 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center flex-shrink-0 text-indigo-500">
-                                                            <ShoppingCartIcon className="w-8 h-8" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500 px-2 py-0.5 rounded-md bg-indigo-500/10">
-                                                                {inquiryProduct.category || 'Retail Item'}
-                                                            </span>
-                                                            <span className={`text-[9px] font-black uppercase tracking-widest ${availableStock > 5 ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                                                {availableStock} in stock
-                                                            </span>
-                                                        </div>
-                                                        <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase italic truncate">
-                                                            {inquiryProduct.name}
-                                                        </h4>
-                                                        <p className="text-xs font-black text-slate-900 dark:text-white">
-                                                            KES {activeUnitPrice.toLocaleString()} <span className="text-[9px] font-medium text-slate-400">/ unit</span>
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Quantity Controls */}
-                                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                                            <div className="bg-[#FFF8F2] dark:bg-orange-950/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-900/40">
+                                                <div className="flex justify-between items-center mb-3">
                                                     <div>
-                                                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 block">Quantity (Qty)</span>
-                                                        <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">
-                                                            Subtotal: KES {activeItemsSubtotal.toLocaleString()}
-                                                        </span>
+                                                        <span className="text-xs font-bold text-slate-900 dark:text-white block">{inquiryProduct.name}</span>
+                                                        <span className="text-[10px] text-slate-400">Unit: KES {activeUnitPrice.toLocaleString()}</span>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-2xl">
+                                                    {/* Quantity Controls */}
+                                                    <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
                                                         <button
                                                             type="button"
                                                             disabled={orderQuantity <= 1}
                                                             onClick={() => setOrderQuantity(prev => Math.max(1, prev - 1))}
-                                                            className="w-8 h-8 rounded-xl bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
-                                                            title="Decrease Quantity"
+                                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                                                         >
                                                             <MinusIcon className="w-3.5 h-3.5" />
                                                         </button>
-                                                        <input
-                                                            type="number"
-                                                            min={1}
-                                                            max={availableStock}
-                                                            value={orderQuantity}
-                                                            onChange={(e) => {
-                                                                const val = parseInt(e.target.value, 10);
-                                                                if (!isNaN(val)) {
-                                                                    setOrderQuantity(Math.min(Math.max(1, val), availableStock));
-                                                                }
-                                                            }}
-                                                            className="w-10 text-center bg-transparent font-black text-sm text-slate-900 dark:text-white outline-none"
-                                                        />
+                                                        <span className="w-8 text-center font-black text-xs">{orderQuantity}</span>
                                                         <button
                                                             type="button"
                                                             disabled={orderQuantity >= availableStock}
                                                             onClick={() => setOrderQuantity(prev => Math.min(availableStock, prev + 1))}
-                                                            className="w-8 h-8 rounded-xl bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
-                                                            title="Increase Quantity"
+                                                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
                                                         >
                                                             <PlusIcon className="w-3.5 h-3.5" />
                                                         </button>
                                                     </div>
                                                 </div>
+
+                                                <div className="text-right pt-2 border-t border-orange-200/40">
+                                                    <span className="text-xs font-black text-[#FF6000]">
+                                                        Subtotal: KES {activeItemsSubtotal.toLocaleString()}
+                                                    </span>
+                                                </div>
                                             </div>
                                         )}
 
-                                        <div className="space-y-4">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Full Identity / Name</label>
-                                                <input
-                                                    type="text"
-                                                    value={inquiryProduct ? inquiryData.name : inquiryName}
-                                                    onChange={e => inquiryProduct ? setInquiryData({...inquiryData, name: e.target.value}) : setInquiryName(e.target.value)}
-                                                    placeholder="Full Name / Buyer Name"
-                                                    className="w-full p-5 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Communication Line / Phone</label>
-                                                <input
-                                                    type="tel"
-                                                    value={inquiryProduct ? inquiryData.phone : inquiryPhone}
-                                                    onChange={e => inquiryProduct ? setInquiryData({...inquiryData, phone: e.target.value}) : setInquiryPhone(e.target.value)}
-                                                    placeholder="+254 7..."
-                                                    className="w-full p-5 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
-                                                />
-                                            </div>
-                                            {inquiryProduct && (
-                                                <div className="space-y-2">
-                                                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-4">Email Address</label>
-                                                    <input
-                                                        type="email"
-                                                        value={inquiryData.email}
-                                                        onChange={e => setInquiryData({...inquiryData, email: e.target.value})}
-                                                        placeholder="customer@email.com"
-                                                        className="w-full p-5 glass-card rounded-[2rem] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
-                                                    />
-                                                </div>
-                                            )}
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Your Full Name</label>
+                                            <input 
+                                                type="text" 
+                                                value={inquiryProduct ? inquiryData.name : inquiryName}
+                                                onChange={e => inquiryProduct ? setInquiryData({...inquiryData, name: e.target.value}) : setInquiryName(e.target.value)}
+                                                placeholder="Full Name"
+                                                className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-medium outline-none"
+                                            />
                                         </div>
+
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Phone Number (M-Pesa)</label>
+                                            <input 
+                                                type="tel" 
+                                                value={inquiryProduct ? inquiryData.phone : inquiryPhone}
+                                                onChange={e => inquiryProduct ? setInquiryData({...inquiryData, phone: e.target.value}) : setInquiryPhone(e.target.value)}
+                                                placeholder="+254 7..."
+                                                className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-medium outline-none"
+                                            />
+                                        </div>
+
                                         <button
                                             onClick={() => inquiryProduct ? setCheckoutStep('delivery') : handleSubmitInquiry(new Event('submit') as any)}
                                             disabled={inquirySubmitting || (inquiryProduct ? (!inquiryData.name || !inquiryData.phone) : (!inquiryName || !inquiryPhone))}
-                                            className="w-full py-6 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-slate-900 dark:bg-indigo-600 shadow-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className="w-full bg-[#FF6000] text-white py-3.5 rounded-full font-black text-xs uppercase tracking-wider shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
                                         >
-                                            {inquirySubmitting ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : (inquiryProduct ? `Configure Logistics (KES ${activeItemsSubtotal.toLocaleString()})` : 'Initialize Request')}
+                                            {inquirySubmitting ? 'Submitting...' : inquiryProduct ? `Proceed to Delivery (KES ${activeItemsSubtotal.toLocaleString()})` : 'Submit Inquiry'}
                                         </button>
                                     </div>
                                 )}
 
                                 {checkoutStep === 'delivery' && (
-                                    <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between px-2">
-                                                <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">
-                                                    Select Target Destination
-                                                </h4>
-                                                {deliveryRates.length > 0 && (
-                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                                        {filteredDeliveryRates.length} destination{filteredDeliveryRates.length === 1 ? '' : 's'}
-                                                    </span>
-                                                )}
-                                            </div>
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <h4 className="text-xs font-black uppercase text-slate-400">Select Delivery Location</h4>
+                                            <span className="text-[10px] text-slate-400">{filteredDeliveryRates.length} routes</span>
+                                        </div>
 
-                                            {/* Search Delivery Location Bar */}
-                                            <div className="relative">
-                                                <SearchIcon className="w-5 h-5 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                <input
-                                                    type="text"
-                                                    value={deliverySearchQuery}
-                                                    onChange={e => setDeliverySearchQuery(e.target.value)}
-                                                    placeholder="Search delivery location, city, or town..."
-                                                    className="w-full pl-13 pr-10 py-4 glass-card rounded-[1.75rem] font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200/50 dark:border-slate-800"
-                                                />
-                                                {deliverySearchQuery && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDeliverySearchQuery('')}
-                                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                        <input 
+                                            type="text" 
+                                            value={deliverySearchQuery}
+                                            onChange={e => setDeliverySearchQuery(e.target.value)}
+                                            placeholder="Search city, town, or area..."
+                                            className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
+                                        />
+
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {filteredDeliveryRates.map(rate => {
+                                                const isSelected = selectedRate?.id === rate.id && !isCustomDelivery;
+                                                return (
+                                                    <div 
+                                                        key={rate.id}
+                                                        onClick={() => { setSelectedRate(rate); setIsCustomDelivery(false); }}
+                                                        className={`p-3 rounded-xl border transition-all cursor-pointer flex justify-between items-center ${isSelected ? 'border-[#FF6000] bg-[#FFF8F2] dark:bg-orange-950/30' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50'}`}
                                                     >
-                                                        <XIcon className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {/* Destinations List */}
-                                            <div className="space-y-2.5 max-h-56 overflow-y-auto no-scrollbar pr-1">
-                                                {filteredDeliveryRates.map(rate => {
-                                                    const isSelected = selectedRate?.id === rate.id && !isCustomDelivery;
-                                                    return (
-                                                        <button
-                                                            key={rate.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedRate(rate);
-                                                                setIsCustomDelivery(false);
-                                                            }}
-                                                            className={`w-full p-4 rounded-[1.75rem] border-2 transition-all flex justify-between items-center text-left ${isSelected ? 'border-indigo-500 bg-indigo-500/10 shadow-md ring-1 ring-indigo-500' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
-                                                        >
-                                                            <div className="flex items-center gap-3">
-                                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                                                                    <MapPinIcon className="w-4 h-4" />
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="font-black text-slate-900 dark:text-white uppercase italic text-xs">{rate.destination}</span>
-                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                                                        {rate.courier_name || rate.courierName ? `${rate.courier_name || rate.courierName} • ` : ''}
-                                                                        {rate.estimated_days || rate.estimatedDays || 1} Day Delivery
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <span className="text-sm font-black text-indigo-600 dark:text-indigo-400">
-                                                                KES {Number(rate.rate).toLocaleString()}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-
-                                                {/* Custom / Other Delivery Location Button */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsCustomDelivery(true);
-                                                        setSelectedRate({
-                                                            id: 'custom',
-                                                            destination: customDestination || 'Custom Destination',
-                                                            rate: 0,
-                                                            estimated_days: 2
-                                                        });
-                                                    }}
-                                                    className={`w-full p-4 rounded-[1.75rem] border-2 transition-all flex justify-between items-center text-left ${isCustomDelivery ? 'border-indigo-500 bg-indigo-500/10 shadow-md ring-1 ring-indigo-500' : 'border-dashed border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${isCustomDelivery ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                                                            <TruckIcon className="w-4 h-4" />
+                                                        <div>
+                                                            <span className="text-xs font-bold text-slate-900 dark:text-white block">{rate.destination}</span>
+                                                            <span className="text-[10px] text-slate-400">{rate.courier_name || 'Verified Courier'} • {rate.estimated_days || 1} day</span>
                                                         </div>
-                                                        <div className="flex flex-col">
-                                                            <span className="font-black text-slate-900 dark:text-white uppercase italic text-xs">
-                                                                Other / Custom Destination
-                                                            </span>
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                                                                Enter your specific town, county, or area
-                                                            </span>
-                                                        </div>
+                                                        <span className="text-xs font-black text-[#FF6000]">KES {Number(rate.rate).toLocaleString()}</span>
                                                     </div>
-                                                    <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
-                                                        Manual Location
-                                                    </span>
-                                                </button>
+                                                );
+                                            })}
 
-                                                {filteredDeliveryRates.length === 0 && deliveryRates.length > 0 && (
-                                                    <div className="p-4 text-center glass-card rounded-2xl">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">
-                                                            No preset destinations matching "{deliverySearchQuery}". Choose "Other / Custom Destination" above.
-                                                        </p>
-                                                    </div>
-                                                )}
-
-                                                {deliveryRates.length === 0 && (
-                                                    <div className="p-4 text-center glass-card rounded-2xl">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase italic">
-                                                            No preset routes configured. Please enter your custom location below.
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Custom Location Town Input */}
-                                            {isCustomDelivery && (
-                                                <div className="p-4 glass-card rounded-[1.75rem] border border-indigo-500/20 space-y-2 animate-in fade-in slide-in-from-top-2">
-                                                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">
-                                                        Your Destination Town / City / County *
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={customDestination}
-                                                        onChange={e => {
-                                                            setCustomDestination(e.target.value);
-                                                            setSelectedRate({
-                                                                id: 'custom',
-                                                                destination: e.target.value || 'Custom Destination',
-                                                                rate: 0,
-                                                                estimated_days: 2
-                                                            });
-                                                        }}
-                                                        placeholder="e.g. Kitale, Naivasha, Kericho, Malindi..."
-                                                        className="w-full p-4 glass-card rounded-2xl font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200 dark:border-slate-700"
-                                                    />
-                                                </div>
-                                            )}
-
-                                            {/* Specific Delivery Address / Landmark */}
-                                            <div className="space-y-1.5 pt-2">
-                                                <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">
-                                                    Specific Street Address / Building / Landmark <span className="text-indigo-500 font-bold">(Recommended)</span>
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={specificAddress}
-                                                    onChange={e => setSpecificAddress(e.target.value)}
-                                                    placeholder="e.g. Kimathi Street, Pioneer Plaza 3rd Floor, Door 304 / Near Post Office"
-                                                    className="w-full p-4 glass-card rounded-2xl font-bold text-xs text-slate-900 dark:text-white placeholder:text-slate-400 outline-none focus:ring-2 ring-indigo-500 border border-slate-200 dark:border-slate-700"
-                                                />
+                                            <div 
+                                                onClick={() => {
+                                                    setIsCustomDelivery(true);
+                                                    setSelectedRate({ id: 'custom', destination: customDestination || 'Custom', rate: 0 });
+                                                }}
+                                                className={`p-3 rounded-xl border border-dashed transition-all cursor-pointer ${isCustomDelivery ? 'border-[#FF6000] bg-[#FFF8F2] dark:bg-orange-950/30' : 'border-slate-300 hover:bg-slate-50'}`}
+                                            >
+                                                <span className="text-xs font-bold block text-slate-800 dark:text-white">Custom Town / County</span>
+                                                <span className="text-[10px] text-slate-400">Specify your exact location</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => setCheckoutStep('details')}
-                                                className="px-8 py-5.5 glass-card rounded-[2rem] font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-                                            >
+                                        {isCustomDelivery && (
+                                            <input 
+                                                type="text" 
+                                                value={customDestination}
+                                                onChange={e => {
+                                                    setCustomDestination(e.target.value);
+                                                    setSelectedRate({ id: 'custom', destination: e.target.value || 'Custom', rate: 0 });
+                                                }}
+                                                placeholder="Enter town, school, or county name"
+                                                className="w-full text-xs p-3 rounded-xl border border-[#FF6000] bg-white dark:bg-slate-800 font-medium outline-none"
+                                            />
+                                        )}
+
+                                        <input 
+                                            type="text" 
+                                            value={specificAddress}
+                                            onChange={e => setSpecificAddress(e.target.value)}
+                                            placeholder="Specific address, building, or landmark (Optional)"
+                                            className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
+                                        />
+
+                                        <div className="flex gap-3 pt-2">
+                                            <button onClick={() => setCheckoutStep('details')} className="px-5 py-3 rounded-full border border-slate-200 text-xs font-bold">
                                                 Back
                                             </button>
-                                            <button
-                                                type="button"
+                                            <button 
                                                 disabled={!selectedRate || (isCustomDelivery && !customDestination.trim())}
                                                 onClick={() => setCheckoutStep('payment')}
-                                                className="flex-1 py-5.5 rounded-[2.5rem] font-black text-xs uppercase tracking-[0.4em] shadow-2xl transition-all hover:scale-[1.02] active:scale-95 text-white bg-indigo-600 shadow-indigo-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="flex-1 bg-[#FF6000] text-white py-3 rounded-full font-black text-xs uppercase tracking-wider disabled:opacity-50"
                                             >
-                                                Next Protocol
+                                                Proceed to Payment
                                             </button>
                                         </div>
                                     </div>
                                 )}
 
                                 {checkoutStep === 'payment' && inquiryProduct && (
-                                    <div className="space-y-6 animate-in slide-in-from-right duration-500">
-                                        <div className="glass-card p-8 rounded-[2.5rem] border border-indigo-500/10 space-y-4">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    Product
-                                                </span>
-                                                <span className="font-bold text-slate-900 dark:text-white italic text-right truncate max-w-[200px]">
-                                                    {inquiryProduct.name}
-                                                </span>
+                                    <div className="space-y-4">
+                                        <div className="bg-[#FFF8F2] dark:bg-orange-950/20 p-4 rounded-2xl border border-orange-200 dark:border-orange-900/40 space-y-2 text-xs">
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Item:</span>
+                                                <span className="font-bold">{inquiryProduct.name} (x{orderQuantity})</span>
                                             </div>
-
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    Unit Price
-                                                </span>
-                                                <span className="font-bold text-slate-900 dark:text-white italic">
-                                                    KES {activeUnitPrice.toLocaleString()}
-                                                </span>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Items Subtotal:</span>
+                                                <span className="font-black">KES {activeItemsSubtotal.toLocaleString()}</span>
                                             </div>
-
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    Quantity
-                                                </span>
-                                                <span className="font-black text-indigo-600 dark:text-indigo-400 italic">
-                                                    × {orderQuantity} {orderQuantity === 1 ? 'unit' : 'units'}
-                                                </span>
+                                            <div className="flex justify-between">
+                                                <span className="text-slate-500">Delivery:</span>
+                                                <span className="font-bold text-[#FF6000]">{activeDeliveryFee > 0 ? `KES ${activeDeliveryFee.toLocaleString()}` : 'Coordinated on Delivery'}</span>
                                             </div>
-
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                                    Items Subtotal
-                                                </span>
-                                                <span className="font-bold text-slate-900 dark:text-white italic">
-                                                    KES {activeItemsSubtotal.toLocaleString()}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic truncate max-w-[200px]">
-                                                    {isCustomDelivery ? customDestination : selectedRate?.destination} Transit
-                                                </span>
-                                                <span className="font-bold text-indigo-600 italic">
-                                                    {activeDeliveryFee > 0 ? `KES ${activeDeliveryFee.toLocaleString()}` : 'Coordinated at delivery'}
-                                                </span>
-                                            </div>
-
-                                            {specificAddress.trim() && (
-                                                <div className="flex justify-between items-start pt-1">
-                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                                        Address
-                                                    </span>
-                                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 text-right truncate max-w-[240px]">
-                                                        {specificAddress}
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            <div className="h-px bg-slate-100 dark:bg-slate-800"></div>
-
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-[0.3em]">
-                                                    Total Payable
-                                                </span>
-                                                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter italic">
-                                                    KES {activeTotalAmount.toLocaleString()}
-                                                </span>
+                                            <div className="pt-2 border-t border-orange-200/50 flex justify-between text-sm">
+                                                <span className="font-black uppercase">Total Payable:</span>
+                                                <span className="font-black text-[#FF6000]">KES {activeTotalAmount.toLocaleString()}</span>
                                             </div>
                                         </div>
 
                                         <button
                                             onClick={handleProcessPayment}
                                             disabled={mpesaProcessing}
-                                            className="w-full bg-emerald-600 text-white py-7 rounded-[2.5rem] font-black text-sm uppercase tracking-[0.3em] shadow-2xl shadow-emerald-600/30 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4"
+                                            className="w-full bg-[#107C41] hover:bg-[#0E6C38] text-white py-4 rounded-full font-black text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2"
                                         >
                                             {mpesaProcessing ? (
-                                                <>
-                                                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                                                    <span className="animate-pulse">Check Phone for STK Push</span>
-                                                </>
+                                                <span className="animate-pulse">Check Phone for M-Pesa PIN...</span>
                                             ) : (
                                                 <>
-                                                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-emerald-600 font-bold text-[8px] border-2 border-emerald-600">
-                                                        MPESA
-                                                    </div>
-                                                    STK Push Payment (KES {activeTotalAmount.toLocaleString()})
+                                                    <span className="bg-white text-[#107C41] px-1.5 py-0.5 rounded text-[10px]">M-PESA</span>
+                                                    <span>Pay KES {activeTotalAmount.toLocaleString()} via STK Push</span>
                                                 </>
                                             )}
                                         </button>
 
-                                        <div className="flex justify-between items-center px-4">
-                                            <button
-                                                type="button"
-                                                onClick={() => setCheckoutStep('delivery')}
-                                                disabled={mpesaProcessing}
-                                                className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors"
-                                            >
-                                                ← Change Delivery Location
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => setCheckoutStep('details')}
-                                                disabled={mpesaProcessing}
-                                                className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 dark:hover:text-white transition-colors"
-                                            >
-                                                Adjust Quantity ({orderQuantity})
-                                            </button>
-                                        </div>
+                                        <button onClick={() => setCheckoutStep('delivery')} className="w-full text-center text-slate-400 text-xs font-bold hover:underline">
+                                            ← Change Destination
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -1865,16 +2008,54 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             )}
 
+            {/* ── 14. Mobile Sticky Bottom App Bar (Alibaba Style) ── */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-[120] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-2 px-4 shadow-2xl">
+                <div className="flex justify-around items-center">
+                    <button
+                        onClick={() => { setActiveSection('all'); setSelectedCategoryTab('all'); }}
+                        className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${activeSection === 'all' ? 'text-[#FF6000]' : 'text-slate-400'}`}
+                    >
+                        <span className="text-base">🏠</span>
+                        <span>Home</span>
+                    </button>
+                    <button
+                        onClick={() => { setActiveSection('retail'); }}
+                        className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${activeSection === 'retail' ? 'text-[#FF6000]' : 'text-slate-400'}`}
+                    >
+                        <span className="text-base">📦</span>
+                        <span>Equipment</span>
+                    </button>
+                    <button
+                        onClick={() => setShowRfqModal(true)}
+                        className="flex flex-col items-center gap-0.5 text-[10px] font-black text-[#FF6000]"
+                    >
+                        <span className="text-base bg-[#FF6000] text-white w-8 h-8 rounded-full flex items-center justify-center shadow-md -mt-4">📝</span>
+                        <span>RFQ</span>
+                    </button>
+                    <button
+                        onClick={() => { setActiveSection('properties'); }}
+                        className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${activeSection === 'properties' ? 'text-[#FF6000]' : 'text-slate-400'}`}
+                    >
+                        <span className="text-base">🏫</span>
+                        <span>Estates</span>
+                    </button>
+                    <button
+                        onClick={handleInstallApp}
+                        className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-amber-500"
+                    >
+                        <span className="text-base">📱</span>
+                        <span>App</span>
+                    </button>
+                </div>
+            </div>
+
             {/* Courier Signup Modal */}
             <CourierSignupModal 
                 isOpen={showCourierSignup}
                 onClose={() => setShowCourierSignup(false)}
                 institutionId={registratorInstId}
-                onSuccess={() => {
-                    // Application submitted
-                }}
+                onSuccess={() => {}}
             />
         </div>
     );
 };
-

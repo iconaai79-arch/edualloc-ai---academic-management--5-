@@ -108,6 +108,16 @@
         isDSSession
       );
 
+      var isMarketplace = (
+        view === 'marketplace' || 
+        view === 'auto_market' || 
+        pathname.includes('marketplace') || 
+        search.includes('marketplace') || 
+        hash.includes('marketplace') || 
+        hostname.startsWith('market.') || 
+        hostname.startsWith('marketplace.')
+      );
+
       var title = "EduAI OS | Enterprise Automation Ecosystem";
       var desc = "Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations.";
       var manifest = "/manifest.json";
@@ -115,7 +125,14 @@
       var appleTitle = "EduAI OS";
       var themeColor = "#0F172A";
 
-      if (isPortalHost) {
+      if (isMarketplace) {
+        title = "EduAI Global Marketplace | B2B Wholesale & Sourcing";
+        desc = "Leading B2B wholesale marketplace for institutions, schools, enterprise equipment, vehicles, and bulk supplies with Trade Assurance.";
+        manifest = "/manifest_marketplace.json";
+        icon = "/marketplace_logo_3d.png";
+        appleTitle = "Marketplace";
+        themeColor = "#FF6000";
+      } else if (isPortalHost) {
         title = "EduAI OS | Enterprise Automation Ecosystem";
         desc = "Comprehensive automation ecosystem for education, hospitality, healthcare, agriculture, and business operations.";
         manifest = "/manifest.json";

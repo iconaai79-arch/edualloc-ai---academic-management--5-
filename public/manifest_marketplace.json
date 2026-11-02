@@ -1,0 +1,26 @@
+{
+  "name": "EduAI B2B Marketplace | Global Wholesale",
+  "short_name": "Marketplace",
+  "description": "Global B2B wholesale marketplace, trade assurance, bulk school & institution supplies, vehicles, equipment, and RFQ sourcing.",
+  "start_url": "/?view=marketplace",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FF6000",
+  "theme_color": "#FF6000",
+  "categories": ["shopping", "business"],
+  "icons": [
+    {
+      "src": "/marketplace_logo_3d.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/marketplace_icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

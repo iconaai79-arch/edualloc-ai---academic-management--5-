@@ -25,4 +25,17 @@
             android:targetClass="com.eduai.academic.MainActivity"
             android:data="eduai://scan" />
     </shortcut>
+    <shortcut
+        android:shortcutId="marketplace"
+        android:enabled="true"
+        android:icon="@drawable/ic_marketplace_launcher"
+        android:shortcutShortLabel="@string/shortcut_marketplace"
+        android:shortcutLongLabel="@string/shortcut_marketplace_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.eduai.academic"
+            android:targetClass="com.eduai.academic.MainActivity"
+            android:data="https://portal.eduai.co.ke/?view=marketplace" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
 </shortcuts>
