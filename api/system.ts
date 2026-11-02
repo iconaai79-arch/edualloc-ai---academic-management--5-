@@ -543,7 +543,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 const executionErrors: any[] = [];
                 let successCount = 0;
 
-                for (const singleStmt of statementsToRun) {
+                const sanitizeSqlStatement = (statement: string): string => {
+                    if (!statement || typeof statement !== 'string') return statement;
+                    let s = statement;
+                    s = s.replace(/(["'`])'+([a-zA-Z0-9_]+)\1/g, '$1$2$1');
+                    s = s.replace(/"'([a-zA-Z0-9_]+)"/g, '"$1"');
+                    s = s.replace(/'"([a-zA-Z0-9_]+)'/g, "'$1'");
+                    s = s.replace(/column_name\s*=\s*''([a-zA-Z0-9_]+)'/gi, "column_name = '$1'");
+                    s = s.replace(/(ADD\s+COLUMN(?:\s+IF\s+NOT\s+EXISTS)?\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
+                    s = s.replace(/(ALTER\s+COLUMN\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
+                    s = s.replace(/(DROP\s+COLUMN(?:\s+IF\s+EXISTS)?\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
+                    s = s.replace(/'aiModelTier/g, 'aiModelTier');
+                    return s;
+                };
+
+                for (const rawStmt of statementsToRun) {
+                    const singleStmt = sanitizeSqlStatement(rawStmt);
                     let stmtSuccess = false;
 
                     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -568,6 +583,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             lastError = err;
 
+                            // Self-healing attempt: if statement failed with syntax or unterminated identifier, try aggressive quote neutralization
+                            if (attempt === 1 && (err?.code === '42601' || /unterminated|syntax error/i.test(err?.message || ''))) {
+                                const cleanedStmt = singleStmt
+                                    .replace(/"'([a-zA-Z0-9_]+)"/g, '"$1"')
+                                    .replace(/''([a-zA-Z0-9_]+)'/g, "'$1'")
+                                    .replace(/'aiModelTier/g, 'aiModelTier');
+                                if (cleanedStmt !== singleStmt) {
+                                    try {
+                                        const retryClient = await pool.connect();
+                                        lastResult = await retryClient.query(cleanedStmt);
+                                        if (lastResult?.rows && Array.isArray(lastResult.rows)) {
+                                            accumulatedRows.push(...lastResult.rows);
+                                        }
+                                        lastError = null;
+                                        stmtSuccess = true;
+                                        retryClient.release();
+                                        break;
+                                    } catch (_) {}
+                                }
+                            }
+
                             const isStatementTimeout = err?.code === '57014';
                             const isTransientLockError = 
                                 err?.code === '40P01' || // deadlock_detected
@@ -581,15 +617,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const isCatalogRace =
                                 isConcurrentTupleUpdate ||
                                 (err?.code === '23505' && (
-                                    err?.schema === 'pg_catalog' ||
-                                    err?.table === 'pg_proc' ||
-                                    err?.table === 'pg_type' ||
-                                    err?.table === 'pg_class' ||
-                                    (typeof err?.table === 'string' && err.table.startsWith('pg_')) ||
-                                    (typeof err?.constraint === 'string' && err.constraint.startsWith('pg_')) ||
-                                    /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.detail || '') ||
-                                    /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.constraint || '')
-                                ));
+                                     err?.schema === 'pg_catalog' ||
+                                     err?.table === 'pg_proc' ||
+                                     err?.table === 'pg_type' ||
+                                     err?.table === 'pg_class' ||
+                                     (typeof err?.table === 'string' && err.table.startsWith('pg_')) ||
+                                     (typeof err?.constraint === 'string' && err.constraint.startsWith('pg_')) ||
+                                     /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.detail || '') ||
+                                     /pg_proc|pg_type|pg_class|pg_catalog|pg_proc_proname_args_nsp_index/i.test(err?.constraint || '')
+                                 ));
 
                             if (isStatementTimeout) {
                                 console.warn(`[SQL Engine] Statement timeout (code: 57014) on: ${singleStmt.substring(0, 80)}. Aborting statement to prevent function timeout.`);
@@ -604,13 +640,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                 continue;
                             }
 
-                            const isIdempotentDDL = /^\s*(CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|TRIGGER|PROCEDURE)|CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS|CREATE\s+TYPE|DROP\s+(FUNCTION|TRIGGER|TABLE|VIEW)\s+IF\s+EXISTS)/i.test(singleStmt);
+                            const isIdempotentDDL = /^\s*(DO\s+\$\$|ALTER\s+TABLE|CREATE\s+(OR\s+REPLACE\s+)?(FUNCTION|TRIGGER|PROCEDURE)|CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS|CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS|CREATE\s+TYPE|DROP\s+(FUNCTION|TRIGGER|TABLE|VIEW)\s+IF\s+EXISTS)/i.test(singleStmt);
 
                             const isIgnorableSchemaError =
                                 err?.code === '42710' || // duplicate_object (trigger / constraint already exists)
                                 err?.code === '42P07' || // duplicate_table (relation already exists)
                                 err?.code === '42701' || // duplicate_column (column already exists)
                                 err?.code === '42P16' || // invalid_table_definition (e.g. duplicate primary key)
+                                (err?.code === '42601' && isIdempotentDDL && continueOnError) || // syntax error in non-critical self-healing DDL block
                                 ((isCatalogRace || isConcurrentTupleUpdate) && isIdempotentDDL); // concurrent catalog registration collision for idempotent DDL
 
                             if (isIgnorableSchemaError) {

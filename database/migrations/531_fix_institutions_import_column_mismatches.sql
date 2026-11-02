@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS public.institutions (
     id TEXT PRIMARY KEY
 );
 
--- 2. Literal match for the backup typo column with leading quote: "'aiModelTier"
-ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "'aiModelTier" TEXT DEFAULT 'premium';
+-- 2. Drop legacy typo column with leading quote if present, and guarantee clean column coverage
+ALTER TABLE public.institutions DROP COLUMN IF EXISTS "'aiModelTier";
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "aiModelTier" TEXT DEFAULT 'premium';
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ai_model_tier TEXT DEFAULT 'premium';
 

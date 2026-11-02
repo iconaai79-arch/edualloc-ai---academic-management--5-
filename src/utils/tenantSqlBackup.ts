@@ -300,14 +300,18 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         });
     }
 
-    // Collect all unique column names across all rows
+    // Helper to sanitize corrupted column keys with stray quotes, spaces, or backticks
+    const sanitizeColName = (k: string): string => k.replace(/^['"`\s]+|['"`\s]+$/g, '').trim();
+
+    // Collect all unique sanitized column names across all rows
     const colSet = new Set<string>();
     rows.forEach(r => {
         if (r && typeof r === 'object') {
             Object.keys(r).forEach(k => {
                 // Ignore functions, internal keys, or undefined values
                 if (typeof r[k] !== 'function' && !k.startsWith('__')) {
-                    colSet.add(k);
+                    const clean = sanitizeColName(k);
+                    if (clean) colSet.add(clean);
                 }
             });
         }
@@ -339,23 +343,27 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         lines.push(`DO $$ BEGIN ALTER TABLE public."${tableName}" ADD PRIMARY KEY (id); EXCEPTION WHEN OTHERS THEN BEGIN ALTER TABLE public."${tableName}" ADD CONSTRAINT "uq_${tableName}_id" UNIQUE (id); EXCEPTION WHEN OTHERS THEN NULL; END; END $$;`);
     } else {
         const firstCol = columns[0];
-        const sampleVal = rows.find(r => r && r[firstCol] !== null && r[firstCol] !== undefined)?.[firstCol];
+        const sampleVal = rows.find(r => r && (r[firstCol] !== null && r[firstCol] !== undefined || r["'" + firstCol] !== undefined || r['"' + firstCol + '"'] !== undefined))?.[firstCol];
         let firstType = 'TEXT';
         if (typeof sampleVal === 'boolean') firstType = 'BOOLEAN';
         else if (typeof sampleVal === 'number') firstType = Number.isInteger(sampleVal) ? 'BIGINT' : 'NUMERIC';
         else if (sampleVal && typeof sampleVal === 'object') firstType = 'JSONB';
         lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
-        lines.push(`    "${firstCol}" ${firstType}`);
+        lines.push(`    "${firstCol.replace(/"/g, '""')}" ${firstType}`);
         lines.push(`);`);
     }
 
     for (const col of columns) {
         if (hasId && col === 'id') continue;
         if (!hasId && col === columns[0]) continue;
-        const lowerCol = col.toLowerCase();
+        const cleanCol = sanitizeColName(col);
+        if (!cleanCol) continue;
+        const safeIdent = `"${cleanCol.replace(/"/g, '""')}"`;
+        const safeLiteral = cleanCol.replace(/'/g, "''");
+        const lowerCol = cleanCol.toLowerCase();
         const isDateOrTimeOrPolicyOrId = lowerCol.includes('date') || lowerCol.includes('time') || lowerCol.includes('policy') || lowerCol.endsWith('id') || lowerCol.includes('system');
-        const sampleRow = rows.find(r => r && r[col] !== null && r[col] !== undefined);
-        const sampleVal = sampleRow ? sampleRow[col] : undefined;
+        const sampleRow = rows.find(r => r && (r[cleanCol] !== null && r[cleanCol] !== undefined || r["'" + cleanCol] !== undefined || r['"' + cleanCol + '"'] !== undefined));
+        const sampleVal = sampleRow ? (sampleRow[cleanCol] !== undefined ? sampleRow[cleanCol] : (sampleRow["'" + cleanCol] !== undefined ? sampleRow["'" + cleanCol] : sampleRow['"' + cleanCol + '"'])) : undefined;
         const isKnownJsonbArrayCol = [
             'roles', 'expertise', 'enrolled_subject_ids', 'enrolledsubjectids',
             'parent_ids', 'parentids', 'student_ids', 'studentids',
@@ -375,11 +383,11 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
             colType = "JSONB DEFAULT '[]'::jsonb";
         }
         if ((sampleVal && typeof sampleVal === 'object') || isKnownJsonbArrayCol) {
-            lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${col}' AND data_type = 'ARRAY') THEN ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" TYPE JSONB USING CASE WHEN "${col}" IS NULL THEN '[]'::jsonb ELSE to_jsonb("${col}") END; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" SET DEFAULT '[]'::jsonb; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+            lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${safeLiteral}' AND data_type = 'ARRAY') THEN ALTER TABLE public."${tableName}" ALTER COLUMN ${safeIdent} DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN ${safeIdent} TYPE JSONB USING CASE WHEN ${safeIdent} IS NULL THEN '[]'::jsonb ELSE to_jsonb(${safeIdent}) END; ALTER TABLE public."${tableName}" ALTER COLUMN ${safeIdent} SET DEFAULT '[]'::jsonb; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS ${safeIdent} JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
         } else if (typeof sampleVal !== 'boolean' || isDateOrTimeOrPolicyOrId) {
-            lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${col}' AND data_type = 'boolean') THEN ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" TYPE ${colType} USING NULL; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType}; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+            lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${safeLiteral}' AND data_type = 'boolean') THEN ALTER TABLE public."${tableName}" ALTER COLUMN ${safeIdent} DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN ${safeIdent} TYPE ${colType} USING NULL; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS ${safeIdent} ${colType}; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
         } else {
-            lines.push(`ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType};`);
+            lines.push(`ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS ${safeIdent} ${colType};`);
         }
     }
 
@@ -399,9 +407,13 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
     const chunkSize = 50;
     for (let i = 0; i < rows.length; i += chunkSize) {
         const chunk = rows.slice(i, i + chunkSize);
-        const colList = columns.map(c => `"${c}"`).join(', ');
+        const colList = columns.map(c => `"${sanitizeColName(c).replace(/"/g, '""')}"`).join(', ');
         const valueRows = chunk.map(row => {
-            const values = columns.map(col => escapeSqlLiteral(row[col], col));
+            const values = columns.map(col => {
+                const cleanCol = sanitizeColName(col);
+                const val = row[cleanCol] !== undefined ? row[cleanCol] : (row[col] !== undefined ? row[col] : (row["'" + cleanCol] !== undefined ? row["'" + cleanCol] : row['"' + cleanCol + '"']));
+                return escapeSqlLiteral(val, cleanCol);
+            });
             return `    (${values.join(', ')})`;
         });
 
@@ -409,7 +421,10 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         if (isSettingsTable) {
             lines.push(`ON CONFLICT DO NOTHING;`);
         } else if (columns.includes('id')) {
-            const updateCols = columns.filter(c => c !== 'id').map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
+            const updateCols = columns.filter(c => c !== 'id').map(c => {
+                const safeName = sanitizeColName(c).replace(/"/g, '""');
+                return `"${safeName}" = EXCLUDED."${safeName}"`;
+            }).join(', ');
             if (updateCols) {
                 lines.push(`ON CONFLICT ("id") DO UPDATE SET ${updateCols};`);
             } else {

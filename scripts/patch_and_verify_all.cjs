@@ -130,8 +130,9 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE public.institutions DROP COLUMN IF EXISTS "streamDefinitions" CASCADE;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "streamDefinitions" JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.institutions DROP COLUMN IF EXISTS stream_definitions CASCADE;
-ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "'aiModelTier" TEXT DEFAULT 'premium';
+ALTER TABLE public.institutions DROP COLUMN IF EXISTS "'aiModelTier";
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "aiModelTier" TEXT DEFAULT 'premium';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ai_model_tier TEXT DEFAULT 'premium';
 ALTER TABLE public.institutions DROP COLUMN IF EXISTS "usersInstitutionIdFkey";
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "usersInstitutionIdFkey" TEXT;
 

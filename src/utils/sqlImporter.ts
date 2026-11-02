@@ -61,6 +61,35 @@ export interface SqlImportOptions {
 }
 
 /**
+ * Automatically sanitizes legacy syntax defects in imported SQL statements,
+ * including malformed column identifiers (e.g. "'aiModelTier" -> "aiModelTier"),
+ * information_schema empty quote syntax errors (column_name = ''foo' -> column_name = 'foo'),
+ * and unescaped identifiers in DDL blocks.
+ */
+export function sanitizeSqlStatement(statement: string): string {
+    if (!statement || typeof statement !== 'string') return statement;
+    let s = statement;
+
+    // 1. Repair typo column names starting with single quotes inside double quotes, e.g. "'aiModelTier" -> "aiModelTier"
+    s = s.replace(/(["'`])'+([a-zA-Z0-9_]+)\1/g, '$1$2$1');
+    s = s.replace(/"'([a-zA-Z0-9_]+)"/g, '"$1"');
+    s = s.replace(/'"([a-zA-Z0-9_]+)'/g, "'$1'");
+
+    // 2. Repair information_schema column_name checks with accidental double single quotes: column_name = ''foo'
+    s = s.replace(/column_name\s*=\s*''([a-zA-Z0-9_]+)'/gi, "column_name = '$1'");
+
+    // 3. Repair malformed ADD COLUMN / ALTER COLUMN / DROP COLUMN statements
+    s = s.replace(/(ADD\s+COLUMN(?:\s+IF\s+NOT\s+EXISTS)?\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
+    s = s.replace(/(ALTER\s+COLUMN\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
+    s = s.replace(/(DROP\s+COLUMN(?:\s+IF\s+EXISTS)?\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
+
+    // 4. In case of leftover stray leading single quotes on known columns like 'aiModelTier:
+    s = s.replace(/'aiModelTier/g, 'aiModelTier');
+
+    return s;
+}
+
+/**
  * Splits multi-statement raw SQL into individual statements, safely respecting
  * dollar quotes ($$...$$ or $tag$...$tag$), quotes ('...' or "..."), and comments (-- and /* ... * /).
  */
@@ -140,7 +169,7 @@ export function splitSqlStatements(rawSql: string): string[] {
             const trimmed = current.trim();
             // Ignore standalone comments or empty stmts
             if (trimmed && !isPureComment(trimmed)) {
-                stmts.push(trimmed);
+                stmts.push(sanitizeSqlStatement(trimmed));
             }
             current = '';
             continue;
@@ -151,7 +180,7 @@ export function splitSqlStatements(rawSql: string): string[] {
 
     const remaining = current.trim();
     if (remaining && !isPureComment(remaining)) {
-        stmts.push(remaining);
+        stmts.push(sanitizeSqlStatement(remaining));
     }
 
     return stmts;
@@ -319,7 +348,7 @@ export async function executeBatchSqlImport(options: SqlImportOptions): Promise<
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    statements: currentBatch,
+                    statements: currentBatch.map(sanitizeSqlStatement),
                     continueOnError
                 }),
                 signal
