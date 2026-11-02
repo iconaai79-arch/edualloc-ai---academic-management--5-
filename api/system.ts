@@ -554,6 +554,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     s = s.replace(/(ALTER\s+COLUMN\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
                     s = s.replace(/(DROP\s+COLUMN(?:\s+IF\s+EXISTS)?\s+)["'`]+([a-zA-Z0-9_]+)["'`]+/gi, '$1"$2"');
                     s = s.replace(/'aiModelTier/g, 'aiModelTier');
+
+                    // Explicit column remapping for library_settings:
+                    if (/library_settings/i.test(s)) {
+                        s = s.replace(/(["'`])institutionId\1/g, '"institution_id"');
+                        s = s.replace(/(["'`])overdueFinePerDay\1/g, '"overdue_fine_per_day"');
+                        s = s.replace(/(["'`])maxBooksPerUser\1/g, '"max_books_per_user"');
+                        s = s.replace(/(["'`])reservationExpiryDays\1/g, '"reservation_expiry_days"');
+                        s = s.replace(/(["'`])defaultLendingPeriodDays\1/g, '"default_lending_period_days"');
+                        s = s.replace(/(["'`])updatedAt\1/g, '"updated_at"');
+                    }
+
+                    // Explicit column remapping for ds_settings:
+                    if (/ds_settings/i.test(s)) {
+                        s = s.replace(/(["'`])institutionId\1/g, '"institution_id"');
+                        s = s.replace(/(["'`])schedulingRules\1/g, '"scheduling_rules"');
+                        s = s.replace(/(["'`])autoSchedulingEnabled\1/g, '"auto_scheduling_enabled"');
+                        s = s.replace(/(["'`])invoicePrefix\1/g, '"invoice_prefix"');
+                        s = s.replace(/(["'`])receiptPrefix\1/g, '"receipt_prefix"');
+                        s = s.replace(/(["'`])studentIdPrefix\1/g, '"student_id_prefix"');
+                        s = s.replace(/(["'`])licenseCategories\1/g, '"license_categories"');
+                        s = s.replace(/(["'`])licenseGroups\1/g, '"license_groups"');
+                        s = s.replace(/(["'`])cancellationPolicy\1/g, '"cancellation_policy"');
+                        s = s.replace(/(["'`])createdAt\1/g, '"created_at"');
+                        s = s.replace(/(["'`])updatedAt\1/g, '"updated_at"');
+                    }
+
+                    // Universal normalization of INSERT headers:
+                    const insertMatch = s.match(/^(INSERT\s+INTO\s+(?:public\.)?["`]?([a-zA-Z0-9_]+)["`]?\s*\()([^)]+)(\)\s*VALUES[\s\S]*)$/i);
+                    if (insertMatch) {
+                        const [_, prefix, _tableName, headerCols, rest] = insertMatch;
+                        const rawCols = headerCols.split(',').map(c => c.trim());
+                        const existingSet = new Set(rawCols);
+                        let modified = false;
+
+                        const remappedCols = rawCols.map(col => {
+                            const m = col.match(/^["']([a-zA-Z0-9_]+)["']$/);
+                            if (!m) return col;
+                            const originalCol = m[1];
+                            const snakeCol = originalCol
+                                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+                                .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+                                .toLowerCase();
+
+                            if (snakeCol !== originalCol) {
+                                const quotedSnake = `"${snakeCol}"`;
+                                if (!existingSet.has(quotedSnake) && !existingSet.has(snakeCol)) {
+                                    existingSet.delete(col);
+                                    existingSet.add(quotedSnake);
+                                    modified = true;
+                                    return quotedSnake;
+                                }
+                            }
+                            return col;
+                        });
+
+                        if (modified) {
+                            s = `${prefix}${remappedCols.join(', ')}${rest}`;
+                        }
+                    }
+
+                    // Remap ON CONFLICT ("institutionId") -> ON CONFLICT ("institution_id")
+                    s = s.replace(/ON\s+CONFLICT\s*\(\s*["']?institutionId["']?\s*\)/gi, 'ON CONFLICT ("institution_id")');
+
+                    // Remap EXCLUDED."camelCase" to EXCLUDED."snake_case" in ON CONFLICT DO UPDATE
+                    if (/EXCLUDED\./i.test(s)) {
+                        s = s.replace(/"([a-zA-Z0-9_]+)"\s*=\s*EXCLUDED\."\1"/g, (match, c) => {
+                            const snake = c
+                                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+                                .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+                                .toLowerCase();
+                            return `"${snake}" = EXCLUDED."${snake}"`;
+                        });
+                    }
+
                     return s;
                 };
 
@@ -583,7 +657,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             }
                             lastError = err;
 
-                            // Self-healing attempt: if statement failed with syntax or unterminated identifier, try aggressive quote neutralization
+                            // Self-healing attempt 1: syntax or unterminated identifier, try aggressive quote neutralization
                             if (attempt === 1 && (err?.code === '42601' || /unterminated|syntax error/i.test(err?.message || ''))) {
                                 const cleanedStmt = singleStmt
                                     .replace(/"'([a-zA-Z0-9_]+)"/g, '"$1"')
@@ -601,6 +675,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         retryClient.release();
                                         break;
                                     } catch (_) {}
+                                }
+                            }
+
+                            // Self-healing attempt 2: missing column (code 42703), e.g. column "institutionId" does not exist
+                            if (attempt === 1 && (err?.code === '42703' || /column\s+"([^"]+)"\s+of\s+relation\s+"([^"]+)"\s+does\s+not\s+exist/i.test(err?.message || ''))) {
+                                const colMatch = (err?.message || '').match(/column\s+"([^"]+)"\s+of\s+relation\s+"([^"]+)"\s+does\s+not\s+exist/i);
+                                if (colMatch) {
+                                    const missingCol = colMatch[1];
+                                    const missingTable = colMatch[2];
+                                    const snakeCol = missingCol
+                                        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+                                        .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+                                        .toLowerCase();
+
+                                    try {
+                                        const healClient = await pool.connect();
+                                        // Ensure missing column is created
+                                        await healClient.query(`ALTER TABLE public."${missingTable}" ADD COLUMN IF NOT EXISTS "${missingCol}" TEXT;`).catch(() => {});
+                                        if (snakeCol !== missingCol) {
+                                            await healClient.query(`ALTER TABLE public."${missingTable}" ADD COLUMN IF NOT EXISTS "${snakeCol}" TEXT;`).catch(() => {});
+                                        }
+
+                                        // Ensure library_settings institution_id primary key exists
+                                        if (missingTable === 'library_settings') {
+                                            await healClient.query(`ALTER TABLE public."library_settings" ADD COLUMN IF NOT EXISTS "institution_id" TEXT;`).catch(() => {});
+                                            await healClient.query(`DO $$ BEGIN ALTER TABLE public."library_settings" ADD PRIMARY KEY (institution_id); EXCEPTION WHEN OTHERS THEN NULL; END $$;`).catch(() => {});
+                                        }
+
+                                        // Retry with rewritten column name if applicable
+                                        let retryStmt = singleStmt;
+                                        if (snakeCol !== missingCol && retryStmt.includes(`"${missingCol}"`)) {
+                                            retryStmt = retryStmt.replace(new RegExp(`"${missingCol}"`, 'g'), `"${snakeCol}"`);
+                                        }
+
+                                        lastResult = await healClient.query(retryStmt);
+                                        if (lastResult?.rows && Array.isArray(lastResult.rows)) {
+                                            accumulatedRows.push(...lastResult.rows);
+                                        }
+                                        lastError = null;
+                                        stmtSuccess = true;
+                                        healClient.release();
+                                        break;
+                                    } catch (healErr) {
+                                        console.warn(`[SQL Engine Self-Healing] Auto-add column ${missingCol} on ${missingTable} failed:`, healErr);
+                                    }
                                 }
                             }
 

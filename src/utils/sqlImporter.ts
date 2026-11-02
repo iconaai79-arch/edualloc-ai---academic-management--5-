@@ -86,6 +86,84 @@ export function sanitizeSqlStatement(statement: string): string {
     // 4. In case of leftover stray leading single quotes on known columns like 'aiModelTier:
     s = s.replace(/'aiModelTier/g, 'aiModelTier');
 
+    // 5. Explicit column remapping for library_settings:
+    // Client-side dumps have camelCase keys ("institutionId", "overdueFinePerDay", etc.)
+    // but PostgreSQL public.library_settings expects snake_case (institution_id, overdue_fine_per_day, etc.)
+    if (/library_settings/i.test(s)) {
+        s = s.replace(/(["'`])institutionId\1/g, '"institution_id"');
+        s = s.replace(/(["'`])overdueFinePerDay\1/g, '"overdue_fine_per_day"');
+        s = s.replace(/(["'`])maxBooksPerUser\1/g, '"max_books_per_user"');
+        s = s.replace(/(["'`])reservationExpiryDays\1/g, '"reservation_expiry_days"');
+        s = s.replace(/(["'`])defaultLendingPeriodDays\1/g, '"default_lending_period_days"');
+        s = s.replace(/(["'`])updatedAt\1/g, '"updated_at"');
+    }
+
+    // 6. Explicit column remapping for ds_settings:
+    if (/ds_settings/i.test(s)) {
+        s = s.replace(/(["'`])institutionId\1/g, '"institution_id"');
+        s = s.replace(/(["'`])schedulingRules\1/g, '"scheduling_rules"');
+        s = s.replace(/(["'`])autoSchedulingEnabled\1/g, '"auto_scheduling_enabled"');
+        s = s.replace(/(["'`])invoicePrefix\1/g, '"invoice_prefix"');
+        s = s.replace(/(["'`])receiptPrefix\1/g, '"receipt_prefix"');
+        s = s.replace(/(["'`])studentIdPrefix\1/g, '"student_id_prefix"');
+        s = s.replace(/(["'`])licenseCategories\1/g, '"license_categories"');
+        s = s.replace(/(["'`])licenseGroups\1/g, '"license_groups"');
+        s = s.replace(/(["'`])cancellationPolicy\1/g, '"cancellation_policy"');
+        s = s.replace(/(["'`])createdAt\1/g, '"created_at"');
+        s = s.replace(/(["'`])updatedAt\1/g, '"updated_at"');
+    }
+
+    // 7. Universal normalization of INSERT headers:
+    // If an INSERT statement has camelCase quoted column names (e.g. "institutionId", "userId"),
+    // remap them to snake_case if the snake_case identifier is not already present in the header.
+    const insertMatch = s.match(/^(INSERT\s+INTO\s+(?:public\.)?["`]?([a-zA-Z0-9_]+)["`]?\s*\()([^)]+)(\)\s*VALUES[\s\S]*)$/i);
+    if (insertMatch) {
+        const [_, prefix, _tableName, headerCols, rest] = insertMatch;
+        const rawCols = headerCols.split(',').map(c => c.trim());
+        const existingSet = new Set(rawCols);
+        let modified = false;
+
+        const remappedCols = rawCols.map(col => {
+            const m = col.match(/^["']([a-zA-Z0-9_]+)["']$/);
+            if (!m) return col;
+            const originalCol = m[1];
+            // Convert camelCase to snake_case (e.g. institutionId -> institution_id)
+            const snakeCol = originalCol
+                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+                .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+                .toLowerCase();
+
+            if (snakeCol !== originalCol) {
+                const quotedSnake = `"${snakeCol}"`;
+                if (!existingSet.has(quotedSnake) && !existingSet.has(snakeCol)) {
+                    existingSet.delete(col);
+                    existingSet.add(quotedSnake);
+                    modified = true;
+                    return quotedSnake;
+                }
+            }
+            return col;
+        });
+
+        if (modified) {
+            s = `${prefix}${remappedCols.join(', ')}${rest}`;
+        }
+    }
+
+    // 8. Remap ON CONFLICT ("institutionId") -> ON CONFLICT ("institution_id")
+    s = s.replace(/ON\s+CONFLICT\s*\(\s*["']?institutionId["']?\s*\)/gi, 'ON CONFLICT ("institution_id")');
+
+    // 9. Remap EXCLUDED."camelCase" to EXCLUDED."snake_case" in ON CONFLICT DO UPDATE
+    if (/EXCLUDED\./i.test(s)) {
+        s = s.replace(/"([a-zA-Z0-9_]+)"\s*=\s*EXCLUDED\."\1"/g, (match, c) => {
+            const snake = c
+                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+                .replace(/([a-z\d])([A-Z])/g, '$1_$2')
+                .toLowerCase();
+            return `"${snake}" = EXCLUDED."${snake}"`;
+        });
+    }
+
     return s;
 }
 

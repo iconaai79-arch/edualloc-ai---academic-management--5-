@@ -334,6 +334,7 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
         lines.push(`    "${pkCol}" TEXT PRIMARY KEY`);
         lines.push(`);`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."${tableName}" ADD PRIMARY KEY ("${pkCol}"); EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
     } else if (hasId) {
         const sampleVal = rows.find(r => r && r.id !== null && r.id !== undefined)?.id;
         const idType = (typeof sampleVal === 'number' && Number.isInteger(sampleVal)) ? 'BIGINT' : 'TEXT';
@@ -355,7 +356,7 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
 
     for (const col of columns) {
         if (hasId && col === 'id') continue;
-        if (!hasId && col === columns[0]) continue;
+        if (!hasId && !isSettingsTable && col === columns[0]) continue;
         const cleanCol = sanitizeColName(col);
         if (!cleanCol) continue;
         const safeIdent = `"${cleanCol.replace(/"/g, '""')}"`;
@@ -552,7 +553,15 @@ export function generateTenantSqlDump(data: TenantBackupData): string {
         sections.push(buildInsertStatements('library_fines', data.libraryFines));
     }
     if (data.librarySettings && data.librarySettings.length > 0) {
-        sections.push(buildInsertStatements('library_settings', data.librarySettings));
+        const normalizedLibSettings = data.librarySettings.map((s: any) => ({
+            institution_id: s.institution_id || s.institutionId,
+            overdue_fine_per_day: s.overdue_fine_per_day !== undefined ? s.overdue_fine_per_day : (s.overdueFinePerDay ?? 0),
+            max_books_per_user: s.max_books_per_user !== undefined ? s.max_books_per_user : (s.maxBooksPerUser ?? 3),
+            reservation_expiry_days: s.reservation_expiry_days !== undefined ? s.reservation_expiry_days : (s.reservationExpiryDays ?? 3),
+            default_lending_period_days: s.default_lending_period_days !== undefined ? s.default_lending_period_days : (s.defaultLendingPeriodDays ?? 14),
+            updated_at: s.updated_at || s.updatedAt || new Date().toISOString()
+        }));
+        sections.push(buildInsertStatements('library_settings', normalizedLibSettings));
     }
     if (data.bookReservations && data.bookReservations.length > 0) {
         sections.push(buildInsertStatements('book_reservations', data.bookReservations));
@@ -1689,8 +1698,19 @@ export async function collectAndDownloadFullSqlBackup(options?: {
                 }
 
                 if (rows.length > 0) {
-                    tableCounts[tableName] = rows.length;
-                    const sql = buildInsertStatements(tableName, rows);
+                    let exportRows = rows;
+                    if (tableName === 'library_settings') {
+                        exportRows = rows.map((s: any) => ({
+                            institution_id: s.institution_id || s.institutionId,
+                            overdue_fine_per_day: s.overdue_fine_per_day !== undefined ? s.overdue_fine_per_day : (s.overdueFinePerDay ?? 0),
+                            max_books_per_user: s.max_books_per_user !== undefined ? s.max_books_per_user : (s.maxBooksPerUser ?? 3),
+                            reservation_expiry_days: s.reservation_expiry_days !== undefined ? s.reservation_expiry_days : (s.reservationExpiryDays ?? 3),
+                            default_lending_period_days: s.default_lending_period_days !== undefined ? s.default_lending_period_days : (s.defaultLendingPeriodDays ?? 14),
+                            updated_at: s.updated_at || s.updatedAt || new Date().toISOString()
+                        }));
+                    }
+                    tableCounts[tableName] = exportRows.length;
+                    const sql = buildInsertStatements(tableName, exportRows);
                     if (sql) {
                         tableSqlMap[tableName] = sql;
                     }
