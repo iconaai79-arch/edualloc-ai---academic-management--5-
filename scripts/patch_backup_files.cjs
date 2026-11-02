@@ -929,7 +929,7 @@ async function patchFile(filename) {
             replacedOrphanCounties++;
         }
 
-        if (!patchedInsert && line.startsWith('INSERT INTO public.')) {
+        if (!patchedInsert && (line.startsWith('INSERT INTO public.') || line.startsWith('INSERT INTO public."') || line.startsWith('INSERT INTO '))) {
             writeStream.write(injectionSQL + '\n');
             patchedInsert = true;
             console.log(`  -> Injected universal DDL before first INSERT statement (${line.substring(0, 50)})`);

@@ -689,8 +689,27 @@ CREATE TABLE IF NOT EXISTS extension_requests (
     });
 
     INITIAL_USERS.forEach((u: any) => {
-        const expertiseStr = u.expertise && u.expertise.length > 0 ? `ARRAY[${u.expertise.map((e: any) => escapeSql(e)).join(',')}]` : "ARRAY[]::TEXT[]";
-        sql += `INSERT INTO users (id, name, email, phone_number, staff_id, role, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expertiseStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) ON CONFLICT (id) DO NOTHING;\n`;
+        const rolesArr = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role];
+        const rolesJsonStr = `'${JSON.stringify(rolesArr).replace(/'/g, "''")}'::jsonb`;
+        const rolesArrayStr = `ARRAY[${rolesArr.map((r: any) => escapeSql(r)).join(', ')}]::text[]`;
+
+        const expArr = Array.isArray(u.expertise) ? u.expertise : [];
+        const expJsonStr = `'${JSON.stringify(expArr).replace(/'/g, "''")}'::jsonb`;
+        const expArrayStr = expArr.length > 0 ? `ARRAY[${expArr.map((e: any) => escapeSql(e)).join(', ')}]::text[]` : `ARRAY[]::text[]`;
+
+        sql += `DO $$ 
+BEGIN
+    INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) 
+    VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesJsonStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expJsonStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) 
+    ON CONFLICT (id) DO NOTHING;
+EXCEPTION WHEN OTHERS THEN
+    BEGIN
+        INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) 
+        VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesArrayStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expArrayStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) 
+        ON CONFLICT (id) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+END $$;\n`;
     });
 
     return sql;

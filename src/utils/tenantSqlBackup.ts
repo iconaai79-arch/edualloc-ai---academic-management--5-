@@ -92,6 +92,23 @@ export function escapeSqlLiteral(val: any, colName?: string): string {
     if (typeof val === 'number') {
         return isNaN(val) ? 'NULL' : String(val);
     }
+    if (lowerCol === 'roles') {
+        if (val === null || val === undefined) return "'[]'::jsonb";
+        if (Array.isArray(val)) {
+            const jsonStr = JSON.stringify(val);
+            return `'${jsonStr.replace(/'/g, "''")}'::jsonb`;
+        }
+        if (typeof val === 'string') {
+            const trimmed = val.trim();
+            if (!trimmed || trimmed === '[]' || trimmed === '{}') return "'[]'::jsonb";
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) return `'${trimmed.replace(/'/g, "''")}'::jsonb`;
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                const inner = trimmed.slice(1, -1).split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+                return `'${JSON.stringify(inner).replace(/'/g, "''")}'::jsonb`;
+            }
+            return `'${JSON.stringify([trimmed]).replace(/'/g, "''")}'::jsonb`;
+        }
+    }
     if (Array.isArray(val) || (typeof val === 'object' && !(val instanceof Date))) {
         const jsonStr = JSON.stringify(val);
         return `'${jsonStr.replace(/'/g, "''")}'::jsonb`;
@@ -338,16 +355,25 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         const lowerCol = col.toLowerCase();
         const isDateOrTimeOrPolicyOrId = lowerCol.includes('date') || lowerCol.includes('time') || lowerCol.includes('policy') || lowerCol.endsWith('id') || lowerCol.includes('system');
         const sampleRow = rows.find(r => r && r[col] !== null && r[col] !== undefined);
-        const sampleVal = sampleRow ? sampleRow[col] : undefined;
+        const isKnownJsonbArrayCol = [
+            'roles', 'expertise', 'enrolled_subject_ids', 'enrolledsubjectids',
+            'parent_ids', 'parentids', 'student_ids', 'studentids',
+            'stream_definitions', 'streamdefinitions', 'equipment', 'likes',
+            'course_level_ids', 'courselevelids', 'subject_ids', 'subjectids',
+            'add_ons', 'addons', 'images', 'features', 'allergies',
+            'chronic_conditions', 'chronicconditions', 'attached_files', 'attachedfiles',
+            'gallery_urls', 'galleryurls'
+        ].includes(lowerCol);
+
         let colType = 'TEXT';
         if (typeof sampleVal === 'boolean' && !isDateOrTimeOrPolicyOrId) {
             colType = 'BOOLEAN DEFAULT FALSE';
         } else if (typeof sampleVal === 'number' && !isDateOrTimeOrPolicyOrId) {
             colType = Number.isInteger(sampleVal) ? 'BIGINT' : 'NUMERIC';
-        } else if (sampleVal && typeof sampleVal === 'object') {
+        } else if ((sampleVal && typeof sampleVal === 'object') || isKnownJsonbArrayCol) {
             colType = "JSONB DEFAULT '[]'::jsonb";
         }
-        if (sampleVal && typeof sampleVal === 'object') {
+        if ((sampleVal && typeof sampleVal === 'object') || isKnownJsonbArrayCol) {
             lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${col}' AND data_type = 'ARRAY') THEN ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" TYPE JSONB USING CASE WHEN "${col}" IS NULL THEN '[]'::jsonb ELSE to_jsonb("${col}") END; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" SET DEFAULT '[]'::jsonb; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
         } else if (typeof sampleVal !== 'boolean' || isDateOrTimeOrPolicyOrId) {
             lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${col}' AND data_type = 'boolean') THEN ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" TYPE ${colType} USING NULL; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType}; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
@@ -1707,6 +1733,14 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         `SET check_function_bodies = false;`,
         `SET client_min_messages = warning;`,
         `SET row_security = off;`,
+        ``,
+        `-- ============================================================================`,
+        `-- PRE-RESTORE UNIVERSAL ARRAY TO JSONB MIGRATION & CONSTRAINT NEUTRALIZATION`,
+        `-- Ensures that all legacy text[] array columns are migrated to JSONB before ANY inserts`,
+        `-- ============================================================================`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND data_type = 'ARRAY' AND ((table_name = 'users' AND column_name IN ('expertise', 'roles', 'enrolled_subject_ids', 'parent_ids', 'student_ids')) OR (table_name = 'rooms' AND column_name IN ('equipment')) OR (table_name = 'institutions' AND column_name IN ('stream_definitions', 'streamDefinitions')) OR (table_name = 'allocation_requests' AND column_name IN ('course_level_ids', 'subject_ids')) OR (table_name = 'carwash_jobs' AND column_name IN ('add_ons')) OR (table_name = 'pm_listings' AND column_name IN ('images', 'features')) OR (table_name = 'his_patients' AND column_name IN ('allergies', 'chronic_conditions')) OR (table_name = 'his_prescriptions' AND column_name IN ('attached_files')) OR (table_name = 'car_sales_listings' AND column_name IN ('gallery_urls')) OR (table_name = 'car_appraisals' AND column_name IN ('images')) OR (table_name = 'synergy_posts' AND column_name IN ('likes', 'student_ids')))) LOOP BEGIN EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE JSONB USING CASE WHEN %I IS NULL THEN ''[]''::jsonb ELSE to_jsonb(%I) END', r.table_name, r.column_name, r.column_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT ''[]''::jsonb', r.table_name, r.column_name); EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles' AND data_type = 'ARRAY') THEN ALTER TABLE public.users ALTER COLUMN roles DROP DEFAULT; ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING CASE WHEN roles IS NULL THEN '[]'::jsonb ELSE to_jsonb(roles) END; ALTER TABLE public.users ALTER COLUMN roles SET DEFAULT '[]'::jsonb; ELSIF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles') THEN ALTER TABLE public.users ADD COLUMN roles JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT; ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END; ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb; ELSIF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise') THEN ALTER TABLE public.users ADD COLUMN expertise JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
         ``
     ].join('\n');
 

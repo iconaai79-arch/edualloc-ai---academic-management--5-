@@ -610,16 +610,16 @@ CREATE TABLE IF NOT EXISTS users (
     phone_number TEXT,
     staff_id TEXT,
     role TEXT NOT NULL,
-    roles TEXT[] DEFAULT '{}',
+    roles JSONB DEFAULT '[]'::jsonb,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     password TEXT,
     department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
-    expertise TEXT[],
+    expertise JSONB DEFAULT '[]'::jsonb,
     course_id TEXT,
     course_level_id TEXT,
-    enrolled_subject_ids TEXT[] DEFAULT '{}',
-    parent_ids TEXT[] DEFAULT '{}',
-    student_ids TEXT[] DEFAULT '{}',
+    enrolled_subject_ids JSONB DEFAULT '[]'::jsonb,
+    parent_ids JSONB DEFAULT '[]'::jsonb,
+    student_ids JSONB DEFAULT '[]'::jsonb,
     gender TEXT,
     profile_photo_url TEXT,
     unavailability JSONB DEFAULT '[]'::jsonb,
@@ -633,6 +633,35 @@ CREATE TABLE IF NOT EXISTS users (
 
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN roles DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING CASE WHEN roles IS NULL THEN '[]'::jsonb ELSE to_jsonb(roles) END;
+        ALTER TABLE public.users ALTER COLUMN roles SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END;
+        ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'enrolled_subject_ids' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids TYPE JSONB USING CASE WHEN enrolled_subject_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(enrolled_subject_ids) END;
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'parent_ids' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN parent_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN parent_ids TYPE JSONB USING CASE WHEN parent_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(parent_ids) END;
+        ALTER TABLE public.users ALTER COLUMN parent_ids SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'student_ids' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN student_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN student_ids TYPE JSONB USING CASE WHEN student_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(student_ids) END;
+        ALTER TABLE public.users ALTER COLUMN student_ids SET DEFAULT '[]'::jsonb;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 

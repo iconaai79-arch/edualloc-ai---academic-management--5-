@@ -75,6 +75,47 @@ BEGIN
     END;
 END $$;
 
+-- Universal Migration: Convert legacy TEXT[] array columns to JSONB for 100% type compatibility
+DO $$ 
+BEGIN
+    -- users table
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') THEN
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles' AND data_type = 'ARRAY') THEN
+            ALTER TABLE public.users ALTER COLUMN roles DROP DEFAULT;
+            ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING CASE WHEN roles IS NULL THEN '[]'::jsonb ELSE to_jsonb(roles) END;
+            ALTER TABLE public.users ALTER COLUMN roles SET DEFAULT '[]'::jsonb;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN
+            ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT;
+            ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END;
+            ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'enrolled_subject_ids' AND data_type = 'ARRAY') THEN
+            ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids DROP DEFAULT;
+            ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids TYPE JSONB USING CASE WHEN enrolled_subject_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(enrolled_subject_ids) END;
+            ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids SET DEFAULT '[]'::jsonb;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'parent_ids' AND data_type = 'ARRAY') THEN
+            ALTER TABLE public.users ALTER COLUMN parent_ids DROP DEFAULT;
+            ALTER TABLE public.users ALTER COLUMN parent_ids TYPE JSONB USING CASE WHEN parent_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(parent_ids) END;
+            ALTER TABLE public.users ALTER COLUMN parent_ids SET DEFAULT '[]'::jsonb;
+        END IF;
+        IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'student_ids' AND data_type = 'ARRAY') THEN
+            ALTER TABLE public.users ALTER COLUMN student_ids DROP DEFAULT;
+            ALTER TABLE public.users ALTER COLUMN student_ids TYPE JSONB USING CASE WHEN student_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(student_ids) END;
+            ALTER TABLE public.users ALTER COLUMN student_ids SET DEFAULT '[]'::jsonb;
+        END IF;
+    END IF;
+
+    -- institutions.stream_definitions
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'institutions' AND column_name = 'stream_definitions' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.institutions ALTER COLUMN stream_definitions DROP DEFAULT;
+        ALTER TABLE public.institutions ALTER COLUMN stream_definitions TYPE JSONB USING CASE WHEN stream_definitions IS NULL THEN '[]'::jsonb ELSE to_jsonb(stream_definitions) END;
+        ALTER TABLE public.institutions ALTER COLUMN stream_definitions SET DEFAULT '[]'::jsonb;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 -- RLS Helper Functions (Optimized)
 CREATE OR REPLACE FUNCTION public.get_curr_user_inst_id()
 RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -587,6 +628,35 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS branch_id TEXT REFERENCES public.branches(id) ON DELETE SET NULL;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN roles DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING CASE WHEN roles IS NULL THEN '[]'::jsonb ELSE to_jsonb(roles) END;
+        ALTER TABLE public.users ALTER COLUMN roles SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END;
+        ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'enrolled_subject_ids' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids TYPE JSONB USING CASE WHEN enrolled_subject_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(enrolled_subject_ids) END;
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'parent_ids' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN parent_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN parent_ids TYPE JSONB USING CASE WHEN parent_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(parent_ids) END;
+        ALTER TABLE public.users ALTER COLUMN parent_ids SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'student_ids' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN student_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN student_ids TYPE JSONB USING CASE WHEN student_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(student_ids) END;
+        ALTER TABLE public.users ALTER COLUMN student_ids SET DEFAULT '[]'::jsonb;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 \n-- 4. CURRICULUM & SCHEDULING --\n
 CREATE TABLE IF NOT EXISTS courses (
     id TEXT PRIMARY KEY,
@@ -4373,10 +4443,42 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
         sql += `INSERT INTO semesters (id, name, academic_year_id, institution_id, start_date, end_date, status, sessions) VALUES (${escapeSql(s.id)}, ${escapeSql(s.name)}, ${escapeSql(s.academicYearId)}, ${escapeSql(s.institutionId)}, ${escapeSql(s.startDate)}, ${escapeSql(s.endDate)}, ${escapeSql(s.status)}, ${escapeSql(JSON.stringify(s.sessions || []))}::jsonb) ON CONFLICT (id) DO NOTHING;\n`;
     });
 
+    sql += `DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN roles DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING CASE WHEN roles IS NULL THEN '[]'::jsonb ELSE to_jsonb(roles) END;
+        ALTER TABLE public.users ALTER COLUMN roles SET DEFAULT '[]'::jsonb;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN
+        ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END;
+        ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb;
+    END IF;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;\n`;
+
     INITIAL_USERS.forEach(u => {
-        const expertiseStr = `'${JSON.stringify(u.expertise || []).replace(/'/g, "''")}'::jsonb`;
-        const rolesStr = `'${JSON.stringify(Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role]).replace(/'/g, "''")}'::jsonb`;
-        sql += `INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expertiseStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) ON CONFLICT (id) DO NOTHING;\n`;
+        const rolesArr = Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role];
+        const rolesJsonStr = `'${JSON.stringify(rolesArr).replace(/'/g, "''")}'::jsonb`;
+        const rolesArrayStr = `ARRAY[${rolesArr.map(r => escapeSql(r)).join(', ')}]::text[]`;
+
+        const expArr = Array.isArray(u.expertise) ? u.expertise : [];
+        const expJsonStr = `'${JSON.stringify(expArr).replace(/'/g, "''")}'::jsonb`;
+        const expArrayStr = expArr.length > 0 ? `ARRAY[${expArr.map(e => escapeSql(e)).join(', ')}]::text[]` : `ARRAY[]::text[]`;
+
+        sql += `DO $$ 
+BEGIN
+    INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) 
+    VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesJsonStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expJsonStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) 
+    ON CONFLICT (id) DO NOTHING;
+EXCEPTION WHEN OTHERS THEN
+    BEGIN
+        INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) 
+        VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesArrayStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expArrayStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) 
+        ON CONFLICT (id) DO NOTHING;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+END $$;\n`;
     });
 
     return sql;
