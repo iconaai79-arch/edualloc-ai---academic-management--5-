@@ -32,8 +32,8 @@ interface PropertyMarketplaceViewProps {
     onBackToPortal?: () => void;
 }
 
-// Category list for Alibaba-style megamenu & quick tabs
-const ALIBABA_CATEGORIES = [
+// Category list for B2B Wholesale megamenu & quick tabs
+const WHOLESALE_CATEGORIES = [
     { id: 'all', name: 'All Categories', icon: '🌐' },
     { id: 'furniture', name: 'Desks & Furniture', icon: '🪑', query: 'furniture' },
     { id: 'lab', name: 'Lab & Science Kits', icon: '🧪', query: 'lab' },
@@ -93,7 +93,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     const [sharingItem, setSharingItem] = useState<{ id: string; title: string; type: 'property' | 'retail' } | null>(null);
     const [copySuccess, setCopySuccess] = useState(false);
 
-    // Alibaba RFQ (Request for Quotation) Modal State
+    // EduAI Wholesale RFQ (Request for Quotation) Modal State
     const [showRfqModal, setShowRfqModal] = useState(false);
     const [rfqProductQuery, setRfqProductQuery] = useState('');
     const [rfqQuantity, setRfqQuantity] = useState<number>(50);
@@ -265,7 +265,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
         }, 4000);
     };
 
-    // Calculate Alibaba-style Wholesale Tiered Pricing
+    // Calculate B2B Wholesale Wholesale Tiered Pricing
     const getWholesaleUnitPrice = (basePrice: number, qty: number): number => {
         if (!basePrice) return 0;
         if (qty >= 50) return Math.round(basePrice * 0.80); // 20% bulk wholesale discount
@@ -337,7 +337,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 apiService.incrementCount('pm_listings', inquiryListing.id, 'inquiry_count');
                 const seller = getSeller(inquiryListing.institutionId);
                 const isViewingRequired = inquiryListing.listingType === 'Rent' || inquiryListing.listingType === 'Lease';
-                const subject = `[Alibaba Marketplace Inquiry]: ${inquiryListing.title}`;
+                const subject = `[B2B Wholesale Inquiry]: ${inquiryListing.title}`;
                 const body = [
                     `Hello ${seller?.name || 'Institutional Vendor'},`,
                     ``,
@@ -491,7 +491,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 document.title = "EduAI Global Marketplace | B2B Wholesale, Bulk Equipment & RFQ Sourcing";
                 const metaDesc = document.querySelector('meta[name="description"]');
                 if (metaDesc) {
-                    metaDesc.setAttribute("content", "Alibaba-style B2B wholesale marketplace for institutions, schools, enterprises, equipment, vehicles, and campuses with Trade Assurance.");
+                    metaDesc.setAttribute("content", "EduAI B2B wholesale marketplace for institutions, schools, enterprises, equipment, vehicles, and campuses with Trade Assurance.");
                 }
             } catch (e) {
                 console.error("Marketplace Load Error:", e);
@@ -541,7 +541,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             (p.description || '').toLowerCase().includes(q);
         
         if (selectedCategoryTab === 'all') return matchesSearch;
-        const catObj = ALIBABA_CATEGORIES.find(c => c.id === selectedCategoryTab);
+        const catObj = WHOLESALE_CATEGORIES.find(c => c.id === selectedCategoryTab);
         if (catObj && catObj.query) {
             const matchesCat = (p.category || '').toLowerCase().includes(catObj.query) ||
                                p.name.toLowerCase().includes(catObj.query);
@@ -591,7 +591,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
     return (
         <div className="min-h-screen bg-[#F5F5F7] dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-300 pb-20 md:pb-12">
             
-            {/* ── 1. Alibaba Top Announcement & Utility Bar ── */}
+            {/* ── 1. EduAI Wholesale Top Announcement & Utility Bar ── */}
             <div className="bg-[#222222] text-[#C4C4C4] text-[11px] font-medium border-b border-neutral-800 px-4 sm:px-8 py-2">
                 <div className="max-w-[1500px] mx-auto flex flex-wrap justify-between items-center gap-3">
                     <div className="flex items-center gap-4 flex-wrap">
@@ -645,12 +645,12 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             </div>
 
-            {/* ── 2. Alibaba Signature Orange Header & Omnibar ── */}
+            {/* ── 2. EduAI Wholesale Signature Orange Header & Omnibar ── */}
             <header className="bg-gradient-to-r from-[#FF6000] via-[#FF5400] to-[#FF4500] text-white shadow-lg sticky top-0 z-40">
                 <div className="max-w-[1500px] mx-auto px-4 sm:px-8 py-3.5">
                     <div className="flex flex-col md:flex-row items-center gap-4 justify-between">
                         
-                        {/* Left: Alibaba-Themed Logo & Slogan */}
+                        {/* Left: EduAI Wholesale-Themed Logo & Slogan */}
                         <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
                             <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setActiveSection('all'); setSelectedCategoryTab('all'); }}>
                                 <img 
@@ -682,7 +682,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                             </button>
                         </div>
 
-                        {/* Center: Alibaba Universal Wholesale Omnibar Search */}
+                        {/* Center: EduAI Wholesale Universal Wholesale Omnibar Search */}
                         <div className="w-full md:max-w-3xl flex-1">
                             <div className="flex bg-white rounded-full p-1 shadow-2xl border-2 border-white/40 focus-within:ring-4 focus-within:ring-amber-300 transition-all">
                                 
@@ -717,7 +717,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                     )}
                                 </div>
 
-                                {/* Alibaba Orange Search Button */}
+                                {/* EduAI Wholesale Orange Search Button */}
                                 <button 
                                     className="bg-gradient-to-r from-[#FF6000] to-[#E55000] hover:from-[#E55000] hover:to-[#CC4500] text-white px-7 py-2.5 rounded-full font-black text-xs uppercase tracking-wider flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
                                 >
@@ -828,7 +828,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             )}
 
-            {/* ── 5. Alibaba 3-Column Hero Section ── */}
+            {/* ── 5. EduAI Wholesale 3-Column Hero Section ── */}
             <div className="max-w-[1500px] mx-auto px-4 sm:px-8 pt-6">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
                     
@@ -840,7 +840,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         </div>
 
                         <ul className="space-y-1">
-                            {ALIBABA_CATEGORIES.map(cat => {
+                            {WHOLESALE_CATEGORIES.map(cat => {
                                 const isSelected = selectedCategoryTab === cat.id;
                                 return (
                                     <li key={cat.id}>
@@ -879,7 +879,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         </div>
                     </div>
 
-                    {/* Center Column: Alibaba Dynamic Deal Carousel (6 Cols) */}
+                    {/* Center Column: EduAI Wholesale Dynamic Deal Carousel (6 Cols) */}
                     <div className="lg:col-span-6 flex flex-col">
                         <div className="relative h-80 sm:h-96 rounded-2xl overflow-hidden shadow-md bg-gradient-to-br from-slate-900 via-orange-950 to-slate-900 border border-slate-200/50 dark:border-slate-800">
                             
@@ -981,7 +981,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                         </div>
                     </div>
 
-                    {/* Right Column: Alibaba Buyer RFQ Sourcing Card (3 Cols) */}
+                    {/* Right Column: EduAI Wholesale Buyer RFQ Sourcing Card (3 Cols) */}
                     <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 flex flex-col justify-between">
                         <div>
                             <div className="flex items-center gap-2 mb-3">
@@ -1059,7 +1059,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
             {/* ── 6. Category Quick Navigation Chips (Mobile & Tablet) ── */}
             <div className="lg:hidden max-w-[1500px] mx-auto px-4 sm:px-8 mt-5 overflow-x-auto no-scrollbar">
                 <div className="flex items-center gap-2 py-1">
-                    {ALIBABA_CATEGORIES.map(cat => (
+                    {WHOLESALE_CATEGORIES.map(cat => (
                         <button
                             key={cat.id}
                             onClick={() => {
@@ -1122,7 +1122,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                     </div>
                 </div>
 
-                {/* ── Wholesale Retail Products Grid (Alibaba Style) ── */}
+                {/* ── Wholesale Retail Products Grid (EduAI Wholesale Style) ── */}
                 {(activeSection === 'all' || activeSection === 'retail') && (
                     <div className="mb-14">
                         {activeSection === 'all' && (
@@ -1166,7 +1166,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                 </div>
                                             )}
 
-                                            {/* Alibaba Badges */}
+                                            {/* EduAI Wholesale Badges */}
                                             <div className="absolute top-2 left-2 flex flex-col gap-1">
                                                 <span className="bg-[#FF6000] text-white text-[9px] font-black uppercase px-2 py-0.5 rounded shadow">
                                                     Wholesale
@@ -1196,7 +1196,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                                                     {product.name}
                                                 </h4>
 
-                                                {/* Alibaba Volume Tiered Pricing */}
+                                                {/* EduAI Wholesale Volume Tiered Pricing */}
                                                 <div className="bg-[#FFF8F2] dark:bg-orange-950/20 p-2 rounded-xl mb-2.5 border border-orange-200/50 dark:border-orange-900/40">
                                                     <div className="flex justify-between items-baseline">
                                                         <span className="text-[10px] font-bold text-slate-500">1-9 pcs:</span>
@@ -1365,7 +1365,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
 
             </div>
 
-            {/* ── 8. Alibaba Logistics Partner CTA ── */}
+            {/* ── 8. EduAI Wholesale Logistics Partner CTA ── */}
             <div className="max-w-[1500px] mx-auto px-4 sm:px-8 mt-12 mb-16">
                 <div className="bg-gradient-to-r from-neutral-900 via-slate-900 to-[#E55000] rounded-3xl p-8 sm:p-12 text-white relative overflow-hidden shadow-2xl">
                     <div className="max-w-2xl relative z-10 space-y-4">
@@ -1399,7 +1399,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             </div>
 
-            {/* ── 9. Alibaba Request for Quotation (RFQ) Modal ── */}
+            {/* ── 9. EduAI Wholesale Request for Quotation (RFQ) Modal ── */}
             {showRfqModal && (
                 <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowRfqModal(false)}></div>
@@ -1653,7 +1653,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             )}
 
-            {/* ── 12. Retail Product Detail Panel (Alibaba Wholesale) ── */}
+            {/* ── 12. Retail Product Detail Panel (EduAI Wholesale Wholesale) ── */}
             {selectedProduct && (
                 <div className="fixed inset-0 z-[100] flex justify-end">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={() => setSelectedProduct(null)}></div>
@@ -2008,7 +2008,7 @@ export const PropertyMarketplaceView: React.FC<PropertyMarketplaceViewProps> = (
                 </div>
             )}
 
-            {/* ── 14. Mobile Sticky Bottom App Bar (Alibaba Style) ── */}
+            {/* ── 14. Mobile Sticky Bottom App Bar (EduAI Wholesale Style) ── */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-[120] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-2 px-4 shadow-2xl">
                 <div className="flex justify-around items-center">
                     <button
