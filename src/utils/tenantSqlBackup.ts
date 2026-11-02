@@ -355,6 +355,7 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         const lowerCol = col.toLowerCase();
         const isDateOrTimeOrPolicyOrId = lowerCol.includes('date') || lowerCol.includes('time') || lowerCol.includes('policy') || lowerCol.endsWith('id') || lowerCol.includes('system');
         const sampleRow = rows.find(r => r && r[col] !== null && r[col] !== undefined);
+        const sampleVal = sampleRow ? sampleRow[col] : undefined;
         const isKnownJsonbArrayCol = [
             'roles', 'expertise', 'enrolled_subject_ids', 'enrolledsubjectids',
             'parent_ids', 'parentids', 'student_ids', 'studentids',

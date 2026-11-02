@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import process from 'node:process';
 import fs from 'node:fs';
+import path from 'node:path';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -23,6 +24,15 @@ export default defineConfig(({ mode }) => {
         name: 'api-middleware',
         configureServer(server: any) {
           const apiMiddleware = async (req: any, res: any, next: any) => {
+            if (req.url?.startsWith('/downloads/')) {
+              const fileName = req.url.replace('/downloads/', '').split('?')[0];
+              const filePath = path.resolve(process.cwd(), 'downloads', fileName);
+              if (fs.existsSync(filePath)) {
+                res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+                fs.createReadStream(filePath).pipe(res);
+                return;
+              }
+            }
             console.log(`[Vite Middleware] Request URL: ${req.url}`);
             if (req.url?.startsWith('/api/')) {
               const urlObj = new URL(req.url, `http://${req.headers.host}`);
@@ -105,6 +115,36 @@ export default defineConfig(({ mode }) => {
           };
 
           server.middlewares.stack.unshift({ route: '', handle: apiMiddleware });
+        }
+      },
+      {
+        name: 'hardlink-large-downloads',
+        closeBundle() {
+          const srcDir = path.resolve(process.cwd(), 'downloads');
+          const destDir = path.resolve(process.cwd(), 'dist', 'downloads');
+          if (fs.existsSync(srcDir)) {
+            if (!fs.existsSync(destDir)) {
+              fs.mkdirSync(destDir, { recursive: true });
+            }
+            const files = fs.readdirSync(srcDir);
+            for (const file of files) {
+              const srcFile = path.join(srcDir, file);
+              const destFile = path.join(destDir, file);
+              if (fs.statSync(srcFile).isFile()) {
+                try {
+                  if (fs.existsSync(destFile)) fs.unlinkSync(destFile);
+                  fs.linkSync(srcFile, destFile);
+                  console.log(`[Vite] Hardlinked ${file} -> dist/downloads/${file} (0 bytes used)`);
+                } catch {
+                  try {
+                    fs.copyFileSync(srcFile, destFile);
+                  } catch (e) {
+                    console.warn(`[Vite] Could not link/copy ${file}:`, e);
+                  }
+                }
+              }
+            }
+          }
         }
       }
     ],
