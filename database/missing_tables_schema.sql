@@ -1962,3 +1962,29 @@ ALTER TABLE public."teacher_checkins" ADD COLUMN IF NOT EXISTS "afternoonLocatio
 ALTER TABLE public."teacher_checkins" ADD COLUMN IF NOT EXISTS "afternoonNotes" TEXT;
 ALTER TABLE public."teacher_checkins" ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
 ALTER TABLE public."teacher_checkins" ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+
+-- Table: public."reseller_sms_transactions"
+CREATE TABLE IF NOT EXISTS public."reseller_sms_transactions" (
+    "id" TEXT PRIMARY KEY
+);
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "reseller_id" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "resellerName" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "reseller_name" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "tenant_id" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "tenantName" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "tenant_name" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "units" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "ratePerUnit" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "rate_per_unit" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "wholesaleRate" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "wholesale_rate" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "totalAmount" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "total_amount" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "profit" NUMERIC DEFAULT 0;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT DEFAULT 'mpesa';
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "payment_method" TEXT DEFAULT 'mpesa';
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "timestamp" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public."reseller_sms_transactions" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;

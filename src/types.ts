@@ -1149,6 +1149,22 @@ export interface CommissionWithdrawalRequest {
     accountDetails?: string;
 }
 
+export interface ResellerSmsTransaction {
+    id: string;
+    resellerId: string;
+    resellerName?: string;
+    tenantId: string;
+    tenantName: string;
+    units: number;
+    ratePerUnit: number;
+    wholesaleRate: number;
+    totalAmount: number;
+    profit: number;
+    paymentMethod: 'mpesa' | 'cash' | 'bank' | 'credit';
+    notes?: string;
+    timestamp: string;
+}
+
 export interface TimetableEntry {
     id: string;
     day: string;

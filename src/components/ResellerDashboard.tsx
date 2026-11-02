@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest } from '../types';
+import type { User, Institution, CompanyDetails, MpesaTransaction, Invoice, Role, CommissionWithdrawalRequest, ResellerSmsTransaction } from '../types';
 import { apiService } from '../services/apiService';
+import { BuySMSModal } from './BuySMSModal';
 import { BuildingOfficeIcon } from './icons/BuildingOfficeIcon';
 import { UserGroupIcon } from './icons/UserGroupIcon';
 import { ChartBarIcon } from './icons/ChartBarIcon';
@@ -26,6 +27,10 @@ import { HomeIcon } from './icons/HomeIcon';
 import { ArchiveBoxIcon } from './icons/ArchiveBoxIcon';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { TruckIcon } from './icons/TruckIcon';
+import { CheckCircleIcon } from './icons/CheckCircleIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
+import { TagIcon } from './icons/TagIcon';
+import { TrendingUpIcon } from './icons/TrendingUpIcon';
 import { CorporateInvoicingManager } from './Invoicing/CorporateInvoicingManager';
 
 import { generateAlphanumericCode } from '../utils/stringUtils';

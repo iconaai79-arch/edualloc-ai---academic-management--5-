@@ -1206,17 +1206,20 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
             // Automated Welcome Credentials via SMS
             if (data.phone && data.phone.trim().length >= 9) {
-                try {
-                    const companySettings = await apiService.fetchCompanySettings().catch(() => null);
-                    const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
-
-                    const portalUrl = window.location.origin;
-                    const smsMsg = `Welcome to ${portalTitle}! Your Driving Instructor account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
-                    
-                    await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
-                    console.log("[DS Automation] Welcome credentials SMS dispatched to instructor:", data.phone);
-                } catch (smsErr) {
-                    console.error("[DS Automation] Failed to dispatch instructor welcome SMS:", smsErr);
+                const smsBal = Number((inst as any)?.smsBalance ?? (inst as any)?.sms_balance ?? 0);
+                if (smsBal <= 0) {
+                    console.warn(`[DS Automation] Skipped instructor welcome SMS dispatch for ${data.phone}: Institution '${inst.name || institutionId}' has 0 SMS units.`);
+                } else {
+                    try {
+                        const activeSmsConfig = inst.smsConfig;
+                        const portalUrl = window.location.origin;
+                        const smsMsg = `Welcome to ${portalTitle}! Your Driving Instructor account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
+                        
+                        await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
+                        console.log("[DS Automation] Welcome credentials SMS dispatched to instructor:", data.phone);
+                    } catch (smsErr) {
+                        console.error("[DS Automation] Failed to dispatch instructor welcome SMS:", smsErr);
+                    }
                 }
             }
 
@@ -1422,17 +1425,20 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
                 // Automated Welcome Credentials via SMS (can be suppressed for bulk imports)
                 if (!data.skipWelcomeSms && data.phone && data.phone.trim().length >= 9) {
-                    try {
-                        const companySettings = await apiService.fetchCompanySettings().catch(() => null);
-                        const activeSmsConfig = inst.smsConfig || companySettings?.smsConfig;
-
-                        const portalUrl = window.location.origin;
-                        const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
-                        
-                        await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
-                        console.log("[DS Automation] Welcome credentials SMS dispatched to student:", data.phone);
-                    } catch (smsErr) {
-                        console.error("[DS Automation] Failed to dispatch student welcome SMS:", smsErr);
+                    const smsBal = Number((inst as any)?.smsBalance ?? (inst as any)?.sms_balance ?? 0);
+                    if (smsBal <= 0) {
+                        console.warn(`[DS Automation] Skipped student welcome SMS dispatch for ${data.phone}: Institution '${inst.name || institutionId}' has 0 SMS units.`);
+                    } else {
+                        try {
+                            const activeSmsConfig = inst.smsConfig;
+                            const portalUrl = window.location.origin;
+                            const smsMsg = `Welcome to ${portalTitle}! Your Driving School account is ready.\nPortal: ${portalUrl}\nUser ID: ${data.phone}\nTemp Password: ${generatedPassword}`;
+                            
+                            await apiService.sendSms(data.phone, smsMsg, activeSmsConfig, 1, institutionId);
+                            console.log("[DS Automation] Welcome credentials SMS dispatched to student:", data.phone);
+                        } catch (smsErr) {
+                            console.error("[DS Automation] Failed to dispatch student welcome SMS:", smsErr);
+                        }
                     }
                 }
             }
@@ -1708,9 +1714,9 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
 
         try {
             const inst = await resolveInstitutionConfig(institutionId);
-            const companySettings = await apiService.fetchCompanySettings().catch(() => null);
             const portalTitle = inst.name || settings?.schoolName || 'Driving School';
-            const activeSmsConfig = companySettings?.smsConfig || inst.smsConfig;
+            const activeSmsConfig = inst.smsConfig;
+            const smsBal = Number((inst as any)?.smsBalance ?? (inst as any)?.sms_balance ?? 0);
 
             // 1. Notification for Student
             const actionLink = `${window.location.origin}/ds/lesson/${lesson.id}/manage`;
@@ -1733,24 +1739,28 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
  
             const isDirectorPhone = inst.phoneNumber && student.phone && (student.phone.trim().replace(/\D/g, '') === inst.phoneNumber.trim().replace(/\D/g, ''));
             if (student.phone && !isDirectorPhone) {
-                let sms = '';
-                if (isReminder) {
-                    const customTemplate = settings?.schedulingRules?.smsReminderTemplate;
-                    if (settings?.schedulingRules?.enableSmsReminders && customTemplate) {
-                        sms = customTemplate
-                            .replace(/{student}/g, student.fullName)
-                            .replace(/{school}/g, portalTitle)
-                            .replace(/{instructor}/g, instructor.name)
-                            .replace(/{time}/g, lesson.startTime)
-                            .replace(/{date}/g, lesson.lessonDate || (lesson as any).date || '');
-                    } else {
-                        sms = `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`;
-                    }
+                if (smsBal <= 0) {
+                    console.warn(`[DS Automation] Skipped student lesson SMS for ${student.phone}: Institution '${inst.name || institutionId}' has 0 SMS units.`);
                 } else {
-                    sms = `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
+                    let sms = '';
+                    if (isReminder) {
+                        const customTemplate = settings?.schedulingRules?.smsReminderTemplate;
+                        if (settings?.schedulingRules?.enableSmsReminders && customTemplate) {
+                            sms = customTemplate
+                                .replace(/{student}/g, student.fullName)
+                                .replace(/{school}/g, portalTitle)
+                                .replace(/{instructor}/g, instructor.name)
+                                .replace(/{time}/g, lesson.startTime)
+                                .replace(/{date}/g, lesson.lessonDate || (lesson as any).date || '');
+                        } else {
+                            sms = `Reminder: Your ${portalTitle} lesson with ${instructor.name} starts at ${lesson.startTime}. Be ready!`;
+                        }
+                    } else {
+                        sms = `Hello ${student.fullName}, your ${portalTitle} lesson is scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}. Manage here: ${actionLink}`;
+                    }
+                    
+                    await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to student failed", e));
                 }
-                
-                await apiService.sendSms(student.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to student failed", e));
             }
 
             // 2. Notification for Instructor
@@ -1769,11 +1779,15 @@ export const DrivingSchoolProvider: React.FC<{ children: ReactNode, institutionI
             }
 
             if (instructor.phone) {
-                const sms = isReminder
-                    ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
-                    : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
-                
-                await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to instructor failed", e));
+                if (smsBal <= 0) {
+                    console.warn(`[DS Automation] Skipped instructor lesson SMS for ${instructor.phone}: Institution '${inst.name || institutionId}' has 0 SMS units.`);
+                } else {
+                    const sms = isReminder
+                        ? `Reminder: Your lesson with ${student.fullName} starts at ${lesson.startTime}. Vehicle: ${vehicle?.plateNumber || 'N/A'}.`
+                        : `Hello ${instructor.name}, a new lesson with ${student.fullName} has been scheduled for ${lesson.lessonDate || (lesson as any).date} at ${lesson.startTime}.`;
+                    
+                    await apiService.sendSms(instructor.phone, sms, activeSmsConfig, 1, institutionId, undefined, true).catch(e => console.error("SMS to instructor failed", e));
+                }
             }
 
             console.log(`[DS Automation] ${isReminder ? 'Reminder' : 'Initial'} notifications sent for lesson ${lesson.id}`);

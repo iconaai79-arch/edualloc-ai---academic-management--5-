@@ -257,7 +257,7 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT 
 
 CREATE TABLE IF NOT EXISTS public.branches (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    institution_id TEXT REFERENCES public.institutions(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     location TEXT,
     code TEXT,
@@ -338,15 +338,14 @@ CREATE TABLE IF NOT EXISTS his_expenditures (
 
 CREATE TABLE IF NOT EXISTS institution_module_states (
     id TEXT PRIMARY KEY,
-    institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
-    module_id TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'inactive',
+    institution_id TEXT,
+    module_id TEXT,
+    status TEXT DEFAULT 'inactive',
     activated_at TIMESTAMP WITH TIME ZONE,
     trial_ends_at TIMESTAMP WITH TIME ZONE,
     subscription_ends_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(institution_id, module_id)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS commission_withdrawal_requests (
@@ -610,16 +609,16 @@ CREATE TABLE IF NOT EXISTS users (
     phone_number TEXT,
     staff_id TEXT,
     role TEXT NOT NULL,
-    roles TEXT[] DEFAULT '{}',
+    roles JSONB DEFAULT '[]'::jsonb,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     password TEXT,
     department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
-    expertise TEXT[],
+    expertise JSONB DEFAULT '[]'::jsonb,
     course_id TEXT,
     course_level_id TEXT,
-    enrolled_subject_ids TEXT[] DEFAULT '{}',
-    parent_ids TEXT[] DEFAULT '{}',
-    student_ids TEXT[] DEFAULT '{}',
+    enrolled_subject_ids JSONB DEFAULT '[]'::jsonb,
+    parent_ids JSONB DEFAULT '[]'::jsonb,
+    student_ids JSONB DEFAULT '[]'::jsonb,
     gender TEXT,
     profile_photo_url TEXT,
     unavailability JSONB DEFAULT '[]'::jsonb,
@@ -980,9 +979,9 @@ CREATE TABLE IF NOT EXISTS integration_logs (
 
 CREATE TABLE IF NOT EXISTS institution_extension_requests (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
-    requester_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
+    institution_id TEXT,
+    requester_id TEXT,
+    reason TEXT,
     status TEXT DEFAULT 'pending',
     requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     resolved_at TIMESTAMP WITH TIME ZONE,
@@ -2848,14 +2847,14 @@ CREATE TABLE IF NOT EXISTS his_staff_attendance (
 
 CREATE TABLE IF NOT EXISTS leave_requests (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    institution_id TEXT,
     user_id TEXT,
     staff_id TEXT,
     student_id TEXT,
     applicant_name TEXT,
-    leave_type TEXT NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
+    leave_type TEXT DEFAULT 'General',
+    start_date DATE,
+    end_date DATE,
     days INTEGER DEFAULT 1,
     reason TEXT,
     status TEXT DEFAULT 'Pending',
@@ -4388,10 +4387,10 @@ INSERT INTO academic_levels (id, name, institution_id) VALUES ('ug', 'Undergradu
 INSERT INTO academic_levels (id, name, institution_id) VALUES ('senior', 'Senior Secondary', 'INST001') ON CONFLICT (id) DO NOTHING;
 INSERT INTO academic_years (id, name, start_date, end_date, institution_id, status) VALUES ('ay_2024', '2024/2025', '2024-09-01', '2025-08-31', 'INST001', 'active') ON CONFLICT (id) DO NOTHING;
 INSERT INTO semesters (id, name, academic_year_id, institution_id, start_date, end_date, status, sessions) VALUES ('sem_1_2024', 'Term 1', 'ay_2024', 'INST001', '2024-09-01', '2024-12-20', 'active', '[]'::jsonb) ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_super_admin', 'System Super Admin', 'super@app.com', '0000000000', NULL, 'super_admin', ARRAY['super_admin'], 'SYSTEM', NULL, ARRAY['System Administration'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_admin_uni', 'Principal Newton', 'admin@edu.com', '0711111111', NULL, 'head_teacher', ARRAY['head_teacher'], 'INST001', NULL, ARRAY['Education Management'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_lec_stem', 'Ms. Sarah Curie', 'lecturer@edu.com', '0711111112', NULL, 'teacher', ARRAY['teacher'], 'INST001', 'dept_sci', ARRAY['Physics','Mathematics'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_lec_lang', 'Mr. William Shakespeare', 'will@edu.com', '0711111113', NULL, 'teacher', ARRAY['teacher'], 'INST001', 'dept_lang', ARRAY['English','Literature'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_bursar_finance', 'Bursar Jane Doe', 'bursar@edu.com', '0711111114', NULL, 'finance', ARRAY['finance'], 'INST001', NULL, ARRAY['Financial Administration'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_constituency_admin', 'Constituency CDF Officer', 'constituency@app.com', '0722222222', NULL, 'constituency_admin', ARRAY['constituency_admin'], 'Kigumo', NULL, ARRAY['NG-CDF Management'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
-INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_support_staff_demo', 'John Kamau (Support Staff)', 'staff@app.com', '0711111115', NULL, 'support_staff', ARRAY['support_staff'], 'INST001', 'dept_maintenance', ARRAY['Maintenance & Facilities','Security','Logistics'], NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_super_admin', 'System Super Admin', 'super@app.com', '0000000000', NULL, 'super_admin', '["super_admin"]'::jsonb, 'SYSTEM', NULL, '["System Administration"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_admin_uni', 'Principal Newton', 'admin@edu.com', '0711111111', NULL, 'head_teacher', '["head_teacher"]'::jsonb, 'INST001', NULL, '["Education Management"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_lec_stem', 'Ms. Sarah Curie', 'lecturer@edu.com', '0711111112', NULL, 'teacher', '["teacher"]'::jsonb, 'INST001', 'dept_sci', '["Physics","Mathematics"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_lec_lang', 'Mr. William Shakespeare', 'will@edu.com', '0711111113', NULL, 'teacher', '["teacher"]'::jsonb, 'INST001', 'dept_lang', '["English","Literature"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_bursar_finance', 'Bursar Jane Doe', 'bursar@edu.com', '0711111114', NULL, 'finance', '["finance"]'::jsonb, 'INST001', NULL, '["Financial Administration"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_constituency_admin', 'Constituency CDF Officer', 'constituency@app.com', '0722222222', NULL, 'constituency_admin', '["constituency_admin"]'::jsonb, 'Kigumo', NULL, '["NG-CDF Management"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;
+INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES ('u_support_staff_demo', 'John Kamau (Support Staff)', 'staff@app.com', '0711111115', NULL, 'support_staff', '["support_staff"]'::jsonb, 'INST001', 'dept_maintenance', '["Maintenance & Facilities","Security","Logistics"]'::jsonb, NULL, NULL, 'password123') ON CONFLICT (id) DO NOTHING;

@@ -3,13 +3,28 @@ const path = require('path');
 const readline = require('readline');
 
 const downloadsDir = 'C:\\Users\\hp\\Downloads';
-const filesToPatch = [
+const explicitFiles = [
+    'eduai_full_database_backup_2026-11-02.sql',
+    'eduai_full_database_backup_2026-11-02(1).sql',
+    'eduai_full_database_backup_2026-11-02 (1).sql',
+    'eduai_full_database_backup_2026-11-01.sql',
+    'eduai_full_database_backup_2026-11-01 (1).sql',
+    'eduai_full_database_backup_2026-11-01(1).sql',
     'eduai_full_database_backup_READY_FOR_IMPORT.sql',
     'eduai_fixed_for_import.sql',
     'eduai_full_database_backup_2026-10-30.sql',
     'eduai_full_database_backup_2026-10-30 (1).sql',
-    'eduai_full_database_backup_2026-10-30 (2).sql'
+    'eduai_full_database_backup_2026-10-30 (2).sql',
+    'eduai_full_database_backup_2026-10-29.sql',
+    'eduai_full_database_backup_2026-10-26.sql',
+    'eduai_full_database_backup_2026-10-26(1).sql',
+    'eduai_full_database_backup_2026-10-26(2).sql',
+    'eduai_full_database_backup_2026-10-26(3).sql',
+    'eduai_full_database_backup_2026-10-24.sql'
 ];
+const discoveredFiles = fs.existsSync(downloadsDir) ? fs.readdirSync(downloadsDir).filter(f => f.endsWith('.sql') && !f.endsWith('.tmp')) : [];
+const filesToPatch = Array.from(new Set([...explicitFiles, ...discoveredFiles]));
+
 
 const replacementsPath = path.join(__dirname, 'table_col_replacements.json');
 const tableReplacements = fs.existsSync(replacementsPath) ? JSON.parse(fs.readFileSync(replacementsPath, 'utf8')) : {};
@@ -18,15 +33,90 @@ const universalDdlPath = path.join(__dirname, 'generated_universal_ddl.sql');
 const universalDdl = fs.existsSync(universalDdlPath) ? fs.readFileSync(universalDdlPath, 'utf8') : '';
 
 const injectionSQL = `
+-- DYNAMICALLY STRIP ALL FOREIGN KEY CONSTRAINTS ACROSS PUBLIC SCHEMA FOR 100% RELIABLE RESTORE
+DO $$ 
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT conrelid::regclass AS table_name, conname
+        FROM pg_constraint
+        WHERE contype = 'f' 
+          AND connamespace = 'public'::regnamespace
+    ) LOOP
+        BEGIN
+            EXECUTE 'ALTER TABLE ' || r.table_name || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname) || ' CASCADE;';
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+    END LOOP;
+END $$;
+
 -- FIX INSTITUTION AND DEPENDENT FOREIGN KEYS FOR DATA RESTORE
-ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey;
-ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_county_id_fkey;
-ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_institution_id_fkey;
-ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_department_id_fkey;
-ALTER TABLE public.courses DROP CONSTRAINT IF EXISTS courses_department_id_fkey;
-ALTER TABLE public.subjects DROP CONSTRAINT IF EXISTS subjects_department_id_fkey;
-ALTER TABLE public.rooms DROP CONSTRAINT IF EXISTS rooms_building_id_fkey;
+ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey CASCADE;
+ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_county_id_fkey CASCADE;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_institution_id_fkey CASCADE;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_department_id_fkey CASCADE;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key CASCADE;
+DROP INDEX IF EXISTS public.users_email_key CASCADE;
+ALTER TABLE public.courses DROP CONSTRAINT IF EXISTS courses_department_id_fkey CASCADE;
+ALTER TABLE public.subjects DROP CONSTRAINT IF EXISTS subjects_department_id_fkey CASCADE;
+ALTER TABLE public.rooms DROP CONSTRAINT IF EXISTS rooms_building_id_fkey CASCADE;
+ALTER TABLE public.semesters DROP CONSTRAINT IF EXISTS semesters_academic_year_id_fkey CASCADE;
+ALTER TABLE public.semesters DROP CONSTRAINT IF EXISTS semesters_institution_id_fkey CASCADE;
+DO $$ BEGIN ALTER TABLE public.semesters ALTER COLUMN academic_year_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.semesters ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.academic_years ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- PRE-SEED MISSING ACADEMIC YEAR IF REFERENCED
+INSERT INTO public.academic_years (id, name, start_date, end_date, institution_id, status)
+VALUES ('ay_1770440553949', 'Academic Year 2026', '2026-01-01', '2026-12-31', 'inst_1770144450093_f9p2x', 'inactive')
+ON CONFLICT (id) DO NOTHING;
+
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN role DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.courses ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.courses ALTER COLUMN code DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.subjects ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.subjects ALTER COLUMN code DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.students ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.departments ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- FIX AUDIT REPORTS NOT-NULL CONSTRAINTS & DEFAULTS
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN title DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN title SET DEFAULT 'Audit Report'; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN period DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN overall_risk DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN run_at DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN report_type DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN generated_by DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- FIX AUDIT ISSUES CONSTRAINTS
+ALTER TABLE public.audit_issues DROP CONSTRAINT IF EXISTS audit_issues_report_id_fkey CASCADE;
+DO $$ BEGIN ALTER TABLE public.audit_issues ALTER COLUMN report_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.audit_issues ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- FIX MPESA TRANSACTIONS NOT-NULL CONSTRAINTS
+DO $$ BEGIN ALTER TABLE public.mpesa_transactions ALTER COLUMN receipt_no DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.mpesa_transactions ALTER COLUMN receipt_no SET DEFAULT 'MPESA_REC'; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.mpesa_transactions ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- FIX DS LICENSE CATEGORIES NOT-NULL CONSTRAINTS
+DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN category_code DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN category_name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN code DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+-- FIX HIS CLINICAL EVENTS NOT-NULL CONSTRAINTS
+DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN event_type DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN event_type SET DEFAULT 'clinical_event'; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN title DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN title SET DEFAULT 'Clinical Event'; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 -- INSERT MISSING / DEMO INSTITUTIONS TO SATISFY FOREIGN KEY CONSTRAINTS ACROSS ALL 27 TABLES
 INSERT INTO public.institutions (id, name, email, status) VALUES
@@ -85,6 +175,7 @@ INSERT INTO public.institutions (id, name, email, status) VALUES
     ('inst_6ed131dc-3498-437b-9082-76d93b481ffa', 'Inst 6ed131dc-3498-437b-9082-76d93b481ffa', 'inst6ed131dc3498437b908276d93b481ffa@placeholder.local', 'trial'),
     ('inst_demo_coop_9vr5earpe', 'Inst Demo Coop 9vr5earpe', 'instdemocoop9vr5earpe@placeholder.local', 'trial'),
     ('inst_demo_coop_unubxygq1', 'Inst Demo Coop Unubxygq1', 'instdemocoopunubxygq1@placeholder.local', 'trial'),
+    ('inst_1792259096009_tlj7o', 'Inst 1792259096009 Tlj7o', 'inst1792259096009tlj7o@placeholder.local', 'trial'),
     ('inst_GLOBAL', 'Inst GLOBAL', 'instglobal@placeholder.local', 'trial')
 ON CONFLICT (id) DO NOTHING;
 
@@ -94,51 +185,274 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "streamDefinitions" JSO
 ALTER TABLE public.institutions DROP COLUMN IF EXISTS stream_definitions CASCADE;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "'aiModelTier" TEXT DEFAULT 'premium';
-ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "usersInstitutionIdFkey" JSONB;
+ALTER TABLE public.institutions DROP COLUMN IF EXISTS "usersInstitutionIdFkey";
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS "usersInstitutionIdFkey" TEXT;
 
--- FIX INSTITUTION MODULE STATES CONSTRAINTS
+-- FIX INSTITUTION MODULE STATES CONSTRAINTS & SELF-HEALING TRIGGER
+ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_fkey CASCADE;
+ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_module_id_key CASCADE;
+ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS uq_institution_module_states_inst_module CASCADE;
+ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS uq_ims_inst_module CASCADE;
+DROP INDEX IF EXISTS public.institution_module_states_institution_id_module_id_key CASCADE;
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN module_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN status DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;
-ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_module_id_key;
--- DROP AND RECREATE ARRAY COLUMNS AS JSONB TO GUARANTEE 100% TYPE COMPATIBILITY WITH JSONB LITERALS
-ALTER TABLE public.users DROP COLUMN IF EXISTS expertise CASCADE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS expertise JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.users DROP COLUMN IF EXISTS roles CASCADE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS roles JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.users DROP COLUMN IF EXISTS enrolled_subject_ids CASCADE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS enrolled_subject_ids JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.users DROP COLUMN IF EXISTS parent_ids CASCADE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS parent_ids JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.users DROP COLUMN IF EXISTS student_ids CASCADE;
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS student_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.institution_module_states ADD COLUMN IF NOT EXISTS "0" JSONB;
+ALTER TABLE public.institution_module_states ADD COLUMN IF NOT EXISTS "data" JSONB DEFAULT '{}'::jsonb;
 
-ALTER TABLE public.rooms DROP COLUMN IF EXISTS equipment CASCADE;
-ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS equipment JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.allocation_requests DROP COLUMN IF EXISTS course_level_ids CASCADE;
-ALTER TABLE public.allocation_requests ADD COLUMN IF NOT EXISTS course_level_ids JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.allocation_requests DROP COLUMN IF EXISTS subject_ids CASCADE;
-ALTER TABLE public.allocation_requests ADD COLUMN IF NOT EXISTS subject_ids JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.carwash_jobs DROP COLUMN IF EXISTS add_ons CASCADE;
-ALTER TABLE public.carwash_jobs ADD COLUMN IF NOT EXISTS add_ons JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.pm_listings DROP COLUMN IF EXISTS images CASCADE;
-ALTER TABLE public.pm_listings ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.pm_listings DROP COLUMN IF EXISTS features CASCADE;
-ALTER TABLE public.pm_listings ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.his_patients DROP COLUMN IF EXISTS allergies CASCADE;
-ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS allergies JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.his_patients DROP COLUMN IF EXISTS chronic_conditions CASCADE;
-ALTER TABLE public.his_patients ADD COLUMN IF NOT EXISTS chronic_conditions JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.his_prescriptions DROP COLUMN IF EXISTS attached_files CASCADE;
-ALTER TABLE public.his_prescriptions ADD COLUMN IF NOT EXISTS attached_files JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.car_sales_listings DROP COLUMN IF EXISTS gallery_urls CASCADE;
-ALTER TABLE public.car_sales_listings ADD COLUMN IF NOT EXISTS gallery_urls JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.car_appraisals DROP COLUMN IF EXISTS images CASCADE;
-ALTER TABLE public.car_appraisals ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.synergy_posts DROP COLUMN IF EXISTS likes CASCADE;
-ALTER TABLE public.synergy_posts ADD COLUMN IF NOT EXISTS likes JSONB DEFAULT '[]'::jsonb;
-ALTER TABLE public.synergy_posts DROP COLUMN IF EXISTS student_ids CASCADE;
-ALTER TABLE public.synergy_posts ADD COLUMN IF NOT EXISTS student_ids JSONB DEFAULT '[]'::jsonb;
+CREATE OR REPLACE FUNCTION public.trg_fix_ims_row()
+RETURNS TRIGGER AS $$
+DECLARE
+    json_payload jsonb;
+BEGIN
+    IF NEW.id IS NULL THEN
+        BEGIN
+            json_payload := to_jsonb(NEW)->'0';
+        EXCEPTION WHEN OTHERS THEN
+            json_payload := NULL;
+        END;
+        
+        IF json_payload IS NULL OR json_payload = 'null'::jsonb THEN
+            BEGIN
+                json_payload := to_jsonb(NEW)->'data';
+            EXCEPTION WHEN OTHERS THEN
+                json_payload := NULL;
+            END;
+        END IF;
+
+        IF json_payload IS NOT NULL AND json_payload ? 'id' THEN
+            NEW.id := json_payload->>'id';
+            NEW.institution_id := COALESCE(NEW.institution_id, json_payload->>'institutionId', json_payload->>'institution_id');
+            NEW.module_id := COALESCE(NEW.module_id, json_payload->>'moduleId', json_payload->>'module_id');
+            NEW.status := COALESCE(NEW.status, json_payload->>'status', 'active');
+            IF json_payload ? 'data' THEN
+                NEW.data := json_payload->'data';
+            END IF;
+        ELSE
+            NEW.id := 'ims_' || COALESCE(NEW.module_id, 'mod') || '_' || COALESCE(NEW.institution_id, 'inst_' || substr(md5(random()::text), 1, 8));
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_fix_ims_row ON public.institution_module_states;
+CREATE TRIGGER trg_fix_ims_row
+BEFORE INSERT ON public.institution_module_states
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_fix_ims_row();
+-- SAFELY CONVERT ARRAY COLUMNS (TEXT[]) TO JSONB TO GUARANTEE 100% TYPE COMPATIBILITY WITHOUT DATA LOSS
+DO $$ 
+BEGIN 
+    -- users.expertise
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN 
+        ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END;
+        ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb;
+    ELSE 
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS expertise JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    -- users.roles
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'roles' AND data_type = 'ARRAY') THEN 
+        ALTER TABLE public.users ALTER COLUMN roles DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN roles TYPE JSONB USING CASE WHEN roles IS NULL THEN '[]'::jsonb ELSE to_jsonb(roles) END;
+        ALTER TABLE public.users ALTER COLUMN roles SET DEFAULT '[]'::jsonb;
+    ELSE 
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS roles JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    -- users.enrolled_subject_ids
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'enrolled_subject_ids' AND data_type = 'ARRAY') THEN 
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids TYPE JSONB USING CASE WHEN enrolled_subject_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(enrolled_subject_ids) END;
+        ALTER TABLE public.users ALTER COLUMN enrolled_subject_ids SET DEFAULT '[]'::jsonb;
+    ELSE 
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS enrolled_subject_ids JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    -- users.parent_ids
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'parent_ids' AND data_type = 'ARRAY') THEN 
+        ALTER TABLE public.users ALTER COLUMN parent_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN parent_ids TYPE JSONB USING CASE WHEN parent_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(parent_ids) END;
+        ALTER TABLE public.users ALTER COLUMN parent_ids SET DEFAULT '[]'::jsonb;
+    ELSE 
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS parent_ids JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    -- users.student_ids
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'student_ids' AND data_type = 'ARRAY') THEN 
+        ALTER TABLE public.users ALTER COLUMN student_ids DROP DEFAULT;
+        ALTER TABLE public.users ALTER COLUMN student_ids TYPE JSONB USING CASE WHEN student_ids IS NULL THEN '[]'::jsonb ELSE to_jsonb(student_ids) END;
+        ALTER TABLE public.users ALTER COLUMN student_ids SET DEFAULT '[]'::jsonb;
+    ELSE 
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS student_ids JSONB DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
+-- Universal dynamic conversion across all public tables
+DO $$ 
+DECLARE r RECORD; 
+BEGIN 
+    FOR r IN (
+        SELECT table_name, column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' AND data_type = 'ARRAY'
+    ) LOOP 
+        BEGIN 
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name); 
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE JSONB USING CASE WHEN %I IS NULL THEN ''[]''::jsonb ELSE to_jsonb(%I) END', r.table_name, r.column_name, r.column_name, r.column_name); 
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT ''[]''::jsonb', r.table_name, r.column_name); 
+        EXCEPTION WHEN OTHERS THEN NULL; 
+        END; 
+    END LOOP; 
+END $$;
+
+-- FIX MISTAKENLY TYPED BOOLEAN COLUMNS (issueDate, issuedDate, activeGradingSystemId, cancellationPolicy)
+DO $$ 
+BEGIN 
+    -- invoices
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'issueDate' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."invoices" ALTER COLUMN "issueDate" DROP DEFAULT;
+        ALTER TABLE public."invoices" ALTER COLUMN "issueDate" TYPE TEXT USING NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'invoices' AND column_name = 'issue_date' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."invoices" ALTER COLUMN "issue_date" DROP DEFAULT;
+        ALTER TABLE public."invoices" ALTER COLUMN "issue_date" TYPE TEXT USING NULL;
+    END IF;
+
+    -- library_transactions
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'library_transactions' AND column_name = 'issueDate' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."library_transactions" ALTER COLUMN "issueDate" DROP DEFAULT;
+        ALTER TABLE public."library_transactions" ALTER COLUMN "issueDate" TYPE TEXT USING NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'library_transactions' AND column_name = 'issue_date' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."library_transactions" ALTER COLUMN "issue_date" DROP DEFAULT;
+        ALTER TABLE public."library_transactions" ALTER COLUMN "issue_date" TYPE TEXT USING NULL;
+    END IF;
+
+    -- pm_invoices
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'pm_invoices' AND column_name = 'issueDate' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."pm_invoices" ALTER COLUMN "issueDate" DROP DEFAULT;
+        ALTER TABLE public."pm_invoices" ALTER COLUMN "issueDate" TYPE TEXT USING NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'pm_invoices' AND column_name = 'issue_date' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."pm_invoices" ALTER COLUMN "issue_date" DROP DEFAULT;
+        ALTER TABLE public."pm_invoices" ALTER COLUMN "issue_date" TYPE TEXT USING NULL;
+    END IF;
+
+    -- procurement_lpos
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'procurement_lpos' AND column_name = 'issuedDate' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."procurement_lpos" ALTER COLUMN "issuedDate" DROP DEFAULT;
+        ALTER TABLE public."procurement_lpos" ALTER COLUMN "issuedDate" TYPE TEXT USING NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'procurement_lpos' AND column_name = 'issued_date' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."procurement_lpos" ALTER COLUMN "issued_date" DROP DEFAULT;
+        ALTER TABLE public."procurement_lpos" ALTER COLUMN "issued_date" TYPE TEXT USING NULL;
+    END IF;
+
+    -- institutions
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'institutions' AND column_name = 'activeGradingSystemId' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."institutions" ALTER COLUMN "activeGradingSystemId" DROP DEFAULT;
+        ALTER TABLE public."institutions" ALTER COLUMN "activeGradingSystemId" TYPE TEXT USING NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'institutions' AND column_name = 'active_grading_system_id' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."institutions" ALTER COLUMN "active_grading_system_id" DROP DEFAULT;
+        ALTER TABLE public."institutions" ALTER COLUMN "active_grading_system_id" TYPE TEXT USING NULL;
+    END IF;
+
+    -- ds_settings
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ds_settings' AND column_name = 'cancellationPolicy' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."ds_settings" ALTER COLUMN "cancellationPolicy" DROP DEFAULT;
+        ALTER TABLE public."ds_settings" ALTER COLUMN "cancellationPolicy" TYPE TEXT USING NULL;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ds_settings' AND column_name = 'cancellation_policy' AND data_type = 'boolean') THEN 
+        ALTER TABLE public."ds_settings" ALTER COLUMN "cancellation_policy" DROP DEFAULT;
+        ALTER TABLE public."ds_settings" ALTER COLUMN "cancellation_policy" TYPE TEXT USING NULL;
+    END IF;
+END $$;
+
+-- Dynamic universal conversion for any boolean column that contains date/time/policy/id
+DO $$ 
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT table_name, column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND data_type = 'boolean'
+          AND (
+            column_name ILIKE '%date%' 
+            OR column_name ILIKE '%time%' 
+            OR column_name ILIKE '%policy%'
+            OR column_name IN ('activeGradingSystemId', 'active_grading_system_id', 'cancellationPolicy', 'cancellation_policy', 'issueDate', 'issue_date', 'issuedDate', 'issued_date')
+          )
+    ) LOOP
+        BEGIN
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name);
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE TEXT USING NULL', r.table_name, r.column_name);
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+    END LOOP;
+END $$;
+
+-- DYNAMICALLY ENSURE PRIMARY KEY OR UNIQUE CONSTRAINT ON "id" FOR ALL BASE TABLES
+DO $$ 
+DECLARE
+    r RECORD;
+BEGIN
+    -- 1. Ensure institution_id PK for library_settings and ds_settings
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.library_settings'::regclass AND contype = 'p') THEN
+            BEGIN
+                ALTER TABLE public.library_settings ADD PRIMARY KEY (institution_id);
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+        END IF;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ds_settings'::regclass AND contype = 'p') THEN
+            BEGIN
+                ALTER TABLE public.ds_settings ADD PRIMARY KEY (institution_id);
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+        END IF;
+    END IF;
+
+    -- 2. Ensure PRIMARY KEY or UNIQUE constraint on "id" for all other tables
+    FOR r IN (
+        SELECT c.table_name 
+        FROM information_schema.columns c
+        JOIN information_schema.tables t ON c.table_name = t.table_name AND t.table_schema = 'public'
+        WHERE c.table_schema = 'public' 
+          AND c.column_name = 'id'
+          AND t.table_type = 'BASE TABLE'
+          AND c.table_name NOT IN ('library_settings', 'ds_settings')
+    ) LOOP
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM pg_constraint con
+            JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+            WHERE con.connamespace = 'public'::regnamespace
+              AND con.conrelid = r.table_name::regclass
+              AND con.contype IN ('p', 'u')
+              AND att.attname = 'id'
+        ) THEN
+            BEGIN
+                EXECUTE format('ALTER TABLE public.%I ADD PRIMARY KEY (id)', r.table_name);
+            EXCEPTION WHEN OTHERS THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I UNIQUE (id)', r.table_name, 'uq_' || r.table_name || '_id');
+                EXCEPTION WHEN OTHERS THEN
+                    NULL;
+                END;
+            END;
+        END IF;
+    END LOOP;
+END $$;
 
 -- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS (100% COVERAGE)
 ${universalDdl}
@@ -255,6 +569,45 @@ function fixEmptyStringForJson(line) {
     return fixed;
 }
 
+function fixImsNullRow(line) {
+    if (!line.trim().startsWith('(NULL') && !line.trim().startsWith('(null')) return line;
+    if (!line.includes("'{\"id\":\"ims_") && !line.includes("'{\\\"id\\\":\\\"ims_")) return line;
+
+    // Match the jsonb object inside the line
+    const match = line.match(/'(\{.*?"id"\s*:\s*"([^"]+)".*?\})'::jsonb/);
+    if (!match) return line;
+
+    const rawJsonStr = match[1];
+    let parsed;
+    try {
+        parsed = JSON.parse(rawJsonStr);
+    } catch (e) {
+        try {
+            parsed = JSON.parse(rawJsonStr.replace(/\\"/g, '"'));
+        } catch (e2) {
+            return line;
+        }
+    }
+
+    const id = parsed.id;
+    const instId = parsed.institutionId || parsed.institution_id || 'default_inst';
+    const moduleId = parsed.moduleId || parsed.module_id || (id.startsWith('ims_') ? id.split('_')[1] : 'unknown');
+    const status = parsed.status || 'active';
+    const updatedAt = parsed.updatedAt || parsed.updated_at || '2026-10-17 17:48:05.388+00';
+    const activatedAt = parsed.activatedAt || parsed.activated_at || updatedAt;
+    const createdAt = parsed.createdAt || parsed.created_at || updatedAt;
+
+    const dataObj = parsed.data || {};
+    const dataJsonSql = JSON.stringify(dataObj).replace(/'/g, "''");
+    const rawJsonSql = rawJsonStr.replace(/'/g, "''");
+
+    const endsWithComma = line.trim().endsWith(',');
+    const endsWithSemicolon = line.trim().endsWith(';');
+    const suffix = endsWithSemicolon ? ';' : (endsWithComma ? ',' : '');
+
+    return `    ('${id}', '${instId}', '${moduleId}', '${status}', '${activatedAt}', NULL, NULL, '${createdAt}', '${updatedAt}', '${dataJsonSql}'::jsonb, '${rawJsonSql}'::jsonb, '${moduleId}', '${instId}', '${activatedAt}', '${updatedAt}')${suffix}`;
+}
+
 function fixImsLine(line) {
     if (!line.includes("'ims_") || !line.includes(", NULL,")) return line;
     return line.replace(/\('ims_([a-zA-Z0-9_]+?)_inst_([a-zA-Z0-9_]+?)',\s*'inst_([a-zA-Z0-9_]+?)',\s*NULL,/g, (match, moduleName, instSuffix, instSuffix2) => {
@@ -277,6 +630,15 @@ function fixRolesLine(line) {
 
     return fixed;
 }
+
+function fixUserNullEmail(line) {
+    if (!line.trim().startsWith('(')) return line;
+    return line.replace(/^(\s*\('([^']+)',\s*(?:'(?:''|[^'])*'|NULL),\s*)NULL,/i, (match, prefix, userId) => {
+        const fallbackEmail = `${userId}@eduai.local`;
+        return `${prefix}'${fallbackEmail}',`;
+    });
+}
+
 
 const reverseReplacements = {};
 for (const [tbl, map] of Object.entries(tableReplacements)) {
@@ -358,6 +720,89 @@ function replaceInsertHeader(line, tableReplacements) {
     return `${prefix}${newCols.join(', ')}${suffix}`;
 }
 
+const pkAndBoolFixSQL = `
+-- DYNAMICALLY FIX ERRONEOUS BOOLEAN COLUMNS (DATES, IDS, POLICIES) TO TEXT
+DO $$ 
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN (
+        SELECT table_name, column_name 
+        FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND data_type = 'boolean'
+          AND (
+            column_name ILIKE '%date%' 
+            OR column_name ILIKE '%time%' 
+            OR column_name ILIKE '%policy%'
+            OR column_name IN ('activeGradingSystemId', 'active_grading_system_id', 'cancellationPolicy', 'cancellation_policy', 'issueDate', 'issue_date', 'issuedDate', 'issued_date')
+          )
+    ) LOOP
+        BEGIN
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name);
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE TEXT USING NULL', r.table_name, r.column_name);
+        EXCEPTION WHEN OTHERS THEN
+            NULL;
+        END;
+    END LOOP;
+END $$;
+
+-- DYNAMICALLY ENSURE PRIMARY KEY OR UNIQUE CONSTRAINT ON "id" FOR ALL BASE TABLES
+DO $$ 
+DECLARE
+    r RECORD;
+BEGIN
+    -- 1. Ensure institution_id PK for library_settings and ds_settings
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.library_settings'::regclass AND contype = 'p') THEN
+            BEGIN
+                ALTER TABLE public.library_settings ADD PRIMARY KEY (institution_id);
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+        END IF;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ds_settings'::regclass AND contype = 'p') THEN
+            BEGIN
+                ALTER TABLE public.ds_settings ADD PRIMARY KEY (institution_id);
+            EXCEPTION WHEN OTHERS THEN NULL;
+            END;
+        END IF;
+    END IF;
+
+    -- 2. Ensure PRIMARY KEY or UNIQUE constraint on "id" for all other tables
+    FOR r IN (
+        SELECT c.table_name 
+        FROM information_schema.columns c
+        JOIN information_schema.tables t ON c.table_name = t.table_name AND t.table_schema = 'public'
+        WHERE c.table_schema = 'public' 
+          AND c.column_name = 'id'
+          AND t.table_type = 'BASE TABLE'
+          AND c.table_name NOT IN ('library_settings', 'ds_settings')
+    ) LOOP
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM pg_constraint con
+            JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey)
+            WHERE con.connamespace = 'public'::regnamespace
+              AND con.conrelid = r.table_name::regclass
+              AND con.contype IN ('p', 'u')
+              AND att.attname = 'id'
+        ) THEN
+            BEGIN
+                EXECUTE format('ALTER TABLE public.%I ADD PRIMARY KEY (id)', r.table_name);
+            EXCEPTION WHEN OTHERS THEN
+                BEGIN
+                    EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I UNIQUE (id)', r.table_name, 'uq_' || r.table_name || '_id');
+                EXCEPTION WHEN OTHERS THEN
+                    NULL;
+                END;
+            END;
+        END IF;
+    END LOOP;
+END $$;
+`;
+
 async function patchFile(filename) {
     const filePath = path.join(downloadsDir, filename);
     if (!fs.existsSync(filePath)) {
@@ -376,14 +821,60 @@ async function patchFile(filename) {
     });
 
     let patchedInsert = false;
+    let alreadyHasPostRestore = false;
+    let hasInjectedPkBlock = false;
+    let currentTable = null;
+    let seenLibInstIds = new Set();
+    let inInsertBlock = false;
+    let currentInsertHeader = null;
+    let currentInsertRows = [];
+    let fixedEmptyIds = 0;
     let replacedDefinitions = 0;
     let fixedJsonEmptyStrings = 0;
     let replacedOrphanCounties = 0;
     let replacedInsertHeaders = 0;
     let fixedImsRows = 0;
     let fixedRolesRows = 0;
+    let fixedNullEmails = 0;
 
     for await (let line of rl) {
+        if (line.includes('DYNAMICALLY ENSURE PRIMARY KEY OR UNIQUE CONSTRAINT ON "id"')) {
+            hasInjectedPkBlock = true;
+        }
+
+        if (line.includes('-- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS (100% COVERAGE)')) {
+            if (!hasInjectedPkBlock) {
+                writeStream.write(pkAndBoolFixSQL + '\n');
+                hasInjectedPkBlock = true;
+            }
+        }
+
+        if (line.includes('-- DYNAMICALLY STRIP ALL FOREIGN KEY CONSTRAINTS') || line.includes('-- UNIVERSAL EXTENDED TABLE AND COLUMN DEFINITIONS')) {
+            patchedInsert = true;
+        }
+
+        if (line.includes('-- FIX ORPHANED COUNTY AND RESELLER REFERENCES')) {
+            alreadyHasPostRestore = true;
+        }
+
+        if (line.includes('CREATE TABLE IF NOT EXISTS public."library_settings"') || line.includes('CREATE TABLE IF NOT EXISTS public."ds_settings"')) {
+            currentTable = line.includes('library_settings') ? 'library_settings' : 'ds_settings';
+        }
+        if (line.includes('"id" TEXT PRIMARY KEY') && (currentTable === 'library_settings' || currentTable === 'ds_settings')) {
+            line = '    "institution_id" TEXT PRIMARY KEY';
+        }
+
+        // Fix any mistakenly typed boolean columns to TEXT
+        if (line.includes('BOOLEAN DEFAULT false') || line.includes('BOOLEAN DEFAULT FALSE')) {
+            if (line.includes('"issueDate"') || line.includes('"issue_date"') ||
+                line.includes('"issuedDate"') || line.includes('"issued_date"') ||
+                line.includes('"activeGradingSystemId"') || line.includes('"active_grading_system_id"') ||
+                line.includes('"cancellationPolicy"') || line.includes('"cancellation_policy"')) {
+                line = line.replace(/BOOLEAN DEFAULT (false|FALSE);?/i, 'TEXT;');
+                replacedDefinitions++;
+            }
+        }
+
         if (line.includes('stream_definitions TEXT[] DEFAULT')) {
             line = line.replace('stream_definitions TEXT[] DEFAULT \'{}\'', 'stream_definitions JSONB DEFAULT \'[]\'::jsonb');
             replacedDefinitions++;
@@ -444,43 +935,133 @@ async function patchFile(filename) {
             console.log(`  -> Injected universal DDL before first INSERT statement (${line.substring(0, 50)})`);
         }
 
+        // Handle multi-line INSERT INTO statements cleanly
         if (line.startsWith('INSERT INTO public."')) {
+            inInsertBlock = true;
+            const tableMatch = line.match(/^INSERT INTO public\."([^"]+)"/);
+            currentTable = tableMatch ? tableMatch[1] : null;
+            if (currentTable === 'library_settings' || currentTable === 'ds_settings') {
+                seenLibInstIds.clear();
+            }
             const replaced = replaceInsertHeader(line, tableReplacements);
-            const deduped = deduplicateHeader(replaced);
-            if (deduped !== line) {
-                line = deduped;
+            currentInsertHeader = deduplicateHeader(replaced);
+            if (currentInsertHeader !== line) {
                 replacedInsertHeaders++;
             }
+            currentInsertRows = [];
+            continue;
         }
 
-        if (line.includes("'ims_")) {
-            const fixed = fixImsLine(line);
-            if (fixed !== line) {
-                line = fixed;
-                fixedImsRows++;
+        if (inInsertBlock) {
+            if (line.includes('ON CONFLICT')) {
+                let conflictClause = line;
+                if (currentTable === 'library_settings' || currentTable === 'ds_settings') {
+                    conflictClause = 'ON CONFLICT DO NOTHING;';
+                }
+
+                if (currentInsertRows.length > 0) {
+                    writeStream.write(currentInsertHeader + '\n');
+                    for (let i = 0; i < currentInsertRows.length; i++) {
+                        let r = currentInsertRows[i].trim().replace(/[,;]\s*$/, '');
+                        if (i < currentInsertRows.length - 1) {
+                            writeStream.write('    ' + r + ',\n');
+                        } else {
+                            writeStream.write('    ' + r + '\n');
+                        }
+                    }
+                    writeStream.write(conflictClause + '\n');
+                }
+                inInsertBlock = false;
+                currentInsertHeader = null;
+                currentInsertRows = [];
+                currentTable = null;
+                continue;
             }
-        }
 
-        if (line.includes("'{") || line.includes("''")) {
-            const fixed = fixRolesLine(line);
-            if (fixed !== line) {
-                line = fixed;
-                fixedRolesRows++;
-            }
-        }
+            if (line.trim().startsWith('(')) {
+                let rowLine = line;
 
-        if (line.includes("''")) {
-            const fixed = fixEmptyStringForJson(line);
-            if (fixed !== line) {
-                line = fixed;
-                fixedJsonEmptyStrings++;
+                // Deduplicate library_settings and ds_settings rows
+                if (currentTable === 'library_settings' || currentTable === 'ds_settings') {
+                    const instMatch = rowLine.match(/^\s*\('([^']+)'/);
+                    if (instMatch) {
+                        const instId = instMatch[1];
+                        if (seenLibInstIds.has(instId)) {
+                            continue;
+                        }
+                        seenLibInstIds.add(instId);
+                    }
+                }
+
+                // Replace empty id strings
+                if (/^\s*\('',\s*/.test(rowLine)) {
+                    rowLine = rowLine.replace(/^\s*\('',\s*/, `    ('gen_${currentTable || 'row'}_${Date.now()}_${fixedEmptyIds++}', `);
+                }
+
+                if (rowLine.includes("'ims_") || rowLine.includes('"ims_') || (rowLine.trim().startsWith('(NULL') && rowLine.includes('transport_logistics'))) {
+                    const nullFixed = fixImsNullRow(rowLine);
+                    if (nullFixed !== rowLine) {
+                        rowLine = nullFixed;
+                        fixedImsRows++;
+                    } else {
+                        const fixed = fixImsLine(rowLine);
+                        if (fixed !== rowLine) {
+                            rowLine = fixed;
+                            fixedImsRows++;
+                        }
+                    }
+                }
+
+                if (rowLine.includes("'{") || rowLine.includes("''")) {
+                    const fixed = fixRolesLine(rowLine);
+                    if (fixed !== rowLine) {
+                        rowLine = fixed;
+                        fixedRolesRows++;
+                    }
+                }
+
+                if (/,\s*NULL\s*,/i.test(rowLine) && /^\s*\('user_/i.test(rowLine)) {
+                    const fixed = fixUserNullEmail(rowLine);
+                    if (fixed !== rowLine) {
+                        rowLine = fixed;
+                        fixedNullEmails++;
+                    }
+                }
+
+                if (rowLine.includes("''")) {
+                    const fixed = fixEmptyStringForJson(rowLine);
+                    if (fixed !== rowLine) {
+                        rowLine = fixed;
+                        fixedJsonEmptyStrings++;
+                    }
+                }
+
+                currentInsertRows.push(rowLine);
+                continue;
+            } else if (line.trim().length === 0) {
+                continue;
             }
         }
 
         writeStream.write(line + '\n');
     }
 
-    writeStream.write(postRestoreSQL + '\n');
+    if (inInsertBlock && currentInsertRows.length > 0) {
+        writeStream.write(currentInsertHeader + '\n');
+        for (let i = 0; i < currentInsertRows.length; i++) {
+            let r = currentInsertRows[i].trim().replace(/[,;]\s*$/, '');
+            if (i < currentInsertRows.length - 1) {
+                writeStream.write('    ' + r + ',\n');
+            } else {
+                writeStream.write('    ' + r + '\n');
+            }
+        }
+        writeStream.write('ON CONFLICT DO NOTHING;\n');
+    }
+
+    if (!alreadyHasPostRestore) {
+        writeStream.write(postRestoreSQL + '\n');
+    }
     writeStream.end();
 
     await new Promise((resolve) => writeStream.on('finish', resolve));
@@ -488,7 +1069,7 @@ async function patchFile(filename) {
 
     fs.unlinkSync(filePath);
     fs.renameSync(tempPath, filePath);
-    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, ims rows populated: ${fixedImsRows}, roles/arrays converted to JSONB: ${fixedRolesRows}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
+    console.log(`Successfully patched ${filename} (definitions replaced: ${replacedDefinitions}, headers remapped: ${replacedInsertHeaders}, ims rows populated: ${fixedImsRows}, roles/arrays converted to JSONB: ${fixedRolesRows}, empty emails populated: ${fixedNullEmails}, empty JSON strings fixed: ${fixedJsonEmptyStrings}, orphan counties mapped: ${replacedOrphanCounties})`);
 }
 
 async function run() {

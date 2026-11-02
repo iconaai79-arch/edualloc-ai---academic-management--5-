@@ -84,10 +84,14 @@ async function generateUniversalDDLAndMappings() {
                 const c = rawCol.replace(/"/g, '');
                 // Heuristic for types:
                 let colType = 'TEXT';
-                if (/^(is[A-Z]|has[A-Z]|can[A-Z]|active|enabled|required)/i.test(c)) {
-                    colType = 'BOOLEAN DEFAULT false';
+                if (/^(issue|issued)/i.test(c)) {
+                    colType = 'TIMESTAMPTZ';
+                } else if (/id$/i.test(c) || /Id$/.test(c)) {
+                    colType = 'TEXT';
                 } else if (/(at|date|time)$/i.test(c) || /^(created|updated|deleted)/i.test(c)) {
                     colType = 'TIMESTAMPTZ';
+                } else if (/^(is[A-Z]|has[A-Z]|can[A-Z])/.test(c) || /^(active|enabled|required)$/i.test(c) || /^(is_active|is_enabled|is_required|is_default|is_shared|is_promoted|is_read|is_anonymous)$/i.test(c)) {
+                    colType = 'BOOLEAN DEFAULT false';
                 } else if (/(config|data|metadata|payload|items|settings|features|options|nodes|permissions|json)/i.test(c)) {
                     colType = "JSONB DEFAULT '{}'::jsonb";
                 } else if (/(amount|price|balance|rate|cost|fee|quantity|count|quota|score|lat|lng|latitude|longitude|units)/i.test(c)) {

@@ -6826,8 +6826,8 @@ export const apiService = {
             });
         }
 
-        // Send Welcome SMS if phone number exists
-        if (userData.phoneNumber) {
+        // Send Welcome SMS if phone number exists (except for students whose modules handle module-specific welcome messaging with balance verification)
+        if (userData.phoneNumber && userData.role !== 'student') {
             let smsMessage = `Welcome to Eduai Automation Hub. Your account is ready. Email: ${userData.email || userData.staffId}, Password: ${password}. Portal: ${window.location.origin}`;
 
             if (userData.role === 'driver' || userData.role === 'transport_assistant') {
@@ -6836,7 +6836,7 @@ export const apiService = {
                 smsMessage = `Welcome to the Logistics Team. Your rider account is active. ID: ${userData.phoneNumber}, Pass: ${password}. Access portal at ${window.location.origin}`;
             }
 
-            apiService.sendSms(userData.phoneNumber, smsMessage).catch(e => {
+            apiService.sendSms(userData.phoneNumber, smsMessage, undefined, 1, userData.institutionId).catch(e => {
                 console.error("Failed to send welcome SMS:", e);
             });
         }
@@ -7128,8 +7128,9 @@ export const apiService = {
             let headers: any = { 'Content-Type': 'application/json' };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            const isOtpMsg = isSystemAlert || 
-                /code|otp|verification|verificaiton|password\s*reset|recovery|pin\b|credential|credentials|login\s*details|temporary\s*password|login\s*credentials|portal\s*access|pass:\s*/i.test(message);
+            const isWelcome = /welcome/i.test(message);
+            const isOtpMsg = !isWelcome && (Boolean(isSystemAlert) || 
+                /(?:\bcode\b|\botp\b|verification|verificaiton|password\s*reset|recovery|\bpin\b)/i.test(message));
 
             const response = await fetch('/api/integrations', {
                 method: 'POST',

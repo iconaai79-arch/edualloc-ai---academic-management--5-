@@ -257,7 +257,7 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT 
 
 CREATE TABLE IF NOT EXISTS public.branches (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES public.institutions(id) ON DELETE CASCADE,
+    institution_id TEXT REFERENCES public.institutions(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     location TEXT,
     code TEXT,

@@ -6,7 +6,16 @@ import {
 
 const escapeSql = (str: string | null | undefined) => {
     if (str === null || str === undefined) return 'NULL';
-    return `'${String(str).replace(/'/g, "''")}'`;
+    const s = String(str).replace(/\0/g, '');
+    if (s.includes('\n') || s.includes('\r')) {
+        const cEscaped = s
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\r/g, '\\r')
+            .replace(/\n/g, '\\n');
+        return `E'${cEscaped}'`;
+    }
+    return `'${s.replace(/'/g, "''")}'`;
 };
 
 export const generateFullSqlScript = () => {
@@ -161,7 +170,7 @@ CREATE TABLE IF NOT EXISTS institutions (
     ncba_config JSONB,
     coop_config JSONB,
     coop_settings JSONB,
-    stream_definitions TEXT[] DEFAULT '{}',
+    stream_definitions JSONB DEFAULT '[]'::jsonb,
     custom_module_pricing JSONB,
     sms_balance INTEGER DEFAULT 0,
     visitor_auto_finalize_enabled BOOLEAN DEFAULT FALSE,
@@ -191,7 +200,7 @@ ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS email_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS ncba_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_config JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS coop_settings JSONB;
-ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions TEXT[] DEFAULT '{}';
+ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS stream_definitions JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS custom_module_pricing JSONB;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS sms_balance INTEGER DEFAULT 0;
 ALTER TABLE public.institutions ADD COLUMN IF NOT EXISTS visitor_auto_finalize_enabled BOOLEAN DEFAULT FALSE;
@@ -539,7 +548,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     building_id TEXT REFERENCES buildings(id) ON DELETE SET NULL,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     status TEXT DEFAULT 'active',
-    equipment TEXT[],
+    equipment JSONB DEFAULT '[]'::jsonb,
     location JSONB,
     short_name TEXT,
     is_shared BOOLEAN DEFAULT FALSE,
@@ -553,16 +562,16 @@ CREATE TABLE IF NOT EXISTS users (
     phone_number TEXT,
     staff_id TEXT,
     role TEXT NOT NULL,
-    roles TEXT[] DEFAULT '{}',
+    roles JSONB DEFAULT '[]'::jsonb,
     institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
     password TEXT,
     department_id TEXT REFERENCES departments(id) ON DELETE SET NULL,
-    expertise TEXT[],
+    expertise JSONB DEFAULT '[]'::jsonb,
     course_id TEXT,
     course_level_id TEXT,
-    enrolled_subject_ids TEXT[] DEFAULT '{}',
-    parent_ids TEXT[] DEFAULT '{}',
-    student_ids TEXT[] DEFAULT '{}',
+    enrolled_subject_ids JSONB DEFAULT '[]'::jsonb,
+    parent_ids JSONB DEFAULT '[]'::jsonb,
+    student_ids JSONB DEFAULT '[]'::jsonb,
     gender TEXT,
     profile_photo_url TEXT,
     unavailability JSONB DEFAULT '[]'::jsonb,
@@ -605,9 +614,9 @@ CREATE TABLE IF NOT EXISTS synergy_posts (
     content TEXT NOT NULL,
     photo_url TEXT,
     video_url TEXT,
-    likes TEXT[] DEFAULT '{}',
+    likes JSONB DEFAULT '[]'::jsonb,
     comments_count INTEGER DEFAULT 0,
-    student_ids TEXT[] DEFAULT '{}',
+    student_ids JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -679,9 +688,9 @@ CREATE TABLE IF NOT EXISTS allocation_requests (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     preferences JSONB,
     signature_url TEXT,
-    course_level_ids TEXT[] DEFAULT '{}',
+    course_level_ids JSONB DEFAULT '[]'::jsonb,
     course_level_selections JSONB DEFAULT '{}'::jsonb,
-    subject_ids TEXT[] DEFAULT '{}',
+    subject_ids JSONB DEFAULT '[]'::jsonb,
     proposed_changes JSONB
 );
 
@@ -1930,7 +1939,7 @@ CREATE TABLE IF NOT EXISTS carwash_jobs (
     vehicle_type TEXT NOT NULL,
     package_id TEXT REFERENCES carwash_packages(id) ON DELETE SET NULL,
     package_name TEXT,
-    add_ons TEXT[],
+    add_ons JSONB DEFAULT '[]'::jsonb,
     attendant_id TEXT REFERENCES users(id) ON DELETE SET NULL,
     attendant_name TEXT,
     bay_number INTEGER,
@@ -2106,8 +2115,8 @@ CREATE TABLE IF NOT EXISTS pm_listings (
     price DECIMAL(15, 2) NOT NULL,
     listing_type TEXT NOT NULL DEFAULT 'Sale',
     status TEXT NOT NULL DEFAULT 'Draft',
-    images TEXT[] DEFAULT '{}',
-    features TEXT[] DEFAULT '{}',
+    images JSONB DEFAULT '[]'::jsonb,
+    features JSONB DEFAULT '[]'::jsonb,
     is_promoted BOOLEAN DEFAULT FALSE,
     view_count INTEGER DEFAULT 0,
     inquiry_count INTEGER DEFAULT 0,
@@ -2347,8 +2356,8 @@ CREATE TABLE IF NOT EXISTS his_patients (
     dob DATE,
     gender TEXT,
     blood_group VARCHAR(10),
-    allergies TEXT[],
-    chronic_conditions TEXT[],
+    allergies JSONB DEFAULT '[]'::jsonb,
+    chronic_conditions JSONB DEFAULT '[]'::jsonb,
     surgical_history TEXT,
     sha_number VARCHAR(100),
     member_verification_status VARCHAR(50) DEFAULT 'Pending',
@@ -2586,7 +2595,7 @@ CREATE TABLE IF NOT EXISTS his_prescriptions (
     status TEXT DEFAULT 'pending',
     notes TEXT,
     clinical_notes TEXT,
-    attached_files TEXT[],
+    attached_files JSONB DEFAULT '[]'::jsonb,
     medication_image TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -2781,14 +2790,14 @@ CREATE TABLE IF NOT EXISTS his_staff_attendance (
 
 CREATE TABLE IF NOT EXISTS leave_requests (
     id TEXT PRIMARY KEY,
-    institution_id TEXT NOT NULL REFERENCES institutions(id) ON DELETE CASCADE,
+    institution_id TEXT,
     user_id TEXT,
     staff_id TEXT,
     student_id TEXT,
     applicant_name TEXT,
-    leave_type TEXT NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
+    leave_type TEXT DEFAULT 'General',
+    start_date DATE,
+    end_date DATE,
     days INTEGER DEFAULT 1,
     reason TEXT,
     status TEXT DEFAULT 'Pending',
@@ -3338,7 +3347,7 @@ CREATE TABLE IF NOT EXISTS car_sales_listings (
     engine_size TEXT,
     color TEXT,
     main_image_url TEXT,
-    gallery_urls TEXT[] DEFAULT '{}',
+    gallery_urls JSONB DEFAULT '[]'::jsonb,
     tour_360_url TEXT,
     video_walkthrough_url TEXT,
     inspection_report_url TEXT,
@@ -3378,7 +3387,7 @@ CREATE TABLE IF NOT EXISTS car_appraisals (
     user_id TEXT,
     institution_id TEXT REFERENCES institutions(id) ON DELETE CASCADE,
     vehicle_details JSONB NOT NULL,
-    images TEXT[] DEFAULT '{}',
+    images JSONB DEFAULT '[]'::jsonb,
     offered_amount DECIMAL(15, 2),
     status TEXT DEFAULT 'pending',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -4365,8 +4374,8 @@ CREATE INDEX IF NOT EXISTS idx_student_enrollments_inst_created ON public.studen
     });
 
     INITIAL_USERS.forEach(u => {
-        const expertiseStr = u.expertise && u.expertise.length > 0 ? `ARRAY[${u.expertise.map(e => escapeSql(e)).join(',')}]` : "ARRAY[]::TEXT[]";
-        const rolesStr = Array.isArray(u.roles) && u.roles.length > 0 ? `ARRAY[${u.roles.map(r => escapeSql(r)).join(',')}]` : `ARRAY[${escapeSql(u.role)}]`;
+        const expertiseStr = `'${JSON.stringify(u.expertise || []).replace(/'/g, "''")}'::jsonb`;
+        const rolesStr = `'${JSON.stringify(Array.isArray(u.roles) && u.roles.length > 0 ? u.roles : [u.role]).replace(/'/g, "''")}'::jsonb`;
         sql += `INSERT INTO users (id, name, email, phone_number, staff_id, role, roles, institution_id, department_id, expertise, course_id, course_level_id, password) VALUES (${escapeSql(u.id)}, ${escapeSql(u.name)}, ${escapeSql(u.email)}, ${escapeSql(u.phoneNumber)}, ${escapeSql(u.staffId)}, ${escapeSql(u.role)}, ${rolesStr}, ${escapeSql(u.institutionId)}, ${escapeSql(u.departmentId)}, ${expertiseStr}, ${escapeSql(u.courseId)}, ${escapeSql(u.courseLevelId)}, ${escapeSql(u.password)}) ON CONFLICT (id) DO NOTHING;\n`;
     });
 

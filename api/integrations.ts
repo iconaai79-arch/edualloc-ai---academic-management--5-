@@ -121,9 +121,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Detect system messages (OTPs, recovery links, 2FA codes) early for auth bypass and failover routing
     const msgLower = (message || '').toLowerCase();
-    const isExplicitOtp = getParam('isOtp') === 'true' || getParam('isSystemMessage') === 'true' || getParam('isSystemAlert') === 'true' || (paramsMap as any).isOtp === true || (paramsMap as any).isSystemMessage === true || (paramsMap as any).isSystemAlert === true;
+    const isWelcomeMsg = msgLower.includes('welcome');
+    const isExplicitOtp = !isWelcomeMsg && (getParam('isOtp') === 'true' || getParam('isSystemMessage') === 'true' || getParam('isSystemAlert') === 'true' || (paramsMap as any).isOtp === true || (paramsMap as any).isSystemMessage === true || (paramsMap as any).isSystemAlert === true);
     const isPaymentReceiptMsg = msgLower.includes('receipt') || msgLower.includes('received kes') || msgLower.includes('received ksh') || msgLower.includes('payment receipt') || msgLower.includes('fees received') || (paramsMap as any).isPaymentReceipt === true;
-    const isSystemMessage = isExplicitOtp || isPaymentReceiptMsg ||
+    const isSystemMessage = !isWelcomeMsg && (isExplicitOtp || isPaymentReceiptMsg ||
         msgLower.includes('verification code') ||
         msgLower.includes('verification') ||
         msgLower.includes('verificaiton') || // Typo tolerance
@@ -144,10 +145,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         msgLower.includes('confirm attendance') ||
         msgLower.includes('confirm your attendance') ||
         msgLower.includes('show this pin') ||
-        msgLower.includes('temporary password') ||
-        msgLower.includes('temp password') ||
         /code\s*(is|:)?\s*\d{4,8}/i.test(message || '') ||
-        /pin\s*(is|:)?\s*\d{4,8}/i.test(message || '');
+        /pin\s*(is|:)?\s*\d{4,8}/i.test(message || ''));
 
     // Robust Kenyan and international phone normalization function
     const normalizePhone = (p: string): string => {
@@ -1977,11 +1976,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             let effectiveBillableInstId = institutionId;
             let resolvedBranchRecord: any = null;
 
+            // Ensure tenant dispatches specify a valid institution ID
+            if ((!institutionId || institutionId === 'SYSTEM' || institutionId === 'GLOBAL') && !isSystemMessage) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Institution ID is required for tenant SMS dispatches.'
+                });
+            }
+
             if (institutionId && institutionId !== 'SYSTEM' && institutionId !== 'GLOBAL') {
+                const cleanId = String(institutionId).replace(/^(inst_|br_)/i, '');
                 let { data: institution, error: configError } = await supabase
                     .from('institutions')
                     .select('id, name, sms_balance, sms_config')
-                    .eq('id', institutionId)
+                    .or(`id.eq.${institutionId},id.eq.inst_${cleanId},id.eq.${cleanId}`)
                     .maybeSingle();
 
                 // If not found in institutions table, check if institutionId is a branch
@@ -1989,16 +1997,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     const { data: bData } = await supabase
                         .from('branches')
                         .select('id, institution_id, linked_institution_id, name')
-                        .or(`id.eq.${institutionId},linked_institution_id.eq.${institutionId}`)
+                        .or(`id.eq.${institutionId},linked_institution_id.eq.${institutionId},id.eq.br_${cleanId}`)
                         .maybeSingle();
 
                     if (bData && bData.institution_id) {
                         resolvedBranchRecord = bData;
                         effectiveBillableInstId = bData.institution_id;
+                        const pCleanId = String(effectiveBillableInstId).replace(/^(inst_|br_)/i, '');
                         const { data: parentInst, error: parentErr } = await supabase
                             .from('institutions')
                             .select('id, name, sms_balance, sms_config')
-                            .eq('id', effectiveBillableInstId)
+                            .or(`id.eq.${effectiveBillableInstId},id.eq.inst_${pCleanId},id.eq.${pCleanId}`)
                             .maybeSingle();
 
                         if (!parentErr && parentInst) {
@@ -2046,7 +2055,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                         console.log(`[SMS Gateway] Using institution-specific configuration for ${effectiveBillableInstId} (${instConfig.provider || 'default'})`);
                         smsConfig = { ...instConfig };
                     }
-                } else if (!isSystemMessage && (!user?.role || user.role !== 'super_admin')) {
+                } else if (!isSystemMessage) {
                     // Block unauthorized/unaccounted dispatches if an unknown institutionId was passed
                     return res.status(404).json({
                         success: false,

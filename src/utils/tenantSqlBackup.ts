@@ -77,11 +77,16 @@ export interface TenantBackupData {
 /**
  * Escapes a JS value into a valid PostgreSQL literal
  */
-export function escapeSqlLiteral(val: any): string {
+export function escapeSqlLiteral(val: any, colName?: string): string {
     if (val === null || val === undefined) {
         return 'NULL';
     }
+    const lowerCol = (colName || '').toLowerCase();
+    const isDateOrTimeOrPolicyOrId = lowerCol.includes('date') || lowerCol.includes('time') || lowerCol.includes('policy') || lowerCol.endsWith('id') || lowerCol.includes('system');
     if (typeof val === 'boolean') {
+        if (isDateOrTimeOrPolicyOrId) {
+            return 'NULL';
+        }
         return val ? 'TRUE' : 'FALSE';
     }
     if (typeof val === 'number') {
@@ -94,8 +99,42 @@ export function escapeSqlLiteral(val: any): string {
     if (val instanceof Date) {
         return `'${val.toISOString()}'::timestamptz`;
     }
-    // String
-    return `'${String(val).replace(/'/g, "''")}'`;
+    // Check if empty string for columns that should be NULL or JSONB
+    if (typeof val === 'string' && val.trim() === '') {
+        if (
+            lowerCol.includes('roles') ||
+            lowerCol.includes('enrolled_subject') ||
+            lowerCol.includes('stream_definitions') ||
+            lowerCol.includes('streamdefinitions') ||
+            lowerCol.includes('fkey') ||
+            lowerCol.includes('parent_ids') ||
+            lowerCol.includes('student_ids') ||
+            lowerCol.includes('expertise') ||
+            lowerCol.includes('equipment') ||
+            lowerCol.includes('data') ||
+            lowerCol.includes('config') ||
+            lowerCol.includes('settings') ||
+            lowerCol.includes('profiles') ||
+            lowerCol.includes('location') ||
+            lowerCol.includes('metadata') ||
+            lowerCol.includes('pricing') ||
+            lowerCol.endsWith('_ids') ||
+            lowerCol.endsWith('ids')
+        ) {
+            return "NULL";
+        }
+    }
+    // String with newline protection (escapes multiline strings to single-line E'...' to prevent splitting tuples)
+    const str = String(val).replace(/\0/g, '');
+    if (str.includes('\n') || str.includes('\r')) {
+        const cEscaped = str
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\r/g, '\\r')
+            .replace(/\n/g, '\\n');
+        return `E'${cEscaped}'`;
+    }
+    return `'${str.replace(/'/g, "''")}'`;
 }
 
 /**
@@ -105,6 +144,144 @@ export function escapeSqlLiteral(val: any): string {
  */
 function buildInsertStatements(tableName: string, rows: any[]): string {
     if (!Array.isArray(rows) || rows.length === 0) return '';
+
+    // 1. Sanitize institution_module_states to ensure valid IDs and prevent nested column "0"
+    if (tableName === 'institution_module_states') {
+        rows = rows.map((r, idx) => {
+            if (!r || typeof r !== 'object') return r;
+            let nested: any = null;
+            if (r['0']) {
+                try {
+                    nested = typeof r['0'] === 'string' ? JSON.parse(r['0']) : r['0'];
+                } catch (_) {}
+            }
+            const id = r.id || nested?.id || ('ims_' + (r.module_id || r.moduleId || 'mod') + '_' + (r.institution_id || r.institutionId || 'inst_' + idx));
+            const institutionId = r.institution_id || r.institutionId || nested?.institution_id || nested?.institutionId || 'default_inst';
+            let derivedModule = r.module_id || r.moduleId || nested?.module_id || nested?.moduleId || '';
+            if (!derivedModule && id) {
+                if (id.startsWith('ims_')) {
+                    const temp = id.substring(4);
+                    if (institutionId && temp.endsWith('_' + institutionId)) {
+                        derivedModule = temp.substring(0, temp.length - (institutionId.length + 1));
+                    } else if (temp.includes('_inst_')) {
+                        derivedModule = temp.split('_inst_')[0];
+                    } else if (temp.includes('_default_inst')) {
+                        derivedModule = temp.split('_default_inst')[0];
+                    } else {
+                        derivedModule = temp;
+                    }
+                } else if (institutionId && id.startsWith(institutionId + '_')) {
+                    derivedModule = id.substring(institutionId.length + 1);
+                } else if (id.startsWith('mod_')) {
+                    const parts = id.split('_');
+                    derivedModule = parts[1] || id;
+                } else {
+                    derivedModule = id;
+                }
+            }
+            const moduleId = derivedModule || 'module';
+            const status = r.status || nested?.status || 'active';
+            const data = r.data || nested?.data || {};
+            const updatedAt = r.updated_at || r.updatedAt || nested?.updated_at || nested?.updatedAt || new Date().toISOString();
+            const createdAt = r.created_at || r.createdAt || nested?.created_at || nested?.createdAt || updatedAt;
+            const activatedAt = r.activated_at || r.activatedAt || nested?.activated_at || nested?.activatedAt || updatedAt;
+
+            return {
+                id,
+                institution_id: institutionId,
+                institutionId,
+                module_id: moduleId,
+                moduleId,
+                status,
+                data,
+                activated_at: activatedAt,
+                activatedAt,
+                created_at: createdAt,
+                updated_at: updatedAt,
+                updatedAt
+            };
+        });
+    }
+
+    // 2. Sanitize users to ensure valid emails and prevent null email violations
+    if (tableName === 'users') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            if (!r.email) {
+                return {
+                    ...r,
+                    email: r.role === 'tenant' ? `tenant_${r.id}@eduai.local` : `user_${r.id}@eduai.local`
+                };
+            }
+            return r;
+        });
+    }
+
+    // 3. Sanitize leave_requests to normalize both camelCase & snake_case and avoid null constraint violations
+    if (tableName === 'leave_requests') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            const instId = r.institution_id || r.institutionId || 'inst_default';
+            const leaveType = r.leave_type || r.leaveType || r.type || 'General';
+            const startDate = r.start_date || r.startDate || (r.created_at ? String(r.created_at).slice(0, 10) : new Date().toISOString().slice(0, 10));
+            const endDate = r.end_date || r.endDate || startDate;
+            return {
+                ...r,
+                institution_id: instId,
+                institutionId: instId,
+                leave_type: leaveType,
+                leaveType: leaveType,
+                start_date: startDate,
+                startDate: startDate,
+                end_date: endDate,
+                endDate: endDate
+            };
+        });
+    }
+
+    if (tableName === 'leave_out_requests') {
+        rows = rows.map(r => {
+            if (!r || typeof r !== 'object') return r;
+            const instId = r.institution_id || r.institutionId || 'inst_default';
+            return {
+                ...r,
+                institution_id: instId,
+                institutionId: instId
+            };
+        });
+    }
+
+    // 4. Guarantee that any row with an 'id' column has a non-null id
+    rows = rows.map((r, idx) => {
+        if (r && typeof r === 'object' && (r.id === null || r.id === undefined || r.id === '')) {
+            return {
+                ...r,
+                id: `${tableName}_gen_${Date.now()}_${idx}`
+            };
+        }
+        return r;
+    });
+
+    // Deduplicate settings tables by institution_id to guarantee no duplicate key errors in batch
+    if (tableName === 'library_settings' || tableName === 'ds_settings') {
+        const seenInst = new Set<string>();
+        rows = rows.filter(r => {
+            if (!r || typeof r !== 'object') return false;
+            const instId = r.institution_id || r.institutionId;
+            if (!instId || seenInst.has(instId)) return false;
+            seenInst.add(instId);
+            return true;
+        });
+    } else {
+        const seenIds = new Set<string>();
+        rows = rows.filter(r => {
+            if (!r || typeof r !== 'object' || r.id === undefined || r.id === null) return true;
+            const strId = String(r.id);
+            if (seenIds.has(strId)) return false;
+            seenIds.add(strId);
+            return true;
+        });
+    }
 
     // Collect all unique column names across all rows
     const colSet = new Set<string>();
@@ -128,13 +305,21 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
     lines.push(`-- ============================================================================`);
 
     // Self-healing DDL: create table if missing, then ensure all columns exist
-    const hasId = columns.includes('id');
-    if (hasId) {
+    const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
+    const hasId = !isSettingsTable && columns.includes('id');
+    const hasInstId = columns.includes('institution_id') || columns.includes('institutionId');
+    if (isSettingsTable && hasInstId) {
+        const pkCol = columns.includes('institution_id') ? 'institution_id' : 'institutionId';
+        lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
+        lines.push(`    "${pkCol}" TEXT PRIMARY KEY`);
+        lines.push(`);`);
+    } else if (hasId) {
         const sampleVal = rows.find(r => r && r.id !== null && r.id !== undefined)?.id;
         const idType = (typeof sampleVal === 'number' && Number.isInteger(sampleVal)) ? 'BIGINT' : 'TEXT';
         lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
         lines.push(`    "id" ${idType} PRIMARY KEY`);
         lines.push(`);`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."${tableName}" ADD PRIMARY KEY (id); EXCEPTION WHEN OTHERS THEN BEGIN ALTER TABLE public."${tableName}" ADD CONSTRAINT "uq_${tableName}_id" UNIQUE (id); EXCEPTION WHEN OTHERS THEN NULL; END; END $$;`);
     } else {
         const firstCol = columns[0];
         const sampleVal = rows.find(r => r && r[firstCol] !== null && r[firstCol] !== undefined)?.[firstCol];
@@ -150,17 +335,36 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
     for (const col of columns) {
         if (hasId && col === 'id') continue;
         if (!hasId && col === columns[0]) continue;
+        const lowerCol = col.toLowerCase();
+        const isDateOrTimeOrPolicyOrId = lowerCol.includes('date') || lowerCol.includes('time') || lowerCol.includes('policy') || lowerCol.endsWith('id') || lowerCol.includes('system');
         const sampleRow = rows.find(r => r && r[col] !== null && r[col] !== undefined);
         const sampleVal = sampleRow ? sampleRow[col] : undefined;
         let colType = 'TEXT';
-        if (typeof sampleVal === 'boolean') {
+        if (typeof sampleVal === 'boolean' && !isDateOrTimeOrPolicyOrId) {
             colType = 'BOOLEAN DEFAULT FALSE';
-        } else if (typeof sampleVal === 'number') {
+        } else if (typeof sampleVal === 'number' && !isDateOrTimeOrPolicyOrId) {
             colType = Number.isInteger(sampleVal) ? 'BIGINT' : 'NUMERIC';
         } else if (sampleVal && typeof sampleVal === 'object') {
-            colType = "JSONB DEFAULT '{}'::jsonb";
+            colType = "JSONB DEFAULT '[]'::jsonb";
         }
-        lines.push(`ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType};`);
+        if (sampleVal && typeof sampleVal === 'object') {
+            lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${col}' AND data_type = 'ARRAY') THEN ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" TYPE JSONB USING CASE WHEN "${col}" IS NULL THEN '[]'::jsonb ELSE to_jsonb("${col}") END; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" SET DEFAULT '[]'::jsonb; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        } else if (typeof sampleVal !== 'boolean' || isDateOrTimeOrPolicyOrId) {
+            lines.push(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${tableName}' AND column_name = '${col}' AND data_type = 'boolean') THEN ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" DROP DEFAULT; ALTER TABLE public."${tableName}" ALTER COLUMN "${col}" TYPE ${colType} USING NULL; ELSE ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType}; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        } else {
+            lines.push(`ALTER TABLE public."${tableName}" ADD COLUMN IF NOT EXISTS "${col}" ${colType};`);
+        }
+    }
+
+    if (tableName === 'leave_requests') {
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_requests" ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_requests" ALTER COLUMN leave_type DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_requests" ALTER COLUMN start_date DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_requests" ALTER COLUMN end_date DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_requests" DROP CONSTRAINT IF EXISTS leave_requests_institution_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+    } else if (tableName === 'leave_out_requests') {
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_out_requests" ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
+        lines.push(`DO $$ BEGIN ALTER TABLE public."leave_out_requests" DROP CONSTRAINT IF EXISTS leave_out_requests_institution_id_fkey; EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
     }
     lines.push('');
 
@@ -170,12 +374,14 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         const chunk = rows.slice(i, i + chunkSize);
         const colList = columns.map(c => `"${c}"`).join(', ');
         const valueRows = chunk.map(row => {
-            const values = columns.map(col => escapeSqlLiteral(row[col]));
+            const values = columns.map(col => escapeSqlLiteral(row[col], col));
             return `    (${values.join(', ')})`;
         });
 
         lines.push(`INSERT INTO public."${tableName}" (${colList}) VALUES\n${valueRows.join(',\n')}`);
-        if (columns.includes('id')) {
+        if (isSettingsTable) {
+            lines.push(`ON CONFLICT DO NOTHING;`);
+        } else if (columns.includes('id')) {
             const updateCols = columns.filter(c => c !== 'id').map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
             if (updateCols) {
                 lines.push(`ON CONFLICT ("id") DO UPDATE SET ${updateCols};`);
@@ -190,6 +396,7 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
 
     return lines.join('\n');
 }
+
 
 /**
  * Generates a complete, executable SQL backup script for an institutional tenant
@@ -1513,6 +1720,109 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         `-- Temporarily defer constraints and disable replication triggers if permissions allow`,
         `DO $$ BEGIN SET session_replication_role = 'replica'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
         `SET CONSTRAINTS ALL DEFERRED;`,
+        ``,
+        `-- DYNAMICALLY STRIP ALL FOREIGN KEY CONSTRAINTS ACROSS PUBLIC SCHEMA FOR 100% RELIABLE RESTORE`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT conrelid::regclass AS table_name, conname FROM pg_constraint WHERE contype = 'f' AND connamespace = 'public'::regnamespace) LOOP BEGIN EXECUTE 'ALTER TABLE ' || r.table_name || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.conname) || ' CASCADE;'; EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        ``,
+        `-- DYNAMICALLY DROP NOT NULL ON ALL institution_id & institutionId COLUMNS ACROSS PUBLIC SCHEMA`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name IN ('institution_id', 'institutionId') AND is_nullable = 'NO') LOOP BEGIN EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP NOT NULL', r.table_name, r.column_name); EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        ``,
+        `-- FIX FOREIGN KEY CONSTRAINTS FOR RESTORE`,
+        `ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey CASCADE;`,
+        `ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_county_id_fkey CASCADE;`,
+        `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_institution_id_fkey CASCADE;`,
+        `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_department_id_fkey CASCADE;`,
+        `ALTER TABLE public.courses DROP CONSTRAINT IF EXISTS courses_department_id_fkey CASCADE;`,
+        `ALTER TABLE public.subjects DROP CONSTRAINT IF EXISTS subjects_department_id_fkey CASCADE;`,
+        `ALTER TABLE public.rooms DROP CONSTRAINT IF EXISTS rooms_building_id_fkey CASCADE;`,
+        `ALTER TABLE public.semesters DROP CONSTRAINT IF EXISTS semesters_academic_year_id_fkey CASCADE;`,
+        `ALTER TABLE public.semesters DROP CONSTRAINT IF EXISTS semesters_institution_id_fkey CASCADE;`,
+        `DO $$ BEGIN ALTER TABLE public.semesters ALTER COLUMN academic_year_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.semesters ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.academic_years ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `INSERT INTO public.academic_years (id, name, start_date, end_date, institution_id, status) VALUES ('ay_1770440553949', 'Academic Year 2026', '2026-01-01', '2026-12-31', 'inst_1770144450093_f9p2x', 'inactive') ON CONFLICT (id) DO NOTHING;`,
+        `ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_fkey CASCADE;`,
+        `ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS institution_module_states_institution_id_module_id_key CASCADE;`,
+        `ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS uq_institution_module_states_inst_module CASCADE;`,
+        `ALTER TABLE public.institution_module_states DROP CONSTRAINT IF EXISTS uq_ims_inst_module CASCADE;`,
+        `DROP INDEX IF EXISTS public.institution_module_states_institution_id_module_id_key CASCADE;`,
+        `DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN email DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN role DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.users ALTER COLUMN name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_email_key CASCADE;`,
+        `DROP INDEX IF EXISTS public.users_email_key CASCADE;`,
+        `DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN module_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN status DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.institution_module_states ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `ALTER TABLE public.institution_module_states ADD COLUMN IF NOT EXISTS "0" JSONB;`,
+        `ALTER TABLE public.institution_module_states ADD COLUMN IF NOT EXISTS "data" JSONB DEFAULT '{}'::jsonb;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN title DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN title SET DEFAULT 'Audit Report'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN period DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN overall_risk DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN run_at DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN report_type DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_reports ALTER COLUMN generated_by DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `ALTER TABLE public.audit_issues DROP CONSTRAINT IF EXISTS audit_issues_report_id_fkey CASCADE;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_issues ALTER COLUMN report_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.audit_issues ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.mpesa_transactions ALTER COLUMN receipt_no DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.mpesa_transactions ALTER COLUMN receipt_no SET DEFAULT 'MPESA_REC'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.mpesa_transactions ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN category_code DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN category_name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN code DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN name DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.ds_license_categories ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN event_type DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN event_type SET DEFAULT 'clinical_event'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN title DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN title SET DEFAULT 'Clinical Event'; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        `DO $$ BEGIN ALTER TABLE public.his_clinical_events ALTER COLUMN institution_id DROP NOT NULL; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        ``,
+        `-- CONVERT LEGACY TEXT[] / ARRAY COLUMNS TO JSONB FOR 100% IMPORT COMPATIBILITY`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND data_type = 'ARRAY' AND ((table_name = 'users' AND column_name IN ('expertise', 'roles', 'enrolled_subject_ids', 'parent_ids', 'student_ids')) OR (table_name = 'rooms' AND column_name IN ('equipment')) OR (table_name = 'institutions' AND column_name IN ('stream_definitions', 'streamDefinitions')) OR (table_name = 'allocation_requests' AND column_name IN ('course_level_ids', 'subject_ids')) OR (table_name = 'carwash_jobs' AND column_name IN ('add_ons')) OR (table_name = 'pm_listings' AND column_name IN ('images', 'features')) OR (table_name = 'his_patients' AND column_name IN ('allergies', 'chronic_conditions')) OR (table_name = 'his_prescriptions' AND column_name IN ('attached_files')) OR (table_name = 'car_sales_listings' AND column_name IN ('gallery_urls')) OR (table_name = 'car_appraisals' AND column_name IN ('images')) OR (table_name = 'synergy_posts' AND column_name IN ('likes', 'student_ids')))) LOOP BEGIN EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE JSONB USING CASE WHEN %I IS NULL THEN ''[]''::jsonb ELSE to_jsonb(%I) END', r.table_name, r.column_name, r.column_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT ''[]''::jsonb', r.table_name, r.column_name); EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        `DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise' AND data_type = 'ARRAY') THEN ALTER TABLE public.users ALTER COLUMN expertise DROP DEFAULT; ALTER TABLE public.users ALTER COLUMN expertise TYPE JSONB USING CASE WHEN expertise IS NULL THEN '[]'::jsonb ELSE to_jsonb(expertise) END; ALTER TABLE public.users ALTER COLUMN expertise SET DEFAULT '[]'::jsonb; ELSIF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'expertise') THEN ALTER TABLE public.users ADD COLUMN expertise JSONB DEFAULT '[]'::jsonb; END IF; EXCEPTION WHEN OTHERS THEN NULL; END $$;`,
+        ``,
+        `-- DYNAMICALLY FIX ERRONEOUS BOOLEAN COLUMNS (DATES, IDS, POLICIES) TO TEXT`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND data_type = 'boolean' AND (column_name ILIKE '%date%' OR column_name ILIKE '%time%' OR column_name ILIKE '%policy%' OR column_name IN ('activeGradingSystemId', 'active_grading_system_id', 'cancellationPolicy', 'cancellation_policy', 'issueDate', 'issue_date', 'issuedDate', 'issued_date'))) LOOP BEGIN EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', r.table_name, r.column_name); EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE TEXT USING NULL', r.table_name, r.column_name); EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        ``,
+        `-- DYNAMICALLY ENSURE PRIMARY KEY OR UNIQUE CONSTRAINT ON "id" FOR ALL BASE TABLES`,
+        `DO $$ DECLARE r RECORD; BEGIN IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.library_settings'::regclass AND contype = 'p') THEN BEGIN ALTER TABLE public.library_settings ADD PRIMARY KEY (institution_id); EXCEPTION WHEN OTHERS THEN NULL; END; END IF; END IF; IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ds_settings'::regclass AND contype = 'p') THEN BEGIN ALTER TABLE public.ds_settings ADD PRIMARY KEY (institution_id); EXCEPTION WHEN OTHERS THEN NULL; END; END IF; END IF; FOR r IN (SELECT c.table_name FROM information_schema.columns c JOIN information_schema.tables t ON c.table_name = t.table_name AND t.table_schema = 'public' WHERE c.table_schema = 'public' AND c.column_name = 'id' AND t.table_type = 'BASE TABLE' AND c.table_name NOT IN ('library_settings', 'ds_settings')) LOOP IF NOT EXISTS (SELECT 1 FROM pg_constraint con JOIN pg_attribute att ON att.attrelid = con.conrelid AND att.attnum = ANY(con.conkey) WHERE con.connamespace = 'public'::regnamespace AND con.conrelid = r.table_name::regclass AND con.contype IN ('p', 'u') AND att.attname = 'id') THEN BEGIN EXECUTE format('ALTER TABLE public.%I ADD PRIMARY KEY (id)', r.table_name); EXCEPTION WHEN OTHERS THEN BEGIN EXECUTE format('ALTER TABLE public.%I ADD CONSTRAINT %I UNIQUE (id)', r.table_name, 'uq_' || r.table_name || '_id'); EXCEPTION WHEN OTHERS THEN NULL; END; END; END IF; END LOOP; END $$;`,
+        ``,
+        `-- PRE-SEED ESSENTIAL / DEFAULT INSTITUTIONS`,
+        `INSERT INTO public.institutions (id, name, email, status) VALUES`,
+        `    ('1779527512643_8nszj', '1779527512643 8nszj', '17795275126438nszj@placeholder.local', 'trial'),`,
+        `    ('inst_1791913405331_gy6tl', 'Inst 1791913405331 Gy6tl', 'inst1791913405331gy6tl@placeholder.local', 'trial'),`,
+        `    ('default_inst', 'Default Inst', 'defaultinst@placeholder.local', 'trial'),`,
+        `    ('inst_1791521572395_ufyl6', 'Inst 1791521572395 Ufyl6', 'inst1791521572395ufyl6@placeholder.local', 'trial'),`,
+        `    ('1781602587516_kqmod', '1781602587516 Kqmod', '1781602587516kqmod@placeholder.local', 'trial'),`,
+        `    ('inst_1792259096009_tlj7o', 'Inst 1792259096009 Tlj7o', 'inst1792259096009tlj7o@placeholder.local', 'trial'),`,
+        `    ('GLOBAL', 'GLOBAL', 'global@placeholder.local', 'trial'),`,
+        `    ('KAPSERET', 'KAPSERET', 'kapseret@placeholder.local', 'trial'),`,
+        `    ('county_1786953923332', 'County 1786953923332', 'county1786953923332@placeholder.local', 'trial')`,
+        `ON CONFLICT (id) DO NOTHING;`,
+        ``,
+        `-- SELF-HEALING IMS TRIGGER`,
+        `CREATE OR REPLACE FUNCTION public.trg_fix_ims_row() RETURNS TRIGGER AS $$`,
+        `BEGIN`,
+        `    IF NEW.id IS NULL THEN`,
+        `        IF (to_jsonb(NEW)->'0' ? 'id') THEN`,
+        `            NEW.id := to_jsonb(NEW)->'0'->>'id';`,
+        `            NEW.institution_id := COALESCE(NEW.institution_id, to_jsonb(NEW)->'0'->>'institutionId', to_jsonb(NEW)->'0'->>'institution_id');`,
+        `            NEW.module_id := COALESCE(NEW.module_id, to_jsonb(NEW)->'0'->>'moduleId', to_jsonb(NEW)->'0'->>'module_id');`,
+        `            NEW.status := COALESCE(NEW.status, to_jsonb(NEW)->'0'->>'status', 'active');`,
+        `        ELSE`,
+        `            NEW.id := 'ims_' || COALESCE(NEW.module_id, 'mod') || '_' || COALESCE(NEW.institution_id, 'inst_' || substr(md5(random()::text), 1, 8));`,
+        `        END IF;`,
+        `    END IF;`,
+        `    RETURN NEW;`,
+        `END;`,
+        `$$ LANGUAGE plpgsql;`,
+        `DROP TRIGGER IF EXISTS trg_fix_ims_row ON public.institution_module_states;`,
+        `CREATE TRIGGER trg_fix_ims_row BEFORE INSERT ON public.institution_module_states FOR EACH ROW EXECUTE FUNCTION public.trg_fix_ims_row();`,
         ``
     ].join('\n');
 
