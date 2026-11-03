@@ -2,13 +2,17 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
 // Self-contained Supabase service client factory to avoid external lib crashes
-const getSupabase = () => {
-    const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const getSupabase = (req?: VercelRequest) => {
+    const url = 
+        process.env.SUPABASE_URL || 
+        process.env.VITE_SUPABASE_URL ||
+        (req?.headers?.['x-supabase-url'] as string);
     const key = 
         process.env.SUPABASE_SERVICE_ROLE_KEY || 
         process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
         process.env.SUPABASE_ANON_KEY || 
-        process.env.VITE_SUPABASE_ANON_KEY;
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        (req?.headers?.['x-supabase-key'] as string);
     if (!url || !key) return null;
     return createClient(url, key, {
         auth: { persistSession: false, autoRefreshToken: false }
@@ -180,10 +184,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ status: 'ok', env: getEnvInfo() });
         }
 
-        const supabase = getSupabase();
-        if (!supabase) {
-            const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
-            const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY);
+        const supabase = getSupabase(req);
+        if (!supabase && action !== 'execute_sql') {
+            const hasUrl = !!(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || req.headers['x-supabase-url']);
+            const hasKey = !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || req.headers['x-supabase-key']);
             console.error(`[System API] Supabase client creation failed. URL: ${hasUrl}, Key: ${hasKey}`);
             return res.status(500).json({ 
                 error: 'Database service unavailable - Missing keys', 
@@ -398,17 +402,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 }
 
                 const connectionString = 
+                    req.body?.connectionString ||
+                    (req.headers?.['x-database-url'] as string) ||
                     process.env.DATABASE_URL || 
                     process.env.POSTGRES_URL || 
                     process.env.VITE_DATABASE_URL ||
-                    process.env.SUPABASE_DB_URL;
+                    process.env.SUPABASE_DB_URL ||
+                    (process.env.PGHOST && process.env.PGUSER ? `postgresql://${encodeURIComponent(process.env.PGUSER)}:${encodeURIComponent(process.env.PGPASSWORD || '')}@${process.env.PGHOST}:${process.env.PGPORT || 5432}/${process.env.PGDATABASE || process.env.PGUSER}` : null);
 
                 if (!connectionString) {
                     console.error("[SQL Engine] Missing connection string", getEnvInfo());
                     return res.status(200).json({
                         success: false,
-                        error: "Database connection string missing.",
-                        message: "Please add DATABASE_URL to your environment variables.",
+                        error: "Direct PostgreSQL connection required",
+                        message: "In-app SQL import requires DATABASE_URL to be set in your server environment variables. Alternatively, import this .sql file directly via Talksasa (Container -> Database -> Import SQL dump) where PostgreSQL is natively connected.",
                         env: getEnvInfo()
                     });
                 }

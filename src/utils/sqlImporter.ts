@@ -424,7 +424,11 @@ export async function executeBatchSqlImport(options: SqlImportOptions): Promise<
         try {
             const response = await fetch('/api/system?action=execute_sql', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'x-supabase-url': (import.meta as any).env?.VITE_SUPABASE_URL || '',
+                    'x-supabase-key': (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || ''
+                },
                 body: JSON.stringify({
                     statements: currentBatch.map(sanitizeSqlStatement),
                     continueOnError
