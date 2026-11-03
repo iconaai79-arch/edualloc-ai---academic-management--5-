@@ -268,9 +268,10 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         });
     }
 
-    // 4. Guarantee that any row with an 'id' column has a non-null id
+    // 4. Guarantee that any row with an 'id' column has a non-null id (skip settings tables where id is not primary)
+    const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
     rows = rows.map((r, idx) => {
-        if (r && typeof r === 'object' && (r.id === null || r.id === undefined || r.id === '')) {
+        if (!isSettingsTable && r && typeof r === 'object' && (r.id === null || r.id === undefined || r.id === '')) {
             return {
                 ...r,
                 id: `${tableName}_gen_${Date.now()}_${idx}`
@@ -334,6 +335,8 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
         lines.push(`CREATE TABLE IF NOT EXISTS public."${tableName}" (`);
         lines.push(`    "${pkCol}" TEXT PRIMARY KEY`);
         lines.push(`);`);
+        lines.push(`ALTER TABLE IF EXISTS public."${tableName}" ADD COLUMN IF NOT EXISTS "institution_id" TEXT;`);
+        lines.push(`ALTER TABLE IF EXISTS public."${tableName}" ADD COLUMN IF NOT EXISTS "institutionId" TEXT;`);
         lines.push(`DO $$ BEGIN ALTER TABLE public."${tableName}" ADD PRIMARY KEY ("${pkCol}"); EXCEPTION WHEN OTHERS THEN NULL; END $$;`);
     } else if (hasId) {
         const sampleVal = rows.find(r => r && r.id !== null && r.id !== undefined)?.id;
@@ -1700,14 +1703,37 @@ export async function collectAndDownloadFullSqlBackup(options?: {
                 if (rows.length > 0) {
                     let exportRows = rows;
                     if (tableName === 'library_settings') {
-                        exportRows = rows.map((s: any) => ({
-                            institution_id: s.institution_id || s.institutionId,
-                            overdue_fine_per_day: s.overdue_fine_per_day !== undefined ? s.overdue_fine_per_day : (s.overdueFinePerDay ?? 0),
-                            max_books_per_user: s.max_books_per_user !== undefined ? s.max_books_per_user : (s.maxBooksPerUser ?? 3),
-                            reservation_expiry_days: s.reservation_expiry_days !== undefined ? s.reservation_expiry_days : (s.reservationExpiryDays ?? 3),
-                            default_lending_period_days: s.default_lending_period_days !== undefined ? s.default_lending_period_days : (s.defaultLendingPeriodDays ?? 14),
-                            updated_at: s.updated_at || s.updatedAt || new Date().toISOString()
-                        }));
+                        exportRows = rows.map((s: any) => {
+                            const instId = s.institution_id || s.institutionId || 'inst_default';
+                            const overdue = s.overdue_fine_per_day !== undefined ? s.overdue_fine_per_day : (s.overdueFinePerDay ?? 0);
+                            const maxBooks = s.max_books_per_user !== undefined ? s.max_books_per_user : (s.maxBooksPerUser ?? 3);
+                            const expiry = s.reservation_expiry_days !== undefined ? s.reservation_expiry_days : (s.reservationExpiryDays ?? 3);
+                            const period = s.default_lending_period_days !== undefined ? s.default_lending_period_days : (s.defaultLendingPeriodDays ?? 14);
+                            const updated = s.updated_at || s.updatedAt || new Date().toISOString();
+                            return {
+                                institution_id: instId,
+                                institutionId: instId,
+                                overdue_fine_per_day: overdue,
+                                overdueFinePerDay: String(overdue),
+                                max_books_per_user: maxBooks,
+                                maxBooksPerUser: maxBooks,
+                                reservation_expiry_days: expiry,
+                                reservationExpiryDays: expiry,
+                                default_lending_period_days: period,
+                                defaultLendingPeriodDays: period,
+                                updated_at: updated,
+                                updatedAt: updated
+                            };
+                        });
+                    } else if (tableName === 'ds_settings') {
+                        exportRows = rows.map((s: any) => {
+                            const instId = s.institution_id || s.institutionId || 'inst_default';
+                            return {
+                                ...s,
+                                institution_id: instId,
+                                institutionId: instId
+                            };
+                        });
                     }
                     tableCounts[tableName] = exportRows.length;
                     const sql = buildInsertStatements(tableName, exportRows);
@@ -1796,6 +1822,13 @@ export async function collectAndDownloadFullSqlBackup(options?: {
         ``,
         `-- DYNAMICALLY DROP NOT NULL ON ALL institution_id & institutionId COLUMNS ACROSS PUBLIC SCHEMA`,
         `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name IN ('institution_id', 'institutionId') AND is_nullable = 'NO') LOOP BEGIN EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP NOT NULL', r.table_name, r.column_name); EXCEPTION WHEN OTHERS THEN NULL; END; END LOOP; END $$;`,
+        ``,
+        `-- DYNAMICALLY ENSURE BOTH institution_id & institutionId EXIST ACROSS ALL PUBLIC TABLES`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE') LOOP IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = r.table_name AND column_name = 'institution_id') THEN EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS "institutionId" TEXT', r.table_name); END IF; IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = r.table_name AND column_name = 'institutionId') THEN EXECUTE format('ALTER TABLE public.%I ADD COLUMN IF NOT EXISTS institution_id TEXT', r.table_name); END IF; END LOOP; END $$;`,
+        ``,
+        `-- UNIVERSAL BEFORE-INSERT SYNCHRONIZATION TRIGGER FOR TENANT IDENTIFIERS`,
+        `CREATE OR REPLACE FUNCTION public.fn_sync_institution_ids() RETURNS TRIGGER AS $$ DECLARE new_json jsonb; BEGIN new_json := to_jsonb(NEW); IF (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NOT NULL THEN IF NEW.institution_id IS NULL THEN NEW.institution_id := new_json->>'institutionId'; END IF; END IF; IF (new_json ? 'institution_id') AND (new_json->>'institution_id') IS NOT NULL THEN IF NEW."institutionId" IS NULL THEN NEW."institutionId" := new_json->>'institution_id'; END IF; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql;`,
+        `DO $$ DECLARE r RECORD; BEGIN FOR r IN (SELECT c1.table_name FROM information_schema.columns c1 JOIN information_schema.columns c2 ON c1.table_name = c2.table_name AND c1.table_schema = c2.table_schema WHERE c1.table_schema = 'public' AND c1.column_name = 'institution_id' AND c2.column_name = 'institutionId') LOOP EXECUTE format('DROP TRIGGER IF EXISTS trg_sync_inst_id ON public.%I', r.table_name); EXECUTE format('CREATE TRIGGER trg_sync_inst_id BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.fn_sync_institution_ids()', r.table_name); END LOOP; END $$;`,
         ``,
         `-- FIX FOREIGN KEY CONSTRAINTS FOR RESTORE`,
         `ALTER TABLE public.institutions DROP CONSTRAINT IF EXISTS institutions_reseller_id_fkey CASCADE;`,
