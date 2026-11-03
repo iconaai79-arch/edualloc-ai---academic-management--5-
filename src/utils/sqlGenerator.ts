@@ -2586,7 +2586,7 @@ CREATE TABLE IF NOT EXISTS his_pharmacy_sale_items (
     sale_id TEXT REFERENCES his_pharmacy_sales(id) ON DELETE CASCADE,
     medication_id TEXT REFERENCES his_pharmacy_inventory(id) ON DELETE SET NULL,
     batch_id TEXT REFERENCES his_pharmacy_batches(id) ON DELETE SET NULL,
-    quantity INTEGER NOT NULL DEFAULT 1,
+    quantity DECIMAL(12,2) NOT NULL DEFAULT 1,
     unit_price DECIMAL(10,2) NOT NULL DEFAULT 0,
     total_price DECIMAL(10,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

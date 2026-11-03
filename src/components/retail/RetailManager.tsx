@@ -844,7 +844,7 @@ export function RetailManager(props: RetailManagerProps) {
 
                         {/* Quick POS Launch Footer Card (Desktop) */}
                         {!isSidebarCollapsed ? (
-                            <div className="p-4 border-t border-white/10 bg-black/30 space-y-3 relative z-10">
+                            <div className="p-4 border-t border-white/10 bg-black/30 space-y-2.5 relative z-10">
                                 <button
                                     onClick={() => setActiveView('pos')}
                                     className={`w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r ${themeStyles.posBtnGradient} text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all group border border-white/20`}
@@ -852,8 +852,18 @@ export function RetailManager(props: RetailManagerProps) {
                                     <Smartphone className="w-4 h-4 transition-transform group-hover:scale-110" />
                                     <span>Launch POS Terminal</span>
                                 </button>
+
+                                <a
+                                    href={`/?shop=${currentInstitution?.slug || currentInstitution?.id}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-black text-[10px] uppercase tracking-wider transition-all border border-white/10 text-center"
+                                    title="Open Public Agency Shop Profile"
+                                >
+                                    <span>🌐 Public Shop Profile</span>
+                                </a>
                                 
-                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-1">
+                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 px-1 pt-0.5">
                                     <span className="flex items-center gap-1.5">
                                         <span className={`w-1.5 h-1.5 rounded-full ${themeStyles.accentGlow}`}></span>
                                         {currentUser?.name?.split(' ')[0] || 'Agent'}
