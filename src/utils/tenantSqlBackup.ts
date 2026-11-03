@@ -327,7 +327,6 @@ function buildInsertStatements(tableName: string, rows: any[]): string {
     lines.push(`-- ============================================================================`);
 
     // Self-healing DDL: create table if missing, then ensure all columns exist
-    const isSettingsTable = tableName === 'library_settings' || tableName === 'ds_settings';
     const hasId = !isSettingsTable && columns.includes('id');
     const hasInstId = columns.includes('institution_id') || columns.includes('institutionId');
     if (isSettingsTable && hasInstId) {
