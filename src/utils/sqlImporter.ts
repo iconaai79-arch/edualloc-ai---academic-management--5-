@@ -90,27 +90,27 @@ export function sanitizeSqlStatement(statement: string): string {
     // Client-side dumps have camelCase keys ("institutionId", "overdueFinePerDay", etc.)
     // but PostgreSQL public.library_settings expects snake_case (institution_id, overdue_fine_per_day, etc.)
     if (/library_settings/i.test(s)) {
-        s = s.replace(/(["'`]?)institutionId\1/g, '"institution_id"');
-        s = s.replace(/(["'`]?)overdueFinePerDay\1/g, '"overdue_fine_per_day"');
-        s = s.replace(/(["'`]?)maxBooksPerUser\1/g, '"max_books_per_user"');
-        s = s.replace(/(["'`]?)reservationExpiryDays\1/g, '"reservation_expiry_days"');
-        s = s.replace(/(["'`]?)defaultLendingPeriodDays\1/g, '"default_lending_period_days"');
-        s = s.replace(/(["'`]?)updatedAt\1/g, '"updated_at"');
+        s = s.replace(/(["'`]?)institutionId\1/gi, '"institution_id"');
+        s = s.replace(/(["'`]?)overdueFinePerDay\1/gi, '"overdue_fine_per_day"');
+        s = s.replace(/(["'`]?)maxBooksPerUser\1/gi, '"max_books_per_user"');
+        s = s.replace(/(["'`]?)reservationExpiryDays\1/gi, '"reservation_expiry_days"');
+        s = s.replace(/(["'`]?)defaultLendingPeriodDays\1/gi, '"default_lending_period_days"');
+        s = s.replace(/(["'`]?)updatedAt\1/gi, '"updated_at"');
     }
 
     // 6. Explicit column remapping for ds_settings:
     if (/ds_settings/i.test(s)) {
-        s = s.replace(/(["'`]?)institutionId\1/g, '"institution_id"');
-        s = s.replace(/(["'`]?)schedulingRules\1/g, '"scheduling_rules"');
-        s = s.replace(/(["'`]?)autoSchedulingEnabled\1/g, '"auto_scheduling_enabled"');
-        s = s.replace(/(["'`]?)invoicePrefix\1/g, '"invoice_prefix"');
-        s = s.replace(/(["'`]?)receiptPrefix\1/g, '"receipt_prefix"');
-        s = s.replace(/(["'`]?)studentIdPrefix\1/g, '"student_id_prefix"');
-        s = s.replace(/(["'`]?)licenseCategories\1/g, '"license_categories"');
-        s = s.replace(/(["'`]?)licenseGroups\1/g, '"license_groups"');
-        s = s.replace(/(["'`]?)cancellationPolicy\1/g, '"cancellation_policy"');
-        s = s.replace(/(["'`]?)createdAt\1/g, '"created_at"');
-        s = s.replace(/(["'`]?)updatedAt\1/g, '"updated_at"');
+        s = s.replace(/(["'`]?)institutionId\1/gi, '"institution_id"');
+        s = s.replace(/(["'`]?)schedulingRules\1/gi, '"scheduling_rules"');
+        s = s.replace(/(["'`]?)autoSchedulingEnabled\1/gi, '"auto_scheduling_enabled"');
+        s = s.replace(/(["'`]?)invoicePrefix\1/gi, '"invoice_prefix"');
+        s = s.replace(/(["'`]?)receiptPrefix\1/gi, '"receipt_prefix"');
+        s = s.replace(/(["'`]?)studentIdPrefix\1/gi, '"student_id_prefix"');
+        s = s.replace(/(["'`]?)licenseCategories\1/gi, '"license_categories"');
+        s = s.replace(/(["'`]?)licenseGroups\1/gi, '"license_groups"');
+        s = s.replace(/(["'`]?)cancellationPolicy\1/gi, '"cancellation_policy"');
+        s = s.replace(/(["'`]?)createdAt\1/gi, '"created_at"');
+        s = s.replace(/(["'`]?)updatedAt\1/gi, '"updated_at"');
     }
 
     // 7. Universal normalization of INSERT headers:

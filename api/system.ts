@@ -550,59 +550,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     try {
                         const initClient = await pool.connect();
                         await initClient.query(`
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "overdueFinePerDay" TEXT;
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "maxBooksPerUser" BIGINT;
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "reservationExpiryDays" BIGINT;
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "defaultLendingPeriodDays" BIGINT;
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "id" TEXT;
+
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "schedulingRules" JSONB;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "autoSchedulingEnabled" BOOLEAN;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "invoicePrefix" TEXT;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "receiptPrefix" TEXT;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "studentIdPrefix" TEXT;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "licenseCategories" JSONB;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "licenseGroups" JSONB;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "cancellationPolicy" TEXT;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
+                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+
                             DO $$
                             BEGIN
-                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "overdueFinePerDay" TEXT;
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "maxBooksPerUser" BIGINT;
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "reservationExpiryDays" BIGINT;
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "defaultLendingPeriodDays" BIGINT;
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
-                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "id" TEXT;
+                                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'library_settings' AND column_name = 'institutionId') THEN
+                                    EXECUTE 'UPDATE public.library_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL';
                                 END IF;
-                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "schedulingRules" JSONB;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "autoSchedulingEnabled" BOOLEAN;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "invoicePrefix" TEXT;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "receiptPrefix" TEXT;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "studentIdPrefix" TEXT;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "licenseCategories" JSONB;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "licenseGroups" JSONB;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "cancellationPolicy" TEXT;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "createdAt" TEXT;
-                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "updatedAt" TEXT;
+                                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ds_settings' AND column_name = 'institutionId') THEN
+                                    EXECUTE 'UPDATE public.ds_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL';
                                 END IF;
-                                BEGIN
-                                    UPDATE public.library_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
-                                EXCEPTION WHEN OTHERS THEN NULL;
-                                END;
-                                BEGIN
-                                    UPDATE public.ds_settings SET institution_id = "institutionId" WHERE institution_id IS NULL AND "institutionId" IS NOT NULL;
-                                EXCEPTION WHEN OTHERS THEN NULL;
-                                END;
+                            EXCEPTION WHEN OTHERS THEN NULL;
                             END $$;
 
                             CREATE OR REPLACE FUNCTION public.sync_library_settings_columns() RETURNS TRIGGER AS $$
+                            DECLARE
+                                new_json jsonb;
                             BEGIN
-                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
-                                    NEW.institution_id := NEW."institutionId";
+                                new_json := to_jsonb(NEW);
+                                IF NEW.institution_id IS NULL AND (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NOT NULL THEN
+                                    NEW.institution_id := new_json->>'institutionId';
                                 END IF;
-                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
-                                    NEW."institutionId" := NEW.institution_id;
+                                IF (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                    BEGIN NEW."institutionId" := NEW.institution_id; EXCEPTION WHEN OTHERS THEN NULL; END;
                                 END IF;
-                                IF NEW.overdue_fine_per_day IS NULL AND NEW."overdueFinePerDay" IS NOT NULL THEN
-                                    BEGIN NEW.overdue_fine_per_day := NEW."overdueFinePerDay"::NUMERIC; EXCEPTION WHEN OTHERS THEN NULL; END;
+                                IF NEW.overdue_fine_per_day IS NULL AND (new_json ? 'overdueFinePerDay') AND (new_json->>'overdueFinePerDay') IS NOT NULL THEN
+                                    BEGIN NEW.overdue_fine_per_day := (new_json->>'overdueFinePerDay')::NUMERIC; EXCEPTION WHEN OTHERS THEN NULL; END;
                                 END IF;
-                                IF NEW.max_books_per_user IS NULL AND NEW."maxBooksPerUser" IS NOT NULL THEN
-                                    NEW.max_books_per_user := NEW."maxBooksPerUser";
+                                IF NEW.max_books_per_user IS NULL AND (new_json ? 'maxBooksPerUser') AND (new_json->>'maxBooksPerUser') IS NOT NULL THEN
+                                    BEGIN NEW.max_books_per_user := (new_json->>'maxBooksPerUser')::BIGINT; EXCEPTION WHEN OTHERS THEN NULL; END;
                                 END IF;
-                                IF NEW.reservation_expiry_days IS NULL AND NEW."reservationExpiryDays" IS NOT NULL THEN
-                                    NEW.reservation_expiry_days := NEW."reservationExpiryDays";
+                                IF NEW.reservation_expiry_days IS NULL AND (new_json ? 'reservationExpiryDays') AND (new_json->>'reservationExpiryDays') IS NOT NULL THEN
+                                    BEGIN NEW.reservation_expiry_days := (new_json->>'reservationExpiryDays')::BIGINT; EXCEPTION WHEN OTHERS THEN NULL; END;
                                 END IF;
-                                IF NEW.default_lending_period_days IS NULL AND NEW."defaultLendingPeriodDays" IS NOT NULL THEN
-                                    NEW.default_lending_period_days := NEW."defaultLendingPeriodDays";
+                                IF NEW.default_lending_period_days IS NULL AND (new_json ? 'defaultLendingPeriodDays') AND (new_json->>'defaultLendingPeriodDays') IS NOT NULL THEN
+                                    BEGIN NEW.default_lending_period_days := (new_json->>'defaultLendingPeriodDays')::BIGINT; EXCEPTION WHEN OTHERS THEN NULL; END;
                                 END IF;
                                 RETURN NEW;
                             END;
@@ -619,12 +619,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             END $$;
 
                             CREATE OR REPLACE FUNCTION public.sync_ds_settings_columns() RETURNS TRIGGER AS $$
+                            DECLARE
+                                new_json jsonb;
                             BEGIN
-                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
-                                    NEW.institution_id := NEW."institutionId";
+                                new_json := to_jsonb(NEW);
+                                IF NEW.institution_id IS NULL AND (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NOT NULL THEN
+                                    NEW.institution_id := new_json->>'institutionId';
                                 END IF;
-                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
-                                    NEW."institutionId" := NEW.institution_id;
+                                IF (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                    BEGIN NEW."institutionId" := NEW.institution_id; EXCEPTION WHEN OTHERS THEN NULL; END;
                                 END IF;
                                 RETURN NEW;
                             END;
@@ -840,25 +843,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                     // Ensure sync trigger exists on library_settings / ds_settings
                                     if (violatingTable === 'library_settings' || violatingTable === 'ds_settings' || violatingCol === 'institution_id') {
                                         await healClient.query(`
-                                            DO $$
-                                            BEGIN
-                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'library_settings') THEN
-                                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
-                                                    ALTER TABLE public.library_settings ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
-                                                END IF;
-                                                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'ds_settings') THEN
-                                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
-                                                    ALTER TABLE public.ds_settings ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
-                                                END IF;
-                                            END $$;
+                                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                            ALTER TABLE IF EXISTS public.library_settings ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
+                                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "institutionId" TEXT;
+                                            ALTER TABLE IF EXISTS public.ds_settings ADD COLUMN IF NOT EXISTS "institution_id" TEXT;
 
                                             CREATE OR REPLACE FUNCTION public.sync_library_settings_columns() RETURNS TRIGGER AS $$
+                                            DECLARE
+                                                new_json jsonb;
                                             BEGIN
-                                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
-                                                    NEW.institution_id := NEW."institutionId";
+                                                new_json := to_jsonb(NEW);
+                                                IF NEW.institution_id IS NULL AND (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NOT NULL THEN
+                                                    NEW.institution_id := new_json->>'institutionId';
                                                 END IF;
-                                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
-                                                    NEW."institutionId" := NEW.institution_id;
+                                                IF (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                                    BEGIN NEW."institutionId" := NEW.institution_id; EXCEPTION WHEN OTHERS THEN NULL; END;
                                                 END IF;
                                                 RETURN NEW;
                                             END;
@@ -875,12 +874,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                             END $$;
 
                                             CREATE OR REPLACE FUNCTION public.sync_ds_settings_columns() RETURNS TRIGGER AS $$
+                                            DECLARE
+                                                new_json jsonb;
                                             BEGIN
-                                                IF NEW.institution_id IS NULL AND NEW."institutionId" IS NOT NULL THEN
-                                                    NEW.institution_id := NEW."institutionId";
+                                                new_json := to_jsonb(NEW);
+                                                IF NEW.institution_id IS NULL AND (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NOT NULL THEN
+                                                    NEW.institution_id := new_json->>'institutionId';
                                                 END IF;
-                                                IF NEW."institutionId" IS NULL AND NEW.institution_id IS NOT NULL THEN
-                                                    NEW."institutionId" := NEW.institution_id;
+                                                IF (new_json ? 'institutionId') AND (new_json->>'institutionId') IS NULL AND NEW.institution_id IS NOT NULL THEN
+                                                    BEGIN NEW."institutionId" := NEW.institution_id; EXCEPTION WHEN OTHERS THEN NULL; END;
                                                 END IF;
                                                 RETURN NEW;
                                             END;
@@ -898,10 +900,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                                         `).catch(() => {});
                                     }
 
-                                    // Rewrite statement replacing camelCase column with snake_case
-                                    let retryStmt = singleStmt;
-                                    if (violatingCol === 'institution_id') {
-                                        retryStmt = retryStmt.replace(/(["'`]?)institutionId\1/gi, '"institution_id"');
+                                    // Rewrite statement replacing camelCase columns with snake_case
+                                    let retryStmt = sanitizeSqlStatement(singleStmt);
+                                    if (violatingTable === 'library_settings' || violatingCol === 'institution_id') {
+                                        retryStmt = retryStmt
+                                            .replace(/(["'`]?)institutionId\1/gi, '"institution_id"')
+                                            .replace(/(["'`]?)overdueFinePerDay\1/gi, '"overdue_fine_per_day"')
+                                            .replace(/(["'`]?)maxBooksPerUser\1/gi, '"max_books_per_user"')
+                                            .replace(/(["'`]?)reservationExpiryDays\1/gi, '"reservation_expiry_days"')
+                                            .replace(/(["'`]?)defaultLendingPeriodDays\1/gi, '"default_lending_period_days"')
+                                            .replace(/(["'`]?)updatedAt\1/gi, '"updated_at"');
+                                    }
+                                    if (violatingTable === 'ds_settings') {
+                                        retryStmt = retryStmt
+                                            .replace(/(["'`]?)institutionId\1/gi, '"institution_id"')
+                                            .replace(/(["'`]?)schedulingRules\1/gi, '"scheduling_rules"')
+                                            .replace(/(["'`]?)autoSchedulingEnabled\1/gi, '"auto_scheduling_enabled"')
+                                            .replace(/(["'`]?)invoicePrefix\1/gi, '"invoice_prefix"')
+                                            .replace(/(["'`]?)receiptPrefix\1/gi, '"receipt_prefix"')
+                                            .replace(/(["'`]?)studentIdPrefix\1/gi, '"student_id_prefix"')
+                                            .replace(/(["'`]?)licenseCategories\1/gi, '"license_categories"')
+                                            .replace(/(["'`]?)licenseGroups\1/gi, '"license_groups"')
+                                            .replace(/(["'`]?)cancellationPolicy\1/gi, '"cancellation_policy"')
+                                            .replace(/(["'`]?)createdAt\1/gi, '"created_at"')
+                                            .replace(/(["'`]?)updatedAt\1/gi, '"updated_at"');
                                     }
 
                                     lastResult = await healClient.query(retryStmt);
