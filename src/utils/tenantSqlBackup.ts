@@ -555,14 +555,28 @@ export function generateTenantSqlDump(data: TenantBackupData): string {
         sections.push(buildInsertStatements('library_fines', data.libraryFines));
     }
     if (data.librarySettings && data.librarySettings.length > 0) {
-        const normalizedLibSettings = data.librarySettings.map((s: any) => ({
-            institution_id: s.institution_id || s.institutionId,
-            overdue_fine_per_day: s.overdue_fine_per_day !== undefined ? s.overdue_fine_per_day : (s.overdueFinePerDay ?? 0),
-            max_books_per_user: s.max_books_per_user !== undefined ? s.max_books_per_user : (s.maxBooksPerUser ?? 3),
-            reservation_expiry_days: s.reservation_expiry_days !== undefined ? s.reservation_expiry_days : (s.reservationExpiryDays ?? 3),
-            default_lending_period_days: s.default_lending_period_days !== undefined ? s.default_lending_period_days : (s.defaultLendingPeriodDays ?? 14),
-            updated_at: s.updated_at || s.updatedAt || new Date().toISOString()
-        }));
+        const normalizedLibSettings = data.librarySettings.map((s: any) => {
+            const instId = s.institution_id || s.institutionId || 'inst_default';
+            const overdue = s.overdue_fine_per_day !== undefined ? s.overdue_fine_per_day : (s.overdueFinePerDay ?? 0);
+            const maxBooks = s.max_books_per_user !== undefined ? s.max_books_per_user : (s.maxBooksPerUser ?? 3);
+            const expiry = s.reservation_expiry_days !== undefined ? s.reservation_expiry_days : (s.reservationExpiryDays ?? 3);
+            const period = s.default_lending_period_days !== undefined ? s.default_lending_period_days : (s.defaultLendingPeriodDays ?? 14);
+            const updated = s.updated_at || s.updatedAt || new Date().toISOString();
+            return {
+                institution_id: instId,
+                institutionId: instId,
+                overdue_fine_per_day: overdue,
+                overdueFinePerDay: String(overdue),
+                max_books_per_user: maxBooks,
+                maxBooksPerUser: maxBooks,
+                reservation_expiry_days: expiry,
+                reservationExpiryDays: expiry,
+                default_lending_period_days: period,
+                defaultLendingPeriodDays: period,
+                updated_at: updated,
+                updatedAt: updated
+            };
+        });
         sections.push(buildInsertStatements('library_settings', normalizedLibSettings));
     }
     if (data.bookReservations && data.bookReservations.length > 0) {
